@@ -26,16 +26,20 @@ Seguridad: `Admin`/`Usuario`, `Rol`, `Permiso`.
 
 Reglas de dominio que hay que respetar (son verdad de terreno, salen del diagrama de clases):
 
-- **Soft delete** en todo: `fechaHoraBaja` / `fechaHoraFinVigencia`. Nunca borrar físico.
-- Todas las entidades son **`Auditable`** (fecha alta/modificación, usuario).
+- **Soft delete** en las entidades que lo necesitan: columna `deleted_at` (Instant, NULL activo).
+  Nunca borrar físico. NO es parte de `Auditable`: cada entidad lo agrega si la regla lo pide.
+- Todas las entidades son **`Auditable`** (`created_at`, `updated_at`, `created_by`, `updated_by`
+  en UTC como `Instant`).
+- **Nomenclatura en BD**: `snake_case` para todas las columnas (ej. `created_at`, `updated_by`,
+  `deleted_at`). En Java: `camelCase` (ej. `createdAt`, `updatedBy`, `deletedAt`).
 - `Turno N→1 AgendaMedicoHorariosRango` y `Turno N→1 MedicoPrestacion`.
   A `Medico` y `Prestacion` desde `Turno` **solo se llega vía `MedicoPrestacion`**
   (asociaciones derivadas de solo lectura, sin FK redundante).
 - Estados del `Turno` (DTE): `Pendiente → EsperaValidacion → Confirmado →
   Iniciado/Ausente → Finalizado/Cancelado`, con `EnSalaDeEspera` entre Confirmado e
-  Iniciado/Ausente. El estado activo es el `HistoricoEstadoTurno` con `fechaHoraFin` vacío.
-- Los horarios de los turnos se **calculan al vuelo** (`slot(n) = horaDesde + n ×
-  duracionTurnoMinutos`), nunca se persisten como catálogo.
+  Iniciado/Ausente. El estado activo es el `HistoricoEstadoTurno` con `finishedAt` vacío.
+- Los horarios de los turnos se **calculan al vuelo** (`slot(n) = startTime + n ×
+  durationMinutes`), nunca se persisten como catálogo.
 - **Atomicidad**: 1 `Confirmar` = 1 operación atómica = 1 endpoint/transacción.
 
 ## Convenciones no negociables

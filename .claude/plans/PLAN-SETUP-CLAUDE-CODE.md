@@ -92,9 +92,10 @@ Esto **no es una feature**: es infraestructura compartida por todas las features
 sin la cual ninguna puede compilar. Crear, aplicando las skills de estilo, javadoc y
 logging:
 
-1. `Domain/Auditable.java` — `@MappedSuperclass` con `fechaHoraAlta`,
-   `fechaHoraModificacion`, `usuarioAlta`, `usuarioModificacion` y, como base del soft
-   delete, el criterio de `fechaHoraBaja` donde aplique. Activar `@EnableJpaAuditing`.
+1. `Domain/Auditable.java` — `@MappedSuperclass` con `createdAt`, `updatedAt` (Instant, UTC),
+   `createdBy`, `updatedBy` (String). Sin soft delete aquí: cada entidad que lo necesite agrega
+   `deletedAt` propio. Activar `@EnableJpaAuditing`. Columnas en BD: `snake_case` (ej.
+   `created_at`, `updated_by`, `deleted_at`).
 2. `Services/Errors/AccesMedException.java` (abstract, `RuntimeException`, con `codigo`,
    `httpStatus` y `origen` — constructor `(Class<?> origen, String codigo, String
    mensaje, int httpStatus)`; `origen` guarda `origen.getSimpleName()`, solo para diagnóstico).

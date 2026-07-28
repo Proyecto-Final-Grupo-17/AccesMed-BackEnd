@@ -39,7 +39,7 @@ proponé un default y pedí confirmación. Cubrí:
 5. **Relaciones y navegabilidad**: respetar el diagrama (ej. a `Medico`/`Prestacion` desde
    `Turno` solo vía `MedicoPrestacion`). ¿FK reales o asociación derivada de solo lectura?
 6. **Soft delete y auditoría**: por defecto sí (extiende `Auditable`, filtra por
-   `fechaHoraBaja IS NULL`). Confirmar.
+   `deleted_at IS NULL`). Confirmar.
 7. **¿La consume el agente?**: si sí, ¿necesita controller/records propios en `Agente/` que
    reutilicen el mismo App?
 

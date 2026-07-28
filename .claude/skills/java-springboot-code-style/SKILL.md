@@ -219,13 +219,9 @@ if (!errores.isEmpty()) {
 
 ## 8. Reglas de dominio de AccesMed que el código debe respetar
 
-- **Soft delete** siempre: filtrar por `fechaHoraBaja IS NULL` / `fechaHoraFinVigencia`.
+- **Soft delete** siempre: cada entidad que lo necesite agrega `deletedAt` (Instant).
   Nunca `delete` físico salvo caso justificado.
-- Entidades extienden `Auditable`.
-- Navegabilidad estricta: a `Medico`/`Prestacion` desde `Turno` **solo vía `MedicoPrestacion`**.
-- Estado del turno = `HistoricoEstadoTurno` con `fechaHoraFin` vacío. Las transiciones son
-  operaciones/endpoints propios, no un setter de `estado`.
-- `@Transactional` en el App (nivel de caso de uso), no en el controller.
+- Entidades extienden `Auditable` (`createdDate`, `lastModifiedDate`, `createdBy`, `lastModifiedBy`).
 
 ## 9. Formato general
 

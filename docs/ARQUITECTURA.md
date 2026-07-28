@@ -652,6 +652,6 @@ en el repository), combinadas con el **metamodelo estático de JPA** generado po
   `root.get("estadoActual")` — seguro ante refactors, error de compilación si el campo no existe.
 
 > **Pendiente de definir**: un helper genérico de soft delete (ej.
-> `AuditableSpecifications.isActivo()`) que filtre por `fechaHoraBaja IS NULL` de forma
+> `AuditableSpecifications.isActive()`) que filtre por `deleted_at IS NULL` de forma
 > reutilizable. No se implementa todavía porque no está confirmado que **todas** las
-> entidades usen `fechaHoraBaja` de la misma manera — a resolver antes de generalizarlo.
+> entidades usen `deleted_at` de la misma manera — a resolver antes de generalizarlo.

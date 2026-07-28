@@ -11,11 +11,13 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
- * Superclase mapeada con los campos de auditoría comunes a toda entidad del dominio, y
- * base del criterio de soft delete ({@code fechaHoraBaja}).
+ * Superclase mapeada con los campos de auditoría comunes a toda entidad del dominio:
+ * quién y cuándo creó/modificó cada registro. Las fechas son {@code Instant} (UTC).
+ *
+ * Soft delete (columna {@code deleted_at}) va en cada entidad que lo necesite, no aquí.
  */
 @Getter
 @Setter
@@ -26,23 +28,20 @@ public abstract class Auditable {
     //region ========== Atributos ==========
 
     @CreatedDate
-    @Column(name = "fecha_hora_alta", nullable = false, updatable = false)
-    private LocalDateTime fechaHoraAlta;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdDate;
 
     @LastModifiedDate
-    @Column(name = "fecha_hora_modificacion")
-    private LocalDateTime fechaHoraModificacion;
+    @Column(name = "updated_at")
+    private Instant lastModifiedDate;
 
     @CreatedBy
-    @Column(name = "usuario_alta", updatable = false)
-    private String usuarioAlta;
+    @Column(name = "created_by", updatable = false)
+    private String createdBy;
 
     @LastModifiedBy
-    @Column(name = "usuario_modificacion")
-    private String usuarioModificacion;
-
-    @Column(name = "fecha_hora_baja")
-    private LocalDateTime fechaHoraBaja;
+    @Column(name = "updated_by")
+    private String lastModifiedBy;
 
     //endregion
 

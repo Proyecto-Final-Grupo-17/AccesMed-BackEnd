@@ -64,17 +64,79 @@ Detalle completo, criterios y fuentes en [`docs/STACK.md`](docs/STACK.md).
 Liquibase aplica las migraciones de esquema automáticamente al arrancar (`ddl-auto:
 validate`, nunca `update`/`create`: el esquema lo maneja Liquibase, no Hibernate).
 
-## Comandos útiles
+## Comandos necesarios
+
+### Correr la aplicación
 
 ```bash
-./mvnw clean compile     # compilar
-./mvnw test              # tests
-./mvnw spring-boot:run   # levantar (con el perfil que corresponda)
+SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
+```
 
+PowerShell:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE="dev"; ./mvnw spring-boot:run
+```
+
+Sin `SPRING_PROFILES_ACTIVE`, Spring Boot arranca con el perfil `default` (ninguno de
+`dev`/`staging`/`prod`) y **no** aplica `application-dev.yml` — el docker-compose de
+`dev` no se detecta y el arranque falla. Perfiles disponibles: `dev`, `staging`, `prod`
+(ver tabla en [Perfiles](#perfiles)).
+
+**Si se ejecuta con el botón Run del IDE (IntelliJ):** el perfil hay que configurarlo
+a mano en la Run Configuration antes de darle Run — si no, corre en `default` y falla
+igual que sin la variable de entorno por consola.
+
+1. **Run → Edit Configurations…** → seleccionar `AccesMedApplication`.
+2. Completar el campo **"Active profiles"** con `dev` (si no aparece ese campo,
+   agregar en **Environment variables**: `SPRING_PROFILES_ACTIVE=dev`).
+3. Apply → OK.
+
+Para no repetir el paso cada vez, conviene duplicar la Run Configuration una vez por
+perfil (`AccesMed-dev`, `AccesMed-staging`, `AccesMed-prod`) y elegir cuál correr desde
+el dropdown del IDE.
+
+### Maven
+
+```bash
+./mvnw clean              # borra target/
+./mvnw compile            # compila el código principal
+./mvnw test                # corre los tests
+./mvnw install             # compila, testea e instala el artefacto en el repo local (~/.m2)
+./mvnw verify              # corre el ciclo completo, incluidas las fases de integración/checks post-test
+./mvnw clean install       # combinación típica antes de un PR: limpio + reconstruyo + testeo
+```
+
+**Tests específicos:**
+
+```bash
+./mvnw test -Dtest=PrestacionServiceTest              # una clase
+./mvnw test -Dtest=PrestacionServiceTest#shouldCreate  # un método de una clase
+./mvnw test -Dtest=Prestacion*Test                     # por patrón de nombre
+```
+
+**Saltear tests:**
+
+```bash
+./mvnw install -DskipTests        # compila los tests pero no los ejecuta
+./mvnw install -Dmaven.test.skip=true  # ni compila ni ejecuta los tests
+```
+
+`-DskipTests` es la opción recomendada para uso normal (deja el código de test
+compilado y detecta errores de compilación en los tests aunque no se ejecuten).
+`-Dmaven.test.skip=true` se reserva para casos puntuales (por ejemplo, un módulo de test
+roto que bloquea un build urgente).
+
+### Docker
+
+```bash
 cd docker/dev
-docker compose up -d     # levantar Postgres
-docker compose down      # bajar Postgres (conserva el volumen de datos)
-docker compose down -v   # bajar y BORRAR los datos
+docker compose up -d          # levantar Postgres en background
+docker compose ps             # ver estado de los contenedores
+docker compose logs -f        # seguir logs en vivo
+docker compose down           # bajar Postgres (conserva el volumen de datos)
+docker compose down -v        # bajar y BORRAR los datos (reinicia el volumen)
+docker compose restart        # reiniciar el contenedor sin recrearlo
 ```
 
 ## Perfiles y ramas

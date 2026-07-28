@@ -9,8 +9,8 @@ import java.util.Optional;
 
 /**
  * Habilita la auditoría automática de JPA que completa los campos de {@code Auditable}
- * ({@code fechaHoraAlta}, {@code fechaHoraModificacion}, {@code usuarioAlta},
- * {@code usuarioModificacion}) al persistir o actualizar cualquier entidad.
+ * ({@code createdDate}, {@code lastModifiedDate}, {@code createdBy},
+ * {@code lastModifiedBy}) al persistir o actualizar cualquier entidad.
  */
 @Configuration
 @EnableJpaAuditing(auditorAwareRef = "auditorAware")
@@ -19,7 +19,7 @@ public class JpaAuditingConfig {
     //region ========== Métodos ==========
 
     /**
-     * Provee el usuario actual para {@code usuarioAlta}/{@code usuarioModificacion}.
+     * Provee el usuario actual para {@code createdBy}/{@code lastModifiedBy}.
      * Placeholder hasta que exista la feature de Security (que lo resolverá desde el
      * usuario autenticado): hoy siempre devuelve {@code "system"}.
      *
