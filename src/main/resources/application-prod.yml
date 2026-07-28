@@ -1,0 +1,6 @@
+# Esqueleto mínimo: se completa cuando se defina la infraestructura de prod.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}

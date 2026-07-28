@@ -1,0 +1,49 @@
+# AccesMed — perfil DEV: Postgres local para desarrollo.
+#
+# Uso:
+#   cp .env.example .env      # y completar credenciales
+#   docker compose up -d      # levantar
+#   docker compose ps         # ver estado / health
+#   docker compose down       # bajar (conserva datos)
+#   docker compose down -v    # bajar y BORRAR datos
+#
+# La app se conecta con el perfil `dev` (application-dev.yml) a localhost:${POSTGRES_PORT}.
+
+name: accesmed-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: accesmed-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-accesmed}
+      POSTGRES_USER: ${POSTGRES_USER:-accesmed}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-accesmed}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - accesmed_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-accesmed} -d ${POSTGRES_DB:-accesmed}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Opcional: interfaz web para inspeccionar la BD. Comentá el bloque si no lo querés.
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: accesmed-pgadmin-dev
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@accesmed.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  accesmed_pgdata:
+    name: accesmed_pgdata_dev

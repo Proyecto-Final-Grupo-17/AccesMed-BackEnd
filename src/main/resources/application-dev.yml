@@ -1,0 +1,10 @@
+spring:
+  docker:
+    compose:
+      file: docker/dev/docker-compose.yml
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:accesmed}
+    username: ${POSTGRES_USER:accesmed}
+    password: ${POSTGRES_PASSWORD:accesmed}
+  jpa:
+    show-sql: true
