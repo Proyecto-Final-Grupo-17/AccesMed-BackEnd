@@ -91,6 +91,12 @@ lo que él mismo atrapa: Bean Validation (`warn`) y la excepción genérica (`er
 **Generar features nuevas:** usar la skill `.claude/skills/springboot-feature-generator`,
 que pregunta el flujo y arma de controller a repositorio con estilo aplicado.
 
+**Generar o editar migraciones de esquema:** usar la skill
+`.claude/skills/liquibase-changelog-generator`, que aplica la convención de
+`docs/ARQUITECTURA.md §6` (nombre de archivo/changeset, nomenclatura de constraints e
+índices, comentarios de sección). Se usa tanto sola (agregar una columna a una entidad
+existente) como invocada por `springboot-feature-generator` al crear una entidad nueva.
+
 ## Stack
 
 Java 25 (LTS) · Maven · Spring Boot 4.1.0 (Web, Data JPA, Validation, Security, Actuator) ·

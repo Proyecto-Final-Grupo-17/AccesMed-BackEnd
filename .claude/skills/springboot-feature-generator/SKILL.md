@@ -56,12 +56,13 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
 1. **Entidad JPA** — `Domain/<Entidad>.java`
    - Solo el modelo: extiende `Auditable`. Soft delete. Relaciones con la navegabilidad correcta.
    - Constraints a nivel entidad (`@Column(nullable, unique)`, `@Size`, etc.). Sin lógica de negocio acá.
-2. **Migración Liquibase** — `resources/db/changelog/changes/YYYYMMDDHHMMSS-<Entidad>.yaml`
-   - Un archivo por entidad (no por cambio). Primer changeset con `id:
-     YYYYMMDDHHMMSS-created` (misma fecha que el nombre del archivo), crea la tabla con
-     PK, FKs, UNIQUE, NOT NULL, CHECK necesarios. Incluir **una vez** en el master
-     changelog — los changesets que se agreguen después a este mismo archivo no requieren
-     tocar el master de nuevo. Ver vocabulario de ids de changeset en `ARQUITECTURA.md §6`.
+2. **Migración Liquibase** — delegar en la skill `liquibase-changelog-generator` para
+   crear `resources/liquibase-db-changelogs/changelogs/YYYYMMDDHHMMSS-<Entidad>.xml` con
+   el primer changeset (`id: YYYYMMDDHHMMSS-added-table-<Entidad>`, misma fecha que el
+   nombre del archivo), que crea la tabla con PK, FKs, UNIQUE, NOT NULL, CHECK necesarios,
+   y el `<include>` correspondiente en `master.xml` (una sola vez). Ver convención
+   completa (nombre de archivo/changeset, nomenclatura de constraints e índices) en
+   `ARQUITECTURA.md §6`.
 3. **Repository** — `Repositories/<Entidad>Repository.java`
    - `extends JpaRepository<...>`. Queries derivadas con filtro de baja
      (`existsByCodigoAndFechaHoraBajaIsNull`, `findByIdAndFechaHoraBajaIsNull`).
@@ -108,7 +109,7 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
 - [ ] Logging aplicado según `java-springboot-logging`: `info` en Controller/App,
       `debug` en DomainService/QueryService, `warn` en el Service justo antes de cada
       `throw` (no duplicado en el handler), sin datos sensibles en `info`.
-- [ ] El archivo de changelog sigue la convención `YYYYMMDDHHMMSS-<Entidad>.yaml` con un
+- [ ] El archivo de changelog sigue la convención `YYYYMMDDHHMMSS-<Entidad>.xml` con un
       solo `include` en el master (ver `ARQUITECTURA.md §6`).
 - [ ] Clases organizadas con `//region`/`//endregion` (Dependencias, Métodos, Métodos
       auxiliares privados / Atributos, Relaciones en entidades); comentarios paso a paso

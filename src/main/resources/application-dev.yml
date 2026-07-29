@@ -1,3 +1,10 @@
+# Spring Boot Docker Compose Service Connections está habilitado (ver spring.docker.compose
+# abajo) y autoconfigura el DataSource leyendo el contenedor real cuando se corre la app
+# (./mvnw spring-boot:run). PERO se desactiva en tests (spring.docker.compose.skip.in-tests
+# = true por defecto), y AccesMedApplicationTests necesita un DataSource real contra la
+# Postgres de docker/dev/docker-compose.yml. Por eso el datasource se declara igual acá,
+# con los MISMOS defaults que docker-compose.yml (accesmed/accesmed/5432): si no seteás
+# POSTGRES_* como variables de entorno, ambos caminos (run y test) quedan alineados.
 spring:
   docker:
     compose:

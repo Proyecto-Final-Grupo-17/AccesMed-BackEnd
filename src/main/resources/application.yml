@@ -2,7 +2,7 @@ spring:
   application:
     name: AccesMed-BackEnd
   liquibase:
-    change-log: classpath:db/changelog/db.changelog-master.yaml
+    change-log: classpath:liquibase-db-changelogs/master.xml
   jpa:
     hibernate:
       ddl-auto: validate

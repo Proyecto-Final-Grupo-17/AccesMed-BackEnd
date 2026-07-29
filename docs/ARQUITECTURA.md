@@ -410,11 +410,10 @@ accesmed-backend/
     │       ├── application-dev.yml
     │       ├── application-staging.yml
     │       ├── application-prod.yml
-    │       └── db/changelog/
-    │           ├── db.changelog-master.yaml
-    │           └── changes/
-    │               ├── 20260301120000-Prestacion.yaml
-    │               └── 20260305093000-Medico.yaml
+    │       └── liquibase-db-changelogs/
+    │           ├── master.xml
+    │           └── changelogs/
+    │               └── YYYYMMDDHHMMSS-<NombreEntidad>.xml
     └── test/
         └── java/com/accesmed/backend/      # espejo de la estructura de main
 ```
@@ -538,54 +537,104 @@ Detalle en `README.md`.
 
 ### Convención de changelogs Liquibase
 
-**Un archivo por entidad**, no un archivo por cambio. El archivo acumula toda la historia
-de esa tabla: se le van agregando changesets nuevos con el tiempo, nunca se modifica un
-changeset ya ejecutado.
+Formato **XML**. **Un archivo por entidad**, no un archivo por cambio. El archivo acumula
+toda la historia de esa tabla: se le van agregando changesets nuevos con el tiempo. La
+skill `.claude/skills/liquibase-changelog-generator` aplica esta convención al crear o
+editar changelogs — se usa sola o invocada por `springboot-feature-generator`.
 
-**Nombre del archivo**: `YYYYMMDDHHMMSS-NombreEntidad.yaml`, donde el timestamp es la
+**Nombre del archivo**: `YYYYMMDDHHMMSS-NombreEntidad.xml`, donde el timestamp es la
 **fecha de creación del archivo** (el primer changeset), no de la última modificación —
 aunque se le sigan agregando changesets después, el nombre no cambia. Ejemplo:
-`20260301120000-Prestacion.yaml`.
+`20260301120000-Prestacion.xml`.
 
 **Id de cada changeset dentro del archivo**: `YYYYMMDDHHMMSS-<acción>`, con timestamp
-propio (la fecha en que ESE changeset se agregó, no la del archivo). Vocabulario fijo de acciones:
+propio (la fecha en que ESE changeset se agregó, no la del archivo — excepto el primero,
+que comparte fecha con el nombre del archivo). Vocabulario fijo de acciones, centrado en
+la tabla (no en la columna individual):
 
-- `created` — el primer changeset del archivo (crea la tabla); misma fecha que el nombre del archivo.
-- `added-column-<nombre>` — agrega una columna.
-- `dropped-column-<nombre>` — elimina una columna.
-- `modified-column-<nombre>` — cambia tipo/nullabilidad/default de una columna.
-- `added-constraint-<nombre>` — agrega una constraint (UNIQUE, CHECK, FK).
-- `added-index-<nombre>` — agrega un índice.
-- `renamed-column-<nombre>-to-<nuevoNombre>` — renombra una columna.
-- `dropped-table` — elimina la tabla completa (poco común, dado el criterio de soft delete del proyecto).
+- `added-table-<Entidad>` — primer changeset del archivo (crea la tabla); misma fecha que el nombre del archivo.
+- `updated-table-<Entidad>-<detalle>` — cualquier alteración posterior a la tabla ya creada
+  (agregar/quitar/modificar/renombrar columna, agregar constraint, agregar índice...).
+  `<detalle>` es libre y descriptivo, tantas veces se repita el patrón como haga falta:
+  `updated-table-Medico-added-column-telefono`,
+  `updated-table-Turno-added-index-idx-turno-fecha`,
+  `updated-table-Prestacion-added-constraint-uq-prestacion-codigo`.
+- `deleted-table-<Entidad>` — elimina la tabla completa (poco común, dado el criterio de soft delete del proyecto).
+
+**Nomenclatura estándar de objetos de esquema** — siempre `snake_case`, sin excepción
+(tablas, columnas, triggers, constraints, índices, funciones/procedimientos):
+
+| Objeto | Convención | Ejemplo |
+|---|---|---|
+| Primary key | `pk_<tabla>` | `pk_prestacion` |
+| Foreign key | `fk_<tabla_origen>_<tabla_destino>` (o `fk_<tabla>_<columna>` si hay más de una FK a la misma tabla destino) | `fk_turno_agenda_medico_horarios_rango` |
+| Unique | `uq_<tabla>_<columna(s)>` | `uq_prestacion_codigo` |
+| Check | `ck_<tabla>_<regla>` | `ck_turno_fecha_hasta_posterior` |
+| Index | `idx_<tabla>_<columna(s)>` | `idx_turno_fecha` |
+| Trigger | `trg_<tabla>_<momento>_<evento>` | `trg_turno_before_update` |
+| Función / procedimiento | `fn_<acción_negocio>` / `sp_<acción_negocio>` | `fn_calcular_slot_turno` |
+
+**Comentarios dentro del changeset**: cuando un `createTable` (u otro changeset largo)
+tiene varias secciones, se dividen con un comentario XML banner de ancho fijo, por ejemplo:
+
+```xml
+<!-- ====== Relaciones ====== -->
+<!-- ====== Columnas ====== -->
+<!-- ====== Columnas auditoría (incluye a la baja) ====== -->
+```
 
 Ejemplo de archivo con varios changesets acumulados:
 
-```yaml
-databaseChangeLog:
-  - changeSet:
-      id: 20260301120000-created
-      author: fsorrentino
-      changes:
-        - createTable:
-            tableName: prestacion
-            columns: [...]
-  - changeSet:
-      id: 20260315091500-added-column-tiempoToleranciaAnuncio
-      author: fsorrentino
-      changes:
-        - addColumn:
-            tableName: prestacion
-            columns:
-              - column:
-                  name: tiempo_tolerancia_anuncio
-                  type: int
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260301120000-added-table-Prestacion" author="fsorrentino">
+        <createTable tableName="prestacion">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" primaryKeyName="pk_prestacion"/>
+            </column>
+            <column name="codigo" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- ====== Columnas auditoría (incluye a la baja) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="timestamptz"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="20260315091500-updated-table-Prestacion-added-column-tiempo-tolerancia-anuncio" author="fsorrentino">
+        <addColumn tableName="prestacion">
+            <column name="tiempo_tolerancia_anuncio" type="int"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>
 ```
 
-**Ventaja práctica**: el `db.changelog-master.yaml` solo necesita un `include` **una vez
-por entidad** (cuando se crea el archivo). Los changesets que se agreguen después al mismo
-archivo se incluyen automáticamente — no hay que tocar el master de nuevo. Con un archivo
-por cambio, en cambio, cada columna nueva implicaría editar el master.
+**Include en el master**: el `master.xml` solo necesita un `<include>` **una vez por
+entidad** (cuando se crea el archivo), con `relativeToChangelogFile="true"`. Los
+changesets que se agreguen después al mismo archivo se incluyen automáticamente — no hay
+que tocar el master de nuevo. Con un archivo por cambio, en cambio, cada columna nueva
+implicaría editar el master.
+
+```xml
+<include file="changelogs/20260301120000-Prestacion.xml" relativeToChangelogFile="true"/>
+```
+
+**Mutabilidad — regla distinta según el entorno**: en `staging`/`prod`, un changeset ya
+ejecutado **nunca** se modifica (se agrega uno nuevo) — es la regla estándar de Liquibase.
+En **`dev`** se permite editar directamente un changeset ya ejecutado, porque la base es
+solo de prueba: alcanza con resetear el entorno (`docker compose -f docker/dev/docker-compose.yml
+down -v && docker compose -f docker/dev/docker-compose.yml up -d`) para que el tracking
+de Liquibase (`DATABASECHANGELOG`) quede consistente con el changelog editado.
 
 **Trade-off a tener presente**: si dos personas modifican la misma entidad en ramas
 distintas al mismo tiempo, van a chocar en el mismo archivo al mergear (más probable que

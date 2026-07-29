@@ -68,17 +68,29 @@ validate`, nunca `update`/`create`: el esquema lo maneja Liquibase, no Hibernate
 
 ### Correr la aplicación
 
+La forma recomendada es la flag `-Dspring-boot.run.profiles`, del propio plugin de
+Maven: es **el mismo comando en Windows (cmd/PowerShell/Git Bash), Linux y Mac**, sin
+depender de la sintaxis de variables de entorno de cada shell.
+
 ```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+./mvnw spring-boot:run -Dspring-boot.run.profiles=staging
+./mvnw spring-boot:run -Dspring-boot.run.profiles=prod
+```
+
+Alternativa por variable de entorno (`SPRING_PROFILES_ACTIVE`), si se prefiere:
+
+```bash
+# Linux / Mac / Git Bash
 SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 ```
 
-PowerShell:
-
 ```powershell
+# PowerShell
 $env:SPRING_PROFILES_ACTIVE="dev"; ./mvnw spring-boot:run
 ```
 
-Sin `SPRING_PROFILES_ACTIVE`, Spring Boot arranca con el perfil `default` (ninguno de
+Sin perfil activo, Spring Boot arranca con el perfil `default` (ninguno de
 `dev`/`staging`/`prod`) y **no** aplica `application-dev.yml` — el docker-compose de
 `dev` no se detecta y el arranque falla. Perfiles disponibles: `dev`, `staging`, `prod`
 (ver tabla en [Perfiles](#perfiles)).
@@ -126,6 +138,23 @@ el dropdown del IDE.
 compilado y detecta errores de compilación en los tests aunque no se ejecuten).
 `-Dmaven.test.skip=true` se reserva para casos puntuales (por ejemplo, un módulo de test
 roto que bloquea un build urgente).
+
+**`AccesMedApplicationTests` necesita Postgres local levantada:** ese test carga el
+contexto completo con el perfil `dev` (Liquibase valida el esquema real contra la base).
+Si `docker/dev` no está levantado (`docker compose up -d`), `./mvnw test`/`verify` falla
+con un error de conexión o de autenticación, no por un bug en el código. Las credenciales
+de `docker/dev/.env` tienen que coincidir con los defaults de `application-dev.yml`
+(`accesmed`/`accesmed`/`5432`) — si generás un `.env` con otra contraseña, además hay que
+exportarla como variable de entorno antes de correr Maven, porque Maven **no** lee
+`docker/dev/.env` (ese archivo solo lo lee `docker compose`).
+
+**Warning de Lombok al compilar (`sun.misc.Unsafe` / `lombok.permit.Permit`):** en JDK 24+
+es un warning conocido y no bloqueante — Lombok todavía usa `Unsafe` internamente para
+generar código durante el annotation processing y JDK 25 lo marca como deprecado. No es un
+error de este proyecto ni afecta el build ni el runtime; se resuelve del todo cuando Lombok
+migre esa parte internamente (no hay fecha). Mientras tanto, `.mvn/jvm.config` trae
+`--sun-misc-unsafe-memory-access=allow`, que silencia el warning en todo el equipo sin
+tocar nada más — no hace falta configurar `MAVEN_OPTS` a mano.
 
 ### Docker
 
