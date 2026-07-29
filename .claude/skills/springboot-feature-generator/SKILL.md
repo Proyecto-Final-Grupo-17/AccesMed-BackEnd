@@ -6,9 +6,11 @@ description: >
   Repository) con DTOs record por endpoint, MapStruct, manejo de errores no chequeado,
   logging y Liquibase. Úsala cuando el usuario pida "crear una entidad/módulo/feature",
   "armar el CRUD de X", "generar los endpoints de X" o describa un flujo nuevo a
-  implementar. La skill PREGUNTA el flujo (endpoints, campos, reglas) antes de generar, y
-  aplica las skills java-springboot-code-style, java-springboot-javadoc y
-  java-springboot-logging en todo el código.
+  implementar. La skill PREGUNTA primero el contexto de negocio (para qué es, para qué
+  sirve, quiénes la usan, integración con el front) y luego el flujo técnico (endpoints,
+  campos, reglas) antes de generar, aplica las skills java-springboot-code-style,
+  java-springboot-javadoc y java-springboot-logging en todo el código, y al final delega en
+  `feature-documenter` para dejar la feature documentada en `docs/feature/`.
 ---
 
 # Generador de features — backend AccesMed
@@ -21,10 +23,25 @@ Crea una feature entera y coherente, de la capa de controller a la de repositori
 generes nada hasta haber preguntado y confirmado el flujo.** Aplicá siempre las skills
 `java-springboot-code-style`, `java-springboot-javadoc` y `java-springboot-logging`.
 
-## Fase 1 — Preguntar el flujo (obligatorio antes de generar)
+## Fase 1 — Preguntar el contexto y el flujo (obligatorio antes de generar)
 
 Preguntá y esperá respuesta. Si algo se puede inferir del diagrama de clases / `../../../CLAUDE.md`,
-proponé un default y pedí confirmación. Cubrí:
+proponé un default y pedí confirmación. Recordá que una **"feature" puede ser un conjunto de
+funcionalidades relacionadas** (ej. "gestión de turnos: crear, confirmar, cancelar"), no un
+único endpoint — tratalas como una sola unidad, que es la que después documenta la skill
+`feature-documenter`.
+
+### 0. Contexto de negocio de la feature
+
+1. **Para qué es**: qué problema de negocio resuelve.
+2. **Para qué sirve**: qué logra el usuario final al usarla (resultado concreto).
+3. **Quiénes la usan**: paciente (vía agente/WhatsApp), personal de clínica (admin, médico),
+   o ambos — y desde qué frente (chatbot / panel web).
+4. **Integración con el front**: cómo se arma la request desde la UI (¿viene de un
+   formulario, de una selección previa, de un paso de wizard?) y qué necesita el front del
+   response (¿qué campos usa para renderizar, para navegar, para encadenar el siguiente paso?).
+
+### 1. Flujo técnico
 
 1. **Entidad**: nombre (ej. `Medico`). ¿Ya existe la entidad JPA o hay que crearla?
 2. **Endpoints del flujo**: ¿cuáles? (crear, actualizar, baja lógica, obtener por id,
@@ -43,7 +60,8 @@ proponé un default y pedí confirmación. Cubrí:
 7. **¿La consume el agente?**: si sí, ¿necesita controller/records propios en `Agente/` que
    reutilicen el mismo App?
 
-Resumí el flujo entendido y pedí un OK antes de escribir código.
+Resumí el contexto de negocio y el flujo técnico entendidos, y pedí un solo OK conjunto
+antes de escribir código.
 
 ## Fase 2 — Generar los archivos (en este orden)
 
@@ -95,6 +113,11 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
 10. **Tests** — espejo en `src/test/...`
     - Unit del App (mock de services) y del DomainService; test de integración del
       controller (MockMvc) cubriendo el happy path y al menos un error (`AccesMedError`).
+11. **Documentación de la feature** — delegar en la skill `feature-documenter`, pasándole
+    el contexto de negocio recopilado en la Fase 1 (para qué es, para qué sirve, quiénes la
+    usan, integración con el front) y el detalle técnico ya generado (endpoints, requests,
+    responses, reglas), para crear o actualizar
+    `docs/feature/<Entidad-o-Funcionalidad>.md`.
 
 ## Fase 3 — Verificar
 
@@ -111,6 +134,8 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
       `throw` (no duplicado en el handler), sin datos sensibles en `info`.
 - [ ] El archivo de changelog sigue la convención `YYYYMMDDHHMMSS-<Entidad>.xml` con un
       solo `include` en el master (ver `ARQUITECTURA.md §6`).
+- [ ] `docs/feature/<Entidad-o-Funcionalidad>.md` existe y refleja el contexto de negocio
+      y los endpoints generados (delegado en `feature-documenter`).
 - [ ] Clases organizadas con `//region`/`//endregion` (Dependencias, Métodos, Métodos
       auxiliares privados / Atributos, Relaciones en entidades); comentarios paso a paso
       solo donde explican el *porqué*, distribuidos entre App y DomainService según

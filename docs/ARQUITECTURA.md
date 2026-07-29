@@ -304,7 +304,9 @@ accesmed-backend/
 ├── docs/
 │   ├── ARQUITECTURA.md            # este archivo
 │   ├── PLAN-SETUP-CLAUDE-CODE.md
-│   └── FRONTEND-GUIA.md
+│   ├── FRONTEND-GUIA.md
+│   └── feature/
+│       └── <Entidad-o-Funcionalidad>.md  # doc funcional por feature (springboot-feature-generator / feature-documenter)
 ├── docker/
 │   ├── Dockerfile                 # build multi-stage de la app
 │   └── dev/
@@ -315,7 +317,9 @@ accesmed-backend/
 │       ├── java-springboot-code-style/
 │       ├── java-springboot-javadoc/
 │       ├── java-springboot-logging/
-│       └── springboot-feature-generator/
+│       ├── springboot-feature-generator/
+│       ├── liquibase-changelog-generator/
+│       └── feature-documenter/
 └── src/
     ├── main/
     │   ├── java/com/accesmed/backend/
