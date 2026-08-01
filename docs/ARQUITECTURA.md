@@ -17,6 +17,13 @@ preguntas abiertas: cualquier código nuevo debe seguirlas.
 | DTO = **`record`** de Java | Inmutables por diseño, `equals/hashCode/toString` gratis, menos boilerplate que una clase DTO con Lombok. Un `record` por endpoint: solo los campos que viajan. |
 | Sufijo del nombre del DTO: `<Accion><Entidad>Request` / `Response` | Sin `Record`/`DTO` al final: es ruido. El sufijo `Request`/`Response` ya dice qué es. |
 | Carpeta de los records: **`Records`** (no `dto`) | El nombre de la carpeta refleja el tipo Java que contiene. |
+| Records agrupados **por entidad primero**: `Records/<Entidad>/Request/` y `Records/<Entidad>/Response/` | Todo lo de una feature queda en una sola carpeta, igual que el resto de la arquitectura (`PrestacionApp`, `PrestacionController`, `PrestacionMapper`). Con `Request/<Entidad>` el request y el response del mismo endpoint quedan en ramas distintas del árbol. Escala mejor: una entidad nueva = un paquete nuevo, no dos carpetas tocadas. |
+| `Controllers` tiene dos subpaquetes fijos: **`Errors/`** y **`ControllersConfig/`** | `Errors/` es el borde HTTP del manejo de errores (advice + contrato). `ControllersConfig/` es la configuración propia de la capa web (`OpenApiConfig`, y más adelante CORS, interceptores, config de MVC): describe la superficie HTTP, así que vive con los controllers. |
+| `Config/` en la raíz queda solo para configuración **transversal de infraestructura** (`SecurityConfig`, `JpaAuditingConfig`) | Seguridad es un filter chain que atraviesa toda la app y el auditing es de persistencia: no son "de controllers". Ahí van también las próximas configs de infraestructura (JWT, cache, async). |
+| Ruta base del controller: **`/accesmed-api/<Entidad>`** (PascalCase singular) y cada método agrega **su recurso** (`/Prestacion`, `/Agenda`) | El prefijo `accesmed-api` identifica la API del proyecto; la ruta de clase agrupa por entidad y la del método nombra el recurso concreto que esa operación toca, que en controllers de agregado no siempre es la entidad raíz (ej. `AgendaMedicoController` → `/Agenda`, `/Horario`). |
+| **PUT/PATCH con body**: `@PathVariable id` + record, y el Controller valida que ambos ids coincidan | El id en la ruta es lo que identifica el recurso en REST; el del body es el que llega del front. Es una inconsistencia de transporte HTTP, no una regla de negocio, así que la corta el Controller antes de llegar al App (422), en vez de actualizar en silencio el recurso equivocado. |
+| **PATCH sin body** (solo `@PathVariable id`) para actualizar un campo puntual | Cuando el cambio no lleva datos (marcar una bandera, avanzar un estado), un record vacío sería ruido: el id alcanza. |
+| **Soft delete se expone como `DELETE`**, método `softDelete<Entidad>` en las 3 capas, responde `200` con un body chico (`id`, `deletedAt`, `deletedReason`) | Para el front la semántica es "dar de baja este recurso"; que internamente sea un `deleted_at` y no un borrado físico es un detalle de implementación que no debe filtrarse al verbo HTTP. El nombre del método sí lo dice: `softDelete<Entidad>`, no `delete<Entidad>` a secas, para que sea autoexplicativo sin depender solo del Javadoc. El body devuelve la confirmación de la baja, no queda en silencio con `204`. |
 | Capa de controlador: carpeta **`Controllers`**, sufijo de clase `Controller` | Es el estándar de Spring (`@RestController`). `Resource` es del mundo JAX-RS; `Rest` no aporta. Menos fricción con docs y ejemplos. |
 | Capa de aplicación en paquete propio **`Application`**, clases `<Entidad>App`, anotadas `@Service` | Es un rol arquitectónico distinto (orquestación) del DomainService (lógica de una entidad). Meterla dentro de `Services` mezcla dos responsabilidades. |
 | `@Service` (no `@Component`) para el App | Semánticamente es lógica de negocio de aplicación. `@Component` es genérico; `@Service` documenta la intención. Funcionalmente son equivalentes. |
@@ -46,6 +53,9 @@ preguntas abiertas: cualquier código nuevo debe seguirlas.
 | Subpaquete por entidad dentro de un paquete de tipo, recién cuando supere ~8-10 archivos (ej. `Services/DomainServices/Medico/`) | No crear carpetas de un solo archivo por adelantado. |
 | Plural en `Controllers`, `Services`, `Repositories` (y sus subcarpetas `DomainServices`/`QueryServices`/`Mappers`/`Errors`/`Utils`) | Son colecciones de clases del mismo rol (todos los controllers, todos los services, todos los repositories). `Domain`, `Application`, `Records`, `Config`, `Security`, `Agente` quedan como estaban. |
 | El `QueryService` se inyecta y se llama **desde el App, nunca desde el Controller** — ni siquiera para lecturas simples | Mantiene un único punto de entrada a la lógica (el App) para toda la capa web, sin una excepción "para lecturas" que la rompa. El Controller sigue sin conocer `Services` en absoluto; el App resuelve el mapeo con el `Mapper` antes de devolver el response. |
+| Nombres de método de actualización: **`fullUpdate<Entidad>`** (PUT), **`partialUpdate<Entidad>`** (PATCH genérico) y **`update<Concepto><Entidad>`** (PATCH de un grupo de campos específico, ej. `updateToleranciasPrestacion`) | El nombre distingue de entrada tres casos distintos: reemplazo completo, actualización de un subconjunto arbitrario de campos, y un caso de uso acotado que ya sabe de antemano qué campos toca (no es "parcial genérico" con dos campos, es una operación de negocio propia). |
+| `partialUpdate<Entidad>` (PATCH genérico): un campo en `null` significa **"no lo toques"**, nunca "vacíalo" | Evita la ambigüedad JSON entre "campo ausente" y "campo enviado en `null`" sin necesitar un wrapper (`JsonNullable`) en todos los campos nullable del record. Si un campo necesita poder vaciarse de verdad, no se fuerza acá: se resuelve con la fila siguiente. |
+| `update<Concepto><Entidad>` (PATCH de campos específicos) puede declarar, campo por campo, que `null` signifique **"vaciar"** — usando `JsonNullable<T>` (`org.openapitools:jackson-databind-nullable`) solo en esos campos del record, y solo cuando el requisito de negocio lo pide | Es un endpoint acotado y conocido de antemano (ej. tolerancias de una prestación), así que se puede documentar explícitamente en el Javadoc qué significa `null` para cada campo. No se generaliza `JsonNullable` a todo el proyecto: se paga ese costo únicamente donde hay un requisito real de vaciar el campo. |
 
 ---
 
@@ -94,22 +104,22 @@ Cualquier excepción en cualquier capa → GlobalExceptionHandler → AccesMedEr
 ### Ejemplo concreto: crear una Prestación
 
 ```java
-// 1. Controller (package Controllers)
-@PostMapping
-public ResponseEntity<CrearPrestacionResponse> createPrestacion(
-        @Valid @RequestBody CrearPrestacionRequest crearPrestacionRequest) {
-    CrearPrestacionResponse response = prestacionApp.createPrestacion(crearPrestacionRequest);
+// 1. Controller (package Controllers) — @RequestMapping("/accesmed-api/Prestacion") en la clase
+@PostMapping("/Prestacion")
+public ResponseEntity<CreatePrestacionResponse> createPrestacion(
+        @Valid @RequestBody CreatePrestacionRequest createPrestacionRequest) {
+    CreatePrestacionResponse response = prestacionApp.createPrestacion(createPrestacionRequest);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
 }
 
 // 2. App (package Application)
 @Transactional
-public CrearPrestacionResponse createPrestacion(CrearPrestacionRequest crearPrestacionRequest) {
+public CreatePrestacionResponse createPrestacion(CreatePrestacionRequest createPrestacionRequest) {
 
-    prestacionDomainService.validateCodigoPrestacionIsUnique(crearPrestacionRequest.codigo());
-    Prestacion prestacionNueva = prestacionMapper.toEntity(crearPrestacionRequest);
+    prestacionDomainService.validateCodigoPrestacionIsUnique(createPrestacionRequest.codigo());
+    Prestacion prestacionNueva = prestacionMapper.toEntity(createPrestacionRequest);
     Prestacion prestacionGuardada = prestacionDomainService.savePrestacion(prestacionNueva);
-    return prestacionMapper.toCrearResponse(prestacionGuardada);
+    return prestacionMapper.toCreateResponse(prestacionGuardada);
 
 }
 
@@ -254,7 +264,7 @@ El front **siempre** recibe esta forma, con HTTP status coherente:
     "La fecha desde no puede ser posterior a la fecha hasta.",
     "El médico indicado no existe o está dado de baja."
   ],
-  "path": "/api/turnos"
+  "path": "/accesmed-api/Turno/Turno"
 }
 ```
 
@@ -325,16 +335,17 @@ accesmed-backend/
     │   ├── java/com/accesmed/backend/
     │   │   ├── AccesMedApplication.java
     │   │   │
-    │   │   ├── Config/
+    │   │   ├── Config/                    # config transversal de infraestructura
     │   │   │   ├── SecurityConfig.java
-    │   │   │   ├── OpenApiConfig.java
-    │   │   │   └── JacksonConfig.java
+    │   │   │   └── JpaAuditingConfig.java
     │   │   │
     │   │   ├── Controllers/
     │   │   │   ├── <NombreEntidad>Controller.java
-    │   │   │   └── Errors/
-    │   │   │       ├── GlobalExceptionHandler.java
-    │   │   │       └── AccesMedError.java
+    │   │   │   ├── Errors/
+    │   │   │   │   ├── GlobalExceptionHandler.java
+    │   │   │   │   └── AccesMedError.java
+    │   │   │   └── ControllersConfig/      # config propia de la capa web
+    │   │   │       └── OpenApiConfig.java  # (+ CORS, interceptores, config MVC)
     │   │   │
     │   │   ├── Application/
     │   │   │   └── <NombreEntidad>App.java
@@ -362,10 +373,11 @@ accesmed-backend/
     │   │   │   └── <NombreEntidad>Repository.java
     │   │   │
     │   │   ├── Records/
-    │   │   │   ├── Request/
-    │   │   │   │   └── <Accion><NombreEntidad>Request.java
-    │   │   │   └── Response/
-    │   │   │       └── <Accion><NombreEntidad>Response.java
+    │   │   │   └── <NombreEntidad>/
+    │   │   │       ├── Request/
+    │   │   │       │   └── <Accion><NombreEntidad>Request.java
+    │   │   │       └── Response/
+    │   │   │           └── <Accion><NombreEntidad>Response.java
     │   │   │
     │   │   ├── Security/
     │   │   │   ├── Controllers/
@@ -388,10 +400,11 @@ accesmed-backend/
     │   │   │   ├── Repositories/
     │   │   │   │   └── UsuarioRepository.java
     │   │   │   ├── Records/
-    │   │   │   │   ├── Request/
-    │   │   │   │   │   └── LoginRequest.java
-    │   │   │   │   └── Response/
-    │   │   │   │       └── LoginResponse.java
+    │   │   │   │   └── Auth/
+    │   │   │   │       ├── Request/
+    │   │   │   │       │   └── LoginRequest.java
+    │   │   │   │       └── Response/
+    │   │   │   │           └── LoginResponse.java
     │   │   │   ├── Jwt/
     │   │   │   │   ├── JwtService.java
     │   │   │   │   ├── JwtAuthenticationFilter.java
@@ -403,10 +416,11 @@ accesmed-backend/
     │   │       ├── Controllers/
     │   │       │   └── <NombreEntidad>AgenteController.java
     │   │       └── Records/
-    │   │           ├── Request/
-    │   │           │   └── <Accion><NombreEntidad>AgenteRequest.java
-    │   │           └── Response/
-    │   │               └── <Accion><NombreEntidad>AgenteResponse.java
+    │   │           └── <NombreEntidad>/
+    │   │               ├── Request/
+    │   │               │   └── <Accion><NombreEntidad>AgenteRequest.java
+    │   │               └── Response/
+    │   │                   └── <Accion><NombreEntidad>AgenteResponse.java
     │   │       (reutiliza Application/ y Services/ del núcleo; no duplica lógica)
     │   │
     │   └── resources/
@@ -478,6 +492,24 @@ el handler es un `@ControllerAdvice`: intercepta en el borde HTTP, no en el domi
 log de un error de negocio se hace en el Service, en el `throw`; el handler solo loguea lo
 que él mismo atrapa (Bean Validation, 500 genérico). Ver detalle en §3.
 
+**`Records` se agrupa por entidad, no por sentido.** El primer nivel es la entidad y recién
+adentro van `Request/` y `Response/`: `Records/Prestacion/Request/CreatePrestacionRequest`,
+`Records/Prestacion/Response/CreatePrestacionResponse`. Así todos los records de una feature
+quedan juntos (y el request y el response de un mismo endpoint, a un paso de distancia),
+igual que el resto de la arquitectura, que ya está organizada por entidad dentro de cada
+rol (`PrestacionController`, `PrestacionApp`, `PrestacionMapper`). Agregar una entidad
+nueva crea un paquete, no toca la estructura existente. Vale lo mismo dentro de `Security/`
+y `Agente/`: sus `Records/` también se agrupan por entidad o funcionalidad.
+
+**`Controllers` tiene dos subcarpetas fijas: `Errors/` y `ControllersConfig/`.**
+`Errors/` ya se explicó arriba. `ControllersConfig/` es la **configuración propia de la
+capa web**: `OpenApiConfig` (metadata de Swagger, o sea la descripción de la superficie
+HTTP) y, cuando hagan falta, CORS, interceptores y config de MVC. `Config/` en la raíz
+queda para la configuración **transversal de infraestructura** (`SecurityConfig`,
+`JpaAuditingConfig`, y más adelante JWT, cache, async): la seguridad es un filter chain que
+atraviesa toda la app y el auditing es de persistencia — meterlos bajo `Controllers/` diría
+algo falso sobre a qué capa pertenecen.
+
 **No hay carpeta `Shared`.** Antes existía un package transversal genérico; se eliminó y
 su contenido se repartió por dueño: excepciones a `Services/Errors`, el advice y el
 contrato de error a `Controllers/Errors`, `Auditable` a `Domain` (es parte del modelo de
@@ -507,16 +539,163 @@ El detalle y la revisión automática están en la skill `java-springboot-code-s
 
 - **Nombres de método**: verbo en inglés + concepto en español —
   `createMedico`, `saveMedico`, `findTurnoById`, `validateCodigoPrestacionIsUnique`.
-- **Parámetros**: nombre = camelCase del tipo — `createMedico(CrearMedicoRequest crearMedicoRequest)`.
+- **Parámetros**: nombre = camelCase del tipo — `createMedico(CreateMedicoRequest createMedicoRequest)`.
 - **Variables de entidad**: español descriptivo del estado — `medicoExistente`,
   `medicoActualizado`, `turnoConfirmado`, `prestacionGuardada`.
-- **Records**: uno por endpoint, `<Accion><Entidad>Request/Response`, en `Records/Request` y `Records/Response`.
-- **Controllers**: sufijo `Controller`, solo delegan.
+- **Records**: uno por endpoint, `<Accion><Entidad>Request/Response` con la **acción en inglés**
+  (`Create`, `Update`, `Get`, `List`, `Enable`, `Delete`...), en
+  `Records/<Entidad>/Request` y `Records/<Entidad>/Response`.
+- **Controllers**: sufijo `Controller`, solo delegan. Rutas y verbos: ver §5.1.
 - **App**: sufijo `App`, `@Service`, `@Transactional`, orquestan.
 - **Inyección** por constructor (con `@RequiredArgsConstructor` de Lombok), nunca por campo.
 - **Javadoc**: según la skill `java-springboot-javadoc`.
 - **Logging**: `@Slf4j` (Lombok) en cada clase, niveles y ubicación según la skill
   `java-springboot-logging` (ver también §3).
+
+### 5.1 Rutas y verbos HTTP de los controllers
+
+**Ruta base de la clase**: `@RequestMapping("/accesmed-api/<Entidad>")`, con la entidad en
+PascalCase singular — `/accesmed-api/Prestacion`, `/accesmed-api/AgendaMedico`.
+
+**Ruta de cada método**: el **recurso concreto** sobre el que opera esa operación. En un
+controller de una sola entidad coincide con ella (`createPrestacion` → `/Prestacion`); en
+uno de agregado, cada método nombra su propio recurso (`createAgenda` → `/Agenda`,
+`createHorario` → `/Horario`).
+
+| Operación | Método App | Firma | Status |
+|---|---|---|---|
+| Crear | `create<Entidad>` | `@PostMapping("/<Recurso>")` + `@Valid @RequestBody` | 201 |
+| Obtener por id | `get<Entidad>ById` | `@GetMapping("/<Recurso>/{id}")` + `@PathVariable UUID id` | 200 |
+| Listar | `list<Entidad>` | `@GetMapping("/<Recurso>")` | 200 |
+| Actualizar completo (reemplaza el recurso entero) | `fullUpdate<Entidad>` | `@PutMapping("/<Recurso>/{id}")` + `@PathVariable UUID id` + `@Valid @RequestBody` | 200 |
+| Actualizar parcial genérico (subconjunto arbitrario de campos) | `partialUpdate<Entidad>` | `@PatchMapping("/<Recurso>/{id}")` + `@PathVariable UUID id` + `@Valid @RequestBody` | 200 |
+| Actualizar un grupo de campos específico y conocido de antemano | `update<Concepto><Entidad>` | `@PatchMapping("/<Recurso>/<Concepto>/{id}")` + `@PathVariable UUID id` + `@Valid @RequestBody` | 200 |
+| Actualizar un campo puntual (sin body) | `<verbo><Concepto><Entidad>` (ej. `activate<Entidad>`) | `@PatchMapping("/<Recurso>/{id}")` + solo `@PathVariable UUID id` | 200 |
+| Baja lógica (soft delete) | `softDelete<Entidad>` | `@DeleteMapping("/<Recurso>/{id}")` + `@PathVariable UUID id` | 200 |
+
+**`PUT`/`PATCH` con body llevan el `id` en la ruta *además* del record**, y el `id` de la
+ruta y el del record **tienen que coincidir**. La comprobación la hace el **Controller**,
+como primer paso del método, antes de delegar en el App: es una inconsistencia de
+transporte HTTP, no una regla de negocio, así que no tiene sentido que la capa de
+aplicación se entere de ella.
+
+```java
+// Controllers/PrestacionController.java
+@PutMapping("/Prestacion/{id}")
+public ResponseEntity<UpdatePrestacionResponse> updatePrestacion(
+        @PathVariable UUID id,
+        @Valid @RequestBody UpdatePrestacionRequest updatePrestacionRequest) {
+
+    log.info("Solicitud recibida: actualizar prestación id={}", id);
+
+    //El id de la ruta identifica el recurso: si el body trae otro, el request es inconsistente
+    if (!id.equals(updatePrestacionRequest.id())) {
+        log.warn("Id de ruta ({}) distinto al del body ({})", id, updatePrestacionRequest.id());
+        throw new ValidacionException(getClass(),
+                List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+    }
+
+    return ResponseEntity.ok(prestacionApp.updatePrestacion(id, updatePrestacionRequest));
+
+}
+
+// Application/PrestacionApp.java
+@Transactional
+public UpdatePrestacionResponse updatePrestacion(UUID id,
+        UpdatePrestacionRequest updatePrestacionRequest) {
+
+    log.info("Actualización de prestación iniciada: id={}", id);
+
+    ...
+
+}
+```
+
+**`PATCH` sin body**: cuando el cambio es de un campo puntual y no necesita datos, el
+método recibe solo el `id` — no se crea un record vacío.
+
+```java
+@PatchMapping("/Prestacion/{id}/Activacion")
+public ResponseEntity<ActivarPrestacionResponse> activatePrestacion(@PathVariable UUID id) { ... }
+```
+
+**Baja lógica = `DELETE`**: el soft delete se expone como `DELETE`, el método se llama
+`softDelete<Entidad>` en las 3 capas (Controller/App/DomainService) y responde `200` con
+un body chico (`id`, `deletedAt`, `deletedReason`) en vez de un `204` vacío — es la
+confirmación de la baja, no metadata genérica de auditoría. Que internamente sea un
+`deleted_at` y no un borrado físico es un detalle de implementación que no cambia el verbo.
+
+### 5.2 `fullUpdate` vs `partialUpdate` vs `update<Concepto>`: quién es cada uno y qué significa un `null`
+
+Tres operaciones de "actualizar" distintas, con nombre y semántica propios — no una sola
+firma genérica reutilizada para todo:
+
+- **`fullUpdate<Entidad>`** (`PUT`): reemplaza el recurso completo. El record trae todos los
+  campos editables; no hay ambigüedad de `null` porque siempre viajan todos.
+- **`partialUpdate<Entidad>`** (`PATCH` genérico): el record acepta cualquier subconjunto de
+  campos editables. **Un campo en `null` significa "no lo toques"**, nunca "vacíalo" — el
+  Mapper/App ignora los campos `null` al aplicar el update. Simple, sin wrappers, cubre el
+  caso general de "actualizar lo que mandaste".
+- **`update<Concepto><Entidad>`** (`PATCH`, ruta propia `/<Recurso>/<Concepto>/{id}`): un
+  endpoint acotado para un grupo de campos ya conocido de antemano (ej. las tolerancias de
+  una prestación), que se crea **solo cuando el requisito de negocio pide poder vaciar
+  alguno de esos campos**. Ahí sí se declara `JsonNullable<T>`
+  (`org.openapitools:jackson-databind-nullable`) campo por campo, para distinguir "no vino"
+  de "vino en `null`" — y se documenta en el Javadoc qué significa el `null` de cada campo.
+
+```java
+// Records/Prestacion/Request/UpdateToleranciasPrestacionRequest.java
+public record UpdateToleranciasPrestacionRequest(
+        @NotNull Long id,
+        JsonNullable<Integer> tiempoToleranciaAnuncio,   // null explícito = vaciar el campo
+        JsonNullable<Integer> tiempoToleranciaAusencia   // ausente = no tocar
+) {}
+
+// Controllers/PrestacionController.java
+@PatchMapping("/Prestacion/Tolerancias/{id}")
+public ResponseEntity<UpdateToleranciasPrestacionResponse> updateToleranciasPrestacion(
+        @PathVariable Long id,
+        @Valid @RequestBody UpdateToleranciasPrestacionRequest updateToleranciasPrestacionRequest) {
+
+    //El id de la ruta identifica el recurso: si el body trae otro, el request es inconsistente
+    if (!id.equals(updateToleranciasPrestacionRequest.id())) {
+        throw new ValidacionException(getClass(),
+                List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+    }
+
+    return ResponseEntity.ok(prestacionApp.updateToleranciasPrestacion(id, updateToleranciasPrestacionRequest));
+
+}
+
+// Application/PrestacionApp.java
+/**
+ * Actualiza las tolerancias de una prestación. Un campo enviado en {@code null} vacía esa
+ * tolerancia; un campo ausente del JSON la deja sin tocar.
+ *
+ * @param id {@code Long} id del recurso, tomado de la ruta
+ * @param updateToleranciasPrestacionRequest {@code UpdateToleranciasPrestacionRequest} tolerancias a aplicar
+ * @return {@code UpdateToleranciasPrestacionResponse} la prestación con las tolerancias actualizadas
+ */
+@Transactional
+public UpdateToleranciasPrestacionResponse updateToleranciasPrestacion(Long id,
+        UpdateToleranciasPrestacionRequest updateToleranciasPrestacionRequest) {
+
+    Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(id);
+
+    //isPresent() distingue "vino en el JSON" (con o sin null) de "no vino"
+    if (updateToleranciasPrestacionRequest.tiempoToleranciaAnuncio().isPresent()) {
+        prestacionExistente.setTiempoToleranciaAnuncio(
+                updateToleranciasPrestacionRequest.tiempoToleranciaAnuncio().orElse(null));
+    }
+
+    ...
+
+}
+```
+
+No se generaliza `JsonNullable` a todos los records: se paga ese costo de tipado solo en el
+endpoint puntual que de verdad necesita vaciar un campo. El resto del proyecto sigue con
+tipos planos y la regla simple de `partialUpdate` ("`null` = no tocar").
 
 ---
 
@@ -673,6 +852,10 @@ línea Spring Boot 4). Acá va el qué y el porqué de cada dependencia.
   llamaba `hibernate-jpamodelgen` hasta Hibernate 6; Hibernate ORM 7 lo renombró.
 - `springdoc-openapi-starter-webmvc-ui` — Swagger UI (`/swagger-ui.html`)
 - `jjwt-api` / `jjwt-impl` / `jjwt-jackson` — tokens JWT
+- `org.openapitools:jackson-databind-nullable` (**se agrega recién cuando el primer
+  `update<Concepto><Entidad>` lo necesite**, no de entrada) — provee `JsonNullable<T>`
+  para distinguir "campo ausente" de "campo enviado en `null`" en los `PATCH` de campo
+  específico que necesitan poder vaciar un valor (ver §5.2).
 - `spring-boot-starter-{data-jpa,liquibase,security,webmvc}-test` — JUnit 5, Mockito,
   AssertJ y los test slices de cada starter correspondiente (scope test). Spring Boot 4
   modularizó también el soporte de test: cada starter principal tiene su `-test` propio en

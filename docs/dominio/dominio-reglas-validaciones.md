@@ -199,7 +199,7 @@ Las que no se expresan con una anotación de campo van con `@AssertTrue` en el r
 
 ```
 Prestacion               : duracionMinima <= duracionMaxima
-Prestacion               : cadena del invariante de tolerancias (sección 4)
+Prestacion               : cadena de las reglas de tolerancia (sección 4)
 AgendaHorarios           : horaDesde < horaHasta
 ObraSocialPlanPrestacion : coherencia entre modalidadCobertura, porcentajeCobertura y coseguro
 Usuario                  : exactamente uno de (medico, admin) presente
@@ -247,7 +247,7 @@ fechaLimiteAnuncioTardio          = fechaHoraInicio + tiempoToleranciaAnuncio
 
 `fechaLimiteReserva` **no vive en el turno**: vive en `AgendaHorarios`, se calcula al generar la agenda y vale `inicio del slot − tiempoToleranciaSolicitud`.
 
-### 4.3 El invariante de tolerancias
+### 4.3 Las reglas de tolerancia
 
 Las cinco tolerancias que se restan hacia atrás forman una cadena de orden. Es una regla que debe ser verdadera **siempre**, en cualquier instancia de `Prestacion`:
 
@@ -294,7 +294,7 @@ duracionMinima > 0  y  duracionMinima ≤ duracionMaxima
 
 ### 4.5 Caso límite documentado
 
-Un turno reservado para hoy o mañana en una prestación con `tiempoToleranciaConfirmacion` alta nace con `fechaLimiteConfirmacion` ya vencida, y el primer barrido lo confirma automáticamente en minutos. **Es correcto y no requiere una rama nueva en el DTE.** El invariante impide que nazca vencida una fecha *anterior* a la de solicitud, pero no impide que la de confirmación quede vencida en un turno reservado con muy poca antelación: eso es exactamente lo que se quiere, porque no tiene sentido pedirle al paciente que confirme un turno que es dentro de dos horas.
+Un turno reservado para hoy o mañana en una prestación con `tiempoToleranciaConfirmacion` alta nace con `fechaLimiteConfirmacion` ya vencida, y el primer barrido lo confirma automáticamente en minutos. **Es correcto y no requiere una rama nueva en el DTE.** Las reglas de tolerancia impiden que nazca vencida una fecha *anterior* a la de solicitud, pero no impiden que la de confirmación quede vencida en un turno reservado con muy poca antelación: eso es exactamente lo que se quiere, porque no tiene sentido pedirle al paciente que confirme un turno que es dentro de dos horas.
 
 ---
 
@@ -317,12 +317,17 @@ Un turno reservado para hoy o mañana en una prestación con `tiempoToleranciaCo
 
 ### PREST — Prestaciones e indicaciones
 
-- `codigo` es **inmutable** después del alta porque genera el `Turno.codigo`. Cambiarlo es baja más alta.
-- `nombre` y las siete tolerancias son editables. La cadena del invariante se revalida en cada modificación.
-- `IndicacionPrestacion` es **inmutable**: alta y baja lógica únicamente, nunca `Modificar`. Si el texto está mal, se da de baja y se carga de nuevo.
+- `Prestacion` tiene un atributo `fechaHabilitacion`. **Nulo = borrador**; **con fecha = habilitada**. Toda prestación nace en borrador.
+- `Habilitar Prestación` es un CU propio e **irreversible**: no existe "deshabilitar". Si una prestación habilitada ya no sirve, se da de baja.
+- **En borrador** se puede editar todo salvo el `codigo`: `nombre`, las duraciones y las siete tolerancias, y las `IndicacionPrestacion` (alta, modificación y baja libres).
+- **Una vez habilitada**: el `nombre` queda **congelado**; las duraciones y las siete tolerancias siguen siendo editables (la cadena de reglas de tolerancia se revalida en cada modificación); las `IndicacionPrestacion` vuelven a ser **inmutables** — solo alta y baja lógica, nunca `Modificar`.
+- **Fundamento del congelamiento**: `IndicacionPrestacionTurno` **no copia** el texto de la indicación, lo lee por navegabilidad. Editarlo reescribiría retroactivamente lo que ve un paciente en un turno vivo, y cambiar `requiereValidacion` alteraría la semántica de un turno en `Espera de Validación`. El `Turno`, en cambio, sí congela como snapshot su monto y todas sus fechas límite, por eso editar las tolerancias no afecta turnos ya creados.
+- `codigo` es **inmutable** siempre (genera el `Turno.codigo`); cambiarlo es baja más alta.
+- **Solo las prestaciones habilitadas se ofrecen para dar y para pedir turnos**: una agenda no puede tener slots (`AgendaHorarios`) de una prestación en borrador, y el chatbot no la lista ni permite reservarla. Es precondición de los módulos AGEN y TURN.
+- **La asignación a un médico es la excepción**: `MedicoPrestacion` se puede crear con la prestación todavía en borrador. Así el médico queda preparado para atenderla desde el día en que se habilita, sin depender del orden en que se cargan los datos.
 - Una indicación siempre pertenece a una prestación. Dos prestaciones no comparten indicación: se carga una vez para cada una.
 - La baja de una indicación es libre, sin restricciones.
-- **`TipoIndicacionPrestacion` tiene la única baja restrictiva del sistema**: no se puede dar de baja si hay `IndicacionPrestacion` activas que lo referencian.
+- **`TipoIndicacionPrestacion` tiene la única baja restrictiva del sistema**: no se puede dar de baja si hay `IndicacionPrestacion` activas que lo referencian. Sus `codigo` y `nombre` son editables.
 
 ### AGEN — Agenda
 
@@ -528,7 +533,7 @@ TRIGGER trg_<tabla>_<momento>_<evento>
 - [ ] Todo String tiene `@Size(max)` y su `varchar(n)` con el mismo número.
 - [ ] Las unicidades declaradas en el JSON están implementadas como índice único parcial y como método del `DomainService`.
 - [ ] La búsqueda de duplicados en la modificación excluye la propia instancia.
-- [ ] Los invariantes de la clase están como `CHECK` con nombre `ck_<tabla>_<regla>` y como validación de aplicación.
+- [ ] Las reglas de validación de la clase están como `CHECK` con nombre `ck_<tabla>_<regla>` y como validación de aplicación.
 - [ ] Las relaciones respetan la navegabilidad del diagrama: sin FK redundante donde la asociación debe derivarse.
 - [ ] Los campos «bajable» están declarados en la clase, sin heredar de ninguna superclase.
 - [ ] Los enums se persisten como texto, no como ordinal.

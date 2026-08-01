@@ -76,7 +76,7 @@
         { "nombre": "diasMinimosVigenciaAgenda", "tipo": "Integer", "obligatorio": true },
         { "nombre": "diasMaximosVigenciaAgenda", "tipo": "Integer", "obligatorio": true }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "horarioInicioAtencion < horarioFinAtencion",
         "1 <= diasMinimosVigenciaAgenda <= diasMaximosVigenciaAgenda"
       ]
@@ -134,14 +134,14 @@
         { "nombre": "tiempoToleranciaReprogramacion", "tipo": "Duration", "obligatorio": true },
         { "nombre": "tiempoToleranciaConfirmacion", "tipo": "Duration", "obligatorio": true },
         { "nombre": "tiempoToleranciaCancelacion", "tipo": "Duration", "obligatorio": true },
-        { "nombre": "tiempoToleranciaAnuncio", "tipo": "Duration", "obligatorio": true, "nota": "Ventana simétrica alrededor de fechaHoraInicio. No entra en la cadena del invariante." },
+        { "nombre": "tiempoToleranciaAnuncio", "tipo": "Duration", "obligatorio": true, "nota": "Ventana simétrica alrededor de fechaHoraInicio. No entra en la cadena de las reglas de tolerancia." },
         { "nombre": "tiempoRecordatorioConfirmacion", "tipo": "Duration", "obligatorio": true }
       ],
       "unicidad": [
         { "campos": ["codigo"], "alcance": "activos" },
         { "campos": ["nombre"], "alcance": "activos" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "duracionMinima > 0 y duracionMinima <= duracionMaxima",
         "tiempoToleranciaSolicitud >= tiempoToleranciaValidacion >= tiempoToleranciaReprogramacion >= tiempoToleranciaConfirmacion >= tiempoToleranciaCancelacion >= 0",
         "tiempoToleranciaAnuncio >= 0",
@@ -163,7 +163,7 @@
       "unicidad": [
         { "campos": ["medico", "prestacion"], "alcance": "activos" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "precioParticular > 0",
         "prestacion.especialidad == medico.especialidad"
       ]
@@ -214,7 +214,7 @@
       "derivados": [
         { "nombre": "/estaVigente", "tipo": "Boolean", "formula": "fechaHoraInicioVigencia <= ahora <= fechaHoraFinVigencia" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "fechaHoraInicioVigencia < fechaHoraFinVigencia",
         "Clinica.diasMinimosVigenciaAgenda <= días(fechaHoraFinVigencia - fechaHoraInicioVigencia) <= Clinica.diasMaximosVigenciaAgenda",
         "El período no se solapa con otra AgendaMedico del mismo médico"
@@ -233,7 +233,7 @@
       "unicidad": [
         { "campos": ["agendaMedico", "fecha"], "alcance": "activos" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "fecha comprendida en el período de vigencia de la AgendaMedico"
       ]
     },
@@ -254,7 +254,7 @@
         { "nombre": "/duracion", "tipo": "Duration", "formula": "horaHasta - horaDesde" },
         { "nombre": "/fechaHoraInicio", "tipo": "ZonedDateTime", "formula": "agendaDia.fecha + horaDesde" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "horaDesde < horaHasta",
         "Clinica.horarioInicioAtencion <= horaDesde y horaHasta <= Clinica.horarioFinAtencion",
         "Prestacion.duracionMinima <= /duracion <= Prestacion.duracionMaxima",
@@ -284,7 +284,7 @@
         { "campos": ["dni"], "alcance": "activos" },
         { "campos": ["numeroTelefono"], "alcance": "activos" }
       ],
-      "invariantes": ["fechaNacimiento < hoy"]
+      "reglasValidacion": ["fechaNacimiento < hoy"]
     },
 
     {
@@ -318,7 +318,7 @@
         { "campos": ["obraSocial", "codigo"], "alcance": "activos" },
         { "campos": ["obraSocial", "nombre"], "alcance": "activos" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "No se puede dar de baja el último Plan activo de una ObraSocial activa"
       ]
     },
@@ -338,7 +338,7 @@
       "unicidad": [
         { "campos": ["plan", "prestacion"], "alcance": "activos" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "modalidadCobertura = TOTAL      -> porcentajeCobertura = 100 y coseguro = 0",
         "modalidadCobertura = CARGO_FIJO -> coseguro >= 0 (es el monto que paga el paciente)",
         "modalidadCobertura = PORCENTUAL -> 0 <= porcentajeCobertura <= 100"
@@ -387,7 +387,7 @@
       "unicidad": [
         { "campos": ["codigo"], "alcance": "global" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "Las seis fechaLimite* y fechaHoraRecordatorioConfirmacion se calculan al crear el turno, nunca en diferido",
         "fechaLimiteValidacion = fechaHoraInicio - Prestacion.tiempoToleranciaValidacion",
         "fechaLimiteReprogramacion = fechaHoraInicio - Prestacion.tiempoToleranciaReprogramacion",
@@ -437,7 +437,7 @@
         { "nombre": "fechaHoraInicio", "tipo": "ZonedDateTime", "obligatorio": true },
         { "nombre": "fechaHoraFin", "tipo": "ZonedDateTime", "obligatorio": false }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "fechaHoraFin vacío o fechaHoraFin > fechaHoraInicio",
         "Un Turno tiene a lo sumo un HistoricoEstadoTurno con fechaHoraFin vacío",
         "Los tramos de un mismo Turno no se solapan y son contiguos",
@@ -457,7 +457,7 @@
       "unicidad": [
         { "campos": ["turno", "indicacionPrestacion"], "alcance": "activos" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "Se crean al crear el turno, copiando las IndicacionPrestacion activas de la prestación",
         "fechaHoraValidacion presente <-> validadoPor presente",
         "El turno sale de Espera de Validación cuando ninguna instancia activa con requiereValidacion en verdadero queda con fechaHoraValidacion vacía"
@@ -501,7 +501,7 @@
         { "campos": ["medico"], "alcance": "global" },
         { "campos": ["admin"], "alcance": "global" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "Exactamente uno de medico / admin está presente",
         "Los artefactos de UserDetails de Spring Security no son parte del modelo: isEnabled() se deriva de deletedAt vacío"
       ]
@@ -520,7 +520,7 @@
       "unicidad": [
         { "campos": ["nombre"], "alcance": "activos" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "Tiene al menos un Permiso",
         "esSistema verdadero -> no se modifica ni se da de baja",
         "Dar de baja un Rol cierra la fechaFinVigencia de sus UsuarioRol vigentes"
@@ -541,7 +541,7 @@
       "derivados": [
         { "nombre": "/estaVigente", "tipo": "Boolean", "formula": "fechaInicioVigencia <= ahora y (fechaFinVigencia vacío o ahora < fechaFinVigencia)" }
       ],
-      "invariantes": [
+      "reglasValidacion": [
         "fechaFinVigencia vacío o fechaFinVigencia > fechaInicioVigencia",
         "Un Usuario no tiene dos UsuarioRol vigentes del mismo Rol",
         "La autorización se evalúa en vivo, sin snapshot"
