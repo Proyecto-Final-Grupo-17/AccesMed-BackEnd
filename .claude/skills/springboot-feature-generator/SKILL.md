@@ -48,8 +48,18 @@ funcionalidades relacionadas** (ej. "gestión de turnos: crear, confirmar, cance
 1. **Entidad**: nombre (ej. `Medico`). ¿Ya existe la entidad JPA o hay que crearla?
 2. **Endpoints del flujo**: ¿cuáles? (crear, actualizar, baja lógica, obtener por id,
    listar, y acciones de negocio propias como `confirmarTurno`). Por cada uno:
-   - Verbo HTTP y ruta.
+   - Verbo HTTP y **recurso** del método (la ruta base ya es `/accesmed-api/<Entidad>`;
+     proponé el recurso: `createPrestacion` → `/Prestacion`, `createAgenda` → `/Agenda`).
    - Qué campos entran (request) y qué campos NO (inmutables que no viajan).
+   - Si es una actualización, ¿cuál de los tres casos es? (ver `ARQUITECTURA.md §5.2`):
+     `fullUpdate<Entidad>` (PUT, reemplaza el recurso completo), `partialUpdate<Entidad>`
+     (PATCH genérico, subconjunto arbitrario de campos, `null` = no tocar), `update<Concepto><Entidad>`
+     (PATCH de un grupo de campos específico y conocido de antemano — ej. tolerancias) o un
+     `PATCH` sin body (cambio de un campo puntual, alcanza con el id). Si es
+     `update<Concepto><Entidad>`, preguntá además: ¿algún campo de ese grupo necesita poder
+     **vaciarse** explícitamente (`null` ≠ "no tocar")? Si sí, ese campo se declara
+     `JsonNullable<T>` en el record (agregar la dependencia `org.openapitools:jackson-databind-nullable`
+     si todavía no está en el `pom.xml`); si no, se resuelve como `partialUpdate` (ignorar nulos).
    - Qué devuelve (response).
 3. **Modelado de dominio de la entidad**: si la entidad es nueva o el flujo requiere
    agregarle campos, invocar la skill `domain-schema-generator` para levantar atributos,
@@ -88,9 +98,12 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
 2. **Repository** — `Repositories/<Entidad>Repository.java`
    - `extends JpaRepository<...>`. Queries derivadas con filtro de baja
      (`existsByCodigoAndFechaHoraBajaIsNull`, `findByIdAndFechaHoraBajaIsNull`).
-3. **Records** — `Records/Request/` y `Records/Response/`
+3. **Records** — `Records/<Entidad>/Request/` y `Records/<Entidad>/Response/`
+   (agrupados **por entidad primero**, después por sentido).
    - Uno por endpoint: `<Accion><Entidad>Request` / `<Accion><Entidad>Response`.
    - Bean Validation en el request, con `message` en español. Inmutables fuera del request.
+   - En los request de `PUT`/`PATCH` con body, el `id` **sí va** (`@NotNull`): el App lo
+     compara contra el `@PathVariable`.
 4. **Mapper (MapStruct)** — `Services/Mappers/<Entidad>Mapper.java`
    - `toEntity`, `toResponse`, y `update(entidad, request)` para no pisar campos inmutables.
 5. **DomainService** — `Services/DomainServices/<Entidad>DomainService.java`
@@ -108,10 +121,18 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
      Orquesta: valida negocio (acumulando en `ValidacionException` cuando aplique, con
      `getClass()` como `origen` y `log.warn` antes del throw), mapea, delega en el domain
      service o query service.
+   - En `update<Entidad>(Long id, <Accion><Entidad>Request ...)`: **primer paso, validar que
+     el `id` de la ruta coincida con el del record** (`ValidacionException` + `log.warn` si no).
 7. **Controller** — `Controllers/<Entidad>Controller.java`
-   - `@RestController`, `@Slf4j`, `@RequestMapping("/api/<entidades>")`. `log.info` al
-     recibir cada request (sin datos sensibles si la entidad los tiene, ej. `Paciente`).
-     `@Valid` en el body. Solo delega. Status coherentes (201 en create, 200 en update/get, 204 en baja).
+   - `@RestController`, `@Slf4j`, `@RequestMapping("/accesmed-api/<Entidad>")` (PascalCase
+     singular), y cada método con **su recurso**: `@PostMapping("/<Recurso>")`,
+     `@PutMapping("/<Recurso>/{id}")`. `log.info` al recibir cada request (sin datos
+     sensibles si la entidad los tiene, ej. `Paciente`). `@Valid` en el body. Solo delega.
+   - `PUT`/`PATCH` con body: `@PathVariable Long id` **además** del record (la comparación
+     de ids la hace el App). `PATCH` de un campo puntual: solo `@PathVariable Long id`, sin body.
+   - Baja lógica = `@DeleteMapping("/<Recurso>/{id}")`.
+   - Status coherentes: 201 en create, 200 en update/get, 204 en baja.
+     Ver la tabla completa en `java-springboot-code-style` §5.1.
 8. **(Opcional) Agente** — `Agente/Controllers/` + `Agente/Records/`
    - Solo si la feature la consume el agente. Reutiliza el mismo App; no duplica lógica.
 9. **Tests** — espejo en `src/test/...`
@@ -121,13 +142,21 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
     el contexto de negocio recopilado en la Fase 1 (para qué es, para qué sirve, quiénes la
     usan, integración con el front) y el detalle técnico ya generado (endpoints, requests,
     responses, reglas), para crear o actualizar
-    `docs/feature/<Entidad-o-Funcionalidad>.md`.
+    `../../../Docs/Features/<Entidad-o-Funcionalidad>.md`.
 
 ## Fase 3 — Verificar
 
 - [ ] Compila (`./mvnw compile`).
 - [ ] La migración Liquibase corre y crea la tabla con sus constraints.
 - [ ] Swagger muestra los endpoints con sus request/response.
+- [ ] Records en `Records/<Entidad>/{Request,Response}/`, no sueltos en `Records/`.
+- [ ] Ruta de clase `/accesmed-api/<Entidad>` y cada método con su recurso; `PUT`/`PATCH`
+      con `@PathVariable id` + record y validación de coincidencia de ids en el App;
+      `PATCH` de campo puntual solo con id; baja lógica como `DELETE` (204).
+- [ ] Verbo de actualización correcto y consistente con la ruta: `fullUpdate<Entidad>` (PUT),
+      `partialUpdate<Entidad>` (PATCH genérico, `null` = no tocar) o `update<Concepto><Entidad>`
+      (PATCH de campos específicos, ruta `/<Recurso>/<Concepto>/{id}`). Si este último vacía
+      algún campo con `null`, usa `JsonNullable<T>` solo ahí y lo documenta en el Javadoc.
 - [ ] Happy path devuelve el status y response correctos; un error devuelve `AccesMedError`.
 - [ ] Code-style y Javadoc aplicados (ver ambas skills).
 - [ ] Soft delete, `Auditable` y navegabilidad respetados.
@@ -140,7 +169,7 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
       solo `include` en el master (ver `ARQUITECTURA.md §6`), generado junto con la
       entidad JPA por `domain-schema-generator` (ver checklist propio de esa skill para
       el mapeo Bean Validation ↔ constraint).
-- [ ] `docs/feature/<Entidad-o-Funcionalidad>.md` existe y refleja el contexto de negocio
+- [ ] `../../../Docs/Features/<Entidad-o-Funcionalidad>.md` existe y refleja el contexto de negocio
       y los endpoints generados (delegado en `feature-documenter`).
 - [ ] Clases organizadas con `//region`/`//endregion` (Dependencias, Métodos, Métodos
       auxiliares privados / Atributos, Relaciones en entidades); comentarios paso a paso
@@ -156,7 +185,7 @@ explican el *porqué*, según la skill `java-springboot-code-style` §10.
 // Controllers/PrestacionController.java
 @Slf4j
 @RestController
-@RequestMapping("/api/prestaciones")
+@RequestMapping("/accesmed-api/Prestacion")
 @RequiredArgsConstructor
 public class PrestacionController {
 
@@ -171,18 +200,53 @@ public class PrestacionController {
     /**
      * Crea una prestación nueva.
      *
-     * @param crearPrestacionRequest {@code CrearPrestacionRequest} datos de la prestación
-     * @return {@code ResponseEntity<CrearPrestacionResponse>} la prestación creada (201)
+     * @param createPrestacionRequest {@code CreatePrestacionRequest} datos de la prestación
+     * @return {@code ResponseEntity<CreatePrestacionResponse>} la prestación creada (201)
      */
-    @PostMapping
-    public ResponseEntity<CrearPrestacionResponse> createPrestacion(
-            @Valid @RequestBody CrearPrestacionRequest crearPrestacionRequest) {
+    @PostMapping("/Prestacion")
+    public ResponseEntity<CreatePrestacionResponse> createPrestacion(
+            @Valid @RequestBody CreatePrestacionRequest createPrestacionRequest) {
 
-        log.info("Solicitud recibida: crear prestación código={}", crearPrestacionRequest.codigo());
+        log.info("Solicitud recibida: crear prestación código={}", createPrestacionRequest.codigo());
 
-        CrearPrestacionResponse response = prestacionApp.createPrestacion(crearPrestacionRequest);
+        CreatePrestacionResponse response = prestacionApp.createPrestacion(createPrestacionRequest);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+    }
+
+    /**
+     * Actualiza una prestación existente.
+     *
+     * @param id {@code Long} id del recurso, tomado de la ruta
+     * @param updatePrestacionRequest {@code UpdatePrestacionRequest} datos nuevos
+     * @return {@code ResponseEntity<UpdatePrestacionResponse>} la prestación actualizada (200)
+     */
+    @PutMapping("/Prestacion/{id}")
+    public ResponseEntity<UpdatePrestacionResponse> updatePrestacion(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdatePrestacionRequest updatePrestacionRequest) {
+
+        log.info("Solicitud recibida: actualizar prestación id={}", id);
+
+        return ResponseEntity.ok(prestacionApp.updatePrestacion(id, updatePrestacionRequest));
+
+    }
+
+    /**
+     * Da de baja lógica una prestación.
+     *
+     * @param id {@code Long} id del recurso, tomado de la ruta
+     * @return {@code ResponseEntity<Void>} sin contenido (204)
+     */
+    @DeleteMapping("/Prestacion/{id}")
+    public ResponseEntity<Void> deletePrestacion(@PathVariable Long id) {
+
+        log.info("Solicitud recibida: dar de baja prestación id={}", id);
+
+        prestacionApp.deletePrestacion(id);
+
+        return ResponseEntity.noContent().build();
 
     }
 
@@ -207,26 +271,59 @@ public class PrestacionApp {
     /**
      * Crea una prestación validando que su código no esté repetido.
      *
-     * @param crearPrestacionRequest {@code CrearPrestacionRequest} datos de la prestación
-     * @return {@code CrearPrestacionResponse} la prestación creada, con su id
+     * @param createPrestacionRequest {@code CreatePrestacionRequest} datos de la prestación
+     * @return {@code CreatePrestacionResponse} la prestación creada, con su id
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el código ya existe
      */
     @Transactional
-    public CrearPrestacionResponse createPrestacion(CrearPrestacionRequest crearPrestacionRequest) {
+    public CreatePrestacionResponse createPrestacion(CreatePrestacionRequest createPrestacionRequest) {
 
-        log.info("Creación de prestación iniciada: código={}", crearPrestacionRequest.codigo());
+        log.info("Creación de prestación iniciada: código={}", createPrestacionRequest.codigo());
 
         //Validar que el código no esté repetido entre las prestaciones activas
-        prestacionDomainService.validateCodigoPrestacionIsUnique(crearPrestacionRequest.codigo());
+        prestacionDomainService.validateCodigoPrestacionIsUnique(createPrestacionRequest.codigo());
 
         //Mapear el request a entidad
-        Prestacion prestacionNueva = prestacionMapper.toEntity(crearPrestacionRequest);
+        Prestacion prestacionNueva = prestacionMapper.toEntity(createPrestacionRequest);
 
         //Persistir la prestación
         Prestacion prestacionGuardada = prestacionDomainService.savePrestacion(prestacionNueva);
 
         //Devolver el response mapeado
-        return prestacionMapper.toCrearResponse(prestacionGuardada);
+        return prestacionMapper.toCreateResponse(prestacionGuardada);
+
+    }
+
+    /**
+     * Actualiza una prestación existente.
+     *
+     * @param id {@code Long} id del recurso, tomado de la ruta
+     * @param updatePrestacionRequest {@code UpdatePrestacionRequest} datos nuevos
+     * @return {@code UpdatePrestacionResponse} la prestación actualizada
+     * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del request
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la prestación no existe
+     */
+    @Transactional
+    public UpdatePrestacionResponse updatePrestacion(Long id,
+            UpdatePrestacionRequest updatePrestacionRequest) {
+
+        log.info("Actualización de prestación iniciada: id={}", id);
+
+        //El id de la ruta identifica el recurso: si el body trae otro, el request es inconsistente
+        if (!id.equals(updatePrestacionRequest.id())) {
+            log.warn("Id de ruta ({}) distinto al del body ({})", id, updatePrestacionRequest.id());
+            throw new ValidacionException(getClass(),
+                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+        }
+
+        Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(id);
+
+        Prestacion prestacionActualizada = prestacionMapper.update(prestacionExistente,
+                updatePrestacionRequest);
+
+        Prestacion prestacionGuardada = prestacionDomainService.savePrestacion(prestacionActualizada);
+
+        return prestacionMapper.toUpdateResponse(prestacionGuardada);
 
     }
 

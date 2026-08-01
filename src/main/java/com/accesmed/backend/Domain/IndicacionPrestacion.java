@@ -21,8 +21,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Requisito previo de una {@link Prestacion}. Inmutable: solo alta y baja lógica, nunca
- * modificación — por eso no expone setters de negocio. Nunca existe suelta ni se comparte
+ * Requisito previo de una {@link Prestacion}. Editable únicamente mientras su prestación
+ * está en borrador ({@code fechaHabilitacion} nula); una vez habilitada la prestación
+ * queda inmutable y solo admite alta y baja lógica. Nunca existe suelta ni se comparte
  * entre prestaciones.
  */
 @Getter
@@ -41,16 +42,19 @@ public class IndicacionPrestacion extends Auditable {
 
     @NotBlank
     @Size(max = 150)
-    @Column(name = "nombre", nullable = false, updatable = false, length = 150)
+    @Setter
+    @Column(name = "nombre", nullable = false, length = 150)
     private String nombre;
 
     @NotBlank
     @Size(max = 1000)
-    @Column(name = "descripcion", nullable = false, updatable = false, length = 1000)
+    @Setter
+    @Column(name = "descripcion", nullable = false, length = 1000)
     private String descripcion;
 
     @NotNull
-    @Column(name = "requiere_validacion", nullable = false, updatable = false)
+    @Setter
+    @Column(name = "requiere_validacion", nullable = false)
     private Boolean requiereValidacion;
 
     //endregion
@@ -58,11 +62,13 @@ public class IndicacionPrestacion extends Auditable {
     //region ========== Relaciones ==========
 
     @NotNull
+    @Setter
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "prestacion_id", nullable = false, updatable = false, foreignKey = @jakarta.persistence.ForeignKey(name = "fk_indicacion_prestacion_prestacion"))
     private Prestacion prestacion;
 
     @NotNull
+    @Setter
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "tipo_indicacion_prestacion_id", nullable = false, updatable = false, foreignKey = @jakarta.persistence.ForeignKey(name = "fk_indicacion_prestacion_tipo_indicacion_prestacion"))
     private TipoIndicacionPrestacion tipoIndicacionPrestacion;

@@ -27,7 +27,7 @@ Todas las versiones son **estables (GA)**, sobre la línea **Spring Boot 4**.
 | springdoc-openapi (Swagger) | 3.0.3 |
 
 Las dependencias gestionadas por el BOM de Spring Boot se declaran **sin `<version>`**.
-Detalle completo, criterios y fuentes en [`docs/STACK.md`](docs/STACK.md).
+Detalle completo, criterios y fuentes en [`Docs/STACK.md`](Docs/STACK.md).
 
 ## Requisitos
 
@@ -201,20 +201,22 @@ Las features se ramifican desde `develop` como `feature/<Entidad o funcionalidad
 | Documento | Contenido |
 |-----------|-----------|
 | [`CLAUDE.md`](CLAUDE.md) | Contexto y convenciones para Claude Code |
-| [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Arquitectura, capas, estructura del repo, decisiones |
-| [`docs/STACK.md`](docs/STACK.md) | Stack tecnológico detallado, con versiones |
+| [`Docs/ARQUITECTURA.md`](Docs/ARQUITECTURA.md) | Arquitectura, capas, estructura del repo, decisiones |
+| [`Docs/STACK.md`](Docs/STACK.md) | Stack tecnológico detallado, con versiones |
 | [`.claude/plans/PLAN-SETUP-CLAUDE-CODE.md`](.claude/plans/PLAN-SETUP-CLAUDE-CODE.md) | Plan de setup paso a paso |
-| [`docs/FRONTEND-GUIA.md`](docs/FRONTEND-GUIA.md) | Contrato de API para el frontend |
+| [`Docs/FRONTEND-GUIA.md`](Docs/FRONTEND-GUIA.md) | Contrato de API para el frontend |
 
 ## Arquitectura en una línea
 
 `Controller → App (aplicación) → DomainService/QueryService → Repository`, con un
-`record` (DTO) por endpoint y un manejador global de errores que responde un `AccesMedError`
-único. Detalle en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).
+`record` (DTO) por endpoint —agrupados en `Records/<Entidad>/{Request,Response}`— y un
+manejador global de errores que responde un `AccesMedError` único. Los endpoints cuelgan de
+`/accesmed-api/<Entidad>` y cada método agrega su recurso (`POST /accesmed-api/Prestacion/Prestacion`).
+Detalle en [`Docs/ARQUITECTURA.md`](Docs/ARQUITECTURA.md).
 
 ## Estructura del repositorio
 
-Ver el árbol completo en [`docs/ARQUITECTURA.md §4`](docs/ARQUITECTURA.md). En corto:
+Ver el árbol completo en [`docs/ARQUITECTURA.md §4`](Docs/ARQUITECTURA.md). En corto:
 
 ```
 accesmed-backend/
@@ -241,13 +243,14 @@ accesmed-backend/
     ├── main/
     │   ├── java/com/accesmed/backend/
     │   │   ├── AccesMedApplication.java
-    │   │   ├── Config/
-    │   │   ├── Controllers/    (+ Errors/: GlobalExceptionHandler, AccesMedError)
+    │   │   ├── Config/         (transversal: SecurityConfig, JpaAuditingConfig)
+    │   │   ├── Controllers/    (+ Errors/: GlobalExceptionHandler, AccesMedError
+    │   │   │                    + ControllersConfig/: OpenApiConfig, CORS, interceptores)
     │   │   ├── Application/    (<Entidad>App)
     │   │   ├── Domain/         (entidades + Auditable)
     │   │   ├── Services/{DomainServices,QueryServices,Mappers,Errors,Utils}/
     │   │   ├── Repositories/
-    │   │   ├── Records/{Request,Response}/
+    │   │   ├── Records/<Entidad>/{Request,Response}/
     │   │   ├── Security/       (slice vertical de auth, mismo patrón)
     │   │   └── Agente/         (entrada del agente; reutiliza el núcleo)
     │   └── resources/

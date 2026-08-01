@@ -12,7 +12,7 @@ description: >
 
 # Documentador de features — backend AccesMed
 
-Genera o actualiza el documento funcional de una feature en `docs/feature/`. Es el
+Genera o actualiza el documento funcional de una feature en `../../../Docs/Features/`. Es el
 complemento de Swagger: Swagger documenta la forma (request/response exactos), este
 documento documenta el **propósito de negocio** y da una guía de integración legible para
 quien arma el front o las Custom Tools del agente, sin tener que leer el código.
@@ -24,21 +24,22 @@ negocio y el detalle técnico recopilados en su Fase 1 — no volver a preguntar
 confirmación de lo que falte. Si se invoca de forma independiente, preguntar:
 
 1. **Nombre de la feature o funcionalidad** a documentar (ej. `Turno`, `GestionTurnos`).
-   Define el nombre del archivo: `docs/feature/<Nombre>.md`.
+   Define el nombre del archivo: `../../../Docs/Features/<Nombre>.md`.
 2. **Contexto de negocio**:
    - Para qué es: qué problema de negocio resuelve.
    - Para qué sirve: qué logra el usuario final al usarla.
    - Quiénes la usan: paciente (agente/WhatsApp), personal de clínica (admin, médico), o
      ambos, y desde qué frente.
 3. **Funciones que la componen**: si el código ya existe, leer directo de
-   `Controllers/<Entidad>Controller.java`, `Records/Request/` y `Records/Response/` en vez
-   de volver a preguntar (ruta, verbo HTTP, campos de cada record, reglas de negocio
-   visibles en el `App`/`DomainService`). Si no existe todavía, preguntar por cada función:
-   ruta, verbo, campos de entrada/salida y qué reglas de negocio aplica.
+   `Controllers/<Entidad>Controller.java`, `Records/<Entidad>/Request/` y
+   `Records/<Entidad>/Response/` en vez de volver a preguntar (ruta completa —base de clase
+   + recurso del método—, verbo HTTP, campos de cada record, reglas de negocio visibles en
+   el `App`/`DomainService`). Si no existe todavía, preguntar por cada función: ruta, verbo,
+   campos de entrada/salida y qué reglas de negocio aplica.
 
 ## Fase 2 — Generar o actualizar el documento
 
-Archivo: `docs/feature/<Nombre>.md`. Estructura fija:
+Archivo: `../../../Docs/Features/<Nombre>.md`. Estructura fija:
 
 ```markdown
 # Feature: <Nombre>
@@ -50,19 +51,19 @@ Archivo: `docs/feature/<Nombre>.md`. Estructura fija:
 
 ## Funciones
 
-### <Verbo + Entidad, ej. "Crear turno"> — `POST /api/turnos`
+### <Verbo + Entidad, ej. "Crear turno"> — `POST /accesmed-api/Turno/Turno`
 
 **Flujo simplificado:**
 1. ...
 2. ...
 
-**Request para el front — `CrearTurnoRequest`**
+**Request para el front — `CreateTurnoRequest`**
 
 | Campo | Tipo | Obligatorio | Notas |
 |-------|------|-------------|-------|
 | ... | ... | ... | ... |
 
-**Response para el front — `CrearTurnoResponse`**
+**Response para el front — `CreateTurnoResponse`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
@@ -83,7 +84,11 @@ Reglas de contenido:
 - **Tablas de request/response**: la columna clave es "para qué lo usa el front" (no una
   descripción genérica del campo) — ej. "para navegar al detalle del turno", "para
   deshabilitar el botón de confirmar mientras está `Pendiente`". Mismo estilo que
-  `docs/FRONTEND-GUIA.md`.
+  `../../../Docs/FRONTEND-GUIA.md`.
+- **Ruta del endpoint**: siempre la ruta completa (`/accesmed-api/<Entidad>/<Recurso>[/{id}]`),
+  tal como la ve el front. En `PUT`/`PATCH`, aclarar en las notas del campo `id` que tiene
+  que ser **el mismo** que el de la URL (si difieren, el backend responde 422). Si un `PATCH`
+  no lleva body, decirlo explícitamente en vez de poner una tabla de request vacía.
 - **Errores**: nunca reexplicar `AccesMedError` acá — solo referenciar
   `docs/FRONTEND-GUIA.md §1`.
 - **Si el archivo ya existe**: actualizar, no duplicar. Agregar funciones nuevas al final de
@@ -94,12 +99,13 @@ Reglas de contenido:
 
 ## Fase 3 — Verificar
 
-- [ ] `docs/feature/<Nombre>.md` existe con `## Contexto` y una sección `### <Función>` por
+- [ ] `../../../Docs/Features/<Nombre>.md` existe con `## Contexto` y una sección `### <Función>` por
       cada endpoint de la feature.
 - [ ] Cada función documentada corresponde a un endpoint real: el nombre del record en la
-      tabla (`CrearTurnoRequest`, etc.) coincide con la clase en `Records/Request` o
-      `Records/Response`.
+      tabla (`CreateTurnoRequest`, etc.) coincide con la clase en `Records/<Entidad>/Request`
+      o `Records/<Entidad>/Response`, y la ruta documentada con la del controller
+      (`@RequestMapping` de la clase + ruta del método).
 - [ ] No se duplicó el contrato de errores — se referencia `FRONTEND-GUIA.md §1`.
 - [ ] Si el archivo ya existía, se actualizó sin perder contenido de funciones no tocadas.
 - [ ] El documento no reexplica la arquitectura interna (capas, DomainService, etc.) — eso
-      vive en `docs/ARQUITECTURA.md`; acá solo negocio + contrato para el front.
+      vive en `../../../Docs/ARQUITECTURA.md`; acá solo negocio + contrato para el front.

@@ -2,7 +2,7 @@
 
 > Este archivo es el contexto que Claude Code lee al iniciar. **No** repite toda la
 > documentación: describe qué es la app, las convenciones no negociables y dónde
-> buscar el detalle. El detalle vive en `docs/ARQUITECTURA.md`.
+> buscar el detalle. El detalle vive en `Docs/ARQUITECTURA.md`.
 
 ## Qué es AccesMed
 
@@ -44,7 +44,7 @@ Reglas de dominio que hay que respetar (son verdad de terreno, salen del diagram
 
 ## Convenciones no negociables
 
-Estas convenciones se aplican SIEMPRE. El detalle y ejemplos están en `docs/ARQUITECTURA.md`.
+Estas convenciones se aplican SIEMPRE. El detalle y ejemplos están en `Docs/ARQUITECTURA.md`.
 
 **Arquitectura por capas (CRUD + capa de aplicación):**
 `Controller → App (capa de aplicación) → DomainService/QueryService → Repository`.
@@ -55,21 +55,42 @@ Estas convenciones se aplican SIEMPRE. El detalle y ejemplos están en `docs/ARQ
 - Los **DomainService/QueryService** (`Services/DomainServices`, `Services/QueryServices`)
   encapsulan lógica y consultas de una entidad. `Domain` contiene **solo las entidades**,
   no lógica. Los `Mapper` (MapStruct) viven en `Services/Mappers`.
-- Un **record por endpoint**, en `Records/Request` y `Records/Response`. Los campos
-  inmutables no viajan en el request.
+- Un **record por endpoint**, en `Records/<Entidad>/Request` y `Records/<Entidad>/Response`.
+  Los campos inmutables no viajan en el request.
+- `Controllers` tiene dos subpaquetes fijos: **`Controllers/Errors`** (`GlobalExceptionHandler`,
+  `AccesMedError`) y **`Controllers/ControllersConfig`** (config propia de la capa web:
+  `OpenApiConfig`, CORS, interceptores). `Config/` queda para lo transversal de
+  infraestructura (`SecurityConfig`, `JpaAuditingConfig`).
 
 **Nomenclatura:**
 
-- Records = **`record`** de Java, en la carpeta `Records/` (`Request`/`Response`).
+- Records = **`record`** de Java, agrupados por entidad:
+  `Records/<Entidad>/Request/` y `Records/<Entidad>/Response/`.
   Request: `<Accion><Entidad>Request`. Response: `<Accion><Entidad>Response`.
-  Ej: `CrearPrestacionRequest`, `CrearPrestacionResponse`.
+  **La acción va en inglés** (`Create`, `Update`, `Get`, `List`, `Enable`, `Delete`...).
+  Ej: `Records/Prestacion/Request/CreatePrestacionRequest`,
+  `Records/Prestacion/Response/CreatePrestacionResponse`.
 - Controladores con sufijo **`Controller`**: `PrestacionController`.
 - Casos de uso con sufijo **`App`**: `PrestacionApp`.
 - Métodos: **verbo en inglés + concepto de negocio en español**:
   `createMedico`, `saveMedico`, `validateCodigoPrestacionIsUnique`.
-- Parámetros = nombre camelCase del tipo: `createMedico(CrearMedicoRequest crearMedicoRequest)`.
+- Parámetros = nombre camelCase del tipo: `createMedico(CreateMedicoRequest createMedicoRequest)`.
 - Variables de entidad en memoria en español descriptivo: `medicoExistente`,
   `medicoActualizado`, `turnoConfirmado`.
+
+**Rutas y verbos HTTP de los controllers:**
+
+- Ruta base de la clase: `@RequestMapping("/accesmed-api/<Entidad>")` — entidad en
+  PascalCase singular (`/accesmed-api/Prestacion`, `/accesmed-api/AgendaMedico`).
+- Cada método agrega el **recurso concreto** sobre el que opera:
+  `createPrestacion` → `/Prestacion`, `createAgenda` → `/Agenda`.
+- **PUT y PATCH con body**: llevan `@PathVariable Long id` **además** del record, y el
+  **App valida que el `id` de la ruta coincida con el del record** antes de seguir
+  (`ValidacionException` si no).
+- **PATCH sin body**: para actualizar un campo puntual, solo `@PathVariable Long id`.
+- **Soft delete = `DELETE`** (`@DeleteMapping("/<Recurso>/{id}")`, responde 204).
+
+Detalle y ejemplos en `docs/ARQUITECTURA.md §5`.
 
 **Errores:** excepciones **no chequeadas** (`extends RuntimeException`), base
 `AccesMedException` (antes `AppException`). Jerarquía fija de 3 tipos
@@ -106,7 +127,7 @@ Java 25 (LTS) · Maven · Spring Boot 4.1.0 (Web, Data JPA, Validation, Security
 PostgreSQL 16 · Liquibase · Hibernate ORM 7.4 · Lombok · MapStruct 1.6.3 ·
 hibernate-jpamodelgen · springdoc-openapi 3.0.3 · jjwt 0.13.0.
 
-Todas las versiones son estables (GA) y están detalladas en `docs/STACK.md`. Las que
+Todas las versiones son estables (GA) y están detalladas en `Docs/STACK.md`. Las que
 gestiona el BOM de Spring Boot se declaran sin `<version>`.
 
 ## Perfiles
@@ -128,7 +149,7 @@ Documentación y comunicación en **español**. Nombres de código según la reg
 
 ## Mantener la documentación actualizada
 
-Este archivo y `docs/ARQUITECTURA.md` son la fuente de verdad de la arquitectura. Si un
+Este archivo y `Docs/ARQUITECTURA.md` son la fuente de verdad de la arquitectura. Si un
 cambio de código implica un cambio de convención, estructura o decisión (nueva capa, nueva
 dependencia, cambio de nomenclatura, etc.), **hay que reflejarlo en el documento
 correspondiente en el mismo cambio** — no dejarlo para después. Documentación desactualizada
