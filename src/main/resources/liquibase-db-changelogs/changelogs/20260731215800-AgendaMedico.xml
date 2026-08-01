@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Requerida por el EXCLUDE USING gist de mas abajo (no solapamiento de vigencias). -->
+    <changeSet id="20260731215800-enabled-extension-btree-gist" author="claude">
+        <sql>CREATE EXTENSION IF NOT EXISTS btree_gist;</sql>
+        <rollback>
+            <sql>DROP EXTENSION IF EXISTS btree_gist;</sql>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="20260731215801-added-table-AgendaMedico" author="claude">
+        <createTable tableName="agenda_medico">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_agenda_medico"/>
+            </column>
+            <column name="fecha_hora_inicio_vigencia" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_hora_fin_vigencia" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <!-- ====== Relaciones ====== -->
+            <column name="medico_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_agenda_medico_medico" references="medico(id)"/>
+            </column>
+            <!-- ====== Columnas auditoría (sin baja: AgendaMedico no es bajable) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+        </createTable>
+
+        <sql>ALTER TABLE agenda_medico ADD CONSTRAINT ck_agenda_medico_vigencia CHECK (fecha_hora_inicio_vigencia &lt; fecha_hora_fin_vigencia);</sql>
+
+        <!-- No solapamiento de periodos del mismo medico. -->
+        <sql>
+            ALTER TABLE agenda_medico ADD CONSTRAINT ex_agenda_medico_no_solapamiento
+            EXCLUDE USING gist (
+                medico_id WITH =,
+                tstzrange(fecha_hora_inicio_vigencia, fecha_hora_fin_vigencia) WITH &amp;&amp;
+            );
+        </sql>
+
+        <sql>CREATE INDEX idx_agenda_medico_medico ON agenda_medico (medico_id);</sql>
+        <rollback>
+            <sql>ALTER TABLE agenda_medico DROP CONSTRAINT IF EXISTS ck_agenda_medico_vigencia;</sql>
+            <sql>ALTER TABLE agenda_medico DROP CONSTRAINT IF EXISTS ex_agenda_medico_no_solapamiento;</sql>
+            <sql>DROP INDEX IF EXISTS idx_agenda_medico_medico;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

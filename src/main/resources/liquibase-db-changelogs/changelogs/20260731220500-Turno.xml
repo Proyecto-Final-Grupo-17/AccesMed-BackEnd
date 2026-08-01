@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260731220500-added-table-Turno" author="claude">
+        <createTable tableName="turno">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_turno"/>
+            </column>
+            <column name="codigo" type="varchar(40)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_hora_inicio" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="monto_a_pagar" type="numeric(12,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tipo_cobertura" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_limite_validacion" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_limite_reprogramacion" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_limite_confirmacion" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_limite_cancelacion" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_limite_anuncio_temprano" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_limite_anuncio_tardio" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_hora_recordatorio_confirmacion" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="motivo_cancelacion" type="varchar(30)"/>
+            <!-- ====== Relaciones ====== -->
+            <column name="paciente_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_turno_paciente" references="paciente(id)"/>
+            </column>
+            <column name="medico_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_turno_medico" references="medico(id)"/>
+            </column>
+            <column name="prestacion_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_turno_prestacion" references="prestacion(id)"/>
+            </column>
+            <column name="agenda_horarios_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_turno_agenda_horarios" references="agenda_horarios(id)"/>
+            </column>
+            <column name="obra_social_paciente_id" type="uuid">
+                <constraints nullable="true" foreignKeyName="fk_turno_obra_social_paciente" references="obra_social_paciente(id)"/>
+            </column>
+            <column name="turno_origen_id" type="uuid">
+                <constraints nullable="true" foreignKeyName="fk_turno_turno_origen" references="turno(id)"/>
+            </column>
+            <!-- ====== Columnas auditoría (sin baja: Turno no es bajable) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+        </createTable>
+
+        <sql>ALTER TABLE turno ADD CONSTRAINT ck_turno_motivo_cancelacion CHECK (motivo_cancelacion IS NULL OR motivo_cancelacion IN ('SOLICITUD_DEL_PACIENTE','VALIDACION_RECHAZADA','VALIDACION_VENCIDA','BAJA_DE_MEDICO','BAJA_DE_PRESTACION','DECISION_ADMINISTRATIVA'));</sql>
+        <sql>ALTER TABLE turno ADD CONSTRAINT ck_turno_cobertura_coherente CHECK ((tipo_cobertura = 'OBRA_SOCIAL') = (obra_social_paciente_id IS NOT NULL));</sql>
+        <sql>ALTER TABLE turno ADD CONSTRAINT ck_turno_recordatorio_antes_de_limite CHECK (fecha_hora_recordatorio_confirmacion &lt; fecha_limite_confirmacion);</sql>
+        <sql>ALTER TABLE turno ADD CONSTRAINT ck_turno_ventana_anuncio CHECK (fecha_limite_anuncio_temprano &lt;= fecha_hora_inicio AND fecha_hora_inicio &lt;= fecha_limite_anuncio_tardio);</sql>
+        <sql>ALTER TABLE turno ADD CONSTRAINT ck_turno_monto CHECK (monto_a_pagar >= 0);</sql>
+
+        <!-- codigo es UNIQUE plano (no parcial): Turno no tiene baja logica, el codigo nunca se reutiliza. -->
+        <sql>ALTER TABLE turno ADD CONSTRAINT uq_turno_codigo UNIQUE (codigo);</sql>
+
+        <!-- Indices para el scheduler. -->
+        <sql>CREATE INDEX idx_turno_fecha_limite_confirmacion ON turno (fecha_limite_confirmacion);</sql>
+        <sql>CREATE INDEX idx_turno_fecha_limite_validacion ON turno (fecha_limite_validacion);</sql>
+        <sql>CREATE INDEX idx_turno_fecha_limite_anuncio_tardio ON turno (fecha_limite_anuncio_tardio);</sql>
+        <sql>CREATE INDEX idx_turno_paciente ON turno (paciente_id);</sql>
+        <sql>CREATE INDEX idx_turno_medico ON turno (medico_id);</sql>
+        <sql>CREATE INDEX idx_turno_prestacion ON turno (prestacion_id);</sql>
+        <rollback>
+            <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS ck_turno_motivo_cancelacion;</sql>
+            <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS ck_turno_cobertura_coherente;</sql>
+            <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS ck_turno_recordatorio_antes_de_limite;</sql>
+            <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS ck_turno_ventana_anuncio;</sql>
+            <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS ck_turno_monto;</sql>
+            <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS uq_turno_codigo;</sql>
+            <sql>DROP INDEX IF EXISTS idx_turno_fecha_limite_confirmacion;</sql>
+            <sql>DROP INDEX IF EXISTS idx_turno_fecha_limite_validacion;</sql>
+            <sql>DROP INDEX IF EXISTS idx_turno_fecha_limite_anuncio_tardio;</sql>
+            <sql>DROP INDEX IF EXISTS idx_turno_paciente;</sql>
+            <sql>DROP INDEX IF EXISTS idx_turno_medico;</sql>
+            <sql>DROP INDEX IF EXISTS idx_turno_prestacion;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

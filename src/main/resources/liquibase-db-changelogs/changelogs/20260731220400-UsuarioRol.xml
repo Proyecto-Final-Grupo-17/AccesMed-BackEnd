@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260731220400-added-table-UsuarioRol" author="claude">
+        <createTable tableName="usuario_rol">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_usuario_rol"/>
+            </column>
+            <column name="fecha_inicio_vigencia" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_fin_vigencia" type="timestamptz"/>
+            <!-- ====== Relaciones ====== -->
+            <column name="usuario_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_usuario_rol_usuario" references="usuario(id)"/>
+            </column>
+            <column name="rol_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_usuario_rol_rol" references="rol(id)"/>
+            </column>
+            <!-- ====== Columnas auditoría (sin baja: UsuarioRol no es bajable) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+        </createTable>
+
+        <sql>ALTER TABLE usuario_rol ADD CONSTRAINT ck_usuario_rol_vigencia CHECK (fecha_fin_vigencia IS NULL OR fecha_fin_vigencia > fecha_inicio_vigencia);</sql>
+        <sql>CREATE INDEX idx_usuario_rol_usuario ON usuario_rol (usuario_id);</sql>
+        <sql>CREATE INDEX idx_usuario_rol_rol ON usuario_rol (rol_id);</sql>
+        <rollback>
+            <sql>ALTER TABLE usuario_rol DROP CONSTRAINT IF EXISTS ck_usuario_rol_vigencia;</sql>
+            <sql>DROP INDEX IF EXISTS idx_usuario_rol_usuario;</sql>
+            <sql>DROP INDEX IF EXISTS idx_usuario_rol_rol;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

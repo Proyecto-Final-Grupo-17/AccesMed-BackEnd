@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260731220700-added-table-IndicacionPrestacionTurno" author="claude">
+        <createTable tableName="indicacion_prestacion_turno">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_indicacion_prestacion_turno"/>
+            </column>
+            <column name="fecha_hora_validacion" type="timestamptz"/>
+            <!-- ====== Relaciones ====== -->
+            <column name="turno_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_indicacion_prestacion_turno_turno" references="turno(id)"/>
+            </column>
+            <column name="indicacion_prestacion_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_indicacion_prestacion_turno_indicacion_prestacion" references="indicacion_prestacion(id)"/>
+            </column>
+            <column name="validado_por_id" type="uuid">
+                <constraints nullable="true" foreignKeyName="fk_indicacion_prestacion_turno_validado_por" references="usuario(id)"/>
+            </column>
+            <!-- ====== Columnas auditoría (incluye a la baja) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+            <column name="deleted_at" type="timestamptz"/>
+            <column name="deleted_by" type="uuid"/>
+            <column name="deleted_reason" type="varchar(500)"/>
+        </createTable>
+
+        <sql>ALTER TABLE indicacion_prestacion_turno ADD CONSTRAINT ck_indicacion_prestacion_turno_validacion_coherente CHECK ((fecha_hora_validacion IS NULL) = (validado_por_id IS NULL));</sql>
+
+        <sql>CREATE UNIQUE INDEX uq_indicacion_prestacion_turno_turno_indicacion ON indicacion_prestacion_turno (turno_id, indicacion_prestacion_id) WHERE deleted_at IS NULL;</sql>
+
+        <!-- Consulta que decide si el turno sale de "Espera de Validacion". -->
+        <sql>CREATE INDEX idx_indicacion_prestacion_turno_pendiente ON indicacion_prestacion_turno (turno_id) WHERE fecha_hora_validacion IS NULL;</sql>
+
+        <sql>CREATE INDEX idx_indicacion_prestacion_turno_indicacion_prestacion ON indicacion_prestacion_turno (indicacion_prestacion_id);</sql>
+        <rollback>
+            <sql>ALTER TABLE indicacion_prestacion_turno DROP CONSTRAINT IF EXISTS ck_indicacion_prestacion_turno_validacion_coherente;</sql>
+            <sql>DROP INDEX IF EXISTS uq_indicacion_prestacion_turno_turno_indicacion;</sql>
+            <sql>DROP INDEX IF EXISTS idx_indicacion_prestacion_turno_pendiente;</sql>
+            <sql>DROP INDEX IF EXISTS idx_indicacion_prestacion_turno_indicacion_prestacion;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

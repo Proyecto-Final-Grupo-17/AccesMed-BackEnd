@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260731214500-added-table-Clinica" author="claude">
+        <createTable tableName="clinica">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_clinica"/>
+            </column>
+            <column name="nombre" type="varchar(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="descripcion" type="varchar(1000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ubicacion" type="varchar(250)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email" type="varchar(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="telefono" type="varchar(30)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="horario_inicio_atencion" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="horario_fin_atencion" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="dias_minimos_vigencia_agenda" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="dias_maximos_vigencia_agenda" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <!-- ====== Guardia de singleton (no mapeada en la entidad JPA) ====== -->
+            <column name="singleton_guard" type="smallint" defaultValueNumeric="1">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_clinica_singleton_guard"/>
+            </column>
+            <!-- ====== Columnas auditoría (sin baja: Clinica no es bajable) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+        </createTable>
+
+        <sql>ALTER TABLE clinica ADD CONSTRAINT ck_clinica_horario_atencion CHECK (horario_inicio_atencion &lt; horario_fin_atencion);</sql>
+        <sql>ALTER TABLE clinica ADD CONSTRAINT ck_clinica_dias_vigencia_agenda CHECK (dias_minimos_vigencia_agenda &gt;= 1 AND dias_minimos_vigencia_agenda &lt;= dias_maximos_vigencia_agenda);</sql>
+        <sql>ALTER TABLE clinica ADD CONSTRAINT ck_clinica_singleton_guard CHECK (singleton_guard = 1);</sql>
+        <rollback>
+            <sql>ALTER TABLE clinica DROP CONSTRAINT IF EXISTS ck_clinica_horario_atencion;</sql>
+            <sql>ALTER TABLE clinica DROP CONSTRAINT IF EXISTS ck_clinica_dias_vigencia_agenda;</sql>
+            <sql>ALTER TABLE clinica DROP CONSTRAINT IF EXISTS ck_clinica_singleton_guard;</sql>
+        </rollback>
+    </changeSet>
+
+    <!--
+        Carga inicial: instancia unica de Clinica, con sus parametros de configuracion
+        (horario de atencion y rango de vigencia de agenda). Valores de ejemplo, a
+        ajustar por el administrador desde el panel una vez exista el CU de
+        modificacion.
+    -->
+    <changeSet id="20260731214501-inserted-data-Clinica" author="claude">
+        <insert tableName="clinica">
+            <column name="id" valueComputed="gen_random_uuid()"/>
+            <column name="nombre" value="AccesMed"/>
+            <column name="descripcion" value="Clinica medica con gestion de turnos por WhatsApp y panel interno."/>
+            <column name="ubicacion" value="Av. Siempre Viva 123, Ciudad Autonoma de Buenos Aires"/>
+            <column name="email" value="contacto@accesmed.com.ar"/>
+            <column name="telefono" value="+54 11 5555-5555"/>
+            <column name="horario_inicio_atencion" valueDate="08:00:00"/>
+            <column name="horario_fin_atencion" valueDate="20:00:00"/>
+            <column name="dias_minimos_vigencia_agenda" valueNumeric="7"/>
+            <column name="dias_maximos_vigencia_agenda" valueNumeric="90"/>
+            <column name="created_at" valueComputed="now()"/>
+            <column name="created_by" value="system"/>
+        </insert>
+        <rollback>
+            <sql>DELETE FROM clinica;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

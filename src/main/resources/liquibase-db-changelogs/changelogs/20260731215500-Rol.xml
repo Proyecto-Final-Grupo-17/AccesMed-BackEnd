@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260731215500-added-table-Rol" author="claude">
+        <createTable tableName="rol">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_rol"/>
+            </column>
+            <column name="nombre" type="varchar(60)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="es_sistema" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <!-- ====== Columnas auditoría (incluye a la baja) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+            <column name="deleted_at" type="timestamptz"/>
+            <column name="deleted_by" type="uuid"/>
+            <column name="deleted_reason" type="varchar(500)"/>
+        </createTable>
+
+        <sql>CREATE UNIQUE INDEX uq_rol_nombre ON rol (nombre) WHERE deleted_at IS NULL;</sql>
+        <rollback>
+            <sql>DROP INDEX IF EXISTS uq_rol_nombre;</sql>
+        </rollback>
+    </changeSet>
+
+    <!--
+        Tabla de la asociación N:N Rol-Permiso. Permiso es un enum (no una entidad), se
+        materializa con @ElementCollection. FK con ON DELETE CASCADE porque es una
+        colección propiedad del rol, no una entidad con vida propia.
+    -->
+    <changeSet id="20260731215501-added-table-RolPermiso" author="claude">
+        <createTable tableName="rol_permiso">
+            <column name="rol_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_rol_permiso_rol" references="rol(id)" deleteCascade="true"/>
+            </column>
+            <column name="permiso" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            ALTER TABLE rol_permiso ADD CONSTRAINT ck_rol_permiso_permiso CHECK (permiso IN (
+                'CONFIG_MODIFICAR',
+                'MED_ALTA','MED_MODIFICAR','MED_BAJA','MED_CONSULTAR','MED_ASIGNAR_PRESTACION',
+                'PREST_ALTA','PREST_MODIFICAR','PREST_BAJA','PREST_CONSULTAR',
+                'AGEN_CONFIGURAR','AGEN_CONSULTAR',
+                'PACIENTE_ALTA','PACIENTE_MODIFICAR','PACIENTE_BAJA','PACIENTE_CONSULTAR',
+                'OS_ALTA','OS_MODIFICAR','OS_BAJA','OS_CONSULTAR',
+                'TURN_REGISTRAR','TURN_VALIDAR','TURN_CONFIRMAR','TURN_REPROGRAMAR','TURN_CANCELAR','TURN_ANUNCIAR','TURN_INICIAR','TURN_FINALIZAR','TURN_CONSULTAR',
+                'USER_ALTA','USER_MODIFICAR','USER_BAJA','USER_CONSULTAR',
+                'AUTZ_ROL_ALTA','AUTZ_ROL_MODIFICAR','AUTZ_ROL_BAJA','AUTZ_ROL_ASIGNAR'
+            ));
+        </sql>
+        <sql>ALTER TABLE rol_permiso ADD CONSTRAINT uq_rol_permiso_rol_permiso UNIQUE (rol_id, permiso);</sql>
+        <rollback>
+            <sql>ALTER TABLE rol_permiso DROP CONSTRAINT IF EXISTS ck_rol_permiso_permiso;</sql>
+            <sql>ALTER TABLE rol_permiso DROP CONSTRAINT IF EXISTS uq_rol_permiso_rol_permiso;</sql>
+        </rollback>
+    </changeSet>
+
+    <!-- Carga inicial: los dos roles de sistema, Medico y Admin, con es_sistema = true. -->
+    <changeSet id="20260731215502-inserted-data-RolSistema" author="claude">
+        <sql>
+            INSERT INTO rol (id, nombre, es_sistema, created_at, created_by)
+            VALUES (gen_random_uuid(), 'Medico', true, now(), 'system');
+
+            INSERT INTO rol (id, nombre, es_sistema, created_at, created_by)
+            VALUES (gen_random_uuid(), 'Admin', true, now(), 'system');
+        </sql>
+        <sql>
+            INSERT INTO rol_permiso (rol_id, permiso)
+            SELECT id, permiso FROM rol, (VALUES
+                ('AGEN_CONSULTAR'), ('MED_CONSULTAR'), ('PREST_CONSULTAR'),
+                ('TURN_INICIAR'), ('TURN_FINALIZAR'), ('TURN_CONSULTAR'), ('TURN_VALIDAR')
+            ) AS permisos(permiso)
+            WHERE rol.nombre = 'Medico';
+
+            INSERT INTO rol_permiso (rol_id, permiso)
+            SELECT id, permiso FROM rol, (VALUES
+                ('CONFIG_MODIFICAR'),
+                ('MED_ALTA'), ('MED_MODIFICAR'), ('MED_BAJA'), ('MED_CONSULTAR'), ('MED_ASIGNAR_PRESTACION'),
+                ('PREST_ALTA'), ('PREST_MODIFICAR'), ('PREST_BAJA'), ('PREST_CONSULTAR'),
+                ('AGEN_CONFIGURAR'), ('AGEN_CONSULTAR'),
+                ('PACIENTE_ALTA'), ('PACIENTE_MODIFICAR'), ('PACIENTE_BAJA'), ('PACIENTE_CONSULTAR'),
+                ('OS_ALTA'), ('OS_MODIFICAR'), ('OS_BAJA'), ('OS_CONSULTAR'),
+                ('TURN_REGISTRAR'), ('TURN_VALIDAR'), ('TURN_CONFIRMAR'), ('TURN_REPROGRAMAR'), ('TURN_CANCELAR'), ('TURN_ANUNCIAR'), ('TURN_CONSULTAR'),
+                ('USER_ALTA'), ('USER_MODIFICAR'), ('USER_BAJA'), ('USER_CONSULTAR'),
+                ('AUTZ_ROL_ALTA'), ('AUTZ_ROL_MODIFICAR'), ('AUTZ_ROL_BAJA'), ('AUTZ_ROL_ASIGNAR')
+            ) AS permisos(permiso)
+            WHERE rol.nombre = 'Admin';
+        </sql>
+        <rollback>
+            <sql>DELETE FROM rol_permiso;</sql>
+            <sql>DELETE FROM rol WHERE nombre IN ('Medico', 'Admin');</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

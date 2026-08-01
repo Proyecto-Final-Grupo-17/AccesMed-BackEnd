@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260731215300-added-table-Prestacion" author="claude">
+        <createTable tableName="prestacion">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_prestacion"/>
+            </column>
+            <column name="codigo" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="nombre" type="varchar(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="duracion_minima" type="interval">
+                <constraints nullable="false"/>
+            </column>
+            <column name="duracion_maxima" type="interval">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tiempo_tolerancia_solicitud" type="interval">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tiempo_tolerancia_validacion" type="interval">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tiempo_tolerancia_reprogramacion" type="interval">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tiempo_tolerancia_confirmacion" type="interval">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tiempo_tolerancia_cancelacion" type="interval">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tiempo_tolerancia_anuncio" type="interval">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tiempo_recordatorio_confirmacion" type="interval">
+                <constraints nullable="false"/>
+            </column>
+            <!-- ====== Relaciones ====== -->
+            <column name="especialidad_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_prestacion_especialidad" references="especialidad(id)"/>
+            </column>
+            <!-- ====== Columnas auditoría (incluye a la baja) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+            <column name="deleted_at" type="timestamptz"/>
+            <column name="deleted_by" type="uuid"/>
+            <column name="deleted_reason" type="varchar(500)"/>
+        </createTable>
+
+        <!-- ====== El CHECK más importante del esquema: cadena de tolerancias ====== -->
+        <sql>
+            ALTER TABLE prestacion ADD CONSTRAINT ck_prestacion_invariante_tolerancias CHECK (
+                tiempo_tolerancia_solicitud      >= tiempo_tolerancia_validacion      AND
+                tiempo_tolerancia_validacion     >= tiempo_tolerancia_reprogramacion  AND
+                tiempo_tolerancia_reprogramacion >= tiempo_tolerancia_confirmacion    AND
+                tiempo_tolerancia_confirmacion   >= tiempo_tolerancia_cancelacion     AND
+                tiempo_tolerancia_cancelacion    >= interval '0'
+            );
+        </sql>
+        <sql>ALTER TABLE prestacion ADD CONSTRAINT ck_prestacion_tolerancia_anuncio CHECK (tiempo_tolerancia_anuncio >= interval '0');</sql>
+        <sql>
+            ALTER TABLE prestacion ADD CONSTRAINT ck_prestacion_recordatorio CHECK (
+                tiempo_recordatorio_confirmacion > tiempo_tolerancia_confirmacion AND
+                tiempo_recordatorio_confirmacion &lt;= tiempo_tolerancia_solicitud
+            );
+        </sql>
+        <sql>
+            ALTER TABLE prestacion ADD CONSTRAINT ck_prestacion_duracion CHECK (
+                duracion_minima > interval '0' AND duracion_minima &lt;= duracion_maxima
+            );
+        </sql>
+
+        <sql>CREATE UNIQUE INDEX uq_prestacion_codigo ON prestacion (codigo) WHERE deleted_at IS NULL;</sql>
+        <sql>CREATE UNIQUE INDEX uq_prestacion_nombre ON prestacion (nombre) WHERE deleted_at IS NULL;</sql>
+        <sql>CREATE INDEX idx_prestacion_especialidad ON prestacion (especialidad_id);</sql>
+        <rollback>
+            <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_invariante_tolerancias;</sql>
+            <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_tolerancia_anuncio;</sql>
+            <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_recordatorio;</sql>
+            <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_duracion;</sql>
+            <sql>DROP INDEX IF EXISTS uq_prestacion_codigo;</sql>
+            <sql>DROP INDEX IF EXISTS uq_prestacion_nombre;</sql>
+            <sql>DROP INDEX IF EXISTS idx_prestacion_especialidad;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

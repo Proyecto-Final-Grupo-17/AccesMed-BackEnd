@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260731215900-added-table-AgendaDia" author="claude">
+        <createTable tableName="agenda_dia">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_agenda_dia"/>
+            </column>
+            <column name="fecha" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <!-- ====== Relaciones ====== -->
+            <column name="agenda_medico_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_agenda_dia_agenda_medico" references="agenda_medico(id)"/>
+            </column>
+            <!-- ====== Columnas auditoría (incluye a la baja) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+            <column name="deleted_at" type="timestamptz"/>
+            <column name="deleted_by" type="uuid"/>
+            <column name="deleted_reason" type="varchar(500)"/>
+        </createTable>
+
+        <sql>CREATE UNIQUE INDEX uq_agenda_dia_agenda_medico_fecha ON agenda_dia (agenda_medico_id, fecha) WHERE deleted_at IS NULL;</sql>
+        <rollback>
+            <sql>DROP INDEX IF EXISTS uq_agenda_dia_agenda_medico_fecha;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
