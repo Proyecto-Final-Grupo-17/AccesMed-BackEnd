@@ -1,0 +1,603 @@
+{
+  "esquema": "accesmed/modelo-clases/2.0",
+  "proyecto": "AccesMed",
+  "descripcion": "Modelo conceptual de clases del backend AccesMed. Fuente de verdad para el diagrama de clases, el documento de reglas de negocio y la generación de entidades JPA + changelogs Liquibase.",
+  "fecha": "2026-07-31",
+
+  "convenciones": {
+    "identificador": "Toda clase persistente tiene id: UUID. No se lista en los atributos.",
+    "auditable": {
+      "descripcion": "Marcador «auditable». En implementación es la MappedSuperclass Auditable. No se dibuja en el diagrama.",
+      "campos": [
+        { "nombre": "createdAt", "tipo": "ZonedDateTime" },
+        { "nombre": "updatedAt", "tipo": "ZonedDateTime" },
+        { "nombre": "createdBy", "tipo": "UUID" },
+        { "nombre": "updatedBy", "tipo": "UUID" }
+      ]
+    },
+    "bajable": {
+      "descripcion": "Marcador «bajable». NO existe una clase abstracta Bajable: los tres campos se declaran en cada clase que los usa. Activo = deletedAt vacío.",
+      "campos": [
+        { "nombre": "deletedAt", "tipo": "ZonedDateTime", "obligatorio": false },
+        { "nombre": "deletedBy", "tipo": "UUID", "obligatorio": false },
+        { "nombre": "deletedReason", "tipo": "String", "obligatorio": false }
+      ]
+    },
+    "navegabilidad": "La flecha va del lado que conoce al lado conocido. Sin flecha = navegable en ambos sentidos.",
+    "alcance": "El subsistema del agente conversacional (ProcesoAgente, MensajeClave, TipoMensajeClave, EstadoProcesoAgente) queda fuera de este modelo."
+  },
+
+  "enums": [
+    {
+      "nombre": "TipoCobertura",
+      "descripcion": "Con qué condición económica se atiende un turno. Se congela al crearlo.",
+      "valores": ["PARTICULAR", "OBRA_SOCIAL"]
+    },
+    {
+      "nombre": "MotivoCancelacion",
+      "descripcion": "Catálogo fijo. No configurable por la clínica en esta versión.",
+      "valores": [
+        "SOLICITUD_DEL_PACIENTE",
+        "VALIDACION_RECHAZADA",
+        "VALIDACION_VENCIDA",
+        "BAJA_DE_MEDICO",
+        "BAJA_DE_PRESTACION",
+        "DECISION_ADMINISTRATIVA"
+      ]
+    },
+    {
+      "nombre": "ModalidadCobertura",
+      "descripcion": "Cómo se calcula el montoAPagar del turno a partir de MedicoPrestacion.precioParticular.",
+      "valores": ["TOTAL", "CARGO_FIJO", "PORCENTUAL"]
+    },
+    {
+      "nombre": "Permiso",
+      "descripcion": "Catálogo fijo de permisos, definido en código. Convención de nombre: <MODULO>_<ACCION>, un valor por cada CU interno (ej. TURN_REGISTRAR, AGEN_CONFIGURAR, PREST_ALTA). Se relaciona con Rol como asociación N:N, no como atributo de tipo lista.",
+      "valores": []
+    }
+  ],
+
+  "clases": [
+    {
+      "nombre": "Clinica",
+      "modulo": "CONFIG",
+      "estereotipo": "singleton",
+      "auditable": true,
+      "bajable": false,
+      "descripcion": "Instancia única con los datos y parámetros de configuración de la clínica.",
+      "atributos": [
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 150 },
+        { "nombre": "descripcion", "tipo": "String", "obligatorio": true, "maxLength": 1000 },
+        { "nombre": "ubicacion", "tipo": "String", "obligatorio": true, "maxLength": 250 },
+        { "nombre": "email", "tipo": "String", "obligatorio": true, "maxLength": 150, "formato": "email" },
+        { "nombre": "telefono", "tipo": "String", "obligatorio": true, "maxLength": 30 },
+        { "nombre": "horarioInicioAtencion", "tipo": "LocalTime", "obligatorio": true },
+        { "nombre": "horarioFinAtencion", "tipo": "LocalTime", "obligatorio": true },
+        { "nombre": "diasMinimosVigenciaAgenda", "tipo": "Integer", "obligatorio": true },
+        { "nombre": "diasMaximosVigenciaAgenda", "tipo": "Integer", "obligatorio": true }
+      ],
+      "invariantes": [
+        "horarioInicioAtencion < horarioFinAtencion",
+        "1 <= diasMinimosVigenciaAgenda <= diasMaximosVigenciaAgenda"
+      ]
+    },
+
+    {
+      "nombre": "Especialidad",
+      "modulo": "MED",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Especialidad médica. Agrupa médicos y prestaciones.",
+      "atributos": [
+        { "nombre": "codigo", "tipo": "String", "obligatorio": true, "maxLength": 20 },
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 100 }
+      ],
+      "unicidad": [
+        { "campos": ["codigo"], "alcance": "activos" },
+        { "campos": ["nombre"], "alcance": "activos" }
+      ]
+    },
+
+    {
+      "nombre": "Medico",
+      "modulo": "MED",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Profesional que atiende turnos. Tiene una sola especialidad.",
+      "atributos": [
+        { "nombre": "matricula", "tipo": "String", "obligatorio": true, "maxLength": 30 },
+        { "nombre": "dni", "tipo": "String", "obligatorio": true, "maxLength": 15 },
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 100 },
+        { "nombre": "apellido", "tipo": "String", "obligatorio": true, "maxLength": 100 },
+        { "nombre": "email", "tipo": "String", "obligatorio": true, "maxLength": 150, "formato": "email", "nota": "Dato de contacto. Distinto de Usuario.mail, que es la credencial." },
+        { "nombre": "numeroTelefono", "tipo": "String", "obligatorio": true, "maxLength": 30 }
+      ],
+      "unicidad": [
+        { "campos": ["matricula"], "alcance": "activos" },
+        { "campos": ["dni"], "alcance": "activos" }
+      ]
+    },
+
+    {
+      "nombre": "Prestacion",
+      "modulo": "PREST",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Servicio que la clínica ofrece. Concentra la configuración temporal del ciclo de vida del turno.",
+      "atributos": [
+        { "nombre": "codigo", "tipo": "String", "obligatorio": true, "maxLength": 20, "inmutable": true, "nota": "Genera el codigo del Turno. Cambiarlo es baja más alta." },
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 150 },
+        { "nombre": "duracionMinima", "tipo": "Duration", "obligatorio": true },
+        { "nombre": "duracionMaxima", "tipo": "Duration", "obligatorio": true },
+        { "nombre": "tiempoToleranciaSolicitud", "tipo": "Duration", "obligatorio": true, "nota": "Antelación mínima para reservar. Define AgendaHorarios.fechaLimiteReserva." },
+        { "nombre": "tiempoToleranciaValidacion", "tipo": "Duration", "obligatorio": true },
+        { "nombre": "tiempoToleranciaReprogramacion", "tipo": "Duration", "obligatorio": true },
+        { "nombre": "tiempoToleranciaConfirmacion", "tipo": "Duration", "obligatorio": true },
+        { "nombre": "tiempoToleranciaCancelacion", "tipo": "Duration", "obligatorio": true },
+        { "nombre": "tiempoToleranciaAnuncio", "tipo": "Duration", "obligatorio": true, "nota": "Ventana simétrica alrededor de fechaHoraInicio. No entra en la cadena del invariante." },
+        { "nombre": "tiempoRecordatorioConfirmacion", "tipo": "Duration", "obligatorio": true }
+      ],
+      "unicidad": [
+        { "campos": ["codigo"], "alcance": "activos" },
+        { "campos": ["nombre"], "alcance": "activos" }
+      ],
+      "invariantes": [
+        "duracionMinima > 0 y duracionMinima <= duracionMaxima",
+        "tiempoToleranciaSolicitud >= tiempoToleranciaValidacion >= tiempoToleranciaReprogramacion >= tiempoToleranciaConfirmacion >= tiempoToleranciaCancelacion >= 0",
+        "tiempoToleranciaAnuncio >= 0",
+        "tiempoToleranciaConfirmacion < tiempoRecordatorioConfirmacion <= tiempoToleranciaSolicitud"
+      ]
+    },
+
+    {
+      "nombre": "MedicoPrestacion",
+      "modulo": "MED",
+      "estereotipo": "asociativa",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Asignación de una prestación a un médico. Guarda las condiciones de atención particular.",
+      "atributos": [
+        { "nombre": "atiendeParticular", "tipo": "Boolean", "obligatorio": true },
+        { "nombre": "precioParticular", "tipo": "BigDecimal", "obligatorio": true, "nota": "Requerido incluso con atiendeParticular en falso: es la base de cálculo de las coberturas porcentuales." }
+      ],
+      "unicidad": [
+        { "campos": ["medico", "prestacion"], "alcance": "activos" }
+      ],
+      "invariantes": [
+        "precioParticular > 0",
+        "prestacion.especialidad == medico.especialidad"
+      ]
+    },
+
+    {
+      "nombre": "TipoIndicacionPrestacion",
+      "modulo": "PREST",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Clasificación de las indicaciones. Su baja es restrictiva: la única del sistema.",
+      "atributos": [
+        { "nombre": "codigo", "tipo": "String", "obligatorio": true, "maxLength": 20 },
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 100 }
+      ],
+      "unicidad": [
+        { "campos": ["codigo"], "alcance": "activos" },
+        { "campos": ["nombre"], "alcance": "activos" }
+      ]
+    },
+
+    {
+      "nombre": "IndicacionPrestacion",
+      "modulo": "PREST",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Requisito previo de una prestación. Inmutable: solo alta y baja lógica, nunca Modificar. Nunca existe suelta ni se comparte entre prestaciones.",
+      "atributos": [
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 150 },
+        { "nombre": "descripcion", "tipo": "String", "obligatorio": true, "maxLength": 1000 },
+        { "nombre": "requiereValidacion", "tipo": "Boolean", "obligatorio": true, "nota": "En verdadero, los turnos nuevos de la prestación nacen en Espera de Validación." }
+      ],
+      "unicidad": [
+        { "campos": ["prestacion", "nombre"], "alcance": "activos" }
+      ]
+    },
+
+    {
+      "nombre": "AgendaMedico",
+      "modulo": "AGEN",
+      "auditable": true,
+      "bajable": false,
+      "descripcion": "Período de vigencia de la agenda de un médico. No tiene baja lógica: se gestiona por vigencia.",
+      "atributos": [
+        { "nombre": "fechaHoraInicioVigencia", "tipo": "ZonedDateTime", "obligatorio": true },
+        { "nombre": "fechaHoraFinVigencia", "tipo": "ZonedDateTime", "obligatorio": true }
+      ],
+      "derivados": [
+        { "nombre": "/estaVigente", "tipo": "Boolean", "formula": "fechaHoraInicioVigencia <= ahora <= fechaHoraFinVigencia" }
+      ],
+      "invariantes": [
+        "fechaHoraInicioVigencia < fechaHoraFinVigencia",
+        "Clinica.diasMinimosVigenciaAgenda <= días(fechaHoraFinVigencia - fechaHoraInicioVigencia) <= Clinica.diasMaximosVigenciaAgenda",
+        "El período no se solapa con otra AgendaMedico del mismo médico"
+      ]
+    },
+
+    {
+      "nombre": "AgendaDia",
+      "modulo": "AGEN",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Día concreto de atención dentro de una agenda. Excluir un día es darlo de baja.",
+      "atributos": [
+        { "nombre": "fecha", "tipo": "LocalDate", "obligatorio": true }
+      ],
+      "unicidad": [
+        { "campos": ["agendaMedico", "fecha"], "alcance": "activos" }
+      ],
+      "invariantes": [
+        "fecha comprendida en el período de vigencia de la AgendaMedico"
+      ]
+    },
+
+    {
+      "nombre": "AgendaHorarios",
+      "modulo": "AGEN",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Slot reservable de un día de agenda, para una prestación concreta. La duración planificada se deriva de horaHasta - horaDesde; no se persiste.",
+      "atributos": [
+        { "nombre": "horaDesde", "tipo": "LocalTime", "obligatorio": true },
+        { "nombre": "horaHasta", "tipo": "LocalTime", "obligatorio": true },
+        { "nombre": "fechaLimiteReserva", "tipo": "ZonedDateTime", "obligatorio": true, "nota": "= inicio del slot - Prestacion.tiempoToleranciaSolicitud. Instante absoluto." },
+        { "nombre": "estaOcupada", "tipo": "Boolean", "obligatorio": true, "default": false }
+      ],
+      "derivados": [
+        { "nombre": "/duracion", "tipo": "Duration", "formula": "horaHasta - horaDesde" },
+        { "nombre": "/fechaHoraInicio", "tipo": "ZonedDateTime", "formula": "agendaDia.fecha + horaDesde" }
+      ],
+      "invariantes": [
+        "horaDesde < horaHasta",
+        "Clinica.horarioInicioAtencion <= horaDesde y horaHasta <= Clinica.horarioFinAtencion",
+        "Prestacion.duracionMinima <= /duracion <= Prestacion.duracionMaxima",
+        "No se superpone con otro AgendaHorarios activo del mismo AgendaDia",
+        "Existe una MedicoPrestacion activa entre el médico de la agenda y la prestación del slot"
+      ]
+    },
+
+    {
+      "nombre": "Paciente",
+      "modulo": "PACIENTE",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Persona que solicita turnos. Se identifica por numeroTelefono en el canal chatbot.",
+      "atributos": [
+        { "nombre": "dni", "tipo": "String", "obligatorio": true, "maxLength": 15 },
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 100 },
+        { "nombre": "apellido", "tipo": "String", "obligatorio": true, "maxLength": 100 },
+        { "nombre": "fechaNacimiento", "tipo": "LocalDate", "obligatorio": true },
+        { "nombre": "email", "tipo": "String", "obligatorio": true, "maxLength": 150, "formato": "email" },
+        { "nombre": "numeroTelefono", "tipo": "String", "obligatorio": true, "maxLength": 30, "nota": "Clave de identificación del canal WhatsApp." }
+      ],
+      "derivados": [
+        { "nombre": "/nombreCompleto", "tipo": "String", "formula": "nombre + ' ' + apellido" }
+      ],
+      "unicidad": [
+        { "campos": ["dni"], "alcance": "activos" },
+        { "campos": ["numeroTelefono"], "alcance": "activos" }
+      ],
+      "invariantes": ["fechaNacimiento < hoy"]
+    },
+
+    {
+      "nombre": "ObraSocial",
+      "modulo": "OS",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Financiador. Siempre tiene al menos un plan activo.",
+      "atributos": [
+        { "nombre": "codigo", "tipo": "String", "obligatorio": true, "maxLength": 20 },
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 150 },
+        { "nombre": "razonSocial", "tipo": "String", "obligatorio": true, "maxLength": 200 }
+      ],
+      "unicidad": [
+        { "campos": ["codigo"], "alcance": "activos" },
+        { "campos": ["nombre"], "alcance": "activos" }
+      ]
+    },
+
+    {
+      "nombre": "Plan",
+      "modulo": "OS",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Plan de una obra social. Su obra social es inmutable después del alta.",
+      "atributos": [
+        { "nombre": "codigo", "tipo": "String", "obligatorio": true, "maxLength": 20 },
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 150 }
+      ],
+      "unicidad": [
+        { "campos": ["obraSocial", "codigo"], "alcance": "activos" },
+        { "campos": ["obraSocial", "nombre"], "alcance": "activos" }
+      ],
+      "invariantes": [
+        "No se puede dar de baja el último Plan activo de una ObraSocial activa"
+      ]
+    },
+
+    {
+      "nombre": "ObraSocialPlanPrestacion",
+      "modulo": "OS",
+      "estereotipo": "asociativa",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Cobertura que un plan da sobre una prestación. Define cómo se calcula el monto a pagar.",
+      "atributos": [
+        { "nombre": "modalidadCobertura", "tipo": "ModalidadCobertura", "obligatorio": true },
+        { "nombre": "porcentajeCobertura", "tipo": "BigDecimal", "obligatorio": true },
+        { "nombre": "coseguro", "tipo": "BigDecimal", "obligatorio": true }
+      ],
+      "unicidad": [
+        { "campos": ["plan", "prestacion"], "alcance": "activos" }
+      ],
+      "invariantes": [
+        "modalidadCobertura = TOTAL      -> porcentajeCobertura = 100 y coseguro = 0",
+        "modalidadCobertura = CARGO_FIJO -> coseguro >= 0 (es el monto que paga el paciente)",
+        "modalidadCobertura = PORCENTUAL -> 0 <= porcentajeCobertura <= 100"
+      ]
+    },
+
+    {
+      "nombre": "ObraSocialPaciente",
+      "modulo": "OS",
+      "estereotipo": "asociativa",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Cobertura declarada por un paciente. Inmutable: solo alta y baja lógica. La obra social se llega por navegabilidad vía Plan.",
+      "atributos": [
+        { "nombre": "nroSocio", "tipo": "String", "obligatorio": true, "maxLength": 50 }
+      ],
+      "unicidad": [
+        { "campos": ["paciente", "plan"], "alcance": "activos" }
+      ]
+    },
+
+    {
+      "nombre": "Turno",
+      "modulo": "TURN",
+      "auditable": true,
+      "bajable": false,
+      "descripcion": "Snapshot transaccional de una reserva. No se recalcula por cambios posteriores en el catálogo. No tiene baja lógica: su ciclo de vida se gestiona por estados.",
+      "atributos": [
+        { "nombre": "codigo", "tipo": "String", "obligatorio": true, "maxLength": 40, "nota": "Se genera a partir de Prestacion.codigo. Es lo que se le expone al paciente, nunca el id." },
+        { "nombre": "fechaHoraInicio", "tipo": "ZonedDateTime", "obligatorio": true },
+        { "nombre": "montoAPagar", "tipo": "BigDecimal", "obligatorio": true },
+        { "nombre": "tipoCobertura", "tipo": "TipoCobertura", "obligatorio": true },
+        { "nombre": "fechaLimiteValidacion", "tipo": "ZonedDateTime", "obligatorio": true },
+        { "nombre": "fechaLimiteReprogramacion", "tipo": "ZonedDateTime", "obligatorio": true },
+        { "nombre": "fechaLimiteConfirmacion", "tipo": "ZonedDateTime", "obligatorio": true },
+        { "nombre": "fechaLimiteCancelacion", "tipo": "ZonedDateTime", "obligatorio": true },
+        { "nombre": "fechaLimiteAnuncioTemprano", "tipo": "ZonedDateTime", "obligatorio": true },
+        { "nombre": "fechaLimiteAnuncioTardio", "tipo": "ZonedDateTime", "obligatorio": true },
+        { "nombre": "fechaHoraRecordatorioConfirmacion", "tipo": "ZonedDateTime", "obligatorio": true },
+        { "nombre": "motivoCancelacion", "tipo": "MotivoCancelacion", "obligatorio": false, "nota": "Solo cargado cuando el estado vigente es Cancelado." }
+      ],
+      "derivados": [
+        { "nombre": "/estadoVigente", "tipo": "EstadoTurno", "formula": "HistoricoEstadoTurno con fechaHoraFin vacío -> estadoTurno" },
+        { "nombre": "/duracionReal", "tipo": "Duration", "formula": "duración del HistoricoEstadoTurno del estado En Transcurso" }
+      ],
+      "unicidad": [
+        { "campos": ["codigo"], "alcance": "global" }
+      ],
+      "invariantes": [
+        "Las seis fechaLimite* y fechaHoraRecordatorioConfirmacion se calculan al crear el turno, nunca en diferido",
+        "fechaLimiteValidacion = fechaHoraInicio - Prestacion.tiempoToleranciaValidacion",
+        "fechaLimiteReprogramacion = fechaHoraInicio - Prestacion.tiempoToleranciaReprogramacion",
+        "fechaLimiteConfirmacion = fechaHoraInicio - Prestacion.tiempoToleranciaConfirmacion",
+        "fechaLimiteCancelacion = fechaHoraInicio - Prestacion.tiempoToleranciaCancelacion",
+        "fechaLimiteAnuncioTemprano = fechaHoraInicio - Prestacion.tiempoToleranciaAnuncio",
+        "fechaLimiteAnuncioTardio = fechaHoraInicio + Prestacion.tiempoToleranciaAnuncio",
+        "fechaHoraRecordatorioConfirmacion = fechaHoraInicio - Prestacion.tiempoRecordatorioConfirmacion",
+        "fechaHoraRecordatorioConfirmacion < fechaLimiteConfirmacion",
+        "tipoCobertura = OBRA_SOCIAL <-> obraSocialPaciente presente",
+        "tipoCobertura = PARTICULAR  -> obraSocialPaciente vacío y MedicoPrestacion.atiendeParticular verdadero"
+      ]
+    },
+
+    {
+      "nombre": "EstadoTurno",
+      "modulo": "TURN",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Catálogo de estados del turno. Un estado es final cuando su HistoricoEstadoTurno queda con fechaHoraFin vacío para siempre; no hay atributo que lo declare.",
+      "atributos": [
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 50 }
+      ],
+      "unicidad": [
+        { "campos": ["nombre"], "alcance": "activos" }
+      ],
+      "instancias": [
+        "Espera de Validación",
+        "Pendiente",
+        "Confirmado",
+        "En Sala de Espera",
+        "En Transcurso",
+        "Cancelado",
+        "Reprogramado",
+        "Ausente",
+        "Finalizado"
+      ]
+    },
+
+    {
+      "nombre": "HistoricoEstadoTurno",
+      "modulo": "TURN",
+      "auditable": true,
+      "bajable": false,
+      "descripcion": "Tramo de permanencia de un turno en un estado. El vigente es el que tiene fechaHoraFin vacío.",
+      "atributos": [
+        { "nombre": "fechaHoraInicio", "tipo": "ZonedDateTime", "obligatorio": true },
+        { "nombre": "fechaHoraFin", "tipo": "ZonedDateTime", "obligatorio": false }
+      ],
+      "invariantes": [
+        "fechaHoraFin vacío o fechaHoraFin > fechaHoraInicio",
+        "Un Turno tiene a lo sumo un HistoricoEstadoTurno con fechaHoraFin vacío",
+        "Los tramos de un mismo Turno no se solapan y son contiguos",
+        "createdBy con identidad de sistema distingue las transiciones automáticas del scheduler de las manuales"
+      ]
+    },
+
+    {
+      "nombre": "IndicacionPrestacionTurno",
+      "modulo": "TURN",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Copia por turno de una indicación de la prestación. No duplica texto: nombre, descripcion y requiereValidacion se leen por navegabilidad.",
+      "atributos": [
+        { "nombre": "fechaHoraValidacion", "tipo": "ZonedDateTime", "obligatorio": false, "nota": "Vacío = pendiente. Se puebla junto con validadoPor." }
+      ],
+      "unicidad": [
+        { "campos": ["turno", "indicacionPrestacion"], "alcance": "activos" }
+      ],
+      "invariantes": [
+        "Se crean al crear el turno, copiando las IndicacionPrestacion activas de la prestación",
+        "fechaHoraValidacion presente <-> validadoPor presente",
+        "El turno sale de Espera de Validación cuando ninguna instancia activa con requiereValidacion en verdadero queda con fechaHoraValidacion vacía"
+      ]
+    },
+
+    {
+      "nombre": "Admin",
+      "modulo": "USER",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Personal administrativo de la clínica. Se mantiene como clase porque tiene datos propios.",
+      "atributos": [
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 100 },
+        { "nombre": "apellido", "tipo": "String", "obligatorio": true, "maxLength": 100 },
+        { "nombre": "dni", "tipo": "String", "obligatorio": true, "maxLength": 15 },
+        { "nombre": "email", "tipo": "String", "obligatorio": true, "maxLength": 150, "formato": "email" }
+      ],
+      "unicidad": [
+        { "campos": ["dni"], "alcance": "activos" }
+      ]
+    },
+
+    {
+      "nombre": "Usuario",
+      "modulo": "USER",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Credencial de acceso. Sin datos personales: apunta a un Medico o a un Admin, nunca a los dos.",
+      "atributos": [
+        { "nombre": "mail", "tipo": "String", "obligatorio": true, "maxLength": 150, "formato": "email", "nota": "Credencial. No se copia del email de contacto de la persona." },
+        { "nombre": "passwordHash", "tipo": "String", "obligatorio": true, "maxLength": 255 }
+      ],
+      "derivados": [
+        { "nombre": "/tipoUsuario", "tipo": "TipoUsuario", "formula": "medico presente ? MEDICO : ADMIN" },
+        { "nombre": "/nombreCompleto", "tipo": "String", "formula": "de Medico o de Admin" },
+        { "nombre": "/emailContacto", "tipo": "String", "formula": "de Medico o de Admin" }
+      ],
+      "unicidad": [
+        { "campos": ["mail"], "alcance": "activos" },
+        { "campos": ["medico"], "alcance": "global" },
+        { "campos": ["admin"], "alcance": "global" }
+      ],
+      "invariantes": [
+        "Exactamente uno de medico / admin está presente",
+        "Los artefactos de UserDetails de Spring Security no son parte del modelo: isEnabled() se deriva de deletedAt vacío"
+      ]
+    },
+
+    {
+      "nombre": "Rol",
+      "modulo": "AUTZ",
+      "auditable": true,
+      "bajable": true,
+      "descripcion": "Conjunto de permisos. Los roles de sistema no se editan ni se dan de baja.",
+      "atributos": [
+        { "nombre": "nombre", "tipo": "String", "obligatorio": true, "maxLength": 60 },
+        { "nombre": "esSistema", "tipo": "Boolean", "obligatorio": true, "default": false }
+      ],
+      "unicidad": [
+        { "campos": ["nombre"], "alcance": "activos" }
+      ],
+      "invariantes": [
+        "Tiene al menos un Permiso",
+        "esSistema verdadero -> no se modifica ni se da de baja",
+        "Dar de baja un Rol cierra la fechaFinVigencia de sus UsuarioRol vigentes"
+      ]
+    },
+
+    {
+      "nombre": "UsuarioRol",
+      "modulo": "AUTZ",
+      "estereotipo": "asociativa",
+      "auditable": true,
+      "bajable": false,
+      "descripcion": "Asignación de un rol a un usuario, acotada por vigencia. No tiene baja lógica: se revoca cerrando la vigencia.",
+      "atributos": [
+        { "nombre": "fechaInicioVigencia", "tipo": "ZonedDateTime", "obligatorio": true },
+        { "nombre": "fechaFinVigencia", "tipo": "ZonedDateTime", "obligatorio": false, "nota": "Vacío = asignación indefinida hasta que se revoque." }
+      ],
+      "derivados": [
+        { "nombre": "/estaVigente", "tipo": "Boolean", "formula": "fechaInicioVigencia <= ahora y (fechaFinVigencia vacío o ahora < fechaFinVigencia)" }
+      ],
+      "invariantes": [
+        "fechaFinVigencia vacío o fechaFinVigencia > fechaInicioVigencia",
+        "Un Usuario no tiene dos UsuarioRol vigentes del mismo Rol",
+        "La autorización se evalúa en vivo, sin snapshot"
+      ]
+    }
+  ],
+
+  "relaciones": [
+    { "origen": "Medico", "destino": "Especialidad", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "Prestacion", "destino": "Especialidad", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+
+    { "origen": "MedicoPrestacion", "destino": "Medico", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "MedicoPrestacion", "destino": "Prestacion", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+
+    { "origen": "IndicacionPrestacion", "destino": "Prestacion", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "IndicacionPrestacion", "destino": "TipoIndicacionPrestacion", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino", "nota": "Baja restrictiva del destino: no se da de baja un TipoIndicacionPrestacion con IndicacionPrestacion activas." },
+
+    { "origen": "AgendaMedico", "destino": "Medico", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "AgendaDia", "destino": "AgendaMedico", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "AgendaHorarios", "destino": "AgendaDia", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "AgendaHorarios", "destino": "Prestacion", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+
+    { "origen": "Plan", "destino": "ObraSocial", "multOrigen": "1..N", "multDestino": "1", "navegable": "origen->destino", "inmutable": true },
+    { "origen": "ObraSocialPlanPrestacion", "destino": "Plan", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "ObraSocialPlanPrestacion", "destino": "Prestacion", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "ObraSocialPaciente", "destino": "Paciente", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "ObraSocialPaciente", "destino": "Plan", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+
+    { "origen": "Turno", "destino": "Paciente", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "Turno", "destino": "Medico", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "Turno", "destino": "Prestacion", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "Turno", "destino": "AgendaHorarios", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "Turno", "destino": "ObraSocialPaciente", "multOrigen": "N", "multDestino": "0..1", "navegable": "origen->destino", "nota": "Vacío cuando tipoCobertura es PARTICULAR." },
+    { "origen": "Turno", "destino": "Turno", "multOrigen": "N", "multDestino": "0..1", "rol": "turnoOrigen", "navegable": "origen->destino", "nota": "Cadena de reprogramaciones." },
+
+    { "origen": "HistoricoEstadoTurno", "destino": "Turno", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "HistoricoEstadoTurno", "destino": "EstadoTurno", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+
+    { "origen": "IndicacionPrestacionTurno", "destino": "Turno", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "IndicacionPrestacionTurno", "destino": "IndicacionPrestacion", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "IndicacionPrestacionTurno", "destino": "Usuario", "multOrigen": "N", "multDestino": "0..1", "rol": "validadoPor", "navegable": "origen->destino" },
+
+    { "origen": "Usuario", "destino": "Medico", "multOrigen": "0..1", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "Usuario", "destino": "Admin", "multOrigen": "0..1", "multDestino": "1", "navegable": "origen->destino" },
+
+    { "origen": "UsuarioRol", "destino": "Usuario", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+    { "origen": "UsuarioRol", "destino": "Rol", "multOrigen": "N", "multDestino": "1", "navegable": "origen->destino" },
+
+    { "origen": "Rol", "destino": "Permiso", "multOrigen": "N", "multDestino": "N", "navegable": "origen->destino", "tipoDestino": "enum", "nota": "Se materializa en la tabla rol_permiso." }
+  ],
+
+  "reglasFueraDelDiagrama": [
+    "Unicidad entre activos: se valida en el DomainService, no con UNIQUE de columna, para que la baja no bloquee el valor para siempre.",
+    "Todo campo String obligatorio se valida con @NotBlank: rechaza vacío y rechaza cadenas de solo espacios.",
+    "El par (medico, prestacion) se valida buscando una MedicoPrestacion activa, porque el esquema ya no lo garantiza desde Turno.",
+    "Cálculo de slots: slot(n) = horaDesde + n * duracion. Los horarios no se persisten en el catálogo.",
+    "Turno es snapshot; la autorización es en vivo."
+  ]
+}

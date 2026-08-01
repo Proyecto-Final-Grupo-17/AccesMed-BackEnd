@@ -1,0 +1,262 @@
+{
+  "esquema": "accesmed/dte/2.0",
+  "proyecto": "AccesMed",
+  "entidad": "Turno",
+  "descripcion": "Diagrama de Transición de Estados del Turno. El estado vigente es el EstadoTurno del HistoricoEstadoTurno con fechaHoraFin vacío. Un estado es final cuando ese tramo queda abierto para siempre: no hay atributo que lo declare.",
+  "fecha": "2026-07-31",
+  "estados": [
+    {
+      "nombre": "Espera de Validación",
+      "tipo": "intermedio",
+      "descripcion": "La prestación tiene al menos una IndicacionPrestacion activa con requiereValidacion en verdadero."
+    },
+    {
+      "nombre": "Pendiente",
+      "tipo": "intermedio",
+      "descripcion": "Reservado y sin validaciones obligatorias sin cumplir. Espera la confirmación del paciente."
+    },
+    {
+      "nombre": "Confirmado",
+      "tipo": "intermedio",
+      "descripcion": "Confirmado por el paciente o por el scheduler. Ya no se puede reprogramar."
+    },
+    {
+      "nombre": "En Sala de Espera",
+      "tipo": "intermedio",
+      "descripcion": "El paciente se anunció en recepción dentro de la ventana de anuncio."
+    },
+    {
+      "nombre": "En Transcurso",
+      "tipo": "intermedio",
+      "descripcion": "El médico inició la atención. La duración de este tramo es la duración real del turno."
+    },
+    {
+      "nombre": "Cancelado",
+      "tipo": "final",
+      "descripcion": "Requiere motivoCancelacion cargado."
+    },
+    {
+      "nombre": "Reprogramado",
+      "tipo": "final",
+      "descripcion": "Cerrado por una reprogramación. El turno nuevo lo referencia por turnoOrigen."
+    },
+    {
+      "nombre": "Ausente",
+      "tipo": "final",
+      "descripcion": "El paciente no se anunció antes de fechaLimiteAnuncioTardio."
+    },
+    {
+      "nombre": "Finalizado",
+      "tipo": "final",
+      "descripcion": "Atención completada."
+    }
+  ],
+  "decisiones": [
+    {
+      "nombre": "¿Requiere validación?",
+      "descripcion": "Verdadero si la prestación tiene al menos una IndicacionPrestacion activa con requiereValidacion en verdadero."
+    }
+  ],
+  "transiciones": [
+    {
+      "desde": "(inicio)",
+      "hasta": "¿Requiere validación?",
+      "evento": "Registrar Turno",
+      "tipo": "inicio"
+    },
+    {
+      "desde": "¿Requiere validación?",
+      "hasta": "Espera de Validación",
+      "evento": "Sí",
+      "tipo": "decision"
+    },
+    {
+      "desde": "¿Requiere validación?",
+      "hasta": "Pendiente",
+      "evento": "No",
+      "tipo": "decision"
+    },
+    {
+      "desde": "Espera de Validación",
+      "hasta": "Pendiente",
+      "evento": "Validar Turno",
+      "actor": "Administrador",
+      "efecto": "Se pueblan fechaHoraValidacion y validadoPor de las IndicacionPrestacionTurno cumplidas."
+    },
+    {
+      "desde": "Espera de Validación",
+      "hasta": "Cancelado",
+      "evento": "Rechazar Validación",
+      "actor": "Administrador",
+      "efecto": "motivoCancelacion = VALIDACION_RECHAZADA. Libera el slot."
+    },
+    {
+      "desde": "Espera de Validación",
+      "hasta": "Cancelado",
+      "evento": "Vencer Plazo de Validación",
+      "actor": "Scheduler",
+      "guarda": "fechaLimiteValidacion vencida",
+      "efecto": "motivoCancelacion = VALIDACION_VENCIDA. Libera el slot.",
+      "guardaCorta": "fechaLimiteValidacion vencida"
+    },
+    {
+      "desde": "Espera de Validación",
+      "hasta": "Cancelado",
+      "evento": "Cancelar Turno",
+      "actor": "Paciente / Médico / Administrador",
+      "guarda": "Paciente: fechaLimiteCancelacion no vencida. Interno: sin límite.",
+      "efecto": "Libera el slot.",
+      "guardaCorta": "paciente: fechaLimiteCancelacion no vencida"
+    },
+    {
+      "desde": "Pendiente",
+      "hasta": "Confirmado",
+      "evento": "Confirmar Turno",
+      "actor": "Paciente / Administrador"
+    },
+    {
+      "desde": "Pendiente",
+      "hasta": "Confirmado",
+      "evento": "Confirmar Automáticamente",
+      "actor": "Scheduler",
+      "guarda": "fechaLimiteConfirmacion vencida",
+      "guardaCorta": "fechaLimiteConfirmacion vencida"
+    },
+    {
+      "desde": "Pendiente",
+      "hasta": "Reprogramado",
+      "evento": "Reprogramar Turno",
+      "actor": "Paciente / Médico / Administrador",
+      "guarda": "fechaLimiteReprogramacion no vencida y turno nuevo creado",
+      "efecto": "Libera el slot viejo. El turno nuevo arrastra las validaciones ya cumplidas.",
+      "guardaCorta": "fechaLimiteReprogramacion no vencida"
+    },
+    {
+      "desde": "Pendiente",
+      "hasta": "Cancelado",
+      "evento": "Cancelar Turno",
+      "actor": "Paciente / Médico / Administrador",
+      "guarda": "Paciente: fechaLimiteCancelacion no vencida. Interno: sin límite.",
+      "efecto": "Libera el slot.",
+      "guardaCorta": "paciente: fechaLimiteCancelacion no vencida"
+    },
+    {
+      "desde": "Confirmado",
+      "hasta": "En Sala de Espera",
+      "evento": "Anunciar Paciente",
+      "actor": "Administrador",
+      "guarda": "fechaLimiteAnuncioTemprano <= ahora <= fechaLimiteAnuncioTardio",
+      "guardaCorta": "dentro de la ventana de anuncio"
+    },
+    {
+      "desde": "Confirmado",
+      "hasta": "En Transcurso",
+      "evento": "Iniciar Turno",
+      "actor": "Médico"
+    },
+    {
+      "desde": "Confirmado",
+      "hasta": "Ausente",
+      "evento": "Marcar Ausente",
+      "actor": "Scheduler",
+      "guarda": "fechaLimiteAnuncioTardio vencida",
+      "guardaCorta": "fechaLimiteAnuncioTardio vencida"
+    },
+    {
+      "desde": "Confirmado",
+      "hasta": "Cancelado",
+      "evento": "Cancelar Turno",
+      "actor": "Paciente / Médico / Administrador",
+      "guarda": "Paciente: fechaLimiteCancelacion no vencida. Interno: sin límite.",
+      "efecto": "Libera el slot.",
+      "guardaCorta": "paciente: fechaLimiteCancelacion no vencida"
+    },
+    {
+      "desde": "En Sala de Espera",
+      "hasta": "En Transcurso",
+      "evento": "Iniciar Turno",
+      "actor": "Médico"
+    },
+    {
+      "desde": "En Sala de Espera",
+      "hasta": "Ausente",
+      "evento": "Marcar Ausente",
+      "actor": "Médico"
+    },
+    {
+      "desde": "En Sala de Espera",
+      "hasta": "Cancelado",
+      "evento": "Cancelar Turno",
+      "actor": "Médico / Administrador",
+      "efecto": "Libera el slot."
+    },
+    {
+      "desde": "En Transcurso",
+      "hasta": "Finalizado",
+      "evento": "Finalizar Turno",
+      "actor": "Médico"
+    },
+    {
+      "desde": "Cancelado",
+      "hasta": "(fin)",
+      "tipo": "fin"
+    },
+    {
+      "desde": "Reprogramado",
+      "hasta": "(fin)",
+      "tipo": "fin"
+    },
+    {
+      "desde": "Ausente",
+      "hasta": "(fin)",
+      "tipo": "fin"
+    },
+    {
+      "desde": "Finalizado",
+      "hasta": "(fin)",
+      "tipo": "fin"
+    }
+  ],
+  "reglas": [
+    "Un turno Confirmado no se puede reprogramar: hay que cancelarlo y dar de alta uno nuevo. Es una decisión de negocio deliberada.",
+    "Cancelar Turno es un solo evento con dos guardas según quién lo dispara. Las bajas de médico y de prestación entran por acá vía Ir a CU.",
+    "AgendaHorarios.estaOcupada pasa a verdadero al crear el turno y vuelve a falso al entrar en Cancelado o en Reprogramado.",
+    "Cada transición cierra el HistoricoEstadoTurno vigente con fechaHoraFin igual a la fecha y hora actual y crea uno nuevo con fechaHoraInicio igual a ese instante.",
+    "Las transiciones del scheduler se registran con identidad de sistema en Auditable.createdBy, lo que distingue en reportes la confirmación automática de la manual.",
+    "La duración real del turno es la duración del tramo En Transcurso; la planificada sale del AgendaHorarios."
+  ],
+  "scheduler": [
+    {
+      "proceso": "Recordar Confirmación",
+      "modulo": "NOTIF",
+      "disparo": "fechaHoraRecordatorioConfirmacion vencida sobre turnos Pendiente",
+      "efecto": "No cambia de estado."
+    },
+    {
+      "proceso": "Confirmar Turnos Automáticamente",
+      "modulo": "TURN",
+      "disparo": "fechaLimiteConfirmacion vencida",
+      "efecto": "Pendiente -> Confirmado"
+    },
+    {
+      "proceso": "Vencer Validación",
+      "modulo": "TURN",
+      "disparo": "fechaLimiteValidacion vencida",
+      "efecto": "Espera de Validación -> Cancelado"
+    },
+    {
+      "proceso": "Marcar Ausentes",
+      "modulo": "TURN",
+      "disparo": "fechaLimiteAnuncioTardio vencida",
+      "efecto": "Confirmado -> Ausente"
+    }
+  ],
+  "reglasScheduler": [
+    "Cada turno es su propia transacción: un fallo no bloquea el lote.",
+    "La guarda sobre el estado vigente se evalúa dentro de la transacción, por la concurrencia con el paciente confirmando por WhatsApp.",
+    "Idempotencia por filtrado del HistoricoEstadoTurno vigente (fechaHoraFin vacío).",
+    "El intervalo del barrido debe ser más fino que la menor de las tolerancias configuradas.",
+    "Confirmar Turnos Automáticamente corre antes que Marcar Ausentes.",
+    "Un turno reservado para hoy con tiempoToleranciaConfirmacion alta nace con fechaLimiteConfirmacion ya vencida y el primer barrido lo confirma en minutos. Es correcto y no requiere una rama nueva en el DTE."
+  ]
+}

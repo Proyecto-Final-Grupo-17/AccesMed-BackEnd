@@ -318,7 +318,7 @@ accesmed-backend/
 │       ├── java-springboot-javadoc/
 │       ├── java-springboot-logging/
 │       ├── springboot-feature-generator/
-│       ├── liquibase-changelog-generator/
+│       ├── domain-schema-generator/
 │       └── feature-documenter/
 └── src/
     ├── main/
@@ -543,8 +543,10 @@ Detalle en `README.md`.
 
 Formato **XML**. **Un archivo por entidad**, no un archivo por cambio. El archivo acumula
 toda la historia de esa tabla: se le van agregando changesets nuevos con el tiempo. La
-skill `.claude/skills/liquibase-changelog-generator` aplica esta convención al crear o
-editar changelogs — se usa sola o invocada por `springboot-feature-generator`.
+skill `.claude/skills/domain-schema-generator` aplica esta convención al crear o editar
+changelogs, generándolos siempre coordinados con la entidad JPA correspondiente (mapeo
+Bean Validation ↔ constraint de esquema incluido) — se usa sola o invocada por
+`springboot-feature-generator`.
 
 **Nombre del archivo**: `YYYYMMDDHHMMSS-NombreEntidad.xml`, donde el timestamp es la
 **fecha de creación del archivo** (el primer changeset), no de la última modificación —
@@ -675,7 +677,10 @@ línea Spring Boot 4). Acá va el qué y el porqué de cada dependencia.
   AssertJ y los test slices de cada starter correspondiente (scope test). Spring Boot 4
   modularizó también el soporte de test: cada starter principal tiene su `-test` propio en
   vez de un `spring-boot-starter-test` único.
-- `testcontainers` (opcional, scope test) — Postgres real en tests de integración
+- `spring-boot-testcontainers` + `org.testcontainers:testcontainers-postgresql` (scope
+  test) — Postgres 16 real y efímera para `AccesMedApplicationTests`
+  (`TestcontainersConfiguration`, `@ServiceConnection`): valida Liquibase/`ddl-auto`
+  contra un contenedor descartable, aislado de la Postgres de `docker/dev/docker-compose.yml`
 
 > Hibernate no se agrega aparte: viene dentro de `spring-boot-starter-data-jpa`.
 

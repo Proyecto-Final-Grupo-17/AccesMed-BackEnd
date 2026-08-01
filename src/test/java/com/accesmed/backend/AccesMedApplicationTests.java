@@ -2,12 +2,13 @@ package com.accesmed.backend;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 
-// Requiere la Postgres local de docker/dev/docker-compose.yml levantada: ddl-auto:
-// validate y Liquibase necesitan un esquema real contra el que validar/migrar.
+// La Postgres para correr contra ddl-auto: validate y Liquibase la levanta Testcontainers
+// (ver TestcontainersConfiguration), no la de dev — no requiere docker compose corriendo
+// a mano, y no comparte datos con la BD de desarrollo.
 @SpringBootTest
-@ActiveProfiles("dev")
+@Import(TestcontainersConfiguration.class)
 class AccesMedApplicationTests {
 
     @Test

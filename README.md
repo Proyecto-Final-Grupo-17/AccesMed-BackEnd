@@ -139,14 +139,13 @@ compilado y detecta errores de compilación en los tests aunque no se ejecuten).
 `-Dmaven.test.skip=true` se reserva para casos puntuales (por ejemplo, un módulo de test
 roto que bloquea un build urgente).
 
-**`AccesMedApplicationTests` necesita Postgres local levantada:** ese test carga el
-contexto completo con el perfil `dev` (Liquibase valida el esquema real contra la base).
-Si `docker/dev` no está levantado (`docker compose up -d`), `./mvnw test`/`verify` falla
-con un error de conexión o de autenticación, no por un bug en el código. Las credenciales
-de `docker/dev/.env` tienen que coincidir con los defaults de `application-dev.yml`
-(`accesmed`/`accesmed`/`5432`) — si generás un `.env` con otra contraseña, además hay que
-exportarla como variable de entorno antes de correr Maven, porque Maven **no** lee
-`docker/dev/.env` (ese archivo solo lo lee `docker compose`).
+**`AccesMedApplicationTests` necesita Docker corriendo (Docker Desktop u otro daemon
+accesible), pero NO el `docker compose up -d` de dev:** el test levanta su propia Postgres
+16 efímera con Testcontainers (`TestcontainersConfiguration`, `@ServiceConnection`),
+aislada de la base de `docker/dev/docker-compose.yml` — Liquibase valida el esquema real
+contra ese contenedor descartable, no contra la base de desarrollo. Si Docker no está
+disponible, `./mvnw test`/`verify` falla con `Could not find a valid Docker environment`,
+no por un bug en el código.
 
 **Warning de Lombok al compilar (`sun.misc.Unsafe` / `lombok.permit.Permit`):** en JDK 24+
 es un warning conocido y no bloqueante — Lombok todavía usa `Unsafe` internamente para

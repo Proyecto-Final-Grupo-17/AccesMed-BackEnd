@@ -91,11 +91,14 @@ lo que él mismo atrapa: Bean Validation (`warn`) y la excepción genérica (`er
 **Generar features nuevas:** usar la skill `.claude/skills/springboot-feature-generator`,
 que pregunta el flujo y arma de controller a repositorio con estilo aplicado.
 
-**Generar o editar migraciones de esquema:** usar la skill
-`.claude/skills/liquibase-changelog-generator`, que aplica la convención de
-`docs/ARQUITECTURA.md §6` (nombre de archivo/changeset, nomenclatura de constraints e
-índices, comentarios de sección). Se usa tanto sola (agregar una columna a una entidad
-existente) como invocada por `springboot-feature-generator` al crear una entidad nueva.
+**Modelar dominio y migraciones de esquema:** usar la skill
+`.claude/skills/domain-schema-generator`, que pregunta atributos, relaciones y
+restricciones (traduciendo cada una a la vez a Bean Validation y a constraint de
+esquema) y genera la entidad JPA junto con la migración Liquibase, aplicando la
+convención de `docs/ARQUITECTURA.md §6` (nombre de archivo/changeset, nomenclatura de
+constraints e índices, comentarios de sección). Se usa tanto sola (crear una entidad
+nueva o agregar una columna a una existente) como invocada por
+`springboot-feature-generator` al crear o evolucionar una entidad.
 
 ## Stack
 

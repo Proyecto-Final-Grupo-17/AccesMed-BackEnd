@@ -76,7 +76,7 @@ entre sí y generar código incompleto.
 | Tecnología | Versión | Cómo se fija |
 |---|---|---|
 | JUnit 5, Mockito, AssertJ | — | `spring-boot-starter-test` (BOM), scope `test` |
-| Testcontainers | — | BOM de Spring Boot 4.1, scope `test`. Opcional: Postgres real en tests de integración. |
+| Testcontainers (`spring-boot-testcontainers` + `org.testcontainers:testcontainers-postgresql`) | 2.0.5 (BOM) | Scope `test`. Levanta una Postgres 16 efímera y aislada para `AccesMedApplicationTests` (vía `@ServiceConnection`), sin depender de `docker/dev/docker-compose.yml` — requiere Docker corriendo, pero no el compose de dev levantado a mano. En Testcontainers 2.0.x el artifact del módulo Postgres se renombró de `postgresql` a `testcontainers-postgresql`; ojo si se busca en documentación vieja. |
 
 ## Conveniencia de desarrollo
 
