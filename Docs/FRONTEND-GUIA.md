@@ -22,7 +22,7 @@ manejo de errores una vez y sirve para todo.
     "La fecha desde no puede ser posterior a la fecha hasta.",
     "El médico indicado no existe o está dado de baja."
   ],
-  "path": "/api/turnos"
+  "path": "/accesmed-api/Turno/Turno"
 }
 ```
 
@@ -56,22 +56,51 @@ normalmente salen feos y en inglés) los traduce el backend antes de responder.
 
 ---
 
-## 2. Un DTO por endpoint (request y response)
+## 2. Forma de las URLs y verbos HTTP
+
+Todos los endpoints cuelgan del prefijo **`/accesmed-api`**, seguido de la **entidad** y
+del **recurso** que toca la operación (ambos en PascalCase singular, como en el modelo):
+
+```
+/accesmed-api/<Entidad>/<Recurso>[/{id}]
+```
+
+```
+POST   /accesmed-api/Prestacion/Prestacion        crear
+GET    /accesmed-api/Prestacion/Prestacion/{id}   obtener por id
+PUT    /accesmed-api/Prestacion/Prestacion/{id}   actualizar
+DELETE /accesmed-api/Prestacion/Prestacion/{id}   dar de baja (soft delete)
+POST   /accesmed-api/AgendaMedico/Agenda          crear la agenda de un médico
+```
+
+Reglas que importan del lado del front:
+
+- **`PUT` y `PATCH` mandan el `id` dos veces**: en la URL y dentro del body. **Tienen que
+  ser el mismo valor** — si no coinciden, el backend responde **422** sin tocar nada. Al
+  armar el request, tomá el id de una sola fuente y usalo en los dos lugares.
+- Hay **`PATCH` sin body**: para cambios de un campo puntual el endpoint recibe solo el id
+  en la URL. Mandá el request sin cuerpo.
+- **`DELETE` es la baja lógica** (soft delete), responde **204** y no borra el registro:
+  deja de aparecer en los listados por defecto, pero el id siguió existiendo.
+
+La lista exacta de rutas está siempre en Swagger (§4).
+
+## 3. Un DTO por endpoint (request y response)
 
 El backend expone **un request y un response propios por cada endpoint**, no la entidad
 completa. Consecuencias para el front:
 
 - En un **update**, los campos inmutables **no existen** en el request. No los mandes: no
   se ignoran silenciosamente, directamente no forman parte del contrato. Ej: el `codigo`
-  de una prestación puede no ser editable → no aparece en `ActualizarPrestacionRequest`.
+  de una prestación puede no ser editable → no aparece en `UpdatePrestacionRequest`.
 - El **response** trae solo lo que ese endpoint devuelve. No asumas que un `create` y un
   `getById` devuelven la misma forma: mirá el response de cada uno en Swagger.
 - Nombres del contrato: `<Accion><Entidad>Request` / `<Accion><Entidad>Response`
-  (ej. `CrearTurnoRequest`, `ConfirmarTurnoResponse`). Te sirven como referencia al leer Swagger.
+  (ej. `CreateTurnoRequest`, `ConfirmTurnoResponse`). Te sirven como referencia al leer Swagger.
 
 ---
 
-## 3. Documentación viva: Swagger
+## 4. Documentación viva: Swagger
 
 La fuente de verdad de qué endpoints hay, qué reciben y qué devuelven es **Swagger UI**:
 
@@ -84,7 +113,7 @@ mira ahí antes de preguntar.
 
 ---
 
-## 4. Autenticación
+## 5. Autenticación
 
 - La API usa **JWT**. Se obtiene en el endpoint de login y se manda en cada request en el
   header `Authorization: Bearer <token>`.
@@ -94,7 +123,7 @@ mira ahí antes de preguntar.
 
 ---
 
-## 5. Convenciones de datos
+## 6. Convenciones de datos
 
 - **Fechas y horas**: ISO-8601 en UTC (`2026-07-22T10:15:30Z`). Convertí a zona local solo para mostrar.
 - **Bajas lógicas (soft delete)**: el backend no borra físico. Un recurso "dado de baja"
@@ -110,11 +139,12 @@ mira ahí antes de preguntar.
 
 ---
 
-## 6. Checklist rápido para arrancar del lado del front
+## 7. Checklist rápido para arrancar del lado del front
 
 - [ ] Implementar un interceptor HTTP que parsee `AccesMedError` de forma uniforme.
 - [ ] Mostrar `errores[]` como lista en formularios; usar `codigo` para lógica.
 - [ ] Guardar el JWT y mandarlo en `Authorization`; manejar 401 (refresh/login).
 - [ ] Leer los request/response de cada endpoint en Swagger, no asumir la forma.
 - [ ] Manejar fechas en UTC; convertir solo para mostrar.
+- [ ] En `PUT`/`PATCH`, mandar el mismo `id` en la URL y en el body (si difieren, 422).
 - [ ] Disparar transiciones de Turno por sus endpoints de acción, no por un campo estado.

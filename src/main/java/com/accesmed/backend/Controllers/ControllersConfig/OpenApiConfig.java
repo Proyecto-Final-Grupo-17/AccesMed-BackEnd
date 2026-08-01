@@ -1,4 +1,4 @@
-package com.accesmed.backend.Config;
+package com.accesmed.backend.Controllers.ControllersConfig;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;

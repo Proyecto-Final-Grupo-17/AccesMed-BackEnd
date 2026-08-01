@@ -44,6 +44,7 @@
             <column name="tiempo_recordatorio_confirmacion" type="interval">
                 <constraints nullable="false"/>
             </column>
+            <column name="fecha_habilitacion" type="timestamptz"/>
             <!-- ====== Relaciones ====== -->
             <column name="especialidad_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_prestacion_especialidad" references="especialidad(id)"/>
@@ -62,7 +63,7 @@
 
         <!-- ====== El CHECK más importante del esquema: cadena de tolerancias ====== -->
         <sql>
-            ALTER TABLE prestacion ADD CONSTRAINT ck_prestacion_invariante_tolerancias CHECK (
+            ALTER TABLE prestacion ADD CONSTRAINT ck_prestacion_tolerancias CHECK (
                 tiempo_tolerancia_solicitud      >= tiempo_tolerancia_validacion      AND
                 tiempo_tolerancia_validacion     >= tiempo_tolerancia_reprogramacion  AND
                 tiempo_tolerancia_reprogramacion >= tiempo_tolerancia_confirmacion    AND
@@ -86,14 +87,16 @@
         <sql>CREATE UNIQUE INDEX uq_prestacion_codigo ON prestacion (codigo) WHERE deleted_at IS NULL;</sql>
         <sql>CREATE UNIQUE INDEX uq_prestacion_nombre ON prestacion (nombre) WHERE deleted_at IS NULL;</sql>
         <sql>CREATE INDEX idx_prestacion_especialidad ON prestacion (especialidad_id);</sql>
+        <sql>CREATE INDEX idx_prestacion_fecha_habilitacion ON prestacion (fecha_habilitacion);</sql>
         <rollback>
-            <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_invariante_tolerancias;</sql>
+            <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_tolerancias;</sql>
             <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_tolerancia_anuncio;</sql>
             <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_recordatorio;</sql>
             <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_duracion;</sql>
             <sql>DROP INDEX IF EXISTS uq_prestacion_codigo;</sql>
             <sql>DROP INDEX IF EXISTS uq_prestacion_nombre;</sql>
             <sql>DROP INDEX IF EXISTS idx_prestacion_especialidad;</sql>
+            <sql>DROP INDEX IF EXISTS idx_prestacion_fecha_habilitacion;</sql>
         </rollback>
     </changeSet>
 

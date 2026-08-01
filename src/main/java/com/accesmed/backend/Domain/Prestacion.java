@@ -14,13 +14,13 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
 /**
@@ -28,9 +28,17 @@ import java.util.UUID;
  * vida del turno: siete tolerancias/duraciones expresadas como {@link Duration} y
  * persistidas como {@code interval} vía {@link DurationIntervalConverter}.
  *
- * <p>{@code codigo} es inmutable después del alta (genera el {@code Turno.codigo}): esta
- * clase deliberadamente no expone un setter para ese campo; se fija solo en el
- * constructor / al mapear el alta.</p>
+ * <p>{@code codigo} es inmutable después del alta (genera el {@code Turno.codigo}). La
+ * inmutabilidad la garantiza {@code updatable = false}: Hibernate nunca incluye la columna
+ * en un {@code UPDATE}, así que el valor solo puede fijarse al mapear el alta.</p>
+ *
+ * <p>El ciclo de vida del catálogo es borrador → habilitada. Con {@code fechaHabilitacion}
+ * nula la prestación está en borrador y se puede editar libremente (nombre, tolerancias e
+ * indicaciones). Habilitarla es irreversible: a partir de ahí el nombre queda congelado y
+ * sus {@link IndicacionPrestacion} dejan de ser editables, porque
+ * {@code IndicacionPrestacionTurno} lee su texto por navegabilidad y editarlo reescribiría
+ * retroactivamente lo que ve un paciente en un turno vivo. Solo las prestaciones habilitadas
+ * se ofrecen para dar y pedir turnos.</p>
  */
 @Getter
 @Setter
@@ -48,7 +56,6 @@ public class Prestacion extends Auditable {
 
     @NotBlank
     @Size(max = 20)
-    @Setter(AccessLevel.NONE)
     @Column(name = "codigo", nullable = false, updatable = false, length = 20)
     private String codigo;
 
@@ -101,6 +108,14 @@ public class Prestacion extends Auditable {
     @Convert(converter = DurationIntervalConverter.class)
     @Column(name = "tiempo_recordatorio_confirmacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoRecordatorioConfirmacion;
+
+    /**
+     * Nula mientras la prestación está en borrador. La sella el {@code DomainService} al
+     * habilitarla y nunca vuelve a nulo: la irreversibilidad es una regla de negocio, no
+     * una restricción de la entidad.
+     */
+    @Column(name = "fecha_habilitacion")
+    private ZonedDateTime fechaHabilitacion;
 
     //endregion
 
