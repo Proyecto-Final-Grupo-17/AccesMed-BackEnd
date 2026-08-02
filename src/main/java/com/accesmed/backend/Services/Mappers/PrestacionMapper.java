@@ -16,6 +16,7 @@ import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.time.Duration;
@@ -41,15 +42,15 @@ public interface PrestacionMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "codigo", source = "codigo")
     @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "duracionMinima", source = "duracionMinimaMinutos")
-    @Mapping(target = "duracionMaxima", source = "duracionMaximaMinutos")
-    @Mapping(target = "tiempoToleranciaSolicitud", source = "tiempoToleranciaSolicitudMinutos")
-    @Mapping(target = "tiempoToleranciaValidacion", source = "tiempoToleranciaValidacionMinutos")
-    @Mapping(target = "tiempoToleranciaReprogramacion", source = "tiempoToleranciaReprogramacionMinutos")
-    @Mapping(target = "tiempoToleranciaConfirmacion", source = "tiempoToleranciaConfirmacionMinutos")
-    @Mapping(target = "tiempoToleranciaCancelacion", source = "tiempoToleranciaCancelacionMinutos")
-    @Mapping(target = "tiempoToleranciaAnuncio", source = "tiempoToleranciaAnuncioMinutos")
-    @Mapping(target = "tiempoRecordatorioConfirmacion", source = "tiempoRecordatorioConfirmacionMinutos")
+    @Mapping(target = "duracionMinima", source = "duracionMinimaMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "duracionMaxima", source = "duracionMaximaMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaSolicitud", source = "tiempoToleranciaSolicitudMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaValidacion", source = "tiempoToleranciaValidacionMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaReprogramacion", source = "tiempoToleranciaReprogramacionMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaConfirmacion", source = "tiempoToleranciaConfirmacionMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaCancelacion", source = "tiempoToleranciaCancelacionMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaAnuncio", source = "tiempoToleranciaAnuncioMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoRecordatorioConfirmacion", source = "tiempoRecordatorioConfirmacionMinutos", qualifiedByName = "toDuration")
     @Mapping(target = "fechaHabilitacion", ignore = true)
     @Mapping(target = "especialidad", ignore = true)
     @Mapping(target = "createdDate", ignore = true)
@@ -106,15 +107,15 @@ public interface PrestacionMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "codigo", ignore = true)
     @Mapping(target = "nombre", ignore = true)
-    @Mapping(target = "duracionMinima", source = "updateToleranciasPrestacionRequest.duracionMinimaMinutos")
-    @Mapping(target = "duracionMaxima", source = "updateToleranciasPrestacionRequest.duracionMaximaMinutos")
-    @Mapping(target = "tiempoToleranciaSolicitud", source = "updateToleranciasPrestacionRequest.tiempoToleranciaSolicitudMinutos")
-    @Mapping(target = "tiempoToleranciaValidacion", source = "updateToleranciasPrestacionRequest.tiempoToleranciaValidacionMinutos")
-    @Mapping(target = "tiempoToleranciaReprogramacion", source = "updateToleranciasPrestacionRequest.tiempoToleranciaReprogramacionMinutos")
-    @Mapping(target = "tiempoToleranciaConfirmacion", source = "updateToleranciasPrestacionRequest.tiempoToleranciaConfirmacionMinutos")
-    @Mapping(target = "tiempoToleranciaCancelacion", source = "updateToleranciasPrestacionRequest.tiempoToleranciaCancelacionMinutos")
-    @Mapping(target = "tiempoToleranciaAnuncio", source = "updateToleranciasPrestacionRequest.tiempoToleranciaAnuncioMinutos")
-    @Mapping(target = "tiempoRecordatorioConfirmacion", source = "updateToleranciasPrestacionRequest.tiempoRecordatorioConfirmacionMinutos")
+    @Mapping(target = "duracionMinima", source = "updateToleranciasPrestacionRequest.duracionMinimaMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "duracionMaxima", source = "updateToleranciasPrestacionRequest.duracionMaximaMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaSolicitud", source = "updateToleranciasPrestacionRequest.tiempoToleranciaSolicitudMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaValidacion", source = "updateToleranciasPrestacionRequest.tiempoToleranciaValidacionMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaReprogramacion", source = "updateToleranciasPrestacionRequest.tiempoToleranciaReprogramacionMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaConfirmacion", source = "updateToleranciasPrestacionRequest.tiempoToleranciaConfirmacionMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaCancelacion", source = "updateToleranciasPrestacionRequest.tiempoToleranciaCancelacionMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoToleranciaAnuncio", source = "updateToleranciasPrestacionRequest.tiempoToleranciaAnuncioMinutos", qualifiedByName = "toDuration")
+    @Mapping(target = "tiempoRecordatorioConfirmacion", source = "updateToleranciasPrestacionRequest.tiempoRecordatorioConfirmacionMinutos", qualifiedByName = "toDuration")
     @Mapping(target = "fechaHabilitacion", ignore = true)
     @Mapping(target = "especialidad", ignore = true)
     @Mapping(target = "createdDate", ignore = true)
@@ -137,15 +138,15 @@ public interface PrestacionMapper {
     @Mapping(target = "id", source = "prestacion.id")
     @Mapping(target = "codigo", source = "prestacion.codigo")
     @Mapping(target = "nombre", source = "prestacion.nombre")
-    @Mapping(target = "duracionMinimaMinutos", source = "prestacion.duracionMinima")
-    @Mapping(target = "duracionMaximaMinutos", source = "prestacion.duracionMaxima")
-    @Mapping(target = "tiempoToleranciaSolicitudMinutos", source = "prestacion.tiempoToleranciaSolicitud")
-    @Mapping(target = "tiempoToleranciaValidacionMinutos", source = "prestacion.tiempoToleranciaValidacion")
-    @Mapping(target = "tiempoToleranciaReprogramacionMinutos", source = "prestacion.tiempoToleranciaReprogramacion")
-    @Mapping(target = "tiempoToleranciaConfirmacionMinutos", source = "prestacion.tiempoToleranciaConfirmacion")
-    @Mapping(target = "tiempoToleranciaCancelacionMinutos", source = "prestacion.tiempoToleranciaCancelacion")
-    @Mapping(target = "tiempoToleranciaAnuncioMinutos", source = "prestacion.tiempoToleranciaAnuncio")
-    @Mapping(target = "tiempoRecordatorioConfirmacionMinutos", source = "prestacion.tiempoRecordatorioConfirmacion")
+    @Mapping(target = "duracionMinimaMinutos", source = "prestacion.duracionMinima", qualifiedByName = "toMinutos")
+    @Mapping(target = "duracionMaximaMinutos", source = "prestacion.duracionMaxima", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaSolicitudMinutos", source = "prestacion.tiempoToleranciaSolicitud", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaValidacionMinutos", source = "prestacion.tiempoToleranciaValidacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaReprogramacionMinutos", source = "prestacion.tiempoToleranciaReprogramacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaConfirmacionMinutos", source = "prestacion.tiempoToleranciaConfirmacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaCancelacionMinutos", source = "prestacion.tiempoToleranciaCancelacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaAnuncioMinutos", source = "prestacion.tiempoToleranciaAnuncio", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoRecordatorioConfirmacionMinutos", source = "prestacion.tiempoRecordatorioConfirmacion", qualifiedByName = "toMinutos")
     @Mapping(target = "especialidadId", source = "prestacion.especialidad.id")
     @Mapping(target = "especialidadNombre", source = "prestacion.especialidad.nombre")
     @Mapping(target = "fechaHabilitacion", source = "prestacion.fechaHabilitacion")
@@ -176,15 +177,15 @@ public interface PrestacionMapper {
     @Mapping(target = "id", source = "id")
     @Mapping(target = "codigo", source = "codigo")
     @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "duracionMinimaMinutos", source = "duracionMinima")
-    @Mapping(target = "duracionMaximaMinutos", source = "duracionMaxima")
-    @Mapping(target = "tiempoToleranciaSolicitudMinutos", source = "tiempoToleranciaSolicitud")
-    @Mapping(target = "tiempoToleranciaValidacionMinutos", source = "tiempoToleranciaValidacion")
-    @Mapping(target = "tiempoToleranciaReprogramacionMinutos", source = "tiempoToleranciaReprogramacion")
-    @Mapping(target = "tiempoToleranciaConfirmacionMinutos", source = "tiempoToleranciaConfirmacion")
-    @Mapping(target = "tiempoToleranciaCancelacionMinutos", source = "tiempoToleranciaCancelacion")
-    @Mapping(target = "tiempoToleranciaAnuncioMinutos", source = "tiempoToleranciaAnuncio")
-    @Mapping(target = "tiempoRecordatorioConfirmacionMinutos", source = "tiempoRecordatorioConfirmacion")
+    @Mapping(target = "duracionMinimaMinutos", source = "duracionMinima", qualifiedByName = "toMinutos")
+    @Mapping(target = "duracionMaximaMinutos", source = "duracionMaxima", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaSolicitudMinutos", source = "tiempoToleranciaSolicitud", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaValidacionMinutos", source = "tiempoToleranciaValidacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaReprogramacionMinutos", source = "tiempoToleranciaReprogramacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaConfirmacionMinutos", source = "tiempoToleranciaConfirmacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaCancelacionMinutos", source = "tiempoToleranciaCancelacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaAnuncioMinutos", source = "tiempoToleranciaAnuncio", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoRecordatorioConfirmacionMinutos", source = "tiempoRecordatorioConfirmacion", qualifiedByName = "toMinutos")
     @Mapping(target = "habilitada", expression = "java(prestacion.getFechaHabilitacion() != null)")
     UpdateToleranciasPrestacionResponse toUpdateToleranciasResponse(Prestacion prestacion);
 
@@ -218,15 +219,15 @@ public interface PrestacionMapper {
     @Mapping(target = "id", source = "prestacion.id")
     @Mapping(target = "codigo", source = "prestacion.codigo")
     @Mapping(target = "nombre", source = "prestacion.nombre")
-    @Mapping(target = "duracionMinimaMinutos", source = "prestacion.duracionMinima")
-    @Mapping(target = "duracionMaximaMinutos", source = "prestacion.duracionMaxima")
-    @Mapping(target = "tiempoToleranciaSolicitudMinutos", source = "prestacion.tiempoToleranciaSolicitud")
-    @Mapping(target = "tiempoToleranciaValidacionMinutos", source = "prestacion.tiempoToleranciaValidacion")
-    @Mapping(target = "tiempoToleranciaReprogramacionMinutos", source = "prestacion.tiempoToleranciaReprogramacion")
-    @Mapping(target = "tiempoToleranciaConfirmacionMinutos", source = "prestacion.tiempoToleranciaConfirmacion")
-    @Mapping(target = "tiempoToleranciaCancelacionMinutos", source = "prestacion.tiempoToleranciaCancelacion")
-    @Mapping(target = "tiempoToleranciaAnuncioMinutos", source = "prestacion.tiempoToleranciaAnuncio")
-    @Mapping(target = "tiempoRecordatorioConfirmacionMinutos", source = "prestacion.tiempoRecordatorioConfirmacion")
+    @Mapping(target = "duracionMinimaMinutos", source = "prestacion.duracionMinima", qualifiedByName = "toMinutos")
+    @Mapping(target = "duracionMaximaMinutos", source = "prestacion.duracionMaxima", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaSolicitudMinutos", source = "prestacion.tiempoToleranciaSolicitud", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaValidacionMinutos", source = "prestacion.tiempoToleranciaValidacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaReprogramacionMinutos", source = "prestacion.tiempoToleranciaReprogramacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaConfirmacionMinutos", source = "prestacion.tiempoToleranciaConfirmacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaCancelacionMinutos", source = "prestacion.tiempoToleranciaCancelacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaAnuncioMinutos", source = "prestacion.tiempoToleranciaAnuncio", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoRecordatorioConfirmacionMinutos", source = "prestacion.tiempoRecordatorioConfirmacion", qualifiedByName = "toMinutos")
     @Mapping(target = "especialidadId", source = "prestacion.especialidad.id")
     @Mapping(target = "especialidadNombre", source = "prestacion.especialidad.nombre")
     @Mapping(target = "fechaHabilitacion", source = "prestacion.fechaHabilitacion")
@@ -262,6 +263,7 @@ public interface PrestacionMapper {
      * @param minutos {@code Integer} minutos
      * @return {@code Duration} duración, o {@code null} si el parámetro es nulo
      */
+    @Named("toDuration")
     default Duration toDuration(Integer minutos) {
         return minutos == null ? null : Duration.ofMinutes(minutos);
     }
@@ -272,6 +274,7 @@ public interface PrestacionMapper {
      * @param duracion {@code Duration} duración
      * @return {@code Integer} minutos, o {@code null} si el parámetro es nulo
      */
+    @Named("toMinutos")
     default Integer toMinutos(Duration duracion) {
         return duracion == null ? null : (int) duracion.toMinutes();
     }

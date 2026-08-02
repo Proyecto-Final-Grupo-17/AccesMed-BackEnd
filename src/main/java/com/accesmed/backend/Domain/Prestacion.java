@@ -15,6 +15,8 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -64,38 +66,47 @@ public class Prestacion extends Auditable {
     private String nombre;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "duracion_minima", nullable = false, columnDefinition = "interval")
     private Duration duracionMinima;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "duracion_maxima", nullable = false, columnDefinition = "interval")
     private Duration duracionMaxima;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "tiempo_tolerancia_solicitud", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaSolicitud;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "tiempo_tolerancia_validacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaValidacion;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "tiempo_tolerancia_reprogramacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaReprogramacion;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "tiempo_tolerancia_confirmacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaConfirmacion;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "tiempo_tolerancia_cancelacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaCancelacion;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "tiempo_tolerancia_anuncio", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaAnuncio;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "tiempo_recordatorio_confirmacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoRecordatorioConfirmacion;
 
