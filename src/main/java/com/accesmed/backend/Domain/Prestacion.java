@@ -1,8 +1,6 @@
 package com.accesmed.backend.Domain;
 
-import com.accesmed.backend.Domain.Converters.DurationIntervalConverter;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -26,7 +24,8 @@ import java.util.UUID;
 /**
  * Servicio que la clínica ofrece. Concentra toda la configuración temporal del ciclo de
  * vida del turno: siete tolerancias/duraciones expresadas como {@link Duration} y
- * persistidas como {@code interval} vía {@link DurationIntervalConverter}.
+ * persistidas directamente como {@code interval} de PostgreSQL. Hibernate maneja
+ * automáticamente la conversión entre {@code java.time.Duration} e {@code interval}.
  *
  * <p>{@code codigo} es inmutable después del alta (genera el {@code Turno.codigo}). La
  * inmutabilidad la garantiza {@code updatable = false}: Hibernate nunca incluye la columna
@@ -65,47 +64,38 @@ public class Prestacion extends Auditable {
     private String nombre;
 
     @NotNull
-    @Convert(converter = DurationIntervalConverter.class)
     @Column(name = "duracion_minima", nullable = false, columnDefinition = "interval")
     private Duration duracionMinima;
 
     @NotNull
-    @Convert(converter = DurationIntervalConverter.class)
     @Column(name = "duracion_maxima", nullable = false, columnDefinition = "interval")
     private Duration duracionMaxima;
 
     @NotNull
-    @Convert(converter = DurationIntervalConverter.class)
     @Column(name = "tiempo_tolerancia_solicitud", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaSolicitud;
 
     @NotNull
-    @Convert(converter = DurationIntervalConverter.class)
     @Column(name = "tiempo_tolerancia_validacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaValidacion;
 
     @NotNull
-    @Convert(converter = DurationIntervalConverter.class)
     @Column(name = "tiempo_tolerancia_reprogramacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaReprogramacion;
 
     @NotNull
-    @Convert(converter = DurationIntervalConverter.class)
     @Column(name = "tiempo_tolerancia_confirmacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaConfirmacion;
 
     @NotNull
-    @Convert(converter = DurationIntervalConverter.class)
     @Column(name = "tiempo_tolerancia_cancelacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaCancelacion;
 
     @NotNull
-    @Convert(converter = DurationIntervalConverter.class)
     @Column(name = "tiempo_tolerancia_anuncio", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaAnuncio;
 
     @NotNull
-    @Convert(converter = DurationIntervalConverter.class)
     @Column(name = "tiempo_recordatorio_confirmacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoRecordatorioConfirmacion;
 
