@@ -4,7 +4,7 @@
 
 - **Para qué es**: el catálogo de prestaciones es la configuración raíz del sistema de turnos. Define qué servicios ofrece la clínica, cuánto dura cada uno y, a través de siete tolerancias configurables, establece todo el calendario de vencimientos que después se congela en cada turno (fechas límite de validación, reprogramación, confirmación, cancelación, anuncio y recordatorio).
 
-- **Para qué sirve**: el administrador arma el catálogo, le carga a cada prestación sus indicaciones previas (ayuno, estudios previos, etc., clasificadas por tipo), y lo publica. Solo las prestaciones habilitadas se ofrecen para dar y pedir turnos. Recién ahí médicos y pacientes pueden usarlas. Una vez habilitada, una prestación **queda congelada** en lo que respecta a su nombre e indicaciones editables (para no reescribir retroactivamente lo que ve un paciente en un turno vivo), pero sus duraciones y tolerancias siguen siendo ajustables.
+- **Para qué sirve**: el administrador arma el catálogo, le carga a cada prestación sus indicaciones previas (ayuno, estudios previos, etc., clasificadas por tipo), y la publica. Solo las prestaciones publicadas se ofrecen para dar y pedir turnos. El ciclo de vida es por estados (`NO_PUBLICADA ⇄ PUBLICADA → DESHABILITADA`): publicar/despublicar es reversible las veces que haga falta; deshabilitar es terminal e irreversible, y es restrictivo (rechaza si la prestación tiene turnos vivos o agenda futura ocupada).
 
 - **Quiénes la usan**: exclusivamente el personal de la clínica (rol administrador) desde el panel web interno. El chatbot de WhatsApp **no escribe** en este módulo; a futuro solo consumirá prestaciones habilitadas.
 
@@ -133,10 +133,10 @@
 ### Crear prestación — `POST /accesmed-api/Prestacion/Prestacion`
 
 **Flujo simplificado:**
-1. Valida que el `codigo` y `nombre` sean únicos entre prestaciones activas.
+1. Valida que el `codigo` y `nombre` sean únicos entre prestaciones **no deshabilitadas**.
 2. Valida que la especialidad exista.
 3. **Valida las reglas de tolerancia** (ver sección "Reglas de tolerancia" abajo).
-4. Crea la prestación en estado **borrador** (`fechaHabilitacion = null`).
+4. Crea la prestación en estado **`NO_PUBLICADA`** y abre el primer tramo de su histórico de estados.
 5. Si hay indicaciones anidadas en el request, las crea y las asocia en la misma transacción.
 6. Devuelve la prestación creada con sus indicaciones.
 
@@ -144,8 +144,8 @@
 
 | Campo | Tipo | Obligatorio | Notas |
 |-------|------|-------------|-------|
-| `codigo` | String (máx. 20) | Sí | Código único e inmutable. Se congela en creación (baja + alta = código nuevo). |
-| `nombre` | String (máx. 150) | Sí | Nombre descriptivo. Se congela una vez que se habilita la prestación. |
+| `codigo` | String (máx. 20) | Sí | Código único e inmutable. Al deshabilitar una prestación el código queda libre (la unicidad rige entre no deshabilitadas). |
+| `nombre` | String (máx. 150) | Sí | Nombre descriptivo. Editable siempre (en cualquier estado). |
 | `duracionMinimaMinutos` | Integer | Sí | Minutos. Mayor a cero. Debe ser ≤ `duracionMaximaMinutos`. |
 | `duracionMaximaMinutos` | Integer | Sí | Minutos. Mayor a cero. Debe ser ≥ `duracionMinimaMinutos`. |
 | `tiempoToleranciaSolicitudMinutos` | Integer | Sí | Minutos (≥ 0). Antelación mínima para reservar un turno. **Techo de la cadena de tolerancias.** |
@@ -155,7 +155,7 @@
 | `tiempoToleranciaCancelacionMinutos` | Integer | Sí | Minutos (≥ 0). Hasta cuándo el paciente cancela. Debe ser ≤ tolerancia de confirmación. |
 | `tiempoToleranciaAnuncioMinutos` | Integer | Sí | Minutos (≥ 0). Semiancho de la ventana de anuncio en recepción. **No sigue el orden de la cadena.** |
 | `tiempoRecordatorioConfirmacionMinutos` | Integer | Sí | Minutos (≥ 0). Cuánto antes se envía el recordatorio. Debe ser > tolerancia de confirmación y ≤ tolerancia de solicitud. |
-| `especialidadId` | UUID | Sí | Identificador de la especialidad a la que pertenece esta prestación. |
+| `especialidadId` | UUID | Sí | Identificador de la especialidad a la que pertenece esta prestación. Inmutable tras el alta. |
 | `indicaciones` | Array (opcional) | No | Array anidado de indicaciones iniciales (se carga todo junto). Cada indicación valida su estructura. |
 
 **Indicaciones anidadas en el request — `CreateIndicacionPrestacionAnidadaRequest`** (dentro del array `indicaciones`)
@@ -171,7 +171,7 @@
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id` | UUID | Identificador de la prestación. Para navegar al detalle, listar indicaciones, habilitar. |
+| `id` | UUID | Identificador de la prestación. Para navegar al detalle, listar indicaciones, publicar. |
 | `codigo` | String | Confirmación del código creado. |
 | `nombre` | String | Confirmación del nombre. |
 | `duracionMinimaMinutos` | Integer | Confirmación. |
@@ -185,77 +185,38 @@
 | `tiempoRecordatorioConfirmacionMinutos` | Integer | Confirmación. |
 | `especialidadId` | UUID | Identificador de la especialidad. |
 | `especialidadNombre` | String | Nombre de la especialidad (para mostrar). |
-| `fechaHabilitacion` | ZonedDateTime | Nulo porque la prestación nace en borrador. |
-| `habilitada` | Boolean | `false` (en borrador). |
+| `estadoActual` | String (`NO_PUBLICADA`\|`PUBLICADA`\|`DESHABILITADA`) | Nace en `NO_PUBLICADA`. Para mostrar el estado y habilitar el botón "Publicar". |
 | `indicaciones` | Array | Lista de indicaciones creadas (vacía si no se proporcionaron). |
 
 **Errores posibles:**
-- `PRESTACION_CODIGO_DUPLICADO` (422): ya existe una prestación activa con ese código.
-- `PRESTACION_NOMBRE_DUPLICADO` (422): ya existe una prestación activa con ese nombre.
+- `PRESTACION_CODIGO_DUPLICADO` (409): ya existe una prestación no deshabilitada con ese código.
+- `PRESTACION_NOMBRE_DUPLICADO` (409): ya existe una prestación no deshabilitada con ese nombre.
 - Validación de reglas de tolerancia (422): véase "Reglas de tolerancia" abajo.
 - `ESPECIALIDAD_NO_ENCONTRADA` (404): la especialidad no existe.
 - `TIPO_INDICACION_PRESTACION_NO_ENCONTRADO` (404): uno de los tipos de indicación no existe.
 
 ---
 
-### Actualizar datos generales de prestación — `PATCH /accesmed-api/Prestacion/Prestacion/{id}`
+### Actualizar prestación — `PATCH /accesmed-api/Prestacion/Prestacion/{id}`
 
-Cubre el grupo de campos que solo pueden tocarse **mientras la prestación está en
-borrador**: nombre y especialidad. Una vez habilitada, el endpoint entero queda
-bloqueado (no hay forma de cambiar el nombre después de publicar).
+Cubre nombre y las 9 duraciones/tolerancias. A diferencia de v2, **se puede modificar en
+cualquier estado** (`NO_PUBLICADA`, `PUBLICADA` o `DESHABILITADA`) — no hay bloqueo por
+publicación.
 
 **Flujo simplificado:**
 1. Valida que la prestación exista.
-2. Valida que la prestación esté en **borrador**; si ya está habilitada, rechaza el
-   request completo (`PRESTACION_YA_HABILITADA`).
-3. Si vino `nombre`, valida que sea único (excluyendo esta prestación) y lo actualiza.
-4. Si vino `especialidadId`, valida que la especialidad exista y la actualiza.
+2. Si vino `nombre`, valida que sea único entre no deshabilitadas (excluyendo esta prestación).
+3. Revalida las reglas de tolerancia con el resultado de aplicar los campos que vinieron
+   sobre los valores actuales de la prestación.
+4. Actualiza los campos que vinieron en el request.
 5. Devuelve la prestación actualizada.
 
-**Request para el front — `UpdatePrestacionNoHabilitadaRequest`**
+**Request para el front — `UpdatePrestacionRequest`**
 
 | Campo | Tipo | Obligatorio | Notas |
 |-------|------|-------------|-------|
 | `id` | UUID | Sí | Identificador. Debe coincidir con el `id` de la ruta (422 si difieren). |
 | `nombre` | String (máx. 150) | No | `null` o ausente = no lo toques. |
-| `especialidadId` | UUID | No | `null` o ausente = no la toques. |
-
-**Response para el front — `UpdatePrestacionNoHabilitadaResponse`**
-
-| Campo | Tipo | Para qué lo usa el front |
-|-------|------|--------------------------|
-| `id` | UUID | Confirmación. |
-| `codigo` | String | Inmutable, solo para confirmar. |
-| `nombre` | String | Confirmación del nombre. |
-| `especialidadId` | UUID | Confirmación de la especialidad. |
-| `especialidadNombre` | String | Nombre de la especialidad. |
-| `habilitada` | Boolean | Siempre `false` en este response (el endpoint exige borrador). |
-
-**Errores posibles:**
-- `PRESTACION_NO_ENCONTRADA` (404): la prestación no existe.
-- `PRESTACION_YA_HABILITADA` (422): la prestación ya está habilitada, no admite esta operación.
-- `PRESTACION_NOMBRE_DUPLICADO` (422): otra prestación activa ya tiene ese nombre.
-- `ESPECIALIDAD_NO_ENCONTRADA` (404): la especialidad no existe.
-
----
-
-### Actualizar tolerancias de prestación — `PATCH /accesmed-api/Prestacion/Prestacion/Tolerancias/{id}`
-
-Cubre las 9 duraciones/tolerancias. Es lo **único editable una vez habilitada**; mientras
-está en borrador también se edita por acá (separado del endpoint anterior).
-
-**Flujo simplificado:**
-1. Valida que la prestación exista (sin importar si está en borrador o habilitada).
-2. Revalida las reglas de tolerancia con el resultado de aplicar los campos que vinieron
-   sobre los valores actuales de la prestación.
-3. Actualiza los campos que vinieron en el request.
-4. Devuelve la prestación actualizada.
-
-**Request para el front — `UpdateToleranciasPrestacionRequest`**
-
-| Campo | Tipo | Obligatorio | Notas |
-|-------|------|-------------|-------|
-| `id` | UUID | Sí | Identificador. Debe coincidir con el `id` de la ruta (422 si difieren). |
 | `duracionMinimaMinutos` | Integer | No | `null` o ausente = no lo toques. |
 | `duracionMaximaMinutos` | Integer | No | |
 | `tiempoToleranciaSolicitudMinutos` | Integer | No | |
@@ -266,13 +227,13 @@ está en borrador también se edita por acá (separado del endpoint anterior).
 | `tiempoToleranciaAnuncioMinutos` | Integer | No | |
 | `tiempoRecordatorioConfirmacionMinutos` | Integer | No | |
 
-**Response para el front — `UpdateToleranciasPrestacionResponse`**
+**Response para el front — `UpdatePrestacionResponse`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
 | `id` | UUID | Confirmación. |
-| `codigo` | String | Solo para confirmar. |
-| `nombre` | String | Solo para confirmar. |
+| `codigo` | String | Solo para confirmar (inmutable). |
+| `nombre` | String | Confirmación del nombre. |
 | `duracionMinimaMinutos` | Integer | Confirmación de todos los campos actualizados. |
 | `duracionMaximaMinutos` | Integer | |
 | `tiempoToleranciaSolicitudMinutos` | Integer | |
@@ -282,66 +243,119 @@ está en borrador también se edita por acá (separado del endpoint anterior).
 | `tiempoToleranciaCancelacionMinutos` | Integer | |
 | `tiempoToleranciaAnuncioMinutos` | Integer | |
 | `tiempoRecordatorioConfirmacionMinutos` | Integer | |
-| `habilitada` | Boolean | Para saber si la prestación sigue en borrador o ya está publicada. |
+| `especialidadId` | UUID | Confirmación de la especialidad. |
+| `especialidadNombre` | String | Nombre de la especialidad. |
+| `estadoActual` | String | Para saber en qué estado quedó la prestación. |
 
 **Errores posibles:**
 - `PRESTACION_NO_ENCONTRADA` (404): la prestación no existe.
+- `PRESTACION_NOMBRE_DUPLICADO` (409): otra prestación no deshabilitada ya tiene ese nombre.
 - Validación de reglas de tolerancia (422): si la cadena de tolerancias falla.
 
 ---
 
-### Habilitar prestación — `PATCH /accesmed-api/Prestacion/Prestacion/{id}/Habilitacion`
+### Publicar prestación — `PATCH /accesmed-api/Prestacion/Prestacion/{id}/Publicar`
+
+Transición **reversible** `NO_PUBLICADA → PUBLICADA`. No exige tener un médico asignado.
 
 **Flujo simplificado:**
 1. Valida que la prestación exista.
-2. Valida que esté en borrador (`fechaHabilitacion` vacío).
-3. Asigna `fechaHabilitacion = ahora` (irreversible).
-4. Devuelve la prestación habilitada.
+2. Valida que esté en `NO_PUBLICADA` (si no, rechaza).
+3. Cierra el tramo vigente del histórico, abre uno nuevo en `PUBLICADA` y actualiza `estadoActual`.
+4. Devuelve la prestación publicada.
 
 **Este endpoint no lleva body en el request.**
 
-**Response para el front — `EnablePrestacionResponse`**
+**Response para el front — `CambioEstadoPrestacionResponse`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
 | `id` | UUID | Confirmación del id. |
 | `codigo` | String | Confirmación del código. |
-| `nombre` | String | Confirmación del nombre (ahora congelado). |
-| `fechaHabilitacion` | ZonedDateTime | Fecha/hora en que se habilitó (para mostrar el cambio de estado). |
-| `habilitada` | Boolean | `true` siempre en este response. |
+| `nombre` | String | Confirmación del nombre. |
+| `estadoActual` | String | `PUBLICADA` siempre en este response. Para actualizar el estado en pantalla. |
 
 **Errores posibles:**
 - `PRESTACION_NO_ENCONTRADA` (404): la prestación no existe.
-- `PRESTACION_YA_HABILITADA` (422): la prestación ya está habilitada (el endpoint es idempotente en cierto sentido, pero lanza error).
+- `PRESTACION_NO_PUBLICABLE` (409): la prestación no está en `NO_PUBLICADA` (ya está publicada o está deshabilitada).
 
 ---
 
-### Dar de baja prestación — `DELETE /accesmed-api/Prestacion/Prestacion/{id}`
+### Despublicar prestación — `PATCH /accesmed-api/Prestacion/Prestacion/{id}/Despublicar`
+
+Transición **reversible** `PUBLICADA → NO_PUBLICADA`.
 
 **Flujo simplificado:**
 1. Valida que la prestación exista.
-2. Ejecuta la baja lógica de todas sus indicaciones activas.
-3. Ejecuta la baja lógica de la prestación (`deletedAt = ahora`).
-4. **Pendiente (TODO)**: Debe cancelar todos los turnos futuros de esta prestación con motivo `BAJA_DE_PRESTACION`, dar de baja los `AgendaHorarios` futuros y las `MedicoPrestacion` asociadas. Por ahora solo hace baja de prestación e indicaciones (módulos de Agenda y MedicoPrestacion todavía no existen).
-5. Devuelve la confirmación de la baja.
+2. Valida que esté en `PUBLICADA` (si no, rechaza).
+3. Cierra el tramo vigente del histórico, abre uno nuevo en `NO_PUBLICADA` y actualiza `estadoActual`.
+4. Devuelve la prestación despublicada.
 
-**Response para el front — `SoftDeletePrestacionResponse`**
+**Este endpoint no lleva body en el request.**
+
+**Response para el front — `CambioEstadoPrestacionResponse`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id` | UUID | Confirmación de la prestación dada de baja. |
-| `deletedAt` | Instant | Momento de la baja. |
-| `deletedReason` | String | Motivo de la baja. |
+| `id` | UUID | Confirmación del id. |
+| `codigo` | String | Confirmación del código. |
+| `nombre` | String | Confirmación del nombre. |
+| `estadoActual` | String | `NO_PUBLICADA` siempre en este response. |
 
 **Errores posibles:**
-- `PRESTACION_NO_ENCONTRADA` (404): la prestación no existe o ya está de baja.
+- `PRESTACION_NO_ENCONTRADA` (404): la prestación no existe.
+- `PRESTACION_NO_DESPUBLICABLE` (409): la prestación no está en `PUBLICADA`.
+
+---
+
+### Deshabilitar prestación — `PATCH /accesmed-api/Prestacion/Prestacion/{id}/Deshabilitar`
+
+Transición **terminal e irreversible** — es la baja del eje "estados". No hay vuelta atrás:
+"revivir" una prestación deshabilitada significa crearla de nuevo (el `codigo` queda
+libre porque la unicidad rige entre no deshabilitadas). Es **restrictiva**: rechaza si la
+prestación está en uso vigente.
+
+**Flujo simplificado:**
+1. Valida que la prestación exista.
+2. Valida que no esté ya deshabilitada.
+3. **Precondición restrictiva real**: rechaza si hay algún `Turno` de la prestación con
+   estado no final, o algún `AgendaHorarios` futuro ocupado de la prestación.
+4. Cierra el tramo vigente del histórico, abre uno nuevo en `DESHABILITADA` (con el
+   `motivo`, si vino) y actualiza `estadoActual`.
+5. Devuelve la prestación deshabilitada.
+
+**Pendiente (TODO)**: cerrar `MedicoPrestacion` vigentes, bajar `AgendaHorarios` libres,
+cerrar `IndicacionPrestacion` vigentes y bajar `ObraSocialPlanPrestacion` asociadas — se
+implementa cuando esos módulos existan.
+
+**Request para el front — `DeshabilitarPrestacionRequest`**
+
+| Campo | Tipo | Obligatorio | Notas |
+|-------|------|-------------|-------|
+| `id` | UUID | Sí | Identificador. Debe coincidir con el `id` de la ruta (422 si difieren). |
+| `motivo` | String (máx. 500) | No | Motivo de la deshabilitación, se guarda en el histórico. |
+
+**Response para el front — `CambioEstadoPrestacionResponse`**
+
+| Campo | Tipo | Para qué lo usa el front |
+|-------|------|--------------------------|
+| `id` | UUID | Confirmación del id. |
+| `codigo` | String | Confirmación del código (a partir de acá, reutilizable en una prestación nueva). |
+| `nombre` | String | Confirmación del nombre. |
+| `estadoActual` | String | `DESHABILITADA` siempre en este response. |
+
+**Errores posibles:**
+- `PRESTACION_NO_ENCONTRADA` (404): la prestación no existe.
+- `PRESTACION_YA_DESHABILITADA` (409): la prestación ya está deshabilitada.
+- `PRESTACION_CON_TURNOS_VIVOS` (409): hay turnos con estado no final de esta prestación. El mensaje incluye la cantidad y la fecha más lejana.
+- `PRESTACION_CON_AGENDA_OCUPADA` (409): hay horarios de agenda futuros ocupados de esta prestación.
 
 ---
 
 ### Obtener prestación — `GET /accesmed-api/Prestacion/Prestacion/{id}`
 
 **Flujo simplificado:**
-1. Busca la prestación activa por `id`.
+1. Busca la prestación por `id`.
 2. Carga todas sus indicaciones activas.
 3. Devuelve los datos completos.
 
@@ -363,19 +377,18 @@ está en borrador también se edita por acá (separado del endpoint anterior).
 | `tiempoRecordatorioConfirmacionMinutos` | Integer | |
 | `especialidadId` | UUID | Para confirmar la especialidad. |
 | `especialidadNombre` | String | Nombre de la especialidad. |
-| `fechaHabilitacion` | ZonedDateTime | Para mostrar si está habilitada o en borrador. |
-| `habilitada` | Boolean | Para deshabilitar/habilitar botones de edición según estado. |
+| `estadoActual` | String (`NO_PUBLICADA`\|`PUBLICADA`\|`DESHABILITADA`) | Para mostrar el estado y habilitar los botones de transición que correspondan. |
 | `indicaciones` | Array | Lista completa de indicaciones activas (cada una con su tipo). |
 
 **Errores posibles:**
-- `PRESTACION_NO_ENCONTRADA` (404): no existe o está de baja.
+- `PRESTACION_NO_ENCONTRADA` (404): no existe.
 
 ---
 
 ### Listar prestaciones — `GET /accesmed-api/Prestacion/Prestacion`
 
 **Flujo simplificado:**
-1. Recupera prestaciones activas, opcionalmente filtradas por especialidad y/o estado (borrador vs. habilitada).
+1. Recupera prestaciones, opcionalmente filtradas por especialidad y/o estado.
 2. Devuelve una lista compacta.
 
 **Query parameters (opcionales)**
@@ -383,7 +396,7 @@ está en borrador también se edita por acá (separado del endpoint anterior).
 | Parámetro | Tipo | Significado |
 |-----------|------|-------------|
 | `especialidadId` | UUID | Filtrar por especialidad. |
-| `habilitadas` | Boolean | `true` = solo habilitadas; `false` = solo borradores; sin parámetro = todas. |
+| `estadoActual` | String (`NO_PUBLICADA`\|`PUBLICADA`\|`DESHABILITADA`) | Filtrar por estado; sin parámetro = todas. |
 
 **Response para el front — `List<ListPrestacionResponse>`**
 
@@ -394,8 +407,7 @@ está en borrador también se edita por acá (separado del endpoint anterior).
 | `nombre` | String | Nombre. |
 | `especialidadId` | UUID | Para mostrar relaciones. |
 | `especialidadNombre` | String | Nombre de la especialidad (para mostrar). |
-| `fechaHabilitacion` | ZonedDateTime | Nulo si borrador; con fecha si habilitada. |
-| `habilitada` | Boolean | Para marcar visualmente o filtrar (colores, estados, etc.). |
+| `estadoActual` | String | Para marcar visualmente o filtrar (colores, estados, etc.). |
 
 ---
 
@@ -579,27 +591,25 @@ Las reglas de tolerancia se **validan al guardar la prestación** (no en el alta
 1. **Crear tipos de indicación** (base de datos): `POST /TipoIndicacionPrestacion`
    - Define qué clasificaciones de indicaciones existen (ayuno, estudio previo, etc.).
 
-2. **Crear prestación en borrador** (con indicaciones anidadas): `POST /Prestacion`
+2. **Crear prestación** (con indicaciones anidadas): `POST /Prestacion`
    - El admin carga la prestación: código, nombre, duraciones, tolerancias e indicaciones en una sola operación.
-   - La prestación nace con `fechaHabilitacion = null` (borrador).
+   - La prestación nace en estado `NO_PUBLICADA`.
 
-3. **Ajustar si es necesario** (mientras esté en borrador):
-   - `PATCH /Prestacion/{id}` para cambiar nombre o especialidad.
-   - `PATCH /Prestacion/Tolerancias/{id}` para cambiar duraciones o tolerancias.
+3. **Ajustar si es necesario** (en cualquier estado):
+   - `PATCH /Prestacion/{id}` para cambiar nombre, duraciones o tolerancias.
    - `POST /IndicacionPrestacion` (o actualizar/eliminar con PUT y DELETE) para agregar/cambiar indicaciones.
 
-4. **Habilitar** (irreversible): `PATCH /Prestacion/{id}/Habilitacion`
-   - Asigna `fechaHabilitacion = ahora`.
-   - El nombre y la especialidad quedan congelados (`PATCH /Prestacion/{id}` deja de admitirse).
-   - Las indicaciones pasan a ser de solo lectura (no se pueden actualizar, solo dar de baja).
-   - Las duraciones y tolerancias siguen siendo editables vía `PATCH /Prestacion/Tolerancias/{id}`.
+4. **Publicar / despublicar** (reversible, cuantas veces haga falta):
+   - `PATCH /Prestacion/{id}/Publicar` → `PUBLICADA`. No exige médico asignado.
+   - `PATCH /Prestacion/{id}/Despublicar` → vuelve a `NO_PUBLICADA`.
 
-5. **Listar y filtrar**: `GET /Prestacion` con parámetros `especialidadId` y/o `habilitadas`
-   - Para separar catálogo publicado (habilitadas) de borradores en trabajos.
+5. **Listar y filtrar**: `GET /Prestacion` con parámetros `especialidadId` y/o `estadoActual`
+   - Para separar catálogo publicado de no publicado en los listados del panel.
 
-6. **Baja eventual**: `DELETE /Prestacion/{id}` (solo si ya no se necesita)
-   - Baja lógica de la prestación e indicaciones asociadas.
-   - **Pendiente**: cancelación en cascada de turnos futuros (en implementación).
+6. **Deshabilitar eventualmente** (terminal, restrictiva): `PATCH /Prestacion/{id}/Deshabilitar`
+   - Rechaza si hay turnos vivos o agenda futura ocupada de la prestación.
+   - Es irreversible: "revivir" significa crear la prestación de nuevo (el `codigo` queda libre).
+   - **Pendiente**: cascada de escritura sobre `MedicoPrestacion`, `AgendaHorarios`, `IndicacionPrestacion` y `ObraSocialPlanPrestacion` (en implementación).
 
 ---
 
@@ -609,12 +619,15 @@ Todos los endpoints devuelven el mismo contrato `AccesMedError` ante cualquier f
 
 Los códigos de error específicos de esta feature son:
 
-- `PRESTACION_CODIGO_DUPLICADO`
-- `PRESTACION_NOMBRE_DUPLICADO`
-- `PRESTACION_YA_HABILITADA` (intento de habilitar dos veces, o de tocar datos generales de una prestación ya habilitada)
+- `PRESTACION_CODIGO_DUPLICADO` (409)
+- `PRESTACION_NOMBRE_DUPLICADO` (409)
+- `PRESTACION_NO_PUBLICABLE` (409, no está en `NO_PUBLICADA`)
+- `PRESTACION_NO_DESPUBLICABLE` (409, no está en `PUBLICADA`)
+- `PRESTACION_YA_DESHABILITADA` (409)
+- `PRESTACION_CON_TURNOS_VIVOS` (409, precondición restrictiva de deshabilitar)
+- `PRESTACION_CON_AGENDA_OCUPADA` (409, precondición restrictiva de deshabilitar)
 - `PRESTACION_NO_ENCONTRADA` (404)
 - `INDICACION_PRESTACION_NO_ENCONTRADA` (404)
-- `INDICACION_PRESTACION_HABILITADA` (intentó editar indicaciones de prestación habilitada)
 - `TIPO_INDICACION_PRESTACION_NO_ENCONTRADO` (404)
 - `TIPO_INDICACION_PRESTACION_CODIGO_DUPLICADO`
 - `TIPO_INDICACION_PRESTACION_NOMBRE_DUPLICADO`

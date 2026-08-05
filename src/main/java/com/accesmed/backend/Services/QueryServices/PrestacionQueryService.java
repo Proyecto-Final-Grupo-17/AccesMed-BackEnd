@@ -1,5 +1,6 @@
 package com.accesmed.backend.Services.QueryServices;
 
+import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Repositories.PrestacionRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,83 +28,58 @@ public class PrestacionQueryService {
     //region ========== Métodos ==========
 
     /**
-     * Lista todas las prestaciones activas.
+     * Lista todas las prestaciones.
      *
-     * @return {@code List<Prestacion>} lista de prestaciones activas
+     * @return {@code List<Prestacion>} lista de todas las prestaciones
      */
     public List<Prestacion> findAllPrestaciones() {
 
-        log.debug("Listando todas las prestaciones activas");
+        log.debug("Listando todas las prestaciones");
 
-        return prestacionRepository.findAllByDeletedAtIsNull();
+        return prestacionRepository.findAll();
 
     }
 
     /**
-     * Lista todas las prestaciones activas de una especialidad determinada.
+     * Lista todas las prestaciones de una especialidad determinada.
      *
      * @param especialidadId {@code UUID} identificador de la especialidad
-     * @return {@code List<Prestacion>} lista de prestaciones activas de esa especialidad
+     * @return {@code List<Prestacion>} lista de prestaciones de esa especialidad
      */
     public List<Prestacion> findPrestacionesByEspecialidad(UUID especialidadId) {
 
         log.debug("Listando prestaciones de especialidad: {}", especialidadId);
 
-        return prestacionRepository.findAllByEspecialidadIdAndDeletedAtIsNull(especialidadId);
+        return prestacionRepository.findAllByEspecialidadId(especialidadId);
 
     }
 
     /**
-     * Lista todas las prestaciones activas que están habilitadas.
+     * Lista todas las prestaciones en un estado determinado.
      *
-     * @return {@code List<Prestacion>} lista de prestaciones activas habilitadas
+     * @param estadoActual {@code EstadoPrestacion} estado a filtrar
+     * @return {@code List<Prestacion>} lista de prestaciones en ese estado
      */
-    public List<Prestacion> findPrestacionesHabilitadas() {
+    public List<Prestacion> findPrestacionesByEstadoActual(EstadoPrestacion estadoActual) {
 
-        log.debug("Listando prestaciones habilitadas");
+        log.debug("Listando prestaciones en estado: {}", estadoActual);
 
-        return prestacionRepository.findAllByDeletedAtIsNullAndFechaHabilitacionIsNotNull();
+        return prestacionRepository.findAllByEstadoActual(estadoActual);
 
     }
 
     /**
-     * Lista todas las prestaciones activas habilitadas de una especialidad determinada.
-     *
-     * @param especialidadId {@code UUID} identificador de la especialidad
-     * @return {@code List<Prestacion>} lista de prestaciones activas habilitadas de esa especialidad
-     */
-    public List<Prestacion> findPrestacionesHabilitadasByEspecialidad(UUID especialidadId) {
-
-        log.debug("Listando prestaciones habilitadas de especialidad: {}", especialidadId);
-
-        return prestacionRepository.findAllByEspecialidadIdAndDeletedAtIsNullAndFechaHabilitacionIsNotNull(especialidadId);
-
-    }
-
-    /**
-     * Lista todas las prestaciones activas que están en borrador (no habilitadas).
-     *
-     * @return {@code List<Prestacion>} lista de prestaciones activas en borrador
-     */
-    public List<Prestacion> findPrestacionesEnBorrador() {
-
-        log.debug("Listando prestaciones en borrador");
-
-        return prestacionRepository.findAllByDeletedAtIsNullAndFechaHabilitacionIsNull();
-
-    }
-
-    /**
-     * Lista todas las prestaciones activas en borrador de una especialidad determinada.
+     * Lista todas las prestaciones de una especialidad determinada en un estado dado.
      *
      * @param especialidadId {@code UUID} identificador de la especialidad
-     * @return {@code List<Prestacion>} lista de prestaciones activas en borrador de esa especialidad
+     * @param estadoActual {@code EstadoPrestacion} estado a filtrar
+     * @return {@code List<Prestacion>} lista de prestaciones de esa especialidad en ese estado
      */
-    public List<Prestacion> findPrestacionesEnBorradorByEspecialidad(UUID especialidadId) {
+    public List<Prestacion> findPrestacionesByEspecialidadAndEstadoActual(UUID especialidadId, EstadoPrestacion estadoActual) {
 
-        log.debug("Listando prestaciones en borrador de especialidad: {}", especialidadId);
+        log.debug("Listando prestaciones de especialidad {} en estado: {}", especialidadId, estadoActual);
 
-        return prestacionRepository.findAllByEspecialidadIdAndDeletedAtIsNullAndFechaHabilitacionIsNull(especialidadId);
+        return prestacionRepository.findAllByEspecialidadIdAndEstadoActual(especialidadId, estadoActual);
 
     }
 

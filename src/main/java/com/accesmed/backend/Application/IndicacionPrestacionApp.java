@@ -49,8 +49,6 @@ public class IndicacionPrestacionApp {
      * @return {@code CreateIndicacionPrestacionResponse} la indicación creada
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException
      *         {@code RecursoNoEncontradoException} si la prestación o tipo de indicación no existe
-     * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException
-     *         {@code ReglaNegocioException} si la prestación está habilitada
      */
     @Transactional
     public CreateIndicacionPrestacionResponse createIndicacionPrestacion(
@@ -59,7 +57,7 @@ public class IndicacionPrestacionApp {
         log.info("Creación de indicación de prestación iniciada: nombre={}", createIndicacionPrestacionRequest.nombre());
 
         //Buscar la prestación y tipo de indicación
-        var prestacionExistente = prestacionDomainService.findActivePrestacionById(createIndicacionPrestacionRequest.prestacionId());
+        var prestacionExistente = prestacionDomainService.findPrestacionById(createIndicacionPrestacionRequest.prestacionId());
         var tipoIndicacionExistente = tipoIndicacionPrestacionDomainService
                 .findTipoIndicacionPrestacionById(createIndicacionPrestacionRequest.tipoIndicacionPrestacionId());
 
@@ -85,8 +83,6 @@ public class IndicacionPrestacionApp {
      * @return {@code UpdateIndicacionPrestacionResponse} la indicación actualizada
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException
      *         {@code RecursoNoEncontradoException} si la indicación no existe
-     * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException
-     *         {@code ReglaNegocioException} si la prestación está habilitada
      */
     @Transactional
     public UpdateIndicacionPrestacionResponse updateIndicacionPrestacion(
@@ -97,9 +93,6 @@ public class IndicacionPrestacionApp {
         //Buscar la indicación
         IndicacionPrestacion indicacionExistente = indicacionPrestacionDomainService
                 .findIndicacionPrestacionById(id);
-
-        //Validar que la prestación esté en borrador (no habilitada)
-        prestacionDomainService.validatePrestacionAdmiteEdicionDeIndicaciones(indicacionExistente.getPrestacion());
 
         //Actualizar
         indicacionPrestacionMapper.updateIndicacionPrestacion(indicacionExistente, updateIndicacionPrestacionRequest);

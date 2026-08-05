@@ -2,7 +2,7 @@
   "esquema": "accesmed/dte/3.0",
   "proyecto": "AccesMed",
   "entidad": "Turno",
-  "descripcion": "Diagrama de Transición de Estados del Turno. El estado vigente es el EstadoTurno del HistoricoEstadoTurno con fechaHoraFin vacío. Un estado es final cuando ese tramo queda abierto para siempre: no hay atributo que lo declare.",
+  "descripcion": "Diagrama de Transición de Estados del Turno. EstadoTurno es un enum Java (no entidad/tabla). El estado vigente se materializa en Turno.estadoActual (columna enum con índice), mantenida junto con el tramo de HistoricoEstadoTurno (columna estado enum, no FK) con fechaHoraFin vacío. Los estados finales son la constante de código EstadoTurno.FINALES, no un dato en base.",
   "fecha": "2026-08-04",
   "estados": [
     {

@@ -15,12 +15,12 @@
                 <constraints nullable="false"/>
             </column>
             <column name="fecha_hora_fin" type="timestamptz"/>
+            <column name="estado" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
             <!-- ====== Relaciones ====== -->
             <column name="turno_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_historico_estado_turno_turno" references="turno(id)"/>
-            </column>
-            <column name="estado_turno_id" type="uuid">
-                <constraints nullable="false" foreignKeyName="fk_historico_estado_turno_estado_turno" references="estado_turno(id)"/>
             </column>
             <!-- ====== Columnas auditoría (sin baja: HistoricoEstadoTurno no es bajable) ====== -->
             <column name="created_at" type="timestamptz">
@@ -32,6 +32,7 @@
         </createTable>
 
         <sql>ALTER TABLE historico_estado_turno ADD CONSTRAINT ck_historico_estado_turno_fin_posterior CHECK (fecha_hora_fin IS NULL OR fecha_hora_fin > fecha_hora_inicio);</sql>
+        <sql>ALTER TABLE historico_estado_turno ADD CONSTRAINT ck_historico_estado_turno_estado CHECK (estado IN ('ESPERA_VALIDACION','PENDIENTE','CONFIRMADO','EN_SALA_DE_ESPERA','EN_CURSO','CANCELADO','REPROGRAMADO','AUSENTE','FINALIZADO'));</sql>
 
         <!--
             Indice unico parcial que garantiza el tramo vigente unico por turno: es la
@@ -40,11 +41,12 @@
         -->
         <sql>CREATE UNIQUE INDEX uq_historico_estado_turno_vigente ON historico_estado_turno (turno_id) WHERE fecha_hora_fin IS NULL;</sql>
 
-        <sql>CREATE INDEX idx_historico_estado_turno_estado_turno ON historico_estado_turno (estado_turno_id);</sql>
+        <sql>CREATE INDEX idx_historico_estado_turno_estado ON historico_estado_turno (estado);</sql>
         <rollback>
             <sql>ALTER TABLE historico_estado_turno DROP CONSTRAINT IF EXISTS ck_historico_estado_turno_fin_posterior;</sql>
+            <sql>ALTER TABLE historico_estado_turno DROP CONSTRAINT IF EXISTS ck_historico_estado_turno_estado;</sql>
             <sql>DROP INDEX IF EXISTS uq_historico_estado_turno_vigente;</sql>
-            <sql>DROP INDEX IF EXISTS idx_historico_estado_turno_estado_turno;</sql>
+            <sql>DROP INDEX IF EXISTS idx_historico_estado_turno_estado;</sql>
         </rollback>
     </changeSet>
 

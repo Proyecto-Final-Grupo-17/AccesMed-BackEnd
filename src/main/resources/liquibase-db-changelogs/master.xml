@@ -14,12 +14,13 @@
     <include file="changelogs/20260731214800-Paciente.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/20260731214900-ObraSocial.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/20260731215000-Admin.xml" relativeToChangelogFile="true"/>
-    <include file="changelogs/20260731215100-EstadoTurno.xml" relativeToChangelogFile="true"/>
 
     <!-- ====== Fase 2 — Primer nivel de dependencias ====== -->
     <include file="changelogs/20260731215200-Medico.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/20260731215300-Prestacion.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731215310-HistoricoEstadoPrestacion.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/20260731215400-Plan.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731215410-HistoricoEstadoPlan.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/20260731215500-Rol.xml" relativeToChangelogFile="true"/>
 
     <!-- ====== Fase 3 — Clases asociativas y agenda ====== -->

@@ -97,6 +97,16 @@ public class Turno extends Auditable {
     @Column(name = "motivo_cancelacion", length = 30)
     private MotivoCancelacion motivoCancelacion;
 
+    /**
+     * Estado actual del turno, mantenido por el {@code DomainService} en cada transición
+     * junto con el tramo de {@link HistoricoEstadoTurno}. Sin mantenedor hasta que exista
+     * el módulo Turno: queda pre-posicionado para las consultas por estado actual.
+     */
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_actual", nullable = false, length = 20)
+    private EstadoTurno estadoActual;
+
     //endregion
 
     //region ========== Relaciones ==========

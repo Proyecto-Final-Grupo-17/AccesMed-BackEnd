@@ -21,10 +21,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Requisito previo de una {@link Prestacion}. Editable únicamente mientras su prestación
- * está en borrador ({@code fechaHabilitacion} nula); una vez habilitada la prestación
- * queda inmutable y solo admite alta y baja lógica. Nunca existe suelta ni se comparte
- * entre prestaciones.
+ * Requisito previo de una {@link Prestacion}. Admite alta y baja lógica. Nunca existe
+ * suelta ni se comparte entre prestaciones.
  */
 @Getter
 @Setter(AccessLevel.NONE)

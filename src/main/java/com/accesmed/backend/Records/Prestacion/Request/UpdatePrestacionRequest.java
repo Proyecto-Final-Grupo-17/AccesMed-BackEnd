@@ -3,16 +3,17 @@ package com.accesmed.backend.Records.Prestacion.Request;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 
 import java.util.UUID;
 
 /**
- * Record para actualizar las duraciones y tolerancias de una prestación.
- * Es el único grupo de campos editable una vez que la prestación está habilitada;
- * mientras está en borrador también se edita por acá. Un campo en {@code null} o
- * ausente significa "no lo toques": el {@code id} es el único obligatorio.
+ * Record para actualizar una prestación existente: nombre y las nueve duraciones/
+ * tolerancias en minutos. Se puede modificar en cualquier estado (no solo en borrador).
+ * Un campo en {@code null} o ausente significa "no lo toques": el {@code id} es el
+ * único obligatorio.
  */
-public record UpdateToleranciasPrestacionRequest(
+public record UpdatePrestacionRequest(
 
         /**
          * Identificador de la prestación a actualizar ({@code UUID}).
@@ -20,6 +21,13 @@ public record UpdateToleranciasPrestacionRequest(
          */
         @NotNull(message = "El identificador es obligatorio.")
         UUID id,
+
+        /**
+         * Nombre descriptivo de la prestación ({@code String}). Máximo 150 caracteres.
+         * {@code null} deja el nombre sin tocar.
+         */
+        @Size(max = 150, message = "El nombre no puede exceder 150 caracteres.")
+        String nombre,
 
         /**
          * Duración mínima del turno en minutos ({@code Integer}). Debe ser positivo.

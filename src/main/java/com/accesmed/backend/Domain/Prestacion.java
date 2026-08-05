@@ -2,6 +2,8 @@ package com.accesmed.backend.Domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -19,8 +21,6 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.time.ZonedDateTime;
 import java.util.UUID;
 
 /**
@@ -31,15 +31,16 @@ import java.util.UUID;
  *
  * <p>{@code codigo} es inmutable después del alta (genera el {@code Turno.codigo}). La
  * inmutabilidad la garantiza {@code updatable = false}: Hibernate nunca incluye la columna
- * en un {@code UPDATE}, así que el valor solo puede fijarse al mapear el alta.</p>
+ * en un {@code UPDATE}, así que el valor solo puede fijarse al mapear el alta. La
+ * {@code especialidad} también es inmutable tras el alta.</p>
  *
- * <p>El ciclo de vida del catálogo es borrador → habilitada. Con {@code fechaHabilitacion}
- * nula la prestación está en borrador y se puede editar libremente (nombre, tolerancias e
- * indicaciones). Habilitarla es irreversible: a partir de ahí el nombre queda congelado y
- * sus {@link IndicacionPrestacion} dejan de ser editables, porque
- * {@code IndicacionPrestacionTurno} lee su texto por navegabilidad y editarlo reescribiría
- * retroactivamente lo que ve un paciente en un turno vivo. Solo las prestaciones habilitadas
- * se ofrecen para dar y pedir turnos.</p>
+ * <p>El ciclo de vida es por estados ({@link EstadoPrestacion}), no baja lógica:
+ * {@code No Publicada ⇄ Publicada → Deshabilitada}. {@code estadoActual} es la
+ * materialización del tramo vigente de {@link HistoricoEstadoPrestacion}, mantenida por
+ * el {@code DomainService} en la misma transacción que abre el tramo. Deshabilitar es
+ * terminal e irreversible: a partir de ahí no hay transición de vuelta, y el
+ * {@code codigo}/{@code nombre} quedan libres para reutilizarse porque la unicidad es
+ * entre no-deshabilitadas.</p>
  */
 @Getter
 @Setter
@@ -115,12 +116,13 @@ public class Prestacion extends Auditable {
     private Duration tiempoRecordatorioConfirmacion; //No puede superar a tiempoToleranciaSolicitud
 
     /**
-     * Nula mientras la prestación está en borrador. La sella el {@code DomainService} al
-     * habilitarla y nunca vuelve a nulo: la irreversibilidad es una regla de negocio, no
-     * una restricción de la entidad.
+     * Estado actual del ciclo de vida del catálogo, mantenido por el
+     * {@code DomainService} junto con el tramo de {@link HistoricoEstadoPrestacion}.
      */
-    @Column(name = "fecha_habilitacion")
-    private ZonedDateTime fechaHabilitacion;
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_actual", nullable = false, length = 20)
+    private EstadoPrestacion estadoActual;
 
     //endregion
 
@@ -128,21 +130,8 @@ public class Prestacion extends Auditable {
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "especialidad_id", nullable = false, foreignKey = @jakarta.persistence.ForeignKey(name = "fk_prestacion_especialidad"))
+    @JoinColumn(name = "especialidad_id", nullable = false, updatable = false, foreignKey = @jakarta.persistence.ForeignKey(name = "fk_prestacion_especialidad"))
     private Especialidad especialidad;
-
-    //endregion
-
-    //region ========== Baja ==========
-
-    @Column(name = "deleted_at")
-    private Instant deletedAt;
-
-    @Column(name = "deleted_by")
-    private UUID deletedBy;
-
-    @Column(name = "deleted_reason", length = 500)
-    private String deletedReason;
 
     //endregion
 

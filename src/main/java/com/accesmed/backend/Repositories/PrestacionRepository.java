@@ -1,5 +1,6 @@
 package com.accesmed.backend.Repositories;
 
+import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -10,95 +11,90 @@ import java.util.UUID;
 
 /**
  * Repositorio de acceso a datos para la entidad {@code Prestacion}.
- * Todas las consultas filtran registros con baja lógica ({@code deletedAt IS NULL}).
+ * Prestacion se retira por estados, no por baja lógica: la unicidad y los filtros de
+ * "activa" se resuelven contra {@code estadoActual}, no contra {@code deletedAt}.
  */
 @Repository
 public interface PrestacionRepository extends JpaRepository<Prestacion, UUID> {
 
     /**
-     * Verifica si existe una prestación activa con el código especificado.
+     * Verifica si existe una prestación no deshabilitada con el código especificado.
      *
      * @param codigo {@code String} código a verificar
-     * @return {@code boolean} {@code true} si existe una prestación activa con ese código,
+     * @return {@code boolean} {@code true} si existe una prestación no deshabilitada con ese código,
      *         {@code false} en caso contrario
      */
-    boolean existsByCodigoAndDeletedAtIsNull(String codigo);
+    boolean existsByCodigoAndEstadoActualNot(String codigo, EstadoPrestacion estadoActual);
 
     /**
-     * Verifica si existe una prestación activa con el nombre especificado.
+     * Verifica si existe una prestación no deshabilitada con el nombre especificado.
      *
      * @param nombre {@code String} nombre a verificar
-     * @return {@code boolean} {@code true} si existe una prestación activa con ese nombre,
+     * @return {@code boolean} {@code true} si existe una prestación no deshabilitada con ese nombre,
      *         {@code false} en caso contrario
      */
-    boolean existsByNombreAndDeletedAtIsNull(String nombre);
+    boolean existsByNombreAndEstadoActualNot(String nombre, EstadoPrestacion estadoActual);
 
     /**
-     * Verifica si existe una prestación activa con el nombre especificado, excluyendo
-     * un id concreto (útil para validar unicidad al actualizar).
+     * Verifica si existe una prestación no deshabilitada con el nombre especificado,
+     * excluyendo un id concreto (útil para validar unicidad al actualizar).
      *
      * @param nombre {@code String} nombre a verificar
+     * @param estadoActual {@code EstadoPrestacion} estado a excluir (DESHABILITADA)
      * @param id {@code UUID} id a excluir de la búsqueda
-     * @return {@code boolean} {@code true} si existe otra prestación activa con ese nombre,
+     * @return {@code boolean} {@code true} si existe otra prestación no deshabilitada con ese nombre,
      *         {@code false} en caso contrario
      */
-    boolean existsByNombreAndDeletedAtIsNullAndIdNot(String nombre, UUID id);
+    boolean existsByNombreAndEstadoActualNotAndIdNot(String nombre, EstadoPrestacion estadoActual, UUID id);
 
     /**
-     * Busca una prestación activa por su identificador.
+     * Busca una prestación por su identificador.
      *
      * @param id {@code UUID} identificador de la prestación
-     * @return {@code Optional<Prestacion>} la prestación si existe y está activa,
-     *         {@code Optional.empty()} en caso contrario
+     * @return {@code Optional<Prestacion>} la prestación si existe
      */
-    Optional<Prestacion> findByIdAndDeletedAtIsNull(UUID id);
+    Optional<Prestacion> findById(UUID id);
 
     /**
-     * Lista todas las prestaciones activas.
+     * Lista todas las prestaciones.
      *
-     * @return {@code List<Prestacion>} lista de prestaciones activas
+     * @return {@code List<Prestacion>} lista de todas las prestaciones
      */
-    List<Prestacion> findAllByDeletedAtIsNull();
+    List<Prestacion> findAll();
 
     /**
-     * Lista todas las prestaciones activas de una especialidad determinada.
-     *
-     * @param especialidadId {@code UUID} identificador de la especialidad
-     * @return {@code List<Prestacion>} lista de prestaciones activas de esa especialidad
-     */
-    List<Prestacion> findAllByEspecialidadIdAndDeletedAtIsNull(UUID especialidadId);
-
-    /**
-     * Lista todas las prestaciones activas que están habilitadas
-     * ({@code fechaHabilitacion IS NOT NULL}).
-     *
-     * @return {@code List<Prestacion>} lista de prestaciones activas habilitadas
-     */
-    List<Prestacion> findAllByDeletedAtIsNullAndFechaHabilitacionIsNotNull();
-
-    /**
-     * Lista todas las prestaciones activas habilitadas de una especialidad determinada.
+     * Lista todas las prestaciones de una especialidad determinada.
      *
      * @param especialidadId {@code UUID} identificador de la especialidad
-     * @return {@code List<Prestacion>} lista de prestaciones activas habilitadas de esa especialidad
+     * @return {@code List<Prestacion>} lista de prestaciones de esa especialidad
      */
-    List<Prestacion> findAllByEspecialidadIdAndDeletedAtIsNullAndFechaHabilitacionIsNotNull(UUID especialidadId);
+    List<Prestacion> findAllByEspecialidadId(UUID especialidadId);
 
     /**
-     * Lista todas las prestaciones activas que están en borrador
-     * ({@code fechaHabilitacion IS NULL}).
+     * Lista todas las prestaciones en un estado determinado.
      *
-     * @return {@code List<Prestacion>} lista de prestaciones activas en borrador
+     * @param estadoActual {@code EstadoPrestacion} estado a filtrar
+     * @return {@code List<Prestacion>} lista de prestaciones en ese estado
      */
-    List<Prestacion> findAllByDeletedAtIsNullAndFechaHabilitacionIsNull();
+    List<Prestacion> findAllByEstadoActual(EstadoPrestacion estadoActual);
 
     /**
-     * Lista todas las prestaciones activas en borrador de una especialidad determinada
-     * ({@code deletedAt IS NULL} y {@code fechaHabilitacion IS NULL}).
+     * Lista todas las prestaciones de una especialidad determinada en un estado dado.
      *
      * @param especialidadId {@code UUID} identificador de la especialidad
-     * @return {@code List<Prestacion>} lista de prestaciones activas en borrador de esa especialidad
+     * @param estadoActual {@code EstadoPrestacion} estado a filtrar
+     * @return {@code List<Prestacion>} lista de prestaciones de esa especialidad en ese estado
      */
-    List<Prestacion> findAllByEspecialidadIdAndDeletedAtIsNullAndFechaHabilitacionIsNull(UUID especialidadId);
+    List<Prestacion> findAllByEspecialidadIdAndEstadoActual(UUID especialidadId, EstadoPrestacion estadoActual);
+
+    /**
+     * Verifica si existe alguna prestación no deshabilitada de la especialidad indicada.
+     * Usada por la baja restrictiva de {@code Especialidad}.
+     *
+     * @param especialidadId {@code UUID} identificador de la especialidad
+     * @param estadoActual {@code EstadoPrestacion} estado a excluir (DESHABILITADA)
+     * @return {@code boolean} {@code true} si existe al menos una prestación no deshabilitada de esa especialidad
+     */
+    boolean existsByEspecialidadIdAndEstadoActualNot(UUID especialidadId, EstadoPrestacion estadoActual);
 
 }

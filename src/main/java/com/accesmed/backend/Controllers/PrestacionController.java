@@ -1,22 +1,20 @@
 package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.PrestacionApp;
+import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Records.Prestacion.Request.CreatePrestacionRequest;
-import com.accesmed.backend.Records.Prestacion.Request.UpdatePrestacionNoHabilitadaRequest;
-import com.accesmed.backend.Records.Prestacion.Request.UpdateToleranciasPrestacionRequest;
+import com.accesmed.backend.Records.Prestacion.Request.DeshabilitarPrestacionRequest;
+import com.accesmed.backend.Records.Prestacion.Request.UpdatePrestacionRequest;
+import com.accesmed.backend.Records.Prestacion.Response.CambioEstadoPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.CreatePrestacionResponse;
-import com.accesmed.backend.Records.Prestacion.Response.EnablePrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.GetPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.ListPrestacionResponse;
-import com.accesmed.backend.Records.Prestacion.Response.SoftDeletePrestacionResponse;
-import com.accesmed.backend.Records.Prestacion.Response.UpdatePrestacionNoHabilitadaResponse;
-import com.accesmed.backend.Records.Prestacion.Response.UpdateToleranciasPrestacionResponse;
+import com.accesmed.backend.Records.Prestacion.Response.UpdatePrestacionResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -68,92 +66,88 @@ public class PrestacionController {
     }
 
     /**
-     * Actualiza los datos generales (nombre, especialidad) de una prestación en borrador.
+     * Actualiza nombre y tolerancias/duraciones de una prestación.
      *
      * @param id {@code UUID} identificador de la prestación
-     * @param updatePrestacionNoHabilitadaRequest {@code UpdatePrestacionNoHabilitadaRequest} datos a actualizar
-     * @return {@code ResponseEntity<UpdatePrestacionNoHabilitadaResponse>} la prestación actualizada (HTTP 200)
+     * @param updatePrestacionRequest {@code UpdatePrestacionRequest} datos a actualizar
+     * @return {@code ResponseEntity<UpdatePrestacionResponse>} la prestación actualizada (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
     @PatchMapping("/Prestacion/{id}")
-    public ResponseEntity<UpdatePrestacionNoHabilitadaResponse> updatePrestacionNoHabilitada(
+    public ResponseEntity<UpdatePrestacionResponse> updatePrestacion(
             @PathVariable UUID id,
-            @Valid @RequestBody UpdatePrestacionNoHabilitadaRequest updatePrestacionNoHabilitadaRequest) {
+            @Valid @RequestBody UpdatePrestacionRequest updatePrestacionRequest) {
 
-        log.info("Solicitud recibida: actualizar datos generales de prestación id={}", id);
+        log.info("Solicitud recibida: actualizar prestación id={}", id);
 
-        //El id de la ruta identifica el recurso: si el body trae otro, el request es inconsistente
-        if (!id.equals(updatePrestacionNoHabilitadaRequest.id())) {
-            log.warn("Id de ruta ({}) distinto al del body ({})", id, updatePrestacionNoHabilitadaRequest.id());
+        if (!id.equals(updatePrestacionRequest.id())) {
+            log.warn("Id de ruta ({}) distinto al del body ({})", id, updatePrestacionRequest.id());
             throw new ValidacionException(getClass(),
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
-        UpdatePrestacionNoHabilitadaResponse response = prestacionApp
-                .updatePrestacionNoHabilitada(id, updatePrestacionNoHabilitadaRequest);
+        UpdatePrestacionResponse response = prestacionApp.updatePrestacion(id, updatePrestacionRequest);
 
         return ResponseEntity.ok(response);
 
     }
 
     /**
-     * Actualiza las duraciones y tolerancias de una prestación.
+     * Publica una prestación (transición reversible).
      *
      * @param id {@code UUID} identificador de la prestación
-     * @param updateToleranciasPrestacionRequest {@code UpdateToleranciasPrestacionRequest} datos a actualizar
-     * @return {@code ResponseEntity<UpdateToleranciasPrestacionResponse>} la prestación actualizada (HTTP 200)
+     * @return {@code ResponseEntity<CambioEstadoPrestacionResponse>} la prestación publicada (HTTP 200)
+     */
+    @PatchMapping("/Prestacion/{id}/Publicar")
+    public ResponseEntity<CambioEstadoPrestacionResponse> publicarPrestacion(@PathVariable UUID id) {
+
+        log.info("Solicitud recibida: publicar prestación id={}", id);
+
+        CambioEstadoPrestacionResponse response = prestacionApp.publicarPrestacion(id);
+
+        return ResponseEntity.ok(response);
+
+    }
+
+    /**
+     * Despublica una prestación (transición reversible).
+     *
+     * @param id {@code UUID} identificador de la prestación
+     * @return {@code ResponseEntity<CambioEstadoPrestacionResponse>} la prestación despublicada (HTTP 200)
+     */
+    @PatchMapping("/Prestacion/{id}/Despublicar")
+    public ResponseEntity<CambioEstadoPrestacionResponse> despublicarPrestacion(@PathVariable UUID id) {
+
+        log.info("Solicitud recibida: despublicar prestación id={}", id);
+
+        CambioEstadoPrestacionResponse response = prestacionApp.despublicarPrestacion(id);
+
+        return ResponseEntity.ok(response);
+
+    }
+
+    /**
+     * Deshabilita una prestación (transición terminal e irreversible, restrictiva).
+     *
+     * @param id {@code UUID} identificador de la prestación
+     * @param deshabilitarPrestacionRequest {@code DeshabilitarPrestacionRequest} motivo opcional
+     * @return {@code ResponseEntity<CambioEstadoPrestacionResponse>} la prestación deshabilitada (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
-    @PatchMapping("/Prestacion/Tolerancias/{id}")
-    public ResponseEntity<UpdateToleranciasPrestacionResponse> updateToleranciasPrestacion(
+    @PatchMapping("/Prestacion/{id}/Deshabilitar")
+    public ResponseEntity<CambioEstadoPrestacionResponse> deshabilitarPrestacion(
             @PathVariable UUID id,
-            @Valid @RequestBody UpdateToleranciasPrestacionRequest updateToleranciasPrestacionRequest) {
+            @Valid @RequestBody DeshabilitarPrestacionRequest deshabilitarPrestacionRequest) {
 
-        log.info("Solicitud recibida: actualizar tolerancias de prestación id={}", id);
+        log.info("Solicitud recibida: deshabilitar prestación id={}", id);
 
-        //El id de la ruta identifica el recurso: si el body trae otro, el request es inconsistente
-        if (!id.equals(updateToleranciasPrestacionRequest.id())) {
-            log.warn("Id de ruta ({}) distinto al del body ({})", id, updateToleranciasPrestacionRequest.id());
+        if (!id.equals(deshabilitarPrestacionRequest.id())) {
+            log.warn("Id de ruta ({}) distinto al del body ({})", id, deshabilitarPrestacionRequest.id());
             throw new ValidacionException(getClass(),
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
-        UpdateToleranciasPrestacionResponse response = prestacionApp
-                .updateToleranciasPrestacion(id, updateToleranciasPrestacionRequest);
-
-        return ResponseEntity.ok(response);
-
-    }
-
-    /**
-     * Habilita una prestación (cambio irreversible de estado).
-     *
-     * @param id {@code UUID} identificador de la prestación
-     * @return {@code ResponseEntity<EnablePrestacionResponse>} la prestación habilitada (HTTP 200)
-     */
-    @PatchMapping("/Prestacion/{id}/Habilitacion")
-    public ResponseEntity<EnablePrestacionResponse> habilitarPrestacion(@PathVariable UUID id) {
-
-        log.info("Solicitud recibida: habilitar prestación id={}", id);
-
-        EnablePrestacionResponse response = prestacionApp.habilitarPrestacion(id);
-
-        return ResponseEntity.ok(response);
-
-    }
-
-    /**
-     * Da de baja una prestación (baja lógica).
-     *
-     * @param id {@code UUID} identificador de la prestación
-     * @return {@code ResponseEntity<SoftDeletePrestacionResponse>} la confirmación de la baja (HTTP 200)
-     */
-    @DeleteMapping("/Prestacion/{id}")
-    public ResponseEntity<SoftDeletePrestacionResponse> softDeletePrestacion(@PathVariable UUID id) {
-
-        log.info("Solicitud recibida: dar de baja prestación id={}", id);
-
-        SoftDeletePrestacionResponse response = prestacionApp.softDeletePrestacion(id);
+        CambioEstadoPrestacionResponse response = prestacionApp.deshabilitarPrestacion(id, deshabilitarPrestacionRequest);
 
         return ResponseEntity.ok(response);
 
@@ -180,17 +174,17 @@ public class PrestacionController {
      * Lista prestaciones según los filtros proporcionados.
      *
      * @param especialidadId {@code UUID} opcional, para filtrar por especialidad
-     * @param habilitadas {@code Boolean} opcional, para filtrar por estado
+     * @param estadoActual {@code EstadoPrestacion} opcional, para filtrar por estado
      * @return {@code ResponseEntity<List<ListPrestacionResponse>>} lista de prestaciones (HTTP 200)
      */
     @GetMapping("/Prestacion")
     public ResponseEntity<List<ListPrestacionResponse>> findPrestaciones(
             @RequestParam(required = false) UUID especialidadId,
-            @RequestParam(required = false) Boolean habilitadas) {
+            @RequestParam(required = false) EstadoPrestacion estadoActual) {
 
-        log.info("Solicitud recibida: listar prestaciones especialidadId={} habilitadas={}", especialidadId, habilitadas);
+        log.info("Solicitud recibida: listar prestaciones especialidadId={} estadoActual={}", especialidadId, estadoActual);
 
-        List<ListPrestacionResponse> response = prestacionApp.findPrestaciones(especialidadId, habilitadas);
+        List<ListPrestacionResponse> response = prestacionApp.findPrestaciones(especialidadId, estadoActual);
 
         return ResponseEntity.ok(response);
 

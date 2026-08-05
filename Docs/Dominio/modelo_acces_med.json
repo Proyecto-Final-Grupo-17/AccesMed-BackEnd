@@ -376,45 +376,24 @@
         "Deshabilitarla cierra la fechaFinVigencia de sus IndicacionPrestacion vigentes, no las da de baja"
       ],
       "estados": true,
-      "derivados": [
+      "atributosDerivadosMaterializados": [
         {
-          "nombre": "/estadoVigente",
+          "nombre": "estadoActual",
           "tipo": "EstadoPrestacion",
-          "formula": "HistoricoEstadoPrestacion con fechaHoraFin vacío -> estadoPrestacion"
-        },
-        {
-          "nombre": "/estaDeshabilitada",
-          "tipo": "Boolean",
-          "formula": "estadoVigente.nombre = 'Deshabilitada'"
+          "obligatorio": true,
+          "nota": "Columna real (no calculada en cada consulta), mantenida por el DomainService en la misma transacción que abre el tramo de HistoricoEstadoPrestacion. Con índice; sostiene el índice único parcial de codigo/nombre entre no-Deshabilitadas."
         }
       ]
     },
     {
       "nombre": "EstadoPrestacion",
+      "esEnum": true,
       "modulo": "PREST",
-      "auditable": true,
-      "bajable": true,
-      "descripcion": "Catálogo de estados de la prestación. Deshabilitada es terminal: su tramo de histórico queda abierto para siempre.",
-      "atributos": [
-        {
-          "nombre": "nombre",
-          "tipo": "String",
-          "obligatorio": true,
-          "maxLength": 50
-        }
-      ],
-      "unicidad": [
-        {
-          "campos": [
-            "nombre"
-          ],
-          "alcance": "activos"
-        }
-      ],
-      "instancias": [
-        "No Publicada",
-        "Publicada",
-        "Deshabilitada"
+      "descripcion": "Enum Java (NO es entidad/tabla ni catálogo editable). Deshabilitada es terminal: su tramo de histórico queda abierto para siempre.",
+      "valores": [
+        "NO_PUBLICADA",
+        "PUBLICADA",
+        "DESHABILITADA"
       ]
     },
     {
@@ -433,6 +412,12 @@
           "nombre": "fechaHoraFin",
           "tipo": "ZonedDateTime",
           "obligatorio": false
+        },
+        {
+          "nombre": "estado",
+          "tipo": "EstadoPrestacion",
+          "obligatorio": true,
+          "nota": "Columna enum (no FK a catálogo)."
         },
         {
           "nombre": "motivo",
@@ -907,49 +892,27 @@
         "Deshabilitado es terminal e irreversible",
         "Solo un Plan Publicado se ofrece al paciente para declarar cobertura y para cubrir turnos nuevos",
         "No se puede deshabilitar si existe algun Turno cuya obraSocialPaciente apunte a ese Plan y cuyo estado vigente no sea final",
-        "No se puede deshabilitar el ultimo Plan no deshabilitado de una ObraSocial activa",
         "Deshabilitarlo da de baja sus ObraSocialPlanPrestacion y las ObraSocialPaciente que lo referencian"
       ],
       "estados": true,
-      "derivados": [
+      "atributosDerivadosMaterializados": [
         {
-          "nombre": "/estadoVigente",
+          "nombre": "estadoActual",
           "tipo": "EstadoPlan",
-          "formula": "HistoricoEstadoPlan con fechaHoraFin vacío -> estadoPlan"
-        },
-        {
-          "nombre": "/estaDeshabilitado",
-          "tipo": "Boolean",
-          "formula": "estadoVigente.nombre = 'Deshabilitado'"
+          "obligatorio": true,
+          "nota": "Columna real, mantenida por el DomainService en la misma transacción que abre el tramo de HistoricoEstadoPlan. Con índice; sostiene el índice único parcial de (obraSocial, codigo)/(obraSocial, nombre) entre no-Deshabilitados."
         }
       ]
     },
     {
       "nombre": "EstadoPlan",
+      "esEnum": true,
       "modulo": "OS",
-      "auditable": true,
-      "bajable": true,
-      "descripcion": "Catálogo de estados del plan. Deshabilitado es terminal.",
-      "atributos": [
-        {
-          "nombre": "nombre",
-          "tipo": "String",
-          "obligatorio": true,
-          "maxLength": 50
-        }
-      ],
-      "unicidad": [
-        {
-          "campos": [
-            "nombre"
-          ],
-          "alcance": "activos"
-        }
-      ],
-      "instancias": [
-        "No Publicado",
-        "Publicado",
-        "Deshabilitado"
+      "descripcion": "Enum Java (NO es entidad/tabla ni catálogo editable). Deshabilitado es terminal.",
+      "valores": [
+        "NO_PUBLICADO",
+        "PUBLICADO",
+        "DESHABILITADO"
       ]
     },
     {
@@ -968,6 +931,12 @@
           "nombre": "fechaHoraFin",
           "tipo": "ZonedDateTime",
           "obligatorio": false
+        },
+        {
+          "nombre": "estado",
+          "tipo": "EstadoPlan",
+          "obligatorio": true,
+          "nota": "Columna enum (no FK a catálogo)."
         },
         {
           "nombre": "motivo",
@@ -1122,12 +1091,15 @@
           "nota": "Solo cargado cuando el estado vigente es Cancelado."
         }
       ],
-      "derivados": [
+      "atributosDerivadosMaterializados": [
         {
-          "nombre": "/estadoVigente",
+          "nombre": "estadoActual",
           "tipo": "EstadoTurno",
-          "formula": "HistoricoEstadoTurno con fechaHoraFin vacío -> estadoTurno"
-        },
+          "obligatorio": true,
+          "nota": "Columna real, con índice. Sin mantenedor hasta que exista el módulo Turno (hoy no hay stack ni turnos en dev); se convierte igual para dejar el patrón y las consultas listas."
+        }
+      ],
+      "derivados": [
         {
           "nombre": "/duracionReal",
           "tipo": "Duration",
@@ -1159,36 +1131,19 @@
     },
     {
       "nombre": "EstadoTurno",
+      "esEnum": true,
       "modulo": "TURN",
-      "auditable": true,
-      "bajable": true,
-      "descripcion": "Catálogo de estados del turno. Un estado es final cuando su HistoricoEstadoTurno queda con fechaHoraFin vacío para siempre; no hay atributo que lo declare.",
-      "atributos": [
-        {
-          "nombre": "nombre",
-          "tipo": "String",
-          "obligatorio": true,
-          "maxLength": 50
-        }
-      ],
-      "unicidad": [
-        {
-          "campos": [
-            "nombre"
-          ],
-          "alcance": "activos"
-        }
-      ],
-      "instancias": [
-        "Espera de Validación",
-        "Pendiente",
-        "Confirmado",
-        "En Sala de Espera",
-        "En Curso",
-        "Cancelado",
-        "Reprogramado",
-        "Ausente",
-        "Finalizado"
+      "descripcion": "Enum Java (NO es entidad/tabla ni catálogo editable). Los finales (Cancelado, Reprogramado, Ausente, Finalizado) son una constante de código (FINALES/esFinal()), no un dato en base.",
+      "valores": [
+        "ESPERA_VALIDACION",
+        "PENDIENTE",
+        "CONFIRMADO",
+        "EN_SALA_DE_ESPERA",
+        "EN_CURSO",
+        "CANCELADO",
+        "REPROGRAMADO",
+        "AUSENTE",
+        "FINALIZADO"
       ]
     },
     {
@@ -1207,6 +1162,12 @@
           "nombre": "fechaHoraFin",
           "tipo": "ZonedDateTime",
           "obligatorio": false
+        },
+        {
+          "nombre": "estado",
+          "tipo": "EstadoTurno",
+          "obligatorio": true,
+          "nota": "Columna enum (no FK a catálogo)."
         }
       ],
       "reglasValidacion": [
@@ -1475,13 +1436,6 @@
       "navegable": "origen->destino"
     },
     {
-      "origen": "HistoricoEstadoPrestacion",
-      "destino": "EstadoPrestacion",
-      "multOrigen": "N",
-      "multDestino": "1",
-      "navegable": "origen->destino"
-    },
-    {
       "origen": "AgendaMedico",
       "destino": "Medico",
       "multOrigen": "N",
@@ -1534,13 +1488,6 @@
     {
       "origen": "HistoricoEstadoPlan",
       "destino": "Plan",
-      "multOrigen": "N",
-      "multDestino": "1",
-      "navegable": "origen->destino"
-    },
-    {
-      "origen": "HistoricoEstadoPlan",
-      "destino": "EstadoPlan",
       "multOrigen": "N",
       "multDestino": "1",
       "navegable": "origen->destino"
@@ -1623,13 +1570,6 @@
     {
       "origen": "HistoricoEstadoTurno",
       "destino": "Turno",
-      "multOrigen": "N",
-      "multDestino": "1",
-      "navegable": "origen->destino"
-    },
-    {
-      "origen": "HistoricoEstadoTurno",
-      "destino": "EstadoTurno",
       "multOrigen": "N",
       "multDestino": "1",
       "navegable": "origen->destino"

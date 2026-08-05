@@ -58,8 +58,8 @@ Fuente de verdad estructural: `modelo_acces_med_v3.json` y `modelo_dte_turno_v3.
 - **Especialidad** — agrupa médicos y prestaciones. Un médico tiene **una sola**.
 - **Medico** — profesional. Su `email` es dato de contacto, no credencial.
 - **Prestacion** — el servicio que se presta. Es la clase que concentra toda la configuración temporal del ciclo de vida del turno: seis tolerancias, el tiempo de recordatorio y el rango de duración admitido. **No tiene baja lógica**: se gobierna por estados.
-- **EstadoPrestacion** — catálogo de tres instancias: *No Publicada*, *Publicada*, *Deshabilitada*.
-- **HistoricoEstadoPrestacion** — tramo de permanencia de una prestación en un estado, con un `motivo` opcional de auditoría.
+- **EstadoPrestacion** — **enum** Java (no entidad/tabla), tres valores: `NO_PUBLICADA`, `PUBLICADA`, `DESHABILITADA`. `Prestacion.estadoActual` (columna enum, con índice) materializa el tramo vigente para consulta rápida.
+- **HistoricoEstadoPrestacion** — tramo de permanencia de una prestación en un estado (columna `estado` enum, no FK a catálogo), con un `motivo` opcional de auditoría.
 - **MedicoPrestacion** — clase asociativa que dice qué prestaciones atiende cada médico, **durante qué período** y a qué precio particular. Es la **única** fuente del precio: `Prestacion` no tiene precio propio. **No tiene baja lógica**: se desasigna cerrando `fechaFinVigencia`, y reasignar es crear una instancia nueva.
 - **TipoIndicacionPrestacion** — clasificación de las indicaciones (ayuno, estudio previo, etc.).
 - **IndicacionPrestacion** — requisito previo de una prestación, **acotado por vigencia**. No tiene baja lógica: se retira cerrando `fechaFinVigencia`, que puede ser futura. Modificable, pero solo mientras no tenga turnos vivos. Nunca se comparte entre prestaciones ni existe suelta.
@@ -75,14 +75,14 @@ Fuente de verdad estructural: `modelo_acces_med_v3.json` y `modelo_dte_turno_v3.
 - **Paciente** — se identifica por `numeroTelefono` en el canal chatbot.
 - **Archivo** — documento adjunto. Pertenece **siempre** a un `Paciente` y **opcionalmente** a un `Turno`. El binario no vive en la base: la tabla guarda la clave del objeto en el almacenamiento.
 - **ObraSocial** → **Plan** (1 a 1..N) → **ObraSocialPlanPrestacion** (cobertura sobre una prestación). `ObraSocial` conserva baja lógica; `Plan` **no**: se gobierna por estados.
-- **EstadoPlan** / **HistoricoEstadoPlan** — el mismo mecanismo que en `Prestacion`, con las instancias *No Publicado*, *Publicado*, *Deshabilitado*.
+- **EstadoPlan** / **HistoricoEstadoPlan** — el mismo mecanismo que en `Prestacion` (enum + columna `estado_actual`), con los valores `NO_PUBLICADO`, `PUBLICADO`, `DESHABILITADO`.
 - **ObraSocialPaciente** — cobertura declarada por un paciente sobre un plan. Inmutable: alta y baja. La obra social se alcanza navegando por `Plan`.
 
 ### Turnos
 
 - **Turno** — snapshot transaccional. **No tiene baja lógica**: su ciclo de vida se gobierna por estados.
-- **EstadoTurno** — catálogo de estados. Es una clase, no un enum, porque los CU la tratan como instancia buscable. **No tiene un atributo `esFinal`**: un estado es final porque su tramo de histórico queda con `fechaHoraFin` vacío para siempre.
-- **HistoricoEstadoTurno** — tramo de permanencia en un estado. El vigente es el que tiene `fechaHoraFin` vacío.
+- **EstadoTurno** — **enum** Java (no entidad/tabla), nueve valores (ver `modelo_dte_turno.json`). Los finales (`CANCELADO`, `REPROGRAMADO`, `AUSENTE`, `FINALIZADO`) son una **constante de código** (`EstadoTurno.FINALES`/`esFinal()`), no un dato en base. `Turno.estadoActual` (columna enum, con índice) materializa el tramo vigente.
+- **HistoricoEstadoTurno** — tramo de permanencia en un estado (columna `estado` enum, no FK a catálogo). El vigente es el que tiene `fechaHoraFin` vacío.
 - **IndicacionPrestacionTurno** — registro por turno del cumplimiento de una indicación. **No duplica texto**: `nombre`, `descripcion` y `requiereValidacion` se leen por navegabilidad hacia `IndicacionPrestacion`. Solo aporta `fechaHoraValidacion` y `validadoPor`.
 
 ### Seguridad
@@ -129,9 +129,6 @@ Plan           : codigo, nombre
 ObraSocialPaciente : nroSocio
 Archivo        : nombre, tipoContenido, ubicacion
 Turno          : codigo
-EstadoTurno    : nombre
-EstadoPrestacion : nombre
-EstadoPlan     : nombre
 IndicacionPrestacionTurno : nombre, descripcion
 Admin          : nombre, apellido, dni, email
 Usuario        : mail, passwordHash
@@ -167,9 +164,6 @@ ObraSocial               : codigo · nombre
 ObraSocialPlanPrestacion : (plan, prestacion)
 ObraSocialPaciente       : (paciente, plan)
 IndicacionPrestacionTurno: (turno, indicacionPrestacion)
-EstadoTurno              : nombre
-EstadoPrestacion         : nombre
-EstadoPlan               : nombre
 Usuario                  : mail
 Rol                      : nombre
 ```
@@ -183,12 +177,15 @@ Prestacion : codigo · nombre                          entre las no Deshabilitad
 Plan       : (obraSocial, codigo) · (obraSocial, nombre)  entre los no Deshabilitados
 ```
 
-El problema de implementación es que el estado vive en el histórico, no en la fila. Dos salidas, y hay que elegir una a conciencia:
-
-- **Solo aplicación**: la validación vive en el `DomainService` (`PrestacionDomainService.validateCodigoIsUnique`), que resuelve el estado vigente por subconsulta. Simple, pero sin garantía a nivel base ante concurrencia.
-- **Columna derivada**: `prestacion.esta_deshabilitada boolean not null default false`, mantenida por el mismo servicio que registra la transición, más el índice parcial `WHERE esta_deshabilitada = false`. Recupera la garantía de la base al precio de un dato redundante que hay que mantener sincronizado con el histórico.
-
-La recomendación es la segunda: es exactamente el mismo compromiso que ya se acepta en `AgendaHorarios.estaOcupada`, un derivado materializado por razones de consulta.
+El problema de implementación es que el estado vive en el histórico, no en la fila. La
+solución adoptada: **columna derivada** `estado_actual` (enum, `NOT NULL`, con índice),
+mantenida por el `DomainService` en la misma transacción que abre el tramo del histórico
+(`abrirTramoEstado`), más el índice único parcial `WHERE estado_actual <> 'DESHABILITADA'`
+(`'DESHABILITADO'` en `Plan`). Recupera la garantía real a nivel de base al precio de un
+dato redundante que hay que mantener sincronizado con el histórico — exactamente el mismo
+compromiso que ya se acepta en `AgendaHorarios.estaOcupada`, un derivado materializado por
+razones de consulta. El histórico queda como auditoría del ciclo de vida, no como fuente
+de la consulta caliente.
 
 #### Las excepciones
 
@@ -530,8 +527,7 @@ Simétrico al de prestación, con las instancias *No Publicado*, *Publicado*, *D
 | **Deshabilitado** | no | no | no |
 
 - *No Publicado* ⇄ *Publicado* es reversible. *Deshabilitado* es terminal.
-- **No se puede deshabilitar un plan** si existe algún `Turno` cuya `obraSocialPaciente` apunte a ese plan y cuyo estado vigente no sea final. Misma lógica restrictiva que en prestación: **se derogó** la regla de la v2 de que "las bajas de obras sociales no cancelan turnos, solo bloquean el futuro" — ahora directamente no se dejan hacer mientras haya turnos vivos.
-- **No se puede deshabilitar el último plan no deshabilitado** de una obra social activa. Reemplaza a la regla de "el último plan activo".
+- **No se puede deshabilitar un plan** si existe algún `Turno` cuya `obraSocialPaciente` apunte a ese plan y cuyo estado vigente no sea final. Misma lógica restrictiva que en prestación: **se derogó** la regla de la v2 de que "las bajas de obras sociales no cancelan turnos, solo bloquean el futuro" — ahora directamente no se dejan hacer mientras haya turnos vivos. **Esta es la única precondición**: se elimina la regla "no se puede deshabilitar el último plan no deshabilitado de una obra social activa" — una obra social puede terminar con todos sus planes deshabilitados sin que eso la afecte.
 - Deshabilitar un plan da de baja sus `ObraSocialPlanPrestacion` y las `ObraSocialPaciente` que lo referencian.
 - **La baja de `ObraSocial` es restrictiva por transitividad**: no se puede si alguno de sus planes no se puede deshabilitar. Si se puede, deshabilita en cascada todos sus planes no deshabilitados.
 
@@ -583,7 +579,7 @@ En la v2 la regla de fondo era "toda baja es lógica y casi todas cascadean". En
 | Clase | Eje | Forma de la baja |
 |---|---|---|
 | `Prestacion` | estados | **restrictiva** por turnos vivos, después cascada de catálogo |
-| `Plan` | estados | **restrictiva** por turnos vivos y por último plan |
+| `Plan` | estados | **restrictiva** por turnos vivos |
 | `ObraSocial` | baja lógica | **restrictiva** por transitividad, después cascada sobre sus planes |
 | `Especialidad` | baja lógica | **restrictiva** por prestaciones y médicos |
 | `TipoIndicacionPrestacion` | baja lógica | **restrictiva** por indicaciones activas |
@@ -610,16 +606,14 @@ Cumplidas las precondiciones, arrastra en este orden:
 
 ### Plan — deshabilitar
 
-**Precondición restrictiva:**
+**Precondición restrictiva** (única): ningún `Turno` con `obraSocialPaciente.plan` igual a
+ese plan y estado vigente no final.
 
-1. Ningún `Turno` con `obraSocialPaciente.plan` igual a ese plan y estado vigente no final.
-2. No es el último plan no deshabilitado de una obra social activa.
-
-Cumplidas, arrastra: baja de sus `ObraSocialPlanPrestacion`, baja de las `ObraSocialPaciente` que lo referencian, y transición a *Deshabilitado*.
+Cumplida, arrastra: baja de sus `ObraSocialPlanPrestacion`, baja de las `ObraSocialPaciente` que lo referencian, y transición a *Deshabilitado*.
 
 ### Obra social — baja
 
-Restrictiva **por transitividad**: se evalúa la precondición de deshabilitación de cada uno de sus planes. Si alguno la incumple, la baja se rechaza. La regla del "último plan" no aplica acá, porque la obra social entera se está yendo.
+Restrictiva **por transitividad**: se evalúa la precondición de deshabilitación de cada uno de sus planes. Si alguno la incumple, la baja se rechaza.
 
 Cumplidas, arrastra: deshabilitación en cascada de todos sus planes no deshabilitados — con sus propias cascadas — y `deletedAt` en la obra social.
 

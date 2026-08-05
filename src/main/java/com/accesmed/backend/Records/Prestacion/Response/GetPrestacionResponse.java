@@ -1,8 +1,8 @@
 package com.accesmed.backend.Records.Prestacion.Response;
 
+import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
 
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -83,15 +83,9 @@ public record GetPrestacionResponse(
         String especialidadNombre,
 
         /**
-         * Fecha y hora de habilitación ({@code ZonedDateTime}). Nulo si la prestación está en borrador.
+         * Estado actual de la prestación ({@code EstadoPrestacion}).
          */
-        ZonedDateTime fechaHabilitacion,
-
-        /**
-         * Indicador de si la prestación está habilitada ({@code Boolean}).
-         * {@code true} si {@code fechaHabilitacion} no es nulo, {@code false} en caso contrario.
-         */
-        Boolean habilitada,
+        EstadoPrestacion estadoActual,
 
         /**
          * Lista de indicaciones activas asociadas a esta prestación ({@code List<GetIndicacionPrestacionResponse>}).

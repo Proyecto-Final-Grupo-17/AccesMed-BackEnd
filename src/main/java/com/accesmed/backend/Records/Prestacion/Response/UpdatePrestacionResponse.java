@@ -1,12 +1,13 @@
 package com.accesmed.backend.Records.Prestacion.Response;
 
+import com.accesmed.backend.Domain.EstadoPrestacion;
+
 import java.util.UUID;
 
 /**
- * Record de respuesta para la actualización de las duraciones y tolerancias
- * de una prestación.
+ * Record de respuesta para la actualización de una prestación.
  */
-public record UpdateToleranciasPrestacionResponse(
+public record UpdatePrestacionResponse(
 
         /**
          * Identificador único de la prestación ({@code UUID}).
@@ -69,9 +70,19 @@ public record UpdateToleranciasPrestacionResponse(
         Integer tiempoRecordatorioConfirmacionMinutos,
 
         /**
-         * Indicador de si la prestación está habilitada ({@code Boolean}).
+         * Identificador de la especialidad ({@code UUID}).
          */
-        Boolean habilitada
+        UUID especialidadId,
+
+        /**
+         * Nombre de la especialidad ({@code String}).
+         */
+        String especialidadNombre,
+
+        /**
+         * Estado actual de la prestación ({@code EstadoPrestacion}).
+         */
+        EstadoPrestacion estadoActual
 
 ) {
 }

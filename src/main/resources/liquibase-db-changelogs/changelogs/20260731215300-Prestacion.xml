@@ -44,21 +44,20 @@
             <column name="tiempo_recordatorio_confirmacion" type="interval">
                 <constraints nullable="false"/>
             </column>
-            <column name="fecha_habilitacion" type="timestamptz"/>
+            <column name="estado_actual" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
             <!-- ====== Relaciones ====== -->
             <column name="especialidad_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_prestacion_especialidad" references="especialidad(id)"/>
             </column>
-            <!-- ====== Columnas auditoría (incluye a la baja) ====== -->
+            <!-- ====== Columnas auditoría (sin baja: Prestacion se retira por estados) ====== -->
             <column name="created_at" type="timestamptz">
                 <constraints nullable="false"/>
             </column>
             <column name="updated_at" type="timestamptz"/>
             <column name="created_by" type="varchar(255)"/>
             <column name="updated_by" type="varchar(255)"/>
-            <column name="deleted_at" type="timestamptz"/>
-            <column name="deleted_by" type="uuid"/>
-            <column name="deleted_reason" type="varchar(500)"/>
         </createTable>
 
         <!-- ====== El CHECK más importante del esquema: cadena de tolerancias ====== -->
@@ -83,20 +82,23 @@
                 duracion_minima > interval '0' AND duracion_minima &lt;= duracion_maxima
             );
         </sql>
+        <sql>ALTER TABLE prestacion ADD CONSTRAINT ck_prestacion_estado_actual CHECK (estado_actual IN ('NO_PUBLICADA','PUBLICADA','DESHABILITADA'));</sql>
 
-        <sql>CREATE UNIQUE INDEX uq_prestacion_codigo ON prestacion (codigo) WHERE deleted_at IS NULL;</sql>
-        <sql>CREATE UNIQUE INDEX uq_prestacion_nombre ON prestacion (nombre) WHERE deleted_at IS NULL;</sql>
+        <!-- Unicos parciales: la unicidad rige entre las no-deshabilitadas (DESHABILITADA es terminal, libera el codigo/nombre). -->
+        <sql>CREATE UNIQUE INDEX uq_prestacion_codigo ON prestacion (codigo) WHERE estado_actual &lt;&gt; 'DESHABILITADA';</sql>
+        <sql>CREATE UNIQUE INDEX uq_prestacion_nombre ON prestacion (nombre) WHERE estado_actual &lt;&gt; 'DESHABILITADA';</sql>
         <sql>CREATE INDEX idx_prestacion_especialidad ON prestacion (especialidad_id);</sql>
-        <sql>CREATE INDEX idx_prestacion_fecha_habilitacion ON prestacion (fecha_habilitacion);</sql>
+        <sql>CREATE INDEX idx_prestacion_estado_actual ON prestacion (estado_actual);</sql>
         <rollback>
             <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_tolerancias;</sql>
             <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_tolerancia_anuncio;</sql>
             <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_recordatorio;</sql>
             <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_duracion;</sql>
+            <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_estado_actual;</sql>
             <sql>DROP INDEX IF EXISTS uq_prestacion_codigo;</sql>
             <sql>DROP INDEX IF EXISTS uq_prestacion_nombre;</sql>
             <sql>DROP INDEX IF EXISTS idx_prestacion_especialidad;</sql>
-            <sql>DROP INDEX IF EXISTS idx_prestacion_fecha_habilitacion;</sql>
+            <sql>DROP INDEX IF EXISTS idx_prestacion_estado_actual;</sql>
         </rollback>
     </changeSet>
 

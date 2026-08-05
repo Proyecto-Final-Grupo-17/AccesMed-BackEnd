@@ -17,27 +17,33 @@
             <column name="nombre" type="varchar(150)">
                 <constraints nullable="false"/>
             </column>
+            <column name="estado_actual" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
             <!-- ====== Relaciones ====== -->
             <column name="obra_social_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_plan_obra_social" references="obra_social(id)"/>
             </column>
-            <!-- ====== Columnas auditoría (incluye a la baja) ====== -->
+            <!-- ====== Columnas auditoría (sin baja: Plan se retira por estados) ====== -->
             <column name="created_at" type="timestamptz">
                 <constraints nullable="false"/>
             </column>
             <column name="updated_at" type="timestamptz"/>
             <column name="created_by" type="varchar(255)"/>
             <column name="updated_by" type="varchar(255)"/>
-            <column name="deleted_at" type="timestamptz"/>
-            <column name="deleted_by" type="uuid"/>
-            <column name="deleted_reason" type="varchar(500)"/>
         </createTable>
 
-        <sql>CREATE UNIQUE INDEX uq_plan_obra_social_codigo ON plan (obra_social_id, codigo) WHERE deleted_at IS NULL;</sql>
-        <sql>CREATE UNIQUE INDEX uq_plan_obra_social_nombre ON plan (obra_social_id, nombre) WHERE deleted_at IS NULL;</sql>
+        <sql>ALTER TABLE plan ADD CONSTRAINT ck_plan_estado_actual CHECK (estado_actual IN ('NO_PUBLICADO','PUBLICADO','DESHABILITADO'));</sql>
+
+        <!-- Unicos parciales: la unicidad rige entre los no-deshabilitados. -->
+        <sql>CREATE UNIQUE INDEX uq_plan_obra_social_codigo ON plan (obra_social_id, codigo) WHERE estado_actual &lt;&gt; 'DESHABILITADO';</sql>
+        <sql>CREATE UNIQUE INDEX uq_plan_obra_social_nombre ON plan (obra_social_id, nombre) WHERE estado_actual &lt;&gt; 'DESHABILITADO';</sql>
+        <sql>CREATE INDEX idx_plan_estado_actual ON plan (estado_actual);</sql>
         <rollback>
+            <sql>ALTER TABLE plan DROP CONSTRAINT IF EXISTS ck_plan_estado_actual;</sql>
             <sql>DROP INDEX IF EXISTS uq_plan_obra_social_codigo;</sql>
             <sql>DROP INDEX IF EXISTS uq_plan_obra_social_nombre;</sql>
+            <sql>DROP INDEX IF EXISTS idx_plan_estado_actual;</sql>
         </rollback>
     </changeSet>
 
