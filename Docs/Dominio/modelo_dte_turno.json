@@ -1,14 +1,14 @@
 {
-  "esquema": "accesmed/dte/2.0",
+  "esquema": "accesmed/dte/3.0",
   "proyecto": "AccesMed",
   "entidad": "Turno",
   "descripcion": "Diagrama de Transición de Estados del Turno. El estado vigente es el EstadoTurno del HistoricoEstadoTurno con fechaHoraFin vacío. Un estado es final cuando ese tramo queda abierto para siempre: no hay atributo que lo declare.",
-  "fecha": "2026-07-31",
+  "fecha": "2026-08-04",
   "estados": [
     {
       "nombre": "Espera de Validación",
       "tipo": "intermedio",
-      "descripcion": "La prestación tiene al menos una IndicacionPrestacion activa con requiereValidacion en verdadero."
+      "descripcion": "La prestación tiene al menos una IndicacionPrestacion vigente en Turno.fechaHoraInicio con requiereValidacion en verdadero."
     },
     {
       "nombre": "Pendiente",
@@ -26,7 +26,7 @@
       "descripcion": "El paciente se anunció en recepción dentro de la ventana de anuncio."
     },
     {
-      "nombre": "En Transcurso",
+      "nombre": "En Curso",
       "tipo": "intermedio",
       "descripcion": "El médico inició la atención. La duración de este tramo es la duración real del turno."
     },
@@ -150,7 +150,7 @@
     },
     {
       "desde": "Confirmado",
-      "hasta": "En Transcurso",
+      "hasta": "En Curso",
       "evento": "Iniciar Turno",
       "actor": "Médico"
     },
@@ -173,7 +173,7 @@
     },
     {
       "desde": "En Sala de Espera",
-      "hasta": "En Transcurso",
+      "hasta": "En Curso",
       "evento": "Iniciar Turno",
       "actor": "Médico"
     },
@@ -191,7 +191,7 @@
       "efecto": "Libera el slot."
     },
     {
-      "desde": "En Transcurso",
+      "desde": "En Curso",
       "hasta": "Finalizado",
       "evento": "Finalizar Turno",
       "actor": "Médico"
@@ -223,7 +223,8 @@
     "AgendaHorarios.estaOcupada pasa a verdadero al crear el turno y vuelve a falso al entrar en Cancelado o en Reprogramado.",
     "Cada transición cierra el HistoricoEstadoTurno vigente con fechaHoraFin igual a la fecha y hora actual y crea uno nuevo con fechaHoraInicio igual a ese instante.",
     "Las transiciones del scheduler se registran con identidad de sistema en Auditable.createdBy, lo que distingue en reportes la confirmación automática de la manual.",
-    "La duración real del turno es la duración del tramo En Transcurso; la planificada sale del AgendaHorarios."
+    "La duración real del turno es la duración del tramo En Curso; la planificada sale del AgendaHorarios.",
+    "El estado que en la v2 se llamaba En Transcurso pasa a llamarse En Curso."
   ],
   "scheduler": [
     {

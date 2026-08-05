@@ -75,6 +75,8 @@ public class Prestacion extends Auditable {
     @Column(name = "duracion_maxima", nullable = false, columnDefinition = "interval")
     private Duration duracionMaxima;
 
+    //Tiempos de tolerancia: ORDENADOS DE MAYOR A MENOR
+
     @NotNull
     @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "tiempo_tolerancia_solicitud", nullable = false, columnDefinition = "interval")
@@ -100,15 +102,17 @@ public class Prestacion extends Auditable {
     @Column(name = "tiempo_tolerancia_cancelacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoToleranciaCancelacion;
 
+    //========================================================================================================
+
     @NotNull
     @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "tiempo_tolerancia_anuncio", nullable = false, columnDefinition = "interval")
-    private Duration tiempoToleranciaAnuncio;
+    private Duration tiempoToleranciaAnuncio; //No depende de las demás
 
     @NotNull
     @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "tiempo_recordatorio_confirmacion", nullable = false, columnDefinition = "interval")
-    private Duration tiempoRecordatorioConfirmacion;
+    private Duration tiempoRecordatorioConfirmacion; //No puede superar a tiempoToleranciaSolicitud
 
     /**
      * Nula mientras la prestación está en borrador. La sella el {@code DomainService} al
