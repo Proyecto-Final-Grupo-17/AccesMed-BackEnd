@@ -1,5 +1,6 @@
 package com.accesmed.backend.Repositories;
 
+import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.HistoricoEstadoPrestacion;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -22,13 +23,15 @@ public interface HistoricoEstadoPrestacionRepository extends JpaRepository<Histo
     Optional<HistoricoEstadoPrestacion> findByPrestacionIdAndFechaHoraFinIsNull(UUID prestacionId);
 
     /**
-     * Busca el tramo vigente (sin {@code fechaHoraFin}) de una prestación cuyo estado no sea el indicado.
+     * Busca el tramo vigente (sin {@code fechaHoraFin}) de una prestación, excluyendo un
+     * estado puntual. Útil para encontrar el tramo activo que no sea {@code DESHABILITADA}
+     * (transición terminal, sin tramo posterior).
      *
      * @param prestacionId {@code UUID} identificador de la prestación
-     * @param estado {@code com.accesmed.backend.Domain.EstadoPrestacion} estado a excluir
-     * @return {@code Optional<HistoricoEstadoPrestacion>} el tramo vigente con estado distinto al proporcionado, si existe
+     * @param estado {@code EstadoPrestacion} estado a excluir de la búsqueda
+     * @return {@code Optional<HistoricoEstadoPrestacion>} el tramo vigente que no está en
+     *         ese estado, si existe
      */
-    Optional<HistoricoEstadoPrestacion> findByPrestacionIdAndFechaHoraFinIsNullAndEstadoNot(UUID prestacionId, com.accesmed.backend.Domain.EstadoPrestacion estado);
-
+    Optional<HistoricoEstadoPrestacion> findByPrestacionIdAndFechaHoraFinIsNullAndEstadoNot(UUID prestacionId, EstadoPrestacion estado);
 
 }

@@ -145,7 +145,7 @@
 | Campo | Tipo | Obligatorio | Notas |
 |-------|------|-------------|-------|
 | `codigo` | String (máx. 20) | Sí | Código único e inmutable. Al deshabilitar una prestación el código queda libre (la unicidad rige entre no deshabilitadas). |
-| `nombre` | String (máx. 150) | Sí | Nombre descriptivo. Editable siempre (en cualquier estado). |
+| `nombre` | String (máx. 150) | Sí | Nombre descriptivo. Editable en `NO_PUBLICADA` o `PUBLICADA`; no en `DESHABILITADA` (terminal). |
 | `duracionMinimaMinutos` | Integer | Sí | Minutos. Mayor a cero. Debe ser ≤ `duracionMaximaMinutos`. |
 | `duracionMaximaMinutos` | Integer | Sí | Minutos. Mayor a cero. Debe ser ≥ `duracionMinimaMinutos`. |
 | `tiempoToleranciaSolicitudMinutos` | Integer | Sí | Minutos (≥ 0). Antelación mínima para reservar un turno. **Techo de la cadena de tolerancias.** |
@@ -200,11 +200,11 @@
 ### Actualizar prestación — `PATCH /accesmed-api/Prestacion/Prestacion/{id}`
 
 Cubre nombre y las 9 duraciones/tolerancias. A diferencia de v2, **se puede modificar en
-cualquier estado** (`NO_PUBLICADA`, `PUBLICADA` o `DESHABILITADA`) — no hay bloqueo por
-publicación.
+`NO_PUBLICADA` o `PUBLICADA`** — no hay bloqueo por publicación. `DESHABILITADA` es
+terminal e irreversible, así que una prestación en ese estado no admite más cambios.
 
 **Flujo simplificado:**
-1. Valida que la prestación exista.
+1. Valida que la prestación exista y no esté deshabilitada.
 2. Si vino `nombre`, valida que sea único entre no deshabilitadas (excluyendo esta prestación).
 3. Revalida las reglas de tolerancia con el resultado de aplicar los campos que vinieron
    sobre los valores actuales de la prestación.
@@ -248,7 +248,7 @@ publicación.
 | `estadoActual` | String | Para saber en qué estado quedó la prestación. |
 
 **Errores posibles:**
-- `PRESTACION_NO_ENCONTRADA` (404): la prestación no existe.
+- `PRESTACION_NO_ENCONTRADA` (404): la prestación no existe o está deshabilitada.
 - `PRESTACION_NOMBRE_DUPLICADO` (409): otra prestación no deshabilitada ya tiene ese nombre.
 - Validación de reglas de tolerancia (422): si la cadena de tolerancias falla.
 
@@ -411,40 +411,33 @@ implementa cuando esos módulos existan.
 
 ---
 
-### Crear indicación de prestación — `POST /accesmed-api/IndicacionPrestacion/IndicacionPrestacion`
+### Crear indicaciones de prestación — `POST /accesmed-api/IndicacionPrestacion/IndicacionPrestacion`
+
+Crea **varias indicaciones juntas, en una sola operación**, todas asociadas a la misma
+prestación (a diferencia del soft delete, que siempre es de a una).
 
 **Flujo simplificado:**
-1. Valida que la prestación exista y esté **en borrador** (si está habilitada, lanza error).
-2. Valida que el tipo de indicación exista.
-3. Crea la indicación y la asocia a la prestación.
-4. Devuelve la indicación creada.
+1. Valida que la prestación exista.
+2. Para cada indicación de la lista: valida que su tipo de indicación exista.
+3. Crea todas las indicaciones y las asocia a la prestación.
+4. Devuelve las indicaciones creadas.
 
-**Request para el front — `CreateIndicacionPrestacionRequest`**
+**Request para el front — `CreateIndicacionesPrestacionRequest`**
 
 | Campo | Tipo | Obligatorio | Notas |
 |-------|------|-------------|-------|
-| `prestacionId` | UUID | Sí | Identificador de la prestación a la que pertenece. Debe estar en borrador. |
-| `nombre` | String (máx. 150) | Sí | Nombre de la indicación. |
-| `descripcion` | String (máx. 1000) | Sí | Detalle de qué debe cumplir el paciente. |
-| `requiereValidacion` | Boolean | Sí | Si es `true`, los turnos de esta prestación nacerán en "Espera de Validación". |
-| `tipoIndicacionPrestacionId` | UUID | Sí | Clasificación (referencia a un tipo). |
+| `prestacionId` | UUID | Sí | Identificador de la prestación a la que pertenecen todas las indicaciones. |
+| `indicaciones` | Array | Sí, al menos 1 | Cada item: `nombre` (máx. 150), `descripcion` (máx. 1000), `requiereValidacion` (Boolean), `tipoIndicacionPrestacionId` (UUID). |
 
-**Response para el front — `CreateIndicacionPrestacionResponse`**
+**Response para el front — `CreateIndicacionesPrestacionResponse`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id` | UUID | Identificador de la indicación. |
-| `nombre` | String | Confirmación del nombre. |
-| `descripcion` | String | Confirmación de la descripción. |
-| `requiereValidacion` | Boolean | Confirmación. |
-| `prestacionId` | UUID | Confirmación de la prestación. |
-| `tipoIndicacionPrestacionId` | UUID | Confirmación del tipo. |
-| `tipoIndicacionPrestacionNombre` | String | Nombre del tipo (para mostrar). |
+| `indicaciones` | Array | Una entrada por indicación creada: `id`, `nombre`, `descripcion`, `requiereValidacion`, `prestacionId`, `tipoIndicacionPrestacionId`, `tipoIndicacionPrestacionNombre`. |
 
 **Errores posibles:**
 - `PRESTACION_NO_ENCONTRADA` (404): la prestación no existe.
-- `PRESTACION_INDICACION_HABILITADA` (422): la prestación está habilitada (solo puede haber alta de indicaciones en borrador o dentro de POST /Prestacion).
-- `TIPO_INDICACION_PRESTACION_NO_ENCONTRADO` (404): el tipo no existe.
+- `TIPO_INDICACION_PRESTACION_NO_ENCONTRADO` (404): algún tipo de indicación de la lista no existe.
 
 ---
 

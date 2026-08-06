@@ -8,6 +8,8 @@ import com.accesmed.backend.Records.Especialidad.Response.GetEspecialidadRespons
 import com.accesmed.backend.Records.Especialidad.Response.ListEspecialidadResponse;
 import com.accesmed.backend.Records.Especialidad.Response.SoftDeleteEspecialidadResponse;
 import com.accesmed.backend.Services.DomainServices.EspecialidadDomainService;
+import com.accesmed.backend.Services.DomainServices.MedicoDomainService;
+import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.EspecialidadMapper;
@@ -29,12 +31,18 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class EspecialidadApp {
 
-    //region ========== Dependencias o inyecciones ==========
+    //region ========== Dependencias ==========
 
+    //Domain Services
     private final EspecialidadDomainService especialidadDomainService;
-    private final EspecialidadQueryService especialidadQueryService;
+    private final MedicoDomainService medicoDomainService;
+    private final PrestacionDomainService prestacionDomainService;
+
+    //Mappers
     private final EspecialidadMapper especialidadMapper;
 
+    //Query Services
+    private final EspecialidadQueryService especialidadQueryService;
     //endregion
 
     //region ========== Métodos ==========
@@ -51,13 +59,19 @@ public class EspecialidadApp {
 
         log.info("Creación de especialidad iniciada: código={}", createEspecialidadRequest.codigo());
 
+        //Validar que el código y el nombre sean únicos
         especialidadDomainService.validateCodigoEspecialidadIsUnique(createEspecialidadRequest.codigo());
         especialidadDomainService.validateNombreEspecialidadIsUnique(createEspecialidadRequest.nombre());
 
+        //Mapear y guardar
         Especialidad especialidadNueva = especialidadMapper.toEntity(createEspecialidadRequest);
         Especialidad especialidadGuardada = especialidadDomainService.saveEspecialidad(especialidadNueva);
 
-        return especialidadMapper.toCreateResponse(especialidadGuardada);
+        //Mapear a create Especialidad Response
+        CreateEspecialidadResponse createEspecialidadResponse = especialidadMapper.toCreateResponse(especialidadGuardada);
+
+        //Retornar Respuesta
+        return createEspecialidadResponse;
 
     }
 
@@ -75,8 +89,10 @@ public class EspecialidadApp {
 
         log.info("Actualización de especialidad iniciada: id={}", id);
 
-        Especialidad especialidadExistente = especialidadDomainService.findEspecialidadById(id);
+        //Buscar la especialidad activa
+        Especialidad especialidadExistente = especialidadDomainService.findEspecialidadActivaById(id);
 
+        //Validar unicidad de los campos que vinieron
         if (updateEspecialidadRequest.codigo() != null) {
             especialidadDomainService.validateCodigoEspecialidadIsUnique(updateEspecialidadRequest.codigo(), id);
         }
@@ -84,11 +100,15 @@ public class EspecialidadApp {
             especialidadDomainService.validateNombreEspecialidadIsUnique(updateEspecialidadRequest.nombre(), id);
         }
 
+        //Aplicar los cambios y guardar
         especialidadMapper.updateEspecialidad(especialidadExistente, updateEspecialidadRequest);
-
         Especialidad especialidadActualizada = especialidadDomainService.saveEspecialidad(especialidadExistente);
 
-        return especialidadMapper.toGetResponse(especialidadActualizada);
+        //Mapear a get Especialidad Response
+        GetEspecialidadResponse getEspecialidadResponse = especialidadMapper.toGetResponse(especialidadActualizada);
+
+        //Retornar Respuesta
+        return getEspecialidadResponse;
 
     }
 
@@ -106,13 +126,21 @@ public class EspecialidadApp {
 
         log.info("Baja de especialidad iniciada: id={}", id);
 
-        Especialidad especialidadExistente = especialidadDomainService.findEspecialidadById(id);
+        //Buscar la especialidad activa
+        Especialidad especialidadExistente = especialidadDomainService.findEspecialidadActivaById(id);
 
-        especialidadDomainService.validateSinUsoVigente(especialidadExistente);
+        //Validar que no tenga médicos activos ni prestaciones no deshabilitadas
+        medicoDomainService.validateSinMedicosActivos(id);
+        prestacionDomainService.validateSinPrestacionesActivas(id);
 
+        //Dar de baja
         especialidadDomainService.softDeleteEspecialidad(especialidadExistente, "Baja de especialidad");
 
-        return especialidadMapper.toSoftDeleteResponse(especialidadExistente);
+        //Mapear a soft delete Especialidad Response
+        SoftDeleteEspecialidadResponse softDeleteEspecialidadResponse = especialidadMapper.toSoftDeleteResponse(especialidadExistente);
+
+        //Retornar Respuesta
+        return softDeleteEspecialidadResponse;
 
     }
 
@@ -128,9 +156,11 @@ public class EspecialidadApp {
 
         log.info("Búsqueda de especialidad iniciada: id={}", id);
 
-        Especialidad especialidadExistente = especialidadDomainService.findEspecialidadById(id);
+        Especialidad especialidadExistente = especialidadDomainService.findEspecialidadActivaById(id);
 
-        return especialidadMapper.toGetResponse(especialidadExistente);
+        GetEspecialidadResponse getEspecialidadResponse = especialidadMapper.toGetResponse(especialidadExistente);
+
+        return getEspecialidadResponse;
 
     }
 
@@ -144,9 +174,11 @@ public class EspecialidadApp {
 
         log.info("Listado de especialidades iniciado");
 
-        return especialidadQueryService.findAllEspecialidades().stream()
+        List<ListEspecialidadResponse> listEspecialidadResponse = especialidadQueryService.findAllEspecialidades().stream()
                 .map(especialidadMapper::toListResponse)
                 .toList();
+
+        return listEspecialidadResponse;
 
     }
 

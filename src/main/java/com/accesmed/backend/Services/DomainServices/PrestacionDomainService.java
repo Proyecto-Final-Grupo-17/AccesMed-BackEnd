@@ -1,13 +1,8 @@
 package com.accesmed.backend.Services.DomainServices;
 
 import com.accesmed.backend.Domain.EstadoPrestacion;
-import com.accesmed.backend.Domain.EstadoTurno;
-import com.accesmed.backend.Domain.HistoricoEstadoPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
-import com.accesmed.backend.Repositories.AgendaHorariosRepository;
-import com.accesmed.backend.Repositories.HistoricoEstadoPrestacionRepository;
 import com.accesmed.backend.Repositories.PrestacionRepository;
-import com.accesmed.backend.Repositories.TurnoRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Errors.ValidacionException;
@@ -15,8 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -31,12 +24,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PrestacionDomainService {
 
-    //region ========== Dependencias o inyecciones ==========
+    //region ========== Dependencias  ==========
 
     private final PrestacionRepository prestacionRepository;
-    private final HistoricoEstadoPrestacionRepository historicoEstadoPrestacionRepository;
-    private final TurnoRepository turnoRepository;
-    private final AgendaHorariosRepository agendaHorariosRepository;
 
     //endregion
 
@@ -73,6 +63,29 @@ public class PrestacionDomainService {
                     log.warn("No se encontró la prestación: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "PRESTACION_NO_ENCONTRADA",
                             "No existe una prestación con el id " + id);
+                });
+
+    }
+
+    /**
+     * Busca una prestación activa (no deshabilitada) por su identificador. Deshabilitada
+     * es terminal e irreversible, así que una prestación en ese estado se trata como no
+     * disponible para más operaciones.
+     *
+     * @param id {@code UUID} identificador de la prestación
+     * @return {@code Prestacion} la prestación correspondiente al id, si no está deshabilitada
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe
+     *         una prestación activa con ese id
+     */
+    public Prestacion findPrestacionActivaById(UUID id) {
+
+        log.debug("Buscando prestación activa por id: {}", id);
+
+        return prestacionRepository.findByIdAndEstadoActualNot(id, EstadoPrestacion.DESHABILITADA)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró la prestación activa: id={}", id);
+                    return new RecursoNoEncontradoException(getClass(), "PRESTACION_NO_ENCONTRADA",
+                            "No existe una prestación activa con el id " + id);
                 });
 
     }
@@ -154,6 +167,7 @@ public class PrestacionDomainService {
 
         List<String> errores = new ArrayList<>();
 
+        //Validar las duraciones (mínima > 0 y <= máxima)
         if (duracionMinimaMinutos == null) {
             errores.add("La duración mínima es obligatoria.");
         } else if (duracionMinimaMinutos <= 0) {
@@ -170,6 +184,7 @@ public class PrestacionDomainService {
             }
         }
 
+        //Validar la cadena de tolerancias, descendente: solicitud >= validación >= reprogramación >= confirmación >= cancelación >= 0
         if (solicitudMinutos != null && validacionMinutos != null) {
             if (solicitudMinutos < validacionMinutos) {
                 errores.add("La tolerancia de solicitud no puede ser menor a la de validación.");
@@ -198,10 +213,12 @@ public class PrestacionDomainService {
             errores.add("La tolerancia de cancelación no puede ser negativa.");
         }
 
+        //Validar el anuncio (no depende de la cadena)
         if (anuncioMinutos != null && anuncioMinutos < 0) {
             errores.add("La tolerancia de anuncio no puede ser negativa.");
         }
 
+        //Validar el recordatorio de confirmación (entre la tolerancia de confirmación y la de solicitud)
         if (recordatorioMinutos != null && confirmacionMinutos != null) {
             if (recordatorioMinutos <= confirmacionMinutos) {
                 errores.add("El recordatorio de confirmación debe ser mayor a la tolerancia de confirmación.");
@@ -214,6 +231,7 @@ public class PrestacionDomainService {
             }
         }
 
+        //Lanzar si se acumuló algún error
         if (!errores.isEmpty()) {
             log.warn("Validación de reglas de tolerancia de prestación fallida: {}", errores);
             throw new ValidacionException(getClass(), errores);
@@ -222,145 +240,20 @@ public class PrestacionDomainService {
     }
 
     /**
-     * Valida que la prestación admita la transición a {@code PUBLICADA}: debe estar en
-     * {@code NO_PUBLICADA}.
+     * Valida que una especialidad no tenga prestaciones no deshabilitadas asociadas.
+     * Precondición real de la baja restrictiva de deshabilitar una especialidad.
      *
-     * @param prestacion {@code Prestacion} prestación a validar
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si no está en {@code NO_PUBLICADA}
+     * @param especialidadId {@code UUID} identificador de la especialidad a validar
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si hay prestaciones no
+     *         deshabilitadas de esa especialidad
      */
-    public void validatePuedePublicar(Prestacion prestacion) {
+    public void validateSinPrestacionesActivas(UUID especialidadId) {
 
-        if (prestacion.getEstadoActual() != EstadoPrestacion.NO_PUBLICADA) {
-            log.warn("No se pudo publicar la prestación {}: estado actual {}", prestacion.getCodigo(), prestacion.getEstadoActual());
-            throw new ReglaNegocioException(getClass(), "PRESTACION_NO_PUBLICABLE",
-                    "La prestación " + prestacion.getCodigo() + " no se puede publicar desde el estado " + prestacion.getEstadoActual() + ".");
+        if (prestacionRepository.existsByEspecialidadIdAndEstadoActualNot(especialidadId, EstadoPrestacion.DESHABILITADA)) {
+            log.warn("No se pudo validar sin prestaciones activas para la especialidad {}: tiene prestaciones no deshabilitadas", especialidadId);
+            throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_CON_PRESTACIONES_ACTIVAS",
+                    "La especialidad " + especialidadId + " tiene prestaciones no deshabilitadas. No se puede dar de baja.");
         }
-
-    }
-
-    /**
-     * Valida que la prestación admita la transición a {@code NO_PUBLICADA}: debe estar en
-     * {@code PUBLICADA}.
-     *
-     * @param prestacion {@code Prestacion} prestación a validar
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si no está en {@code PUBLICADA}
-     */
-    public void validatePuedeDespublicar(Prestacion prestacion) {
-
-        if (prestacion.getEstadoActual() != EstadoPrestacion.PUBLICADA) {
-            log.warn("No se pudo despublicar la prestación {}: estado actual {}", prestacion.getCodigo(), prestacion.getEstadoActual());
-            throw new ReglaNegocioException(getClass(), "PRESTACION_NO_DESPUBLICABLE",
-                    "La prestación " + prestacion.getCodigo() + " no se puede despublicar desde el estado " + prestacion.getEstadoActual() + ".");
-        }
-
-    }
-
-    /**
-     * Valida que la prestación admita la transición a {@code DESHABILITADA}: no puede
-     * estar ya deshabilitada (transición terminal, sin vuelta atrás).
-     *
-     * @param prestacion {@code Prestacion} prestación a validar
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si ya está deshabilitada
-     */
-    public void validatePuedeDeshabilitar(Prestacion prestacion) {
-
-        if (prestacion.getEstadoActual() == EstadoPrestacion.DESHABILITADA) {
-            log.warn("No se pudo deshabilitar la prestación {}: ya está deshabilitada", prestacion.getCodigo());
-            throw new ReglaNegocioException(getClass(), "PRESTACION_YA_DESHABILITADA",
-                    "La prestación " + prestacion.getCodigo() + " ya está deshabilitada.");
-        }
-
-    }
-
-    /**
-     * Valida que la prestación no tenga turnos vivos (estado actual no final), y no
-     * tenga horarios de agenda futuros ocupados. Precondición real de la baja
-     * restrictiva de deshabilitar.
-     *
-     * @param prestacion {@code Prestacion} prestación a validar
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si hay turnos vivos o
-     *         agenda futura ocupada de esa prestación
-     */
-    public void validateSinUsoVigente(Prestacion prestacion) {
-
-        long turnosVivos = turnoRepository.countByPrestacionIdAndEstadoActualNotIn(prestacion.getId(), EstadoTurno.FINALES);
-        if (turnosVivos > 0) {
-            ZonedDateTime fechaMaxima = turnoRepository
-                    .findMaxFechaHoraInicioByPrestacionIdAndEstadoActualNotIn(prestacion.getId(), EstadoTurno.FINALES)
-                    .orElse(null);
-            log.warn("No se pudo deshabilitar la prestación {}: {} turno(s) vivo(s), fecha máxima {}",
-                    prestacion.getCodigo(), turnosVivos, fechaMaxima);
-            throw new ReglaNegocioException(getClass(), "PRESTACION_CON_TURNOS_VIVOS",
-                    "La prestación " + prestacion.getCodigo() + " tiene " + turnosVivos
-                            + " turno(s) vivo(s), el más lejano el " + fechaMaxima + ". No se puede deshabilitar.");
-        }
-
-        if (agendaHorariosRepository.existsByPrestacionIdAndEstaOcupadaTrueAndDeletedAtIsNullAndAgendaDia_FechaGreaterThanEqual(
-                prestacion.getId(), LocalDate.now())) {
-            log.warn("No se pudo deshabilitar la prestación {}: tiene horarios de agenda futuros ocupados", prestacion.getCodigo());
-            throw new ReglaNegocioException(getClass(), "PRESTACION_CON_AGENDA_OCUPADA",
-                    "La prestación " + prestacion.getCodigo() + " tiene horarios de agenda futuros ocupados. No se puede deshabilitar.");
-        }
-
-    }
-
-    /**
-     * Abre el primer tramo del histórico de estados de una prestación recién creada
-     * ({@code NO_PUBLICADA}), y setea el {@code estadoActual}.
-     *
-     * @param prestacion {@code Prestacion} prestación recién persistida
-     * @return {@code HistoricoEstadoPrestacion} el tramo abierto
-     */
-    public HistoricoEstadoPrestacion abrirTramoInicial(Prestacion prestacion) {
-
-        log.debug("Abriendo tramo inicial de estado para prestación: código={}", prestacion.getCodigo());
-
-        prestacion.setEstadoActual(EstadoPrestacion.NO_PUBLICADA);
-        savePrestacion(prestacion);
-
-        HistoricoEstadoPrestacion tramo = new HistoricoEstadoPrestacion();
-        tramo.setPrestacion(prestacion);
-        tramo.setEstado(EstadoPrestacion.NO_PUBLICADA);
-        tramo.setFechaHoraInicio(ZonedDateTime.now());
-
-        return historicoEstadoPrestacionRepository.save(tramo);
-
-    }
-
-    /**
-     * Cierra el tramo vigente del histórico de estados de la prestación, abre uno nuevo
-     * con el estado destino, y actualiza {@code prestacion.estadoActual} — cache e
-     * histórico en la misma transacción.
-     *
-     * @param prestacion {@code Prestacion} prestación a transicionar
-     * @param estadoNuevo {@code EstadoPrestacion} estado destino de la transición
-     * @param motivo {@code String} motivo de la transición, opcional
-     * @return {@code Prestacion} la prestación con el nuevo estado actual
-     */
-    public Prestacion abrirTramoEstado(Prestacion prestacion, EstadoPrestacion estadoNuevo, String motivo) {
-
-        log.debug("Transición de estado de prestación: código={}, {} -> {}", prestacion.getCodigo(),
-                prestacion.getEstadoActual(), estadoNuevo);
-
-        ZonedDateTime ahora = ZonedDateTime.now();
-
-        HistoricoEstadoPrestacion tramoVigente = historicoEstadoPrestacionRepository
-                .findByPrestacionIdAndFechaHoraFinIsNull(prestacion.getId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "La prestación " + prestacion.getCodigo() + " no tiene tramo de estado vigente."));
-        tramoVigente.setFechaHoraFin(ahora);
-        historicoEstadoPrestacionRepository.save(tramoVigente);
-
-        HistoricoEstadoPrestacion tramoNuevo = new HistoricoEstadoPrestacion();
-        tramoNuevo.setPrestacion(prestacion);
-        tramoNuevo.setEstado(estadoNuevo);
-        tramoNuevo.setFechaHoraInicio(ahora);
-        tramoNuevo.setMotivo(motivo);
-        historicoEstadoPrestacionRepository.save(tramoNuevo);
-
-        prestacion.setEstadoActual(estadoNuevo);
-
-        return savePrestacion(prestacion);
 
     }
 

@@ -26,6 +26,16 @@ public interface PlanRepository extends JpaRepository<Plan, UUID> {
     Optional<Plan> findById(UUID id);
 
     /**
+     * Busca un plan activo (no deshabilitado) por su identificador. Deshabilitado es
+     * terminal e irreversible: un plan en ese estado no admite más cambios.
+     *
+     * @param id {@code UUID} identificador del plan
+     * @param estadoActual {@code EstadoPlan} estado a excluir (DESHABILITADO)
+     * @return {@code Optional<Plan>} el plan si existe y no está deshabilitado
+     */
+    Optional<Plan> findByIdAndEstadoActualNot(UUID id, EstadoPlan estadoActual);
+
+    /**
      * Lista todos los planes de una obra social determinada.
      *
      * @param obraSocialId {@code UUID} identificador de la obra social

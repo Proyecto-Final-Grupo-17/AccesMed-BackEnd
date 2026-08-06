@@ -2,9 +2,6 @@ package com.accesmed.backend.Services.DomainServices;
 
 import com.accesmed.backend.Domain.Especialidad;
 import com.accesmed.backend.Repositories.EspecialidadRepository;
-import com.accesmed.backend.Repositories.MedicoRepository;
-import com.accesmed.backend.Repositories.PrestacionRepository;
-import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +13,7 @@ import java.util.UUID;
 
 /**
  * Lógica de dominio y persistencia para la entidad {@code Especialidad}.
- * Encapsula guardar, buscar, validaciones de unicidad y la baja lógica restrictiva.
+ * Encapsula guardar, buscar, validaciones de unicidad y la baja lógica.
  */
 @Slf4j
 @Service
@@ -26,8 +23,6 @@ public class EspecialidadDomainService {
     //region ========== Dependencias o inyecciones ==========
 
     private final EspecialidadRepository especialidadRepository;
-    private final MedicoRepository medicoRepository;
-    private final PrestacionRepository prestacionRepository;
 
     //endregion
 
@@ -55,13 +50,13 @@ public class EspecialidadDomainService {
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe una
      *         especialidad activa con ese id
      */
-    public Especialidad findEspecialidadById(UUID id) {
+    public Especialidad findEspecialidadActivaById(UUID id) {
 
-        log.debug("Buscando especialidad por id: {}", id);
+        log.debug("Buscando especialidad activa por id: {}", id);
 
         return especialidadRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> {
-                    log.warn("No se encontró la especialidad: id={}", id);
+                    log.warn("No se encontró la especialidad activa: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "ESPECIALIDAD_NO_ENCONTRADA",
                             "No existe una especialidad activa con el id " + id);
                 });
@@ -136,30 +131,6 @@ public class EspecialidadDomainService {
             log.warn("No se pudo actualizar la especialidad: nombre {} ya existe en otra especialidad", nombre);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_NOMBRE_DUPLICADO",
                     "Ya existe otra especialidad activa con el nombre " + nombre);
-        }
-
-    }
-
-    /**
-     * Valida que la especialidad no tenga médicos activos ni prestaciones no
-     * deshabilitadas asociadas. Precondición real de la baja restrictiva.
-     *
-     * @param especialidad {@code Especialidad} especialidad a validar
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si hay médicos activos o
-     *         prestaciones no deshabilitadas asociadas
-     */
-    public void validateSinUsoVigente(Especialidad especialidad) {
-
-        if (medicoRepository.existsByEspecialidadIdAndDeletedAtIsNull(especialidad.getId())) {
-            log.warn("No se pudo dar de baja la especialidad {}: tiene médicos activos", especialidad.getCodigo());
-            throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_CON_MEDICOS_ACTIVOS",
-                    "La especialidad " + especialidad.getCodigo() + " tiene médicos activos. No se puede dar de baja.");
-        }
-
-        if (prestacionRepository.existsByEspecialidadIdAndEstadoActualNot(especialidad.getId(), EstadoPrestacion.DESHABILITADA)) {
-            log.warn("No se pudo dar de baja la especialidad {}: tiene prestaciones no deshabilitadas", especialidad.getCodigo());
-            throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_CON_PRESTACIONES_ACTIVAS",
-                    "La especialidad " + especialidad.getCodigo() + " tiene prestaciones no deshabilitadas. No se puede dar de baja.");
         }
 
     }

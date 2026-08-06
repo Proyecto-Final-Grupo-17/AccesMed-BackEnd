@@ -1,5 +1,6 @@
 package com.accesmed.backend.Repositories;
 
+import com.accesmed.backend.Domain.EstadoPlan;
 import com.accesmed.backend.Domain.HistoricoEstadoPlan;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -20,5 +21,17 @@ public interface HistoricoEstadoPlanRepository extends JpaRepository<HistoricoEs
      * @return {@code Optional<HistoricoEstadoPlan>} el tramo vigente, si existe
      */
     Optional<HistoricoEstadoPlan> findByPlanIdAndFechaHoraFinIsNull(UUID planId);
+
+    /**
+     * Busca el tramo vigente (sin {@code fechaHoraFin}) de un plan, excluyendo un estado
+     * puntual. Útil para encontrar el tramo activo que no sea {@code DESHABILITADO}
+     * (transición terminal, sin tramo posterior).
+     *
+     * @param planId {@code UUID} identificador del plan
+     * @param estado {@code EstadoPlan} estado a excluir de la búsqueda
+     * @return {@code Optional<HistoricoEstadoPlan>} el tramo vigente que no está en ese
+     *         estado, si existe
+     */
+    Optional<HistoricoEstadoPlan> findByPlanIdAndFechaHoraFinIsNullAndEstadoNot(UUID planId, EstadoPlan estado);
 
 }

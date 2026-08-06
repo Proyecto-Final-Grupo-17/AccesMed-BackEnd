@@ -1,7 +1,6 @@
 package com.accesmed.backend.Services.DomainServices;
 
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion;
-import com.accesmed.backend.Repositories.IndicacionPrestacionRepository;
 import com.accesmed.backend.Repositories.TipoIndicacionPrestacionRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
@@ -24,7 +23,6 @@ public class TipoIndicacionPrestacionDomainService {
     //region ========== Dependencias o inyecciones ==========
 
     private final TipoIndicacionPrestacionRepository tipoIndicacionPrestacionRepository;
-    private final IndicacionPrestacionRepository indicacionPrestacionRepository;
 
     //endregion
 
@@ -52,9 +50,9 @@ public class TipoIndicacionPrestacionDomainService {
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe un
      *         tipo activo con ese id
      */
-    public TipoIndicacionPrestacion findTipoIndicacionPrestacionById(UUID id) {
+    public TipoIndicacionPrestacion findTipoIndicacionPrestacionActivoById(UUID id) {
 
-        log.debug("Buscando tipo de indicación de prestación por id: {}", id);
+        log.debug("Buscando tipo de indicación de prestación activo por id: {}", id);
 
         return tipoIndicacionPrestacionRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> {
@@ -133,25 +131,6 @@ public class TipoIndicacionPrestacionDomainService {
             log.warn("No se pudo actualizar el tipo de indicación: nombre {} ya existe en otro tipo", nombre);
             throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_NOMBRE_DUPLICADO",
                     "Ya existe otro tipo de indicación de prestación activo con el nombre " + nombre);
-        }
-
-    }
-
-    /**
-     * Valida que el tipo de indicación no esté siendo utilizado por indicaciones activas.
-     * Esta es la ÚNICA baja restrictiva del sistema: no se puede dar de baja un tipo
-     * si hay indicaciones activas que lo referencian.
-     *
-     * @param id {@code UUID} identificador del tipo de indicación
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si existen indicaciones
-     *         activas que referencian este tipo
-     */
-    public void validateTipoIndicacionPrestacionIsNotInUse(UUID id) {
-
-        if (indicacionPrestacionRepository.existsByTipoIndicacionPrestacionIdAndDeletedAtIsNull(id)) {
-            log.warn("No se puede dar de baja el tipo de indicación: hay indicaciones activas que lo referencian. id={}", id);
-            throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_EN_USO",
-                    "No se puede dar de baja el tipo de indicación porque hay indicaciones activas que lo referencian.");
         }
 
     }

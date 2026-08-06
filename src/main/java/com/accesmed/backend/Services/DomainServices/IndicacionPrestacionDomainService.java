@@ -78,6 +78,19 @@ public class IndicacionPrestacionDomainService {
     }
 
     /**
+     * Verifica si existen indicaciones de prestación activas que referencian un tipo de
+     * indicación. Usada por la baja restrictiva de {@code TipoIndicacionPrestacion}.
+     *
+     * @param tipoIndicacionPrestacionId {@code UUID} identificador del tipo de indicación
+     * @return {@code boolean} {@code true} si existe al menos una indicación activa de ese tipo
+     */
+    public boolean existsIndicacionesActivasByTipo(UUID tipoIndicacionPrestacionId) {
+
+        return indicacionPrestacionRepository.existsByTipoIndicacionPrestacionIdAndDeletedAtIsNull(tipoIndicacionPrestacionId);
+
+    }
+
+    /**
      * Busca todas las indicaciones de prestación activas asociadas a una prestación.
      *
      * @param prestacionId {@code UUID} identificador de la prestación

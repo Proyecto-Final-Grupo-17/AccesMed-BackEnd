@@ -85,8 +85,8 @@ Estas convenciones se aplican SIEMPRE. El detalle y ejemplos están en `Docs/ARQ
 - Cada método agrega el **recurso concreto** sobre el que opera:
   `createPrestacion` → `/Prestacion`, `createAgenda` → `/Agenda`.
 - **PUT y PATCH con body**: llevan `@PathVariable Long id` **además** del record, y el
-  **App valida que el `id` de la ruta coincida con el del record** antes de seguir
-  (`ValidacionException` si no).
+  **Controller valida que el `id` de la ruta coincida con el del record** antes de
+  delegar en el `App` (`ValidacionException` si no).
 - **PATCH sin body**: para actualizar un campo puntual, solo `@PathVariable Long id`.
 - **Soft delete = `DELETE`** (`@DeleteMapping("/<Recurso>/{id}")`, responde 204).
 

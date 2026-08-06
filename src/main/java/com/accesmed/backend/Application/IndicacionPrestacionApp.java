@@ -1,10 +1,13 @@
 package com.accesmed.backend.Application;
 
 import com.accesmed.backend.Domain.IndicacionPrestacion;
+import com.accesmed.backend.Domain.Prestacion;
+import com.accesmed.backend.Domain.TipoIndicacionPrestacion;
+import com.accesmed.backend.Records.IndicacionPrestacion.Request.CreateIndicacionesPrestacionRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.UpdateIndicacionPrestacionRequest;
-import com.accesmed.backend.Records.IndicacionPrestacion.Request.CreateIndicacionPrestacionRequest;
-import com.accesmed.backend.Records.IndicacionPrestacion.Response.UpdateIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.CreateIndicacionPrestacionResponse;
+import com.accesmed.backend.Records.IndicacionPrestacion.Response.CreateIndicacionesPrestacionResponse;
+import com.accesmed.backend.Records.IndicacionPrestacion.Response.UpdateIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.SoftDeleteIndicacionPrestacionResponse;
@@ -43,35 +46,50 @@ public class IndicacionPrestacionApp {
     //region ========== Métodos ==========
 
     /**
-     * Crea una indicación de prestación nueva.
+     * Crea varias indicaciones de prestación juntas, en una sola operación, todas
+     * asociadas a la misma prestación.
      *
-     * @param createIndicacionPrestacionRequest {@code CreateIndicacionPrestacionRequest} datos de la indicación
-     * @return {@code CreateIndicacionPrestacionResponse} la indicación creada
+     * @param createIndicacionesPrestacionRequest {@code CreateIndicacionesPrestacionRequest} prestación e indicaciones a crear
+     * @return {@code CreateIndicacionesPrestacionResponse} las indicaciones creadas
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException
-     *         {@code RecursoNoEncontradoException} si la prestación o tipo de indicación no existe
+     *         {@code RecursoNoEncontradoException} si la prestación o algún tipo de indicación no existe
      */
     @Transactional
-    public CreateIndicacionPrestacionResponse createIndicacionPrestacion(
-            CreateIndicacionPrestacionRequest createIndicacionPrestacionRequest) {
+    public CreateIndicacionesPrestacionResponse createIndicacionesPrestacion(
+            CreateIndicacionesPrestacionRequest createIndicacionesPrestacionRequest) {
 
-        log.info("Creación de indicación de prestación iniciada: nombre={}", createIndicacionPrestacionRequest.nombre());
+        log.info("Creación de indicaciones de prestación iniciada: prestacionId={}",
+                createIndicacionesPrestacionRequest.prestacionId());
 
-        //Buscar la prestación y tipo de indicación
-        var prestacionExistente = prestacionDomainService.findPrestacionById(createIndicacionPrestacionRequest.prestacionId());
-        var tipoIndicacionExistente = tipoIndicacionPrestacionDomainService
-                .findTipoIndicacionPrestacionById(createIndicacionPrestacionRequest.tipoIndicacionPrestacionId());
+        //Buscar la prestación
+        Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(createIndicacionesPrestacionRequest.prestacionId());
 
-        //Mapear a entidad
-        IndicacionPrestacion indicacionNueva = indicacionPrestacionMapper.toEntity(createIndicacionPrestacionRequest);
-        indicacionNueva.setPrestacion(prestacionExistente);
-        indicacionNueva.setTipoIndicacionPrestacion(tipoIndicacionExistente);
+        //Mapear las indicaciones a entidades
+        List<IndicacionPrestacion> indicacionesNuevas = indicacionPrestacionMapper
+                .toEntities(createIndicacionesPrestacionRequest.indicaciones());
 
-        //Persistir
-        IndicacionPrestacion indicacionGuardada = indicacionPrestacionDomainService
-                .saveIndicacionPrestacion(indicacionNueva);
+        //Resolver las relaciones que el mapper no puede resolver (requieren búsqueda por id)
+        for (int i = 0; i < indicacionesNuevas.size(); i++) {
+            TipoIndicacionPrestacion tipoIndicacionExistente = tipoIndicacionPrestacionDomainService
+                    .findTipoIndicacionPrestacionActivoById(
+                            createIndicacionesPrestacionRequest.indicaciones().get(i).tipoIndicacionPrestacionId());
 
-        //Devolver response mapeado
-        return indicacionPrestacionMapper.toCreateResponse(indicacionGuardada);
+            indicacionesNuevas.get(i).setPrestacion(prestacionExistente);
+            indicacionesNuevas.get(i).setTipoIndicacionPrestacion(tipoIndicacionExistente);
+        }
+
+        //Guardar las indicaciones
+        List<IndicacionPrestacion> indicacionesGuardadas = indicacionPrestacionDomainService
+                .saveIndicacionesPrestacion(indicacionesNuevas);
+
+        //Mapear a create Indicaciones Prestacion Response
+        List<CreateIndicacionPrestacionResponse> indicacionesResponse = indicacionPrestacionMapper
+                .toCreateResponses(indicacionesGuardadas);
+        CreateIndicacionesPrestacionResponse createIndicacionesPrestacionResponse =
+                new CreateIndicacionesPrestacionResponse(indicacionesResponse);
+
+        //Retornar Respuesta
+        return createIndicacionesPrestacionResponse;
 
     }
 

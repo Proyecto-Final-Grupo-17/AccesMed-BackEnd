@@ -42,13 +42,14 @@ public class PrestacionApp {
 
     //region ========== Dependencias ==========
 
-
     //Domain Services
     private final PrestacionDomainService prestacionDomainService;
     private final IndicacionPrestacionDomainService indicacionPrestacionDomainService;
     private final EspecialidadDomainService especialidadDomainService;
     private final TipoIndicacionPrestacionDomainService tipoIndicacionPrestacionDomainService;
     private final HistoricoEstadoPrestacionDomainService historicoEstadoPrestacionDomainService;
+    private final TurnoDomainService turnoDomainService;
+    private final AgendaHorariosDomainService agendaHorariosDomainService;
 
     //Mappers
     private final PrestacionMapper prestacionMapper;
@@ -94,7 +95,7 @@ public class PrestacionApp {
         );
 
         //Validar que la especialidad existe y este activa
-        Especialidad especialidadExistente = especialidadDomainService.findActiveEspecialidadById(createPrestacionRequest.especialidadId());
+        Especialidad especialidadExistente = especialidadDomainService.findEspecialidadActivaById(createPrestacionRequest.especialidadId());
 
         //Mapear nueva Prestacion y setear su Especialiad
         Prestacion prestacionNueva = prestacionMapper.toEntity(createPrestacionRequest);
@@ -106,45 +107,50 @@ public class PrestacionApp {
         //Guardar Prestacion
         Prestacion prestacionGuardada = prestacionDomainService.savePrestacion(prestacionNueva);
 
+        //Mapear las indicaciones anidadas a entidades
+        List<CreateIndicacionPrestacionAnidadaRequest> indicacionesRequest = createPrestacionRequest.indicaciones();
+        List<IndicacionPrestacion> indicacionesNuevas = new ArrayList<>();
+        if (indicacionesRequest != null && !indicacionesRequest.isEmpty()) {
+            indicacionesNuevas = indicacionPrestacionMapper.toEntities(indicacionesRequest);
 
-        List<GetIndicacionPrestacionResponse> indicacionesResponse = new ArrayList<>();
-        if (createPrestacionRequest.indicaciones() != null && !createPrestacionRequest.indicaciones().isEmpty()) {
-            List<IndicacionPrestacion> indicacionesNuevas = new ArrayList<>();
-
-            for (CreateIndicacionPrestacionAnidadaRequest indicacionAnidada : createPrestacionRequest.indicaciones()) {
+            //Resolver las relaciones que el mapper no puede resolver (requieren búsqueda por id)
+            for (int i = 0; i < indicacionesNuevas.size(); i++) {
                 TipoIndicacionPrestacion tipoIndicacionExistente = tipoIndicacionPrestacionDomainService
-                        .findTipoIndicacionPrestacionById(indicacionAnidada.tipoIndicacionPrestacionId());
+                        .findTipoIndicacionPrestacionActivoById(indicacionesRequest.get(i).tipoIndicacionPrestacionId());
 
-                IndicacionPrestacion indicacionNueva = indicacionPrestacionMapper.toEntity(indicacionAnidada);
-                indicacionNueva.setNombre(indicacionAnidada.nombre());
-                indicacionNueva.setDescripcion(indicacionAnidada.descripcion());
-                indicacionNueva.setRequiereValidacion(indicacionAnidada.requiereValidacion());
-                indicacionNueva.setPrestacion(prestacionGuardada);
-                indicacionNueva.setTipoIndicacionPrestacion(tipoIndicacionExistente);
-
-                indicacionesNuevas.add(indicacionNueva);
+                indicacionesNuevas.get(i).setPrestacion(prestacionGuardada);
+                indicacionesNuevas.get(i).setTipoIndicacionPrestacion(tipoIndicacionExistente);
             }
+        }
 
+        //Guardar las indicaciones mapeadas
+        List<GetIndicacionPrestacionResponse> indicacionesResponse = new ArrayList<>();
+        if (!indicacionesNuevas.isEmpty()) {
             List<IndicacionPrestacion> indicacionesGuardadas = indicacionPrestacionDomainService
                     .saveIndicacionesPrestacion(indicacionesNuevas);
 
+            //Mapear la respuesta de indicaciones
             indicacionesResponse = indicacionesGuardadas.stream()
                     .map(indicacionPrestacionMapper::toGetResponse)
                     .toList();
         }
 
-        return prestacionMapper.toCreateResponse(prestacionGuardada, indicacionesResponse);
+        //Mapear a create Prestacion Response
+        CreatePrestacionResponse createPrestacionResponse = prestacionMapper.toCreateResponse(prestacionGuardada, indicacionesResponse);
+
+        //Retornar Respuesta
+        return createPrestacionResponse;
 
     }
 
     /**
      * Actualiza nombre y tolerancias/duraciones de una prestación. Se puede modificar en
-     * cualquier estado.
+     * cualquier estado salvo {@code DESHABILITADA} (terminal e irreversible).
      *
      * @param id {@code UUID} identificador de la ruta
      * @param updatePrestacionRequest {@code UpdatePrestacionRequest} datos a actualizar
      * @return {@code UpdatePrestacionResponse} la prestación actualizada
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la prestación no existe
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la prestación no existe o está deshabilitada
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el nombre es duplicado
      * @throws ValidacionException {@code ValidacionException} si las reglas de tolerancia fallan
      */
@@ -153,12 +159,15 @@ public class PrestacionApp {
 
         log.info("Actualización de prestación iniciada: id={}", id);
 
-        Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(id);
+        //Buscar la prestación activa (deshabilitada es terminal: no admite más cambios)
+        Prestacion prestacionExistente = prestacionDomainService.findPrestacionActivaById(id);
 
+        //Validar que el nombre sea único, si vino en el request
         if (updatePrestacionRequest.nombre() != null) {
             prestacionDomainService.validateNombrePrestacionIsUnique(updatePrestacionRequest.nombre(), id);
         }
 
+        //Validar tolerancias, revalidando la cadena completa con los valores actuales como respaldo
         prestacionDomainService.validateToleranciasPrestacion(
                 orElseActual(updatePrestacionRequest.duracionMinimaMinutos(), prestacionExistente.getDuracionMinima()),
                 orElseActual(updatePrestacionRequest.duracionMaximaMinutos(), prestacionExistente.getDuracionMaxima()),
@@ -173,11 +182,17 @@ public class PrestacionApp {
 
         //TODO cascada AGEN: recalcular/dar de baja AgendaHorarios futuros libres afectados por el cambio de duraciones.
 
+        //Aplicar los cambios del request sobre la entidad existente
         prestacionMapper.updatePrestacion(prestacionExistente, updatePrestacionRequest);
 
+        //Guardar la prestación actualizada
         Prestacion prestacionActualizada = prestacionDomainService.savePrestacion(prestacionExistente);
 
-        return prestacionMapper.toUpdateResponse(prestacionActualizada);
+        //Mapear a update Prestacion Response
+        UpdatePrestacionResponse updatePrestacionResponse = prestacionMapper.toUpdateResponse(prestacionActualizada);
+
+        //Retornar Respuesta
+        return updatePrestacionResponse;
 
     }
 
@@ -188,19 +203,22 @@ public class PrestacionApp {
      *
      * @param id {@code UUID} identificador de la prestación
      * @return {@code CambioEstadoPrestacionResponse} la prestación publicada
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la prestación no existe
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si no se puede publicar desde el estado actual
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si la prestación no existe,
+     *         ya está deshabilitada, o no se puede publicar desde el estado actual
      */
     @Transactional
     public CambioEstadoPrestacionResponse publishPrestacion(UUID id) {
 
         log.info("Publicación de prestación iniciada: id={}", id);
 
-        Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(id);
+        //Transicionar el estado a PUBLICADA
+        Prestacion prestacionPublicada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(id, EstadoPrestacion.PUBLICADA, null);
 
-        Prestacion prestacionPublicada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(prestacionExistente, EstadoPrestacion.PUBLICADA, null);
+        //Mapear a cambio de estado Response
+        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(prestacionPublicada);
 
-        return prestacionMapper.toCambioEstadoResponse(prestacionPublicada);
+        //Retornar Respuesta
+        return cambioEstadoPrestacionResponse;
 
     }
 
@@ -209,19 +227,22 @@ public class PrestacionApp {
      *
      * @param id {@code UUID} identificador de la prestación
      * @return {@code CambioEstadoPrestacionResponse} la prestación despublicada
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la prestación no existe
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si no se puede despublicar desde el estado actual
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si la prestación no existe,
+     *         ya está deshabilitada, o no se puede despublicar desde el estado actual
      */
     @Transactional
     public CambioEstadoPrestacionResponse unpublishPrestacion(UUID id) {
 
         log.info("Despublicación de prestación iniciada: id={}", id);
 
-        Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(id);
+        //Transicionar el estado a NO_PUBLICADA
+        Prestacion prestacionDespublicada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(id, EstadoPrestacion.NO_PUBLICADA, null);
 
-        Prestacion prestacionDespublicada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(prestacionExistente, EstadoPrestacion.NO_PUBLICADA, null);
+        //Mapear a cambio de estado Response
+        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(prestacionDespublicada);
 
-        return prestacionMapper.toCambioEstadoResponse(prestacionDespublicada);
+        //Retornar Respuesta
+        return cambioEstadoPrestacionResponse;
 
     }
 
@@ -233,36 +254,34 @@ public class PrestacionApp {
      * @param id {@code UUID} identificador de la ruta
      * @param deshabilitarPrestacionRequest {@code DeshabilitarPrestacionRequest} motivo opcional
      * @return {@code CambioEstadoPrestacionResponse} la prestación deshabilitada
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la prestación no existe
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si ya está deshabilitada o tiene uso vigente
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si la prestación no existe,
+     *         ya está deshabilitada, o tiene turnos vivos o agenda futura ocupada
      */
     @Transactional
     public CambioEstadoPrestacionResponse disablePrestacion(UUID id, DeshabilitarPrestacionRequest deshabilitarPrestacionRequest) {
 
         log.info("Deshabilitación de prestación iniciada: id={}", id);
 
-        Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(id);
+        //Validar que no tenga turnos vivos
+        turnoDomainService.validateSinTurnosVivos(id);
 
-        prestacionDomainService.validatePuedeDeshabilitar(prestacionExistente);
-        prestacionDomainService.validateSinUsoVigente(prestacionExistente);
+        //Validar que no tenga agenda futura ocupada
+        agendaHorariosDomainService.validateSinAgendaFuturaOcupada(id);
 
         //TODO cascada de escritura: cerrar MedicoPrestacion vigentes, bajar AgendaHorarios libres,
         // cerrar IndicacionPrestacion vigentes, bajar ObraSocialPlanPrestacion (módulos fuera de alcance).
 
-        Prestacion prestacionDeshabilitada = prestacionDomainService.abrirTramoEstado(
-                prestacionExistente, EstadoPrestacion.DESHABILITADA, deshabilitarPrestacionRequest.motivo());
+        //Transicionar el estado a DESHABILITADA
+        Prestacion prestacionDeshabilitada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(
+                id, EstadoPrestacion.DESHABILITADA, deshabilitarPrestacionRequest.motivo());
 
-        return prestacionMapper.toCambioEstadoResponse(prestacionDeshabilitada);
+        //Mapear a cambio de estado Response
+        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(prestacionDeshabilitada);
+
+        //Retornar Respuesta
+        return cambioEstadoPrestacionResponse;
 
     }
-
-    /**
-     * Busca una prestación por su identificador, incluyendo sus indicaciones activas.
-     *
-     * @param id {@code UUID} identificador de la prestación
-     * @return {@code GetPrestacionResponse} la prestación encontrada, con sus indicaciones
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la prestación no existe
-     */
 
     /**
      * Lista prestaciones según los filtros proporcionados.
@@ -276,8 +295,8 @@ public class PrestacionApp {
 
         log.info("Listado de prestaciones iniciado: especialidadId={}, estadoActual={}", especialidadId, estadoActual);
 
+        //Buscar prestaciones según los filtros proporcionados
         List<Prestacion> prestaciones;
-
         if (especialidadId != null && estadoActual != null) {
             prestaciones = prestacionQueryService.findPrestacionesByEspecialidadAndEstadoActual(especialidadId, estadoActual);
         } else if (especialidadId != null) {
@@ -288,9 +307,13 @@ public class PrestacionApp {
             prestaciones = prestacionQueryService.findAllPrestaciones();
         }
 
-        return prestaciones.stream()
+        //Mapear a list Prestacion Response
+        List<ListPrestacionResponse> listPrestacionResponse = prestaciones.stream()
                 .map(prestacionMapper::toListResponse)
                 .toList();
+
+        //Retornar Respuesta
+        return listPrestacionResponse;
 
     }
 

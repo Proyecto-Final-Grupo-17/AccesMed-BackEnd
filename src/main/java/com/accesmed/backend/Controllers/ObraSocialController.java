@@ -77,14 +77,17 @@ public class ObraSocialController {
 
         log.info("Solicitud recibida: actualizar obra social id={}", id);
 
+        //Verificar que el id de la ruta coincida con el del body
         if (!id.equals(updateObraSocialRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updateObraSocialRequest.id());
             throw new ValidacionException(getClass(),
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
+        //Invocar caso de uso
         GetObraSocialResponse response = obraSocialApp.updateObraSocial(id, updateObraSocialRequest);
 
+        //Devolver Respuesta
         return ResponseEntity.ok(response);
 
     }

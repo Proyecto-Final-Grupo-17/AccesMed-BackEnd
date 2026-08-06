@@ -108,6 +108,12 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
    - `toEntity`, `toResponse`, y `update(entidad, request)` para no pisar campos inmutables.
 5. **DomainService** — `Services/DomainServices/<Entidad>DomainService.java`
    - `@Slf4j`. Persistencia y lógica de la entidad: `save<Entidad>`, `validate...`, `find<Entidad>ById`.
+   - **Solo inyecta su propio repositorio** — nunca el de otra entidad, y nunca llama a
+     otro `DomainService`. Si necesita datos de una entidad relacionada por asociación
+     JPA, la navega; si necesita coordinar varias entidades, esa orquestación va en el
+     App. Si la entidad tiene estado terminal o soft-delete, agregar también
+     `find<Entidad>Activa(o)ById` para los flujos de mutación. Sin `@Transactional`
+     propio (ver punto 6). Detalle completo en `java-springboot-code-style` §5.0/§5.0.1.
    - Lanza `RecursoNoEncontradoException` / `ReglaNegocioException` (de `Services/Errors/`,
      **no** crear una excepción nueva por entidad) según corresponda, pasando `getClass()`
      como `origen`. **Loguear con `log.warn` justo antes de cada `throw`** (ver skill
@@ -115,12 +121,13 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
    - (Si hay lecturas: `<Entidad>QueryService` en `Services/QueryServices/`. Se llama
      **siempre desde el App**, nunca directo desde el Controller — ni un `getById` simple.)
 6. **App** — `Application/<Entidad>App.java`
-   - `@Service`, `@Slf4j`, `@Transactional`. `log.info` al iniciar cada método (orquestación
-     del caso de uso). Un método por endpoint (incluidos los de solo lectura: el App
-     delega en el `QueryService` y mapea con el `Mapper` antes de devolver el response).
-     Orquesta: valida negocio (acumulando en `ValidacionException` cuando aplique, con
-     `getClass()` como `origen` y `log.warn` antes del throw), mapea, delega en el domain
-     service o query service.
+   - `@Service`, `@Slf4j`, `@Transactional` — **este es el límite real de atomicidad del
+     caso de uso** (1 operación = 1 transacción), por eso vive acá y no en el DomainService.
+     `log.info` al iniciar cada método (orquestación del caso de uso). Un método por
+     endpoint (incluidos los de solo lectura: el App delega en el `QueryService` y mapea
+     con el `Mapper` antes de devolver el response). Orquesta: valida negocio (acumulando
+     en `ValidacionException` cuando aplique, con `getClass()` como `origen` y `log.warn`
+     antes del throw), mapea, delega en el domain service o query service.
    - En `update<Entidad>(Long id, <Accion><Entidad>Request ...)`: **primer paso, validar que
      el `id` de la ruta coincida con el del record** (`ValidacionException` + `log.warn` si no).
 7. **Controller** — `Controllers/<Entidad>Controller.java`
@@ -173,8 +180,15 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
       y los endpoints generados (delegado en `feature-documenter`).
 - [ ] Clases organizadas con `//region`/`//endregion` (Dependencias, Métodos, Métodos
       auxiliares privados / Atributos, Relaciones en entidades); comentarios paso a paso
-      solo donde explican el *porqué*, distribuidos entre App y DomainService según
-      a quién le corresponde el paso (ver `java-springboot-code-style` §10).
+      solo en métodos con varios pasos reales (no en `save<Entidad>`/`find<Entidad>ById`
+      simples), distribuidos entre App y DomainService según a quién le corresponde el
+      paso (ver `java-springboot-code-style` §10).
+- [ ] Ningún `DomainService` inyecta el repositorio de otra entidad ni llama a otro
+      `DomainService` — la orquestación multi-entidad vive en el App (§5.0).
+- [ ] `@Transactional` solo en el App, no en los `DomainService` (salvo lectura standalone
+      o transacción independiente).
+- [ ] El valor de retorno de cada método no trivial se asigna a una variable nombrada
+      antes del `return` (§10.4), en Controller, App y DomainService.
 
 ## Plantilla de referencia (Prestación) — patrón a seguir
 
@@ -289,8 +303,11 @@ public class PrestacionApp {
         //Persistir la prestación
         Prestacion prestacionGuardada = prestacionDomainService.savePrestacion(prestacionNueva);
 
-        //Devolver el response mapeado
-        return prestacionMapper.toCreateResponse(prestacionGuardada);
+        //Mapear a create Prestacion Response
+        CreatePrestacionResponse createPrestacionResponse = prestacionMapper.toCreateResponse(prestacionGuardada);
+
+        //Retornar Respuesta
+        return createPrestacionResponse;
 
     }
 
@@ -316,14 +333,21 @@ public class PrestacionApp {
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
+        //Buscar la prestación existente
         Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(id);
 
+        //Aplicar los cambios del request
         Prestacion prestacionActualizada = prestacionMapper.update(prestacionExistente,
                 updatePrestacionRequest);
 
+        //Persistir la prestación actualizada
         Prestacion prestacionGuardada = prestacionDomainService.savePrestacion(prestacionActualizada);
 
-        return prestacionMapper.toUpdateResponse(prestacionGuardada);
+        //Mapear a update Prestacion Response
+        UpdatePrestacionResponse updatePrestacionResponse = prestacionMapper.toUpdateResponse(prestacionGuardada);
+
+        //Retornar Respuesta
+        return updatePrestacionResponse;
 
     }
 

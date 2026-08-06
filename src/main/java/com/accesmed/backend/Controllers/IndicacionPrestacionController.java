@@ -1,10 +1,10 @@
 package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.IndicacionPrestacionApp;
+import com.accesmed.backend.Records.IndicacionPrestacion.Request.CreateIndicacionesPrestacionRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.UpdateIndicacionPrestacionRequest;
-import com.accesmed.backend.Records.IndicacionPrestacion.Request.CreateIndicacionPrestacionRequest;
+import com.accesmed.backend.Records.IndicacionPrestacion.Response.CreateIndicacionesPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.UpdateIndicacionPrestacionResponse;
-import com.accesmed.backend.Records.IndicacionPrestacion.Response.CreateIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.SoftDeleteIndicacionPrestacionResponse;
@@ -46,19 +46,20 @@ public class IndicacionPrestacionController {
     //region ========== Métodos ==========
 
     /**
-     * Crea una indicación de prestación nueva.
+     * Crea varias indicaciones de prestación juntas, en una sola operación.
      *
-     * @param createIndicacionPrestacionRequest {@code CreateIndicacionPrestacionRequest} datos de la indicación
-     * @return {@code ResponseEntity<CreateIndicacionPrestacionResponse>} la indicación creada (HTTP 201)
+     * @param createIndicacionesPrestacionRequest {@code CreateIndicacionesPrestacionRequest} prestación e indicaciones a crear
+     * @return {@code ResponseEntity<CreateIndicacionesPrestacionResponse>} las indicaciones creadas (HTTP 201)
      */
     @PostMapping("/IndicacionPrestacion")
-    public ResponseEntity<CreateIndicacionPrestacionResponse> createIndicacionPrestacion(
-            @Valid @RequestBody CreateIndicacionPrestacionRequest createIndicacionPrestacionRequest) {
+    public ResponseEntity<CreateIndicacionesPrestacionResponse> createIndicacionesPrestacion(
+            @Valid @RequestBody CreateIndicacionesPrestacionRequest createIndicacionesPrestacionRequest) {
 
-        log.info("Solicitud recibida: crear indicación de prestación nombre={}", createIndicacionPrestacionRequest.nombre());
+        log.info("Solicitud recibida: crear indicaciones de prestación prestacionId={}",
+                createIndicacionesPrestacionRequest.prestacionId());
 
-        CreateIndicacionPrestacionResponse response = indicacionPrestacionApp
-                .createIndicacionPrestacion(createIndicacionPrestacionRequest);
+        CreateIndicacionesPrestacionResponse response = indicacionPrestacionApp
+                .createIndicacionesPrestacion(createIndicacionesPrestacionRequest);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
 

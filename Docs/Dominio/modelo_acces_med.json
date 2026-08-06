@@ -294,7 +294,7 @@
           "tipo": "String",
           "obligatorio": true,
           "maxLength": 150,
-          "nota": "Editable en cualquier estado. En la v2 quedaba congelado al habilitar; esa regla se derogó."
+          "nota": "Editable en No Publicada o Publicada. En la v2 quedaba congelado al habilitar; esa regla se derogó. Deshabilitada es terminal: no se edita."
         },
         {
           "nombre": "duracionMinima",
@@ -364,7 +364,7 @@
         "tiempoToleranciaAnuncio >= 0",
         "tiempoToleranciaConfirmacion < tiempoRecordatorioConfirmacion <= tiempoToleranciaSolicitud",
         "Nace en el estado No Publicada",
-        "Se puede modificar siempre, en cualquier estado y con turnos vivos, salvo el codigo que es inmutable",
+        "Se puede modificar en No Publicada o Publicada, con turnos vivos, salvo el codigo que es inmutable. Deshabilitada no admite modificaciones (terminal e irreversible)",
         "Al modificar duracionMinima o duracionMaxima se revalidan los AgendaHorarios futuros libres de la prestacion: los que queden fuera del rango nuevo se advierten y se dan de baja. Los ocupados no se tocan",
         "Al modificar tiempoToleranciaSolicitud se recalcula AgendaHorarios.fechaLimiteReserva de los slots futuros libres, y se dan de baja los que queden con el plazo de reserva ya vencido. Los ocupados no se tocan",
         "Transiciones permitidas: No Publicada <-> Publicada, y desde cualquiera de las dos hacia Deshabilitada",
@@ -888,6 +888,7 @@
       ],
       "reglasValidacion": [
         "Nace en el estado No Publicado",
+        "Se puede modificar en No Publicado o Publicado. Deshabilitado no admite modificaciones (terminal e irreversible)",
         "Transiciones permitidas: No Publicado <-> Publicado, y desde cualquiera de las dos hacia Deshabilitado",
         "Deshabilitado es terminal e irreversible",
         "Solo un Plan Publicado se ofrece al paciente para declarar cobertura y para cubrir turnos nuevos",
@@ -1590,7 +1591,7 @@
     },
     {
       "origen": "IndicacionPrestacionTurno",
-      "destino": "Usuario",
+      "destino": "Admin",
       "multOrigen": "N",
       "multDestino": "0..1",
       "rol": "validadoPor",

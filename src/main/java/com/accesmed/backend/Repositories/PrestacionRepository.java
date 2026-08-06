@@ -56,6 +56,16 @@ public interface PrestacionRepository extends JpaRepository<Prestacion, UUID> {
     Optional<Prestacion> findById(UUID id);
 
     /**
+     * Busca una prestación activa (no deshabilitada) por su identificador. Deshabilitada
+     * es terminal e irreversible: una prestación en ese estado no admite más cambios.
+     *
+     * @param id {@code UUID} identificador de la prestación
+     * @param estadoActual {@code EstadoPrestacion} estado a excluir (DESHABILITADA)
+     * @return {@code Optional<Prestacion>} la prestación si existe y no está deshabilitada
+     */
+    Optional<Prestacion> findByIdAndEstadoActualNot(UUID id, EstadoPrestacion estadoActual);
+
+    /**
      * Lista todas las prestaciones.
      *
      * @return {@code List<Prestacion>} lista de todas las prestaciones

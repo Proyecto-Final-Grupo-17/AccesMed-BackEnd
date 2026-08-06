@@ -77,14 +77,17 @@ public class EspecialidadController {
 
         log.info("Solicitud recibida: actualizar especialidad id={}", id);
 
+        //Verificar que el id de la ruta coincida con el del body
         if (!id.equals(updateEspecialidadRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updateEspecialidadRequest.id());
             throw new ValidacionException(getClass(),
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
+        //Invocar caso de uso
         GetEspecialidadResponse response = especialidadApp.updateEspecialidad(id, updateEspecialidadRequest);
 
+        //Devolver Respuesta
         return ResponseEntity.ok(response);
 
     }

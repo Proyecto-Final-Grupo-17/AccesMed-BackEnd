@@ -2,7 +2,6 @@ package com.accesmed.backend.Services.Mappers;
 
 import com.accesmed.backend.Domain.IndicacionPrestacion;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.UpdateIndicacionPrestacionRequest;
-import com.accesmed.backend.Records.IndicacionPrestacion.Request.CreateIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.Prestacion.Request.CreateIndicacionPrestacionAnidadaRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.UpdateIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.CreateIndicacionPrestacionResponse;
@@ -27,27 +26,6 @@ import java.util.List;
 public interface IndicacionPrestacionMapper {
 
     /**
-     * Convierte un {@code CreateIndicacionPrestacionRequest} a una entidad {@code IndicacionPrestacion}.
-     *
-     * @param createIndicacionPrestacionRequest {@code CreateIndicacionPrestacionRequest} datos del request
-     * @return {@code IndicacionPrestacion} entidad lista para persistir
-     */
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "descripcion", source = "descripcion")
-    @Mapping(target = "requiereValidacion", source = "requiereValidacion")
-    @Mapping(target = "prestacion", ignore = true)
-    @Mapping(target = "tipoIndicacionPrestacion", ignore = true)
-    @Mapping(target = "createdDate", ignore = true)
-    @Mapping(target = "lastModifiedDate", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "lastModifiedBy", ignore = true)
-    @Mapping(target = "deletedAt", ignore = true)
-    @Mapping(target = "deletedBy", ignore = true)
-    @Mapping(target = "deletedReason", ignore = true)
-    IndicacionPrestacion toEntity(CreateIndicacionPrestacionRequest createIndicacionPrestacionRequest);
-
-    /**
      * Convierte un {@code CreateIndicacionPrestacionAnidadaRequest} a una entidad {@code IndicacionPrestacion}.
      * Utilizado durante la creación anidada de indicaciones en una prestación.
      *
@@ -68,6 +46,16 @@ public interface IndicacionPrestacionMapper {
     @Mapping(target = "deletedBy", ignore = true)
     @Mapping(target = "deletedReason", ignore = true)
     IndicacionPrestacion toEntity(CreateIndicacionPrestacionAnidadaRequest createIndicacionPrestacionAnidadaRequest);
+
+    /**
+     * Convierte una lista de {@code CreateIndicacionPrestacionAnidadaRequest} a una lista
+     * de entidades {@code IndicacionPrestacion}, reutilizando el mapeo singular. Utilizado
+     * durante la creación anidada de indicaciones en una prestación.
+     *
+     * @param createIndicacionesPrestacionAnidadaRequest {@code List<CreateIndicacionPrestacionAnidadaRequest>} datos de los requests anidados
+     * @return {@code List<IndicacionPrestacion>} entidades listas para persistir
+     */
+    List<IndicacionPrestacion> toEntities(List<CreateIndicacionPrestacionAnidadaRequest> createIndicacionesPrestacionAnidadaRequest);
 
     /**
      * Actualiza una indicación existente con datos de {@code UpdateIndicacionPrestacionRequest}.
@@ -105,6 +93,15 @@ public interface IndicacionPrestacionMapper {
     @Mapping(target = "tipoIndicacionPrestacionId", source = "tipoIndicacionPrestacion.id")
     @Mapping(target = "tipoIndicacionPrestacionNombre", source = "tipoIndicacionPrestacion.nombre")
     CreateIndicacionPrestacionResponse toCreateResponse(IndicacionPrestacion indicacionPrestacion);
+
+    /**
+     * Convierte una lista de entidades {@code IndicacionPrestacion} a una lista de
+     * {@code CreateIndicacionPrestacionResponse}, reutilizando el mapeo singular.
+     *
+     * @param indicacionesPrestacion {@code List<IndicacionPrestacion>} lista de entidades
+     * @return {@code List<CreateIndicacionPrestacionResponse>} lista de respuestas de creación
+     */
+    List<CreateIndicacionPrestacionResponse> toCreateResponses(List<IndicacionPrestacion> indicacionesPrestacion);
 
     /**
      * Convierte una entidad {@code IndicacionPrestacion} a {@code UpdateIndicacionPrestacionResponse}.

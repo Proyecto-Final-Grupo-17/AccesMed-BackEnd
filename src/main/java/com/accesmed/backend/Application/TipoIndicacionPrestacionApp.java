@@ -8,7 +8,9 @@ import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.CreateTipo
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.ListTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.GetTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.SoftDeleteTipoIndicacionPrestacionResponse;
+import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.TipoIndicacionPrestacionDomainService;
+import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.TipoIndicacionPrestacionMapper;
 import com.accesmed.backend.Services.QueryServices.TipoIndicacionPrestacionQueryService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ public class TipoIndicacionPrestacionApp {
     //region ========== Dependencias o inyecciones ==========
 
     private final TipoIndicacionPrestacionDomainService tipoIndicacionPrestacionDomainService;
+    private final IndicacionPrestacionDomainService indicacionPrestacionDomainService;
     private final TipoIndicacionPrestacionQueryService tipoIndicacionPrestacionQueryService;
     private final TipoIndicacionPrestacionMapper tipoIndicacionPrestacionMapper;
 
@@ -93,7 +96,7 @@ public class TipoIndicacionPrestacionApp {
 
         //Buscar el tipo existente
         TipoIndicacionPrestacion tipoExistente = tipoIndicacionPrestacionDomainService
-                .findTipoIndicacionPrestacionById(id);
+                .findTipoIndicacionPrestacionActivoById(id);
 
         //Validar que el código no esté repetido, excluyendo el id actual
         tipoIndicacionPrestacionDomainService.validateCodigoTipoIndicacionPrestacionIsUnique(
@@ -133,10 +136,14 @@ public class TipoIndicacionPrestacionApp {
 
         //Buscar el tipo
         TipoIndicacionPrestacion tipoExistente = tipoIndicacionPrestacionDomainService
-                .findTipoIndicacionPrestacionById(id);
+                .findTipoIndicacionPrestacionActivoById(id);
 
         //Validar que no esté en uso (esta es la ÚNICA validación restrictiva del sistema)
-        tipoIndicacionPrestacionDomainService.validateTipoIndicacionPrestacionIsNotInUse(id);
+        if (indicacionPrestacionDomainService.existsIndicacionesActivasByTipo(id)) {
+            log.warn("No se puede dar de baja el tipo de indicación: hay indicaciones activas que lo referencian. id={}", id);
+            throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_EN_USO",
+                    "No se puede dar de baja el tipo de indicación porque hay indicaciones activas que lo referencian.");
+        }
 
         //Dar de baja
         tipoIndicacionPrestacionDomainService.softDeleteTipoIndicacionPrestacion(tipoExistente, "Baja de tipo de indicación");
@@ -161,7 +168,7 @@ public class TipoIndicacionPrestacionApp {
 
         //Buscar el tipo
         TipoIndicacionPrestacion tipoExistente = tipoIndicacionPrestacionDomainService
-                .findTipoIndicacionPrestacionById(id);
+                .findTipoIndicacionPrestacionActivoById(id);
 
         //Devolver response mapeado
         return tipoIndicacionPrestacionMapper.toGetResponse(tipoExistente);

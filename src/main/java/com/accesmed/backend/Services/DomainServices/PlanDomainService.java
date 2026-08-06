@@ -1,25 +1,19 @@
 package com.accesmed.backend.Services.DomainServices;
 
 import com.accesmed.backend.Domain.EstadoPlan;
-import com.accesmed.backend.Domain.EstadoTurno;
-import com.accesmed.backend.Domain.HistoricoEstadoPlan;
 import com.accesmed.backend.Domain.Plan;
-import com.accesmed.backend.Repositories.HistoricoEstadoPlanRepository;
 import com.accesmed.backend.Repositories.PlanRepository;
-import com.accesmed.backend.Repositories.TurnoRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.ZonedDateTime;
 import java.util.UUID;
 
 /**
  * Lógica de dominio y persistencia para la entidad {@code Plan}.
- * Encapsula guardar, buscar, validaciones de reglas de negocio y la máquina de estados
- * ({@code No Publicado ⇄ Publicado → Deshabilitado}), espejo de {@code PrestacionDomainService}.
+ * Encapsula guardar, buscar y validaciones de unicidad.
  */
 @Slf4j
 @Service
@@ -29,8 +23,6 @@ public class PlanDomainService {
     //region ========== Dependencias o inyecciones ==========
 
     private final PlanRepository planRepository;
-    private final HistoricoEstadoPlanRepository historicoEstadoPlanRepository;
-    private final TurnoRepository turnoRepository;
 
     //endregion
 
@@ -67,6 +59,29 @@ public class PlanDomainService {
                     log.warn("No se encontró el plan: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "PLAN_NO_ENCONTRADO",
                             "No existe un plan con el id " + id);
+                });
+
+    }
+
+    /**
+     * Busca un plan activo (no deshabilitado) por su identificador. Deshabilitado es
+     * terminal e irreversible, así que un plan en ese estado se trata como no disponible
+     * para más operaciones.
+     *
+     * @param id {@code UUID} identificador del plan
+     * @return {@code Plan} el plan correspondiente al id, si no está deshabilitado
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe
+     *         un plan activo con ese id
+     */
+    public Plan findPlanActivoById(UUID id) {
+
+        log.debug("Buscando plan activo por id: {}", id);
+
+        return planRepository.findByIdAndEstadoActualNot(id, EstadoPlan.DESHABILITADO)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró el plan activo: id={}", id);
+                    return new RecursoNoEncontradoException(getClass(), "PLAN_NO_ENCONTRADO",
+                            "No existe un plan activo con el id " + id);
                 });
 
     }
@@ -126,140 +141,6 @@ public class PlanDomainService {
             throw new ReglaNegocioException(getClass(), "PLAN_NOMBRE_DUPLICADO",
                     "Ya existe otro plan no deshabilitado con el nombre " + nombre + " en esta obra social.");
         }
-
-    }
-
-    /**
-     * Valida que el plan admita la transición a {@code PUBLICADO}: debe estar en
-     * {@code NO_PUBLICADO}.
-     *
-     * @param plan {@code Plan} plan a validar
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si no está en {@code NO_PUBLICADO}
-     */
-    public void validatePuedePublicar(Plan plan) {
-
-        if (plan.getEstadoActual() != EstadoPlan.NO_PUBLICADO) {
-            log.warn("No se pudo publicar el plan {}: estado actual {}", plan.getCodigo(), plan.getEstadoActual());
-            throw new ReglaNegocioException(getClass(), "PLAN_NO_PUBLICABLE",
-                    "El plan " + plan.getCodigo() + " no se puede publicar desde el estado " + plan.getEstadoActual() + ".");
-        }
-
-    }
-
-    /**
-     * Valida que el plan admita la transición a {@code NO_PUBLICADO}: debe estar en
-     * {@code PUBLICADO}.
-     *
-     * @param plan {@code Plan} plan a validar
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si no está en {@code PUBLICADO}
-     */
-    public void validatePuedeDespublicar(Plan plan) {
-
-        if (plan.getEstadoActual() != EstadoPlan.PUBLICADO) {
-            log.warn("No se pudo despublicar el plan {}: estado actual {}", plan.getCodigo(), plan.getEstadoActual());
-            throw new ReglaNegocioException(getClass(), "PLAN_NO_DESPUBLICABLE",
-                    "El plan " + plan.getCodigo() + " no se puede despublicar desde el estado " + plan.getEstadoActual() + ".");
-        }
-
-    }
-
-    /**
-     * Valida que el plan admita la transición a {@code DESHABILITADO}: no puede estar ya
-     * deshabilitado (transición terminal, sin vuelta atrás).
-     *
-     * @param plan {@code Plan} plan a validar
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si ya está deshabilitado
-     */
-    public void validatePuedeDeshabilitar(Plan plan) {
-
-        if (plan.getEstadoActual() == EstadoPlan.DESHABILITADO) {
-            log.warn("No se pudo deshabilitar el plan {}: ya está deshabilitado", plan.getCodigo());
-            throw new ReglaNegocioException(getClass(), "PLAN_YA_DESHABILITADO",
-                    "El plan " + plan.getCodigo() + " ya está deshabilitado.");
-        }
-
-    }
-
-    /**
-     * Valida que el plan no tenga turnos vivos (estado actual no final) cubiertos por él.
-     * Única precondición de la baja restrictiva de deshabilitar: no rige la regla del
-     * "último plan no deshabilitado de una obra social activa" (eliminada en v3).
-     *
-     * @param plan {@code Plan} plan a validar
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si hay turnos vivos cubiertos por el plan
-     */
-    public void validateSinUsoVigente(Plan plan) {
-
-        long turnosVivos = turnoRepository.countByObraSocialPaciente_Plan_IdAndEstadoActualNotIn(plan.getId(), EstadoTurno.FINALES);
-        if (turnosVivos > 0) {
-            ZonedDateTime fechaMaxima = turnoRepository
-                    .findMaxFechaHoraInicioByPlanIdAndEstadoActualNotIn(plan.getId(), EstadoTurno.FINALES)
-                    .orElse(null);
-            log.warn("No se pudo deshabilitar el plan {}: {} turno(s) vivo(s), fecha máxima {}",
-                    plan.getCodigo(), turnosVivos, fechaMaxima);
-            throw new ReglaNegocioException(getClass(), "PLAN_CON_TURNOS_VIVOS",
-                    "El plan " + plan.getCodigo() + " tiene " + turnosVivos + " turno(s) vivo(s), el más lejano el "
-                            + fechaMaxima + ". No se puede deshabilitar.");
-        }
-
-    }
-
-    /**
-     * Abre el primer tramo del histórico de estados de un plan recién agregado
-     * ({@code NO_PUBLICADO}), y setea el {@code estadoActual}.
-     *
-     * @param plan {@code Plan} plan recién persistido
-     * @return {@code HistoricoEstadoPlan} el tramo abierto
-     */
-    public HistoricoEstadoPlan abrirTramoInicial(Plan plan) {
-
-        log.debug("Abriendo tramo inicial de estado para plan: código={}", plan.getCodigo());
-
-        plan.setEstadoActual(EstadoPlan.NO_PUBLICADO);
-        savePlan(plan);
-
-        HistoricoEstadoPlan tramo = new HistoricoEstadoPlan();
-        tramo.setPlan(plan);
-        tramo.setEstado(EstadoPlan.NO_PUBLICADO);
-        tramo.setFechaHoraInicio(ZonedDateTime.now());
-
-        return historicoEstadoPlanRepository.save(tramo);
-
-    }
-
-    /**
-     * Cierra el tramo vigente del histórico de estados del plan, abre uno nuevo con el
-     * estado destino, y actualiza {@code plan.estadoActual} — cache e histórico en la
-     * misma transacción.
-     *
-     * @param plan {@code Plan} plan a transicionar
-     * @param estadoNuevo {@code EstadoPlan} estado destino de la transición
-     * @param motivo {@code String} motivo de la transición, opcional
-     * @return {@code Plan} el plan con el nuevo estado actual
-     */
-    public Plan abrirTramoEstado(Plan plan, EstadoPlan estadoNuevo, String motivo) {
-
-        log.debug("Transición de estado de plan: código={}, {} -> {}", plan.getCodigo(), plan.getEstadoActual(), estadoNuevo);
-
-        ZonedDateTime ahora = ZonedDateTime.now();
-
-        HistoricoEstadoPlan tramoVigente = historicoEstadoPlanRepository
-                .findByPlanIdAndFechaHoraFinIsNull(plan.getId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "El plan " + plan.getCodigo() + " no tiene tramo de estado vigente."));
-        tramoVigente.setFechaHoraFin(ahora);
-        historicoEstadoPlanRepository.save(tramoVigente);
-
-        HistoricoEstadoPlan tramoNuevo = new HistoricoEstadoPlan();
-        tramoNuevo.setPlan(plan);
-        tramoNuevo.setEstado(estadoNuevo);
-        tramoNuevo.setFechaHoraInicio(ahora);
-        tramoNuevo.setMotivo(motivo);
-        historicoEstadoPlanRepository.save(tramoNuevo);
-
-        plan.setEstadoActual(estadoNuevo);
-
-        return savePlan(plan);
 
     }
 

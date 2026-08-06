@@ -76,14 +76,17 @@ public class PlanController {
 
         log.info("Solicitud recibida: actualizar plan id={}", id);
 
+        //Verificar que el id de la ruta coincida con el del body
         if (!id.equals(updatePlanRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updatePlanRequest.id());
             throw new ValidacionException(getClass(),
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
+        //Invocar caso de uso
         GetPlanResponse response = planApp.updatePlan(id, updatePlanRequest);
 
+        //Devolver Respuesta
         return ResponseEntity.ok(response);
 
     }
@@ -137,14 +140,17 @@ public class PlanController {
 
         log.info("Solicitud recibida: deshabilitar plan id={}", id);
 
+        //Verificar que el id de la ruta coincida con el del body
         if (!id.equals(deshabilitarPlanRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, deshabilitarPlanRequest.id());
             throw new ValidacionException(getClass(),
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
+        //Invocar caso de uso
         CambioEstadoPlanResponse response = planApp.deshabilitarPlan(id, deshabilitarPlanRequest);
 
+        //Devolver Respuesta
         return ResponseEntity.ok(response);
 
     }

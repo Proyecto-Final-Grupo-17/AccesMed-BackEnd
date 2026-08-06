@@ -180,8 +180,12 @@ Agrega un plan nuevo a una obra social **activa** ya existente. Nace en `NO_PUBL
 
 ### Actualizar plan — `PATCH /accesmed-api/Plan/Plan/{id}`
 
+Se puede modificar en `NO_PUBLICADO` o `PUBLICADO` — no hay bloqueo por publicación.
+`DESHABILITADO` es terminal e irreversible, así que un plan en ese estado no admite más
+cambios (mismo criterio que `Prestacion`).
+
 **Flujo simplificado:**
-1. Valida que el plan exista.
+1. Valida que el plan exista y no esté deshabilitado.
 2. Si vino `codigo`/`nombre`, valida unicidad dentro de la obra social (excluyendo este plan) y actualiza.
 3. Devuelve el plan actualizado.
 
@@ -198,7 +202,7 @@ Agrega un plan nuevo a una obra social **activa** ya existente. Nace en `NO_PUBL
 Mismo formato que en "Agregar plan a obra social".
 
 **Errores posibles:**
-- `PLAN_NO_ENCONTRADO` (404).
+- `PLAN_NO_ENCONTRADO` (404): el plan no existe o está deshabilitado.
 - `PLAN_CODIGO_DUPLICADO` / `PLAN_NOMBRE_DUPLICADO` (409).
 
 ---

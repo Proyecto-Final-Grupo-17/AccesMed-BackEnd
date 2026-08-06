@@ -4,21 +4,33 @@ import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.HistoricoEstadoPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Repositories.HistoricoEstadoPrestacionRepository;
-import lombok.AllArgsConstructor;
+import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZonedDateTime;
+import java.util.UUID;
 
-@Service
+/**
+ * Lógica de dominio y persistencia para la entidad {@code HistoricoEstadoPrestacion}.
+ * Encapsula la máquina de estados de {@code Prestacion}
+ * ({@code No Publicada ⇄ Publicada → Deshabilitada}), tocando únicamente su propio
+ * repositorio. Sus métodos siempre se invocan dentro de un método {@code @Transactional}
+ * del caso de uso (capa {@code Application}), que es el límite real de atomicidad.
+ */
 @Slf4j
-@AllArgsConstructor
+@Service
+@RequiredArgsConstructor
 public class HistoricoEstadoPrestacionDomainService {
 
+    //region ========== Dependencias o inyecciones ==========
 
     private final HistoricoEstadoPrestacionRepository historicoEstadoPrestacionRepository;
-    private final PrestacionDomainService prestacionDomainService;
+
+    //endregion
+
+    //region ========== Métodos ==========
 
     /**
      * Abre el primer tramo del histórico de estados de una prestación recién creada
@@ -27,7 +39,6 @@ public class HistoricoEstadoPrestacionDomainService {
      * @param prestacion {@code Prestacion} prestación recién persistida
      * @return {@code HistoricoEstadoPrestacion} el tramo abierto
      */
-    @Transactional
     public HistoricoEstadoPrestacion setInitialEstadoForNewPrestacion(Prestacion prestacion) {
 
         log.debug("Abriendo tramo inicial de estado para prestación: código={}", prestacion.getCodigo());
@@ -48,59 +59,68 @@ public class HistoricoEstadoPrestacionDomainService {
     /**
      * Cierra el tramo vigente del histórico de estados de la prestación, abre uno nuevo
      * con el estado destino, y actualiza {@code prestacion.estadoActual} — cache e
-     * histórico en la misma transacción.
+     * histórico en la misma transacción. La {@code Prestacion} se obtiene a través de la
+     * relación del propio tramo, sin llamar a {@code PrestacionDomainService}: queda
+     * persistida por dirty checking al cerrar la transacción abierta por el caso de uso
+     * que invoca este método.
      *
-     * @param prestacion {@code Prestacion} prestación a transicionar
+     * @param prestacionId {@code UUID} identificador de la prestación a transicionar
      * @param estadoNuevo {@code EstadoPrestacion} estado destino de la transición
      * @param motivo {@code String} motivo de la transición, opcional
      * @return {@code Prestacion} la prestación con el nuevo estado actual
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si la prestación ya
+     *         está deshabilitada o si la transición no es válida desde el estado vigente
      */
-    public Prestacion changeEstadoPrestacion(Prestacion prestacion, EstadoPrestacion estadoNuevo, String motivo) {
+    public Prestacion changeEstadoPrestacion(UUID prestacionId, EstadoPrestacion estadoNuevo, String motivo) {
+
+        //Buscar el tramo vigente no deshabilitado (si no existe, ya está deshabilitada)
+        HistoricoEstadoPrestacion historicoEstadoPrestacionVigente = historicoEstadoPrestacionRepository
+                .findByPrestacionIdAndFechaHoraFinIsNullAndEstadoNot(prestacionId, EstadoPrestacion.DESHABILITADA)
+                .orElseThrow(() -> {
+                    log.warn("No se pudo transicionar la prestación {}: ya está deshabilitada", prestacionId);
+                    return new ReglaNegocioException(getClass(), "PRESTACION_YA_DESHABILITADA",
+                            "La prestación ya está deshabilitada.");
+                });
+
+        //Obtener la Prestacion vía la relación del histórico
+        Prestacion prestacion = historicoEstadoPrestacionVigente.getPrestacion();
+        EstadoPrestacion estadoVigente = historicoEstadoPrestacionVigente.getEstado();
 
         log.debug("Transición de estado de prestación: código={}, {} -> {}", prestacion.getCodigo(),
-                prestacion.getEstadoActual(), estadoNuevo);
+                estadoVigente, estadoNuevo);
 
-        // Intentar obtener el tramo vigente cuyo estado NO sea DESHABILITADA y usar su prestacion asociada
-        HistoricoEstadoPrestacion historicoVigenteNoDeshabilitado = historicoEstadoPrestacionRepository
-                .findByPrestacionIdAndFechaHoraFinIsNullAndEstadoNot(prestacion.getId(), EstadoPrestacion.DESHABILITADA)
-                .orElse(null);
-n        HistoricoEstadoPrestacion historicoEstadoPrestacionVigente;
-        Prestacion prestacionOperativa;
-n        if (historicoVigenteNoDeshabilitado != null) {
-            historicoEstadoPrestacionVigente = historicoVigenteNoDeshabilitado;
-            prestacionOperativa = historicoVigenteNoDeshabilitado.getPrestacion();
-        } else {
-            // Si no existe tramo vigente distinto de DESHABILITADA, fallar con mensaje claro
-            throw new IllegalStateException("No hay tramo vigente distinto de Deshabilitada para la prestación " + prestacion.getCodigo());
+        //Validar la transición según el estado vigente
+        if (estadoNuevo == EstadoPrestacion.PUBLICADA && estadoVigente != EstadoPrestacion.NO_PUBLICADA) {
+            log.warn("No se pudo publicar la prestación {}: estado actual {}", prestacion.getCodigo(), estadoVigente);
+            throw new ReglaNegocioException(getClass(), "PRESTACION_NO_PUBLICABLE",
+                    "La prestación " + prestacion.getCodigo() + " no se puede publicar desde el estado " + estadoVigente + ".");
         }
 
-        // Validaciones de transición: delegar reglas de negocio a PrestacionDomainService sobre la prestación operativa
-        if (estadoNuevo == EstadoPrestacion.PUBLICADA) {
-            prestacionDomainService.validatePuedePublicar(prestacionOperativa);
-        } else if (estadoNuevo == EstadoPrestacion.NO_PUBLICADA) {
-            prestacionDomainService.validatePuedeDespublicar(prestacionOperativa);
+        if (estadoNuevo == EstadoPrestacion.NO_PUBLICADA && estadoVigente != EstadoPrestacion.PUBLICADA) {
+            log.warn("No se pudo despublicar la prestación {}: estado actual {}", prestacion.getCodigo(), estadoVigente);
+            throw new ReglaNegocioException(getClass(), "PRESTACION_NO_DESPUBLICABLE",
+                    "La prestación " + prestacion.getCodigo() + " no se puede despublicar desde el estado " + estadoVigente + ".");
         }
 
-        ZonedDateTime ahora = ZonedDateTime.now();
-
-        // Cerrar tramo vigente encontrado
-        historicoEstadoPrestacionVigente.setFechaHoraFin(ahora);
+        //Cerrar tramo vigente
+        historicoEstadoPrestacionVigente.setFechaHoraFin(ZonedDateTime.now());
         historicoEstadoPrestacionRepository.save(historicoEstadoPrestacionVigente);
 
-        //Crear nuevo HistoricoEstadoPrestacion sobre la misma prestación operativa
+        //Abrir tramo nuevo
         HistoricoEstadoPrestacion historicoEstadoPrestacionNuevo = new HistoricoEstadoPrestacion();
-        historicoEstadoPrestacionNuevo.setPrestacion(prestacionOperativa);
+        historicoEstadoPrestacionNuevo.setPrestacion(prestacion);
         historicoEstadoPrestacionNuevo.setEstado(estadoNuevo);
-        historicoEstadoPrestacionNuevo.setFechaHoraInicio(ahora);
+        historicoEstadoPrestacionNuevo.setFechaHoraInicio(ZonedDateTime.now());
         historicoEstadoPrestacionNuevo.setMotivo(motivo);
         historicoEstadoPrestacionRepository.save(historicoEstadoPrestacionNuevo);
 
-        //Actualizar estadoActual de la Prestacion operativa
-        prestacionOperativa.setEstadoActual(estadoNuevo);
+        //Actualizar estadoActual en memoria (se persiste por dirty checking)
+        prestacion.setEstadoActual(estadoNuevo);
 
-        return prestacionOperativa;
+        return prestacion;
 
     }
 
+    //endregion
 
 }

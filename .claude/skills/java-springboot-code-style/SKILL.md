@@ -176,6 +176,52 @@ singular; solo el nombre de la **carpeta** va en plural.
 
 El controller nunca llama al repository ni al domain service directo: pasa por el App.
 
+### 5.0 Un DomainService solo toca su propio repositorio
+
+Un `DomainService` **nunca** inyecta el repositorio de otra entidad ni llama a otro
+`DomainService`. Si necesita datos de una entidad relacionada por asociación JPA, la
+navega en vez de pedirla (ej. `historicoEstadoPrestacionVigente.getPrestacion()`); si
+necesita coordinar varias entidades (existencia de una, regla de negocio de otra), esa
+orquestación vive en el **App**, que sí puede inyectar varios `DomainService`.
+
+```java
+// ❌ PrestacionDomainService inyectando el repo de otra entidad
+private final PrestacionRepository prestacionRepository;
+private final TurnoRepository turnoRepository;   // ajeno — viola la regla
+
+// ✅ cada DomainService con lo suyo; el App orquesta
+// PrestacionApp.java
+private final PrestacionDomainService prestacionDomainService;
+private final TurnoDomainService turnoDomainService;   // domain service propio de Turno
+...
+turnoDomainService.validateSinTurnosVivos(id);
+```
+
+`@Transactional` vive en el **App** — es el límite real de "1 caso de uso = 1
+transacción" (ver `CLAUDE.md`). Los `DomainService` no llevan `@Transactional` propio,
+salvo que el método sea de solo lectura standalone o necesite abrir su propia transacción
+independiente de la del caso de uso que lo llama.
+
+### 5.0.1 `find<Entidad>Activa(o)ById`: buscar y validar el estado en un solo paso
+
+Cuando un flujo de **mutación** (update, transición de estado) necesita la entidad, el
+`find` que usa debe filtrar su estado terminal o soft-delete, no un `findById` a secas:
+
+```java
+// Repository
+Optional<Prestacion> findByIdAndEstadoActualNot(UUID id, EstadoPrestacion estadoActual);
+
+// DomainService
+public Prestacion findPrestacionActivaById(UUID id) {
+    return prestacionRepository.findByIdAndEstadoActualNot(id, EstadoPrestacion.DESHABILITADA)
+            .orElseThrow(() -> new RecursoNoEncontradoException(getClass(), "PRESTACION_NO_ENCONTRADA",
+                    "No existe una prestación activa con el id " + id));
+}
+```
+
+El `find<Entidad>ById` simple sin filtro se reserva para lecturas que sí necesitan ver el
+registro en cualquier estado (ej. un `GET` de detalle que muestra hasta las deshabilitadas).
+
 ```java
 @RestController
 @RequestMapping("/accesmed-api/Prestacion")
@@ -434,6 +480,13 @@ if (createPrestacionRequest.nombre() == null) {
 Sirven para narrar el flujo de negocio como una lista de pasos — especialmente valioso en
 el **App**, porque el método literalmente ES el flujo completo del caso de uso.
 
+**Solo en métodos con varios pasos reales.** Un método de un solo paso (`save<Entidad>`,
+`find<Entidad>ById`, un `validate*` con un único `if`) no lleva comentario: el nombre del
+método ya lo dice y el comentario sería ruido redundante. Los comentarios se ganan el
+lugar en métodos que encadenan varias acciones — típicamente todo método del App, y los
+métodos del DomainService con más de un paso (ej. `validateToleranciasPrestacion`, que
+valida duraciones, cadena de tolerancias, anuncio y recordatorio en bloques distintos).
+
 **Regla: comentar el *porqué*, no el *qué*.** Si el nombre del método/variable ya lo dice,
 el comentario no aporta nada y es ruido.
 
@@ -471,8 +524,11 @@ public CreatePrestacionResponse createPrestacion(CreatePrestacionRequest createP
     //Persistir la prestación
     Prestacion prestacionGuardada = prestacionDomainService.savePrestacion(prestacionNueva);
 
-    //Devolver el response mapeado
-    return prestacionMapper.toCreateResponse(prestacionGuardada);
+    //Mapear a create Prestacion Response
+    CreatePrestacionResponse createPrestacionResponse = prestacionMapper.toCreateResponse(prestacionGuardada);
+
+    //Retornar Respuesta
+    return createPrestacionResponse;
 
 }
 ```
@@ -481,6 +537,25 @@ El Javadoc **no cambia**: sigue arriba del método, completo, según la skill
 `java-springboot-javadoc` (una línea por `@param`/`@return`/`@throws`, tipos en
 `{@code}`). El paso a paso es información distinta y convive adentro del método — el
 Javadoc describe el contrato, el paso a paso narra la implementación.
+
+### 10.4 Retorno con variable nombrada
+
+Aunque el compilador no lo exija, el valor que se retorna se asigna primero a una
+variable con nombre descriptivo, y recién ahí se hace `return` — incluso cuando parece
+redundante. Ayuda a leer de un vistazo qué devuelve el método sin tener que desarmar la
+expresión, y da un punto natural para poner un breakpoint al debuggear.
+
+```java
+// ✅
+CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(prestacionPublicada);
+return cambioEstadoPrestacionResponse;
+
+// ❌ retorno directo, aunque compile igual
+return prestacionMapper.toCambioEstadoResponse(prestacionPublicada);
+```
+
+Aplica en Controller, App y DomainService, en cualquier método no trivial (no hace falta
+en un getter de una línea que ya es solo `return campo;`).
 
 ## Checklist de revisión de estilo
 
@@ -504,4 +579,11 @@ Javadoc describe el contrato, el paso a paso narra la implementación.
 - [ ] Javadoc según la skill `java-springboot-javadoc`; logging según `java-springboot-logging`.
 - [ ] Secciones con `//region`/`//endregion` (banner de ancho fijo `==========`), con línea en blanco después de abrir y antes de cerrar: Dependencias, Métodos, Métodos auxiliares privados (o Atributos/Relaciones en entidades).
 - [ ] Espaciado dentro del método: línea en blanco tras la firma, antes de la llave de cierre, y entre cada paso comentado (bloques `if`/`for` simples quedan compactos).
-- [ ] Comentarios paso a paso solo donde explican el *porqué*; nada que repita lo obvio del código.
+- [ ] Comentarios paso a paso solo en métodos con varios pasos reales; nada en métodos de
+      un solo paso (`save<Entidad>`, `find<Entidad>ById` simple).
+- [ ] Ningún `DomainService` inyecta el repositorio de otra entidad ni llama a otro
+      `DomainService`; la orquestación multi-entidad vive en el App (§5.0).
+- [ ] `@Transactional` solo en el App, salvo lectura standalone o transacción independiente.
+- [ ] Flujos de mutación usan `find<Entidad>Activa(o)ById` cuando la entidad tiene estado
+      terminal o soft-delete (§5.0.1), no un `findById` simple.
+- [ ] El valor de retorno se asigna a una variable nombrada antes del `return` (§10.4).

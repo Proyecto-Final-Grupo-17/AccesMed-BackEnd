@@ -7,7 +7,6 @@ import com.accesmed.backend.Records.Prestacion.Request.DeshabilitarPrestacionReq
 import com.accesmed.backend.Records.Prestacion.Request.UpdatePrestacionRequest;
 import com.accesmed.backend.Records.Prestacion.Response.CambioEstadoPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.CreatePrestacionResponse;
-import com.accesmed.backend.Records.Prestacion.Response.GetPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.ListPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.UpdatePrestacionResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
@@ -80,15 +79,18 @@ public class PrestacionController {
 
         log.info("Solicitud recibida: actualizar prestación id={}", id);
 
+        //Verificar que el id de la ruta coincida con el del body.
         if (!id.equals(updatePrestacionRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updatePrestacionRequest.id());
             throw new ValidacionException(getClass(),
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
-        UpdatePrestacionResponse response = prestacionApp.updatePrestacion(id, updatePrestacionRequest);
+        //Invocar caso de uso.
+        UpdatePrestacionResponse updatePrestacionResponse = prestacionApp.updatePrestacion(id, updatePrestacionRequest);
 
-        return ResponseEntity.ok(response);
+        //Devolver Respuesta
+        return ResponseEntity.ok(updatePrestacionResponse);
 
     }
 
@@ -99,13 +101,15 @@ public class PrestacionController {
      * @return {@code ResponseEntity<CambioEstadoPrestacionResponse>} la prestación publicada (HTTP 200)
      */
     @PatchMapping("/Prestacion/{id}/Publicar")
-    public ResponseEntity<CambioEstadoPrestacionResponse> publicarPrestacion(@PathVariable UUID id) {
+    public ResponseEntity<CambioEstadoPrestacionResponse> publishPrestacion(@PathVariable UUID id) {
 
         log.info("Solicitud recibida: publicar prestación id={}", id);
 
-        CambioEstadoPrestacionResponse response = prestacionApp.publicarPrestacion(id);
+        //Invocar caso de uso.
+        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionApp.publishPrestacion(id);
 
-        return ResponseEntity.ok(response);
+        //Devolver Respuesta
+        return ResponseEntity.ok(cambioEstadoPrestacionResponse);
 
     }
 
@@ -116,13 +120,15 @@ public class PrestacionController {
      * @return {@code ResponseEntity<CambioEstadoPrestacionResponse>} la prestación despublicada (HTTP 200)
      */
     @PatchMapping("/Prestacion/{id}/Despublicar")
-    public ResponseEntity<CambioEstadoPrestacionResponse> despublicarPrestacion(@PathVariable UUID id) {
+    public ResponseEntity<CambioEstadoPrestacionResponse> unpublishPrestacion(@PathVariable UUID id) {
 
         log.info("Solicitud recibida: despublicar prestación id={}", id);
 
-        CambioEstadoPrestacionResponse response = prestacionApp.despublicarPrestacion(id);
+        //Invocar caso de uso.
+        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionApp.unpublishPrestacion(id);
 
-        return ResponseEntity.ok(response);
+        //Devolver Respuesta
+        return ResponseEntity.ok(cambioEstadoPrestacionResponse);
 
     }
 
@@ -135,38 +141,24 @@ public class PrestacionController {
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
     @PatchMapping("/Prestacion/{id}/Deshabilitar")
-    public ResponseEntity<CambioEstadoPrestacionResponse> deshabilitarPrestacion(
+    public ResponseEntity<CambioEstadoPrestacionResponse> disablePrestacion(
             @PathVariable UUID id,
             @Valid @RequestBody DeshabilitarPrestacionRequest deshabilitarPrestacionRequest) {
 
         log.info("Solicitud recibida: deshabilitar prestación id={}", id);
 
+        //Verificar que el id de la ruta coincida con el del body.
         if (!id.equals(deshabilitarPrestacionRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, deshabilitarPrestacionRequest.id());
             throw new ValidacionException(getClass(),
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
-        CambioEstadoPrestacionResponse response = prestacionApp.deshabilitarPrestacion(id, deshabilitarPrestacionRequest);
+        //Invocar caso de uso.
+        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionApp.disablePrestacion(id, deshabilitarPrestacionRequest);
 
-        return ResponseEntity.ok(response);
-
-    }
-
-    /**
-     * Obtiene una prestación por su identificador.
-     *
-     * @param id {@code UUID} identificador de la prestación
-     * @return {@code ResponseEntity<GetPrestacionResponse>} la prestación encontrada (HTTP 200)
-     */
-    @GetMapping("/Prestacion/{id}")
-    public ResponseEntity<GetPrestacionResponse> findPrestacionById(@PathVariable UUID id) {
-
-        log.info("Solicitud recibida: obtener prestación id={}", id);
-
-        GetPrestacionResponse response = prestacionApp.findPrestacionById(id);
-
-        return ResponseEntity.ok(response);
+        //Devolver Respuesta
+        return ResponseEntity.ok(cambioEstadoPrestacionResponse);
 
     }
 
