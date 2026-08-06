@@ -60,35 +60,45 @@ public class HistoricoEstadoPrestacionDomainService {
         log.debug("Transición de estado de prestación: código={}, {} -> {}", prestacion.getCodigo(),
                 prestacion.getEstadoActual(), estadoNuevo);
 
-        // Validaciones de transición: delegar reglas de negocio a PrestacionDomainService
+        // Intentar obtener el tramo vigente cuyo estado NO sea DESHABILITADA y usar su prestacion asociada
+        HistoricoEstadoPrestacion historicoVigenteNoDeshabilitado = historicoEstadoPrestacionRepository
+                .findByPrestacionIdAndFechaHoraFinIsNullAndEstadoNot(prestacion.getId(), EstadoPrestacion.DESHABILITADA)
+                .orElse(null);
+n        HistoricoEstadoPrestacion historicoEstadoPrestacionVigente;
+        Prestacion prestacionOperativa;
+n        if (historicoVigenteNoDeshabilitado != null) {
+            historicoEstadoPrestacionVigente = historicoVigenteNoDeshabilitado;
+            prestacionOperativa = historicoVigenteNoDeshabilitado.getPrestacion();
+        } else {
+            // Si no existe tramo vigente distinto de DESHABILITADA, fallar con mensaje claro
+            throw new IllegalStateException("No hay tramo vigente distinto de Deshabilitada para la prestación " + prestacion.getCodigo());
+        }
+
+        // Validaciones de transición: delegar reglas de negocio a PrestacionDomainService sobre la prestación operativa
         if (estadoNuevo == EstadoPrestacion.PUBLICADA) {
-            prestacionDomainService.validatePuedePublicar(prestacion);
+            prestacionDomainService.validatePuedePublicar(prestacionOperativa);
         } else if (estadoNuevo == EstadoPrestacion.NO_PUBLICADA) {
-            prestacionDomainService.validatePuedeDespublicar(prestacion);
+            prestacionDomainService.validatePuedeDespublicar(prestacionOperativa);
         }
 
         ZonedDateTime ahora = ZonedDateTime.now();
 
-        //Buscar instancia de EstadoPrestacion
-        HistoricoEstadoPrestacion historicoEstadoPrestacionVigente = historicoEstadoPrestacionRepository
-                .findByPrestacionIdAndFechaHoraFinIsNull(prestacion.getId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "La prestación " + prestacion.getCodigo() + " no tiene tramo de estado vigente."));
+        // Cerrar tramo vigente encontrado
         historicoEstadoPrestacionVigente.setFechaHoraFin(ahora);
         historicoEstadoPrestacionRepository.save(historicoEstadoPrestacionVigente);
 
-        //Crear nuevo HistoricoEstadoPrestacion
+        //Crear nuevo HistoricoEstadoPrestacion sobre la misma prestación operativa
         HistoricoEstadoPrestacion historicoEstadoPrestacionNuevo = new HistoricoEstadoPrestacion();
-        historicoEstadoPrestacionNuevo.setPrestacion(prestacion);
+        historicoEstadoPrestacionNuevo.setPrestacion(prestacionOperativa);
         historicoEstadoPrestacionNuevo.setEstado(estadoNuevo);
         historicoEstadoPrestacionNuevo.setFechaHoraInicio(ahora);
         historicoEstadoPrestacionNuevo.setMotivo(motivo);
         historicoEstadoPrestacionRepository.save(historicoEstadoPrestacionNuevo);
 
-        //Actualizar estadoActual de la Prestacion
-        prestacion.setEstadoActual(estadoNuevo);
+        //Actualizar estadoActual de la Prestacion operativa
+        prestacionOperativa.setEstadoActual(estadoNuevo);
 
-        return prestacion;
+        return prestacionOperativa;
 
     }
 

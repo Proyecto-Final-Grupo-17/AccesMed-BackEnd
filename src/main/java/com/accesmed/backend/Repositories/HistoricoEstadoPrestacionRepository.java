@@ -21,4 +21,14 @@ public interface HistoricoEstadoPrestacionRepository extends JpaRepository<Histo
      */
     Optional<HistoricoEstadoPrestacion> findByPrestacionIdAndFechaHoraFinIsNull(UUID prestacionId);
 
+    /**
+     * Busca el tramo vigente (sin {@code fechaHoraFin}) de una prestación cuyo estado no sea el indicado.
+     *
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @param estado {@code com.accesmed.backend.Domain.EstadoPrestacion} estado a excluir
+     * @return {@code Optional<HistoricoEstadoPrestacion>} el tramo vigente con estado distinto al proporcionado, si existe
+     */
+    Optional<HistoricoEstadoPrestacion> findByPrestacionIdAndFechaHoraFinIsNullAndEstadoNot(UUID prestacionId, com.accesmed.backend.Domain.EstadoPrestacion estado);
+
+
 }
