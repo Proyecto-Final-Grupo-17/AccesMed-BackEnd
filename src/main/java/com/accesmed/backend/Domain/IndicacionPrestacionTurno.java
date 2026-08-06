@@ -59,7 +59,7 @@ public class IndicacionPrestacionTurno extends Auditable {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "validado_por_id", foreignKey = @jakarta.persistence.ForeignKey(name = "fk_indicacion_prestacion_turno_validado_por"))
-    private Usuario validadoPor;
+    private Admin validadoPor;
 
     //endregion
 

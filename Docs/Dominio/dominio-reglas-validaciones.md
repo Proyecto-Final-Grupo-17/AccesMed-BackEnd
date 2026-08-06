@@ -13,7 +13,7 @@ Fuente de verdad estructural: `modelo_acces_med_v3.json` y `modelo_dte_turno_v3.
 5. **`IndicacionPrestacion` pasó al eje de vigencia y se volvió modificable, pero con restricción.** No se puede modificar mientras tenga turnos en estado no final; para cambiarla se programa el relevo con `fechaInicioVigencia` / `fechaFinVigencia`. **`IndicacionPrestacionTurno` sigue leyendo el texto por navegabilidad**, sin copiarlo: la combinación de vigencia y restricción lo vuelve seguro.
 6. **La modificación de `Prestacion` no se restringe por turnos**, pero al cambiar las duraciones o `tiempoToleranciaSolicitud` revalida y recalcula los `AgendaHorarios` futuros libres.
 7. **`Especialidad` tiene baja restrictiva.**
-8. **La baja de `Medico` arrastra su `Usuario`**, y la asociación `Usuario`–`Medico` pasó a ser bidireccional para poder alcanzarla.
+8. **La baja de `Medico` y la baja de `Usuario` quedan desacopladas**: ninguna arrastra a la otra. La asociación `Usuario`–`Medico`/`Admin` es **unidireccional** (la FK vive en `usuario`; `Medico` y `Admin` no la navegan de vuelta). `Usuario` se crea con dos caminos según el rol: rol médico crea también la instancia de `Medico` con los datos recibidos, rol admin crea la instancia de `Admin`.
 9. **Clase nueva `Archivo`**: N→1 `Paciente` (obligatoria) y N→1 `Turno` (opcional).
 10. **El estado `En Transcurso` pasó a llamarse `En Curso`.**
 
@@ -87,7 +87,7 @@ Fuente de verdad estructural: `modelo_acces_med_v3.json` y `modelo_dte_turno_v3.
 
 ### Seguridad
 
-- **Usuario** — credencial pura. Apunta a un `Medico` **o** a un `Admin`, nunca a los dos ni a ninguno. La asociación es **bidireccional**: la FK vive en `usuario`, pero `Medico` y `Admin` conocen su credencial, porque la baja de la persona tiene que alcanzarla.
+- **Usuario** — credencial pura. Apunta a un `Medico` **o** a un `Admin`, nunca a los dos ni a ninguno. La asociación es **unidireccional**: la FK vive en `usuario`; `Medico` y `Admin` no la navegan de vuelta. Se crea con dos caminos según el rol: rol médico crea también la instancia de `Medico` con los datos recibidos, rol admin crea la instancia de `Admin`.
 - **Admin** — personal administrativo. Se mantiene como clase porque tiene datos propios.
 - **Rol** — conjunto de permisos. Los roles de sistema (`esSistema` verdadero) no se editan ni se dan de baja.
 - **Permiso** — enum, catálogo fijo en código. Se relaciona con `Rol` como asociación N:N, materializada en la tabla `rol_permiso`.
@@ -390,6 +390,7 @@ AgendaHorarios.fechaLimiteReserva  ≤  ahora  ...  fechaHoraInicio ≤ ahora + 
 - Un médico tiene una sola especialidad.
 - **Solo se pueden asignar prestaciones cuya `especialidad` coincida con la del médico.**
 - **La baja de `Especialidad` es restrictiva.** No se puede dar de baja una especialidad si existe alguna `Prestacion` **no deshabilitada** con esa especialidad, ni ningún `Medico` activo con esa especialidad. No hay cascada: el administrador tiene que deshabilitar o reasignar primero. Es la misma forma de la baja de `TipoIndicacionPrestacion`.
+- **La baja de `Medico` es restrictiva por turnos vivos.** No se puede dar de baja un médico con algún `Turno` en estado vigente no final. Detalle y cómo se resuelve, en §6.
 
 #### Asignación de prestaciones por vigencia
 
@@ -556,8 +557,9 @@ Simétrico al de prestación, con las instancias *No Publicado*, *Publicado*, *D
 
 - `Usuario.mail` es credencial y **no se copia** del email de contacto de la persona.
 - Unicidad de `mail` entre activos; unicidad global de `medico` y de `admin`.
-- **La asociación `Usuario`–`Medico` es bidireccional.** La FK sigue viviendo en `usuario` — es el lado que sabe a quién pertenece la credencial — pero la navegabilidad se abre en los dos sentidos porque la baja del médico tiene que alcanzar su usuario. Sin eso, el CU `Baja de Médico` no podría escribir "Buscar el `Usuario` relacionado al `Medico`" sin violar la navegabilidad del diagrama. Lo mismo para `Usuario`–`Admin`, por simetría.
-- **La baja de la persona da de baja la credencial; la baja de la credencial no da de baja la persona.** Es asimétrico a propósito: quitarle el panel a un médico que sigue atendiendo es una operación legítima y frecuente; borrar al médico y dejarle el acceso vivo, no.
+- **La asociación `Usuario`–`Medico`/`Admin` es unidireccional.** La FK vive en `usuario` — es el único lado que sabe a quién pertenece la credencial. `Medico` y `Admin` no navegan de vuelta hacia su `Usuario`; si algún CU necesita esa dirección, es una consulta de repositorio (`UsuarioRepository.findByMedicoId` / `findByAdminId`), no una relación de dominio.
+- **Crear un `Usuario` crea también la instancia de la persona, en la misma operación, según el rol elegido**: rol médico da de alta un `Medico` con los datos recibidos; rol admin da de alta un `Admin`. No es un alta en dos pasos con dos aggregate roots separados — es un único caso de uso que, puertas adentro, escribe las dos tablas.
+- **La baja se desentiende del modelo: `Usuario` y la persona (`Medico`/`Admin`) se dan de baja cada uno por su cuenta, sin cascada en ningún sentido.** Dar de baja el `Usuario` no toca a la persona, y dar de baja la persona no toca su `Usuario`. El `Usuario` se puede dar de baja en cualquier momento. Si un caso de uso necesita que las dos bajas ocurran juntas (p. ej. offboarding completo), lo orquesta explícitamente el `App` llamando a los dos `DomainService`, no es un comportamiento implícito de la relación.
 - La contraseña se almacena solo como `passwordHash`.
 - `Rol`: unicidad de `nombre` entre activos, al menos un permiso, y el nombre no puede coincidir con el de un rol de sistema.
 - Los roles de sistema (`Medico`, `Admin`) no se editan ni se dan de baja.
@@ -583,7 +585,7 @@ En la v2 la regla de fondo era "toda baja es lógica y casi todas cascadean". En
 | `ObraSocial` | baja lógica | **restrictiva** por transitividad, después cascada sobre sus planes |
 | `Especialidad` | baja lógica | **restrictiva** por prestaciones y médicos |
 | `TipoIndicacionPrestacion` | baja lógica | **restrictiva** por indicaciones activas |
-| `Medico` | baja lógica | cascada, con cancelación de turnos |
+| `Medico` | baja lógica | **restrictiva** por turnos vivos, después cascada de agenda y `MedicoPrestacion` |
 | `Paciente` | baja lógica | cascada sobre coberturas y archivos |
 | `Rol` | baja lógica | cascada sobre `UsuarioRol` vigentes |
 
@@ -627,21 +629,25 @@ No se opera sobre el médico: se opera sobre la agenda.
 
 - Si la salida coincide con el fin de vigencia actual: no hacer nada, dejar vencer.
 - Si se va antes: adelantar `fechaHoraFinVigencia`, dar de baja los `AgendaDia` posteriores con sus `AgendaHorarios` en cascada, y resolver los turnos que caigan después del nuevo corte.
-- El día siguiente al último turno se ejecuta la baja del `Medico`, que ya no arrastra nada salvo `MedicoPrestacion`, `Usuario` y `UsuarioRol`.
+- El día siguiente al último turno, ya sin turnos vivos pendientes, se ejecuta la baja del `Medico` (ver más abajo), que solo arrastra `MedicoPrestacion`.
 
 **No existe fecha de baja futura como atributo.** `deletedAt` distinto de vacío significa siempre "ya está de baja".
 
-### Médico — baja abrupta
+### Médico — baja
 
-Es la única baja del sistema que **sí** cancela turnos en lote, y se mantiene así porque el médico es insustituible: si no está, el turno no se puede dar.
+**Restrictiva por turnos vivos**, igual que el resto del catálogo (`Prestacion`, `Plan`, `Especialidad`, `TipoIndicacionPrestacion`). Deja de ser la excepción de la v3 original que cancelaba turnos en lote: se alinea con el criterio de fondo de este apartado — si hay turnos vivos, la operación se rechaza.
 
-1. Mostrar la cantidad de turnos afectados y pedir confirmación.
-2. Baja atómica, en una sola transacción: `Medico` + `AgendaMedico` vigente (con `AgendaDia` y `AgendaHorarios` en cascada) + cierre de `fechaFinVigencia` de sus `MedicoPrestacion` vigentes + `Usuario`, si existe + cierre de `fechaFinVigencia` de los `UsuarioRol` vigentes de ese usuario.
-3. Cancelación de cada turno activo futuro con `Ir a CU` y `motivoCancelacion = BAJA_DE_MEDICO`.
+**Precondición restrictiva** — se comprueba antes de cualquier escritura:
 
-Ese orden es deliberado: si falla una cancelación se reintenta, mientras que al revés habrían quedado turnos cancelados de un médico activo. La reprogramación queda como acción posterior y opcional, no en lote.
+1. Ningún `Turno` del médico con estado vigente no final.
 
-**El paso 2 es lo que resuelve la pregunta de qué pasa con el usuario del médico.** No hay tres caminos: hay uno. `Baja de Médico` da de baja las dos cosas en la misma transacción, y `Baja de Usuario Interno` **no toca al médico** — solo le quita el acceso al panel, dejándolo activo para seguir atendiendo. Ese usuario dado de baja no bloquea un alta futura, porque `Usuario.medico` es único **globalmente**: hay que reactivar el que existe, no crear otro.
+Si falla, el CU termina por excepción y le muestra al administrador cuántos turnos lo impiden. **No hay confirmación que lo saltee.**
+
+Cumplida la precondición, baja atómica en una sola transacción: `Medico` + `AgendaMedico` vigente (con `AgendaDia` y `AgendaHorarios` en cascada) + cierre de `fechaFinVigencia` de sus `MedicoPrestacion` vigentes.
+
+**Cómo se llega a cumplir la precondición cuando hay turnos vivos: `Cancelar Turnos de Médico`, un CU aparte.** Cancela en lote todos los turnos no finales del médico (`motivoCancelacion = BAJA_DE_MEDICO`), sin dar de baja nada más. Es una operación independiente que el administrador invoca explícitamente antes de reintentar la baja — no un paso implícito de ella. (Pendiente de implementar; queda anotado como CU futuro.)
+
+**El `Usuario` del médico queda fuera de todo esto.** La baja se desentiende del modelo: `Baja de Médico` no toca su `Usuario`, y `Baja de Usuario Interno` no toca al `Medico` — solo le quita el acceso al panel, dejándolo activo para seguir atendiendo. Ese usuario dado de baja no bloquea un alta futura, porque `Usuario.medico` es único **globalmente**: hay que reactivar el que existe, no crear otro. Si un offboarding real necesita dar de baja las dos cosas, son dos operaciones explícitas, no una cascada implícita de la relación.
 
 ### Paciente
 
@@ -791,9 +797,9 @@ Un admin puede operar sobre el médico que seleccione, si tiene el permiso corre
 - `Buscar` es una consulta de repositorio, filtrable por cualquier atributo o relación sin importar
   la dirección.
 
-Importa para dos casos del v3: `IndicacionPrestacionTurno` **lee** el texto de `IndicacionPrestacion`
-por navegabilidad, y la baja de `Medico` **lee** su `Usuario`, que es lo que obligó a volver esa
-asociación bidireccional.
+Importa para `IndicacionPrestacionTurno`, que **lee** el texto de `IndicacionPrestacion` por
+navegabilidad. La baja de `Medico` **no** necesita leer su `Usuario`: quedaron desacoplados y sin
+cascada (ver §5 USER y AUTZ), así que ya no es un caso que dependa de navegabilidad bidireccional.
 
 ### 11.3 Funciones por módulo
 

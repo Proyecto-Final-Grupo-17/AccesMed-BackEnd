@@ -268,10 +268,10 @@
         }
       ],
       "reglasValidacion": [
-        "La baja del Medico da de baja en la misma transaccion su Usuario, si existe, y cierra los UsuarioRol vigentes de ese Usuario",
+        "La baja del Medico y la baja de su Usuario son independientes: ninguna arrastra a la otra a nivel de modelo",
+        "No se puede dar de baja un Medico si existe algun Turno suyo con estado vigente no final: la baja es restrictiva, no cascada",
         "La baja del Medico cierra la fechaFinVigencia de sus MedicoPrestacion vigentes",
-        "La baja del Medico cancela los Turnos de estado no final con motivoCancelacion BAJA_DE_MEDICO",
-        "La baja del Usuario por su cuenta NO da de baja al Medico: solo le quita el acceso al panel"
+        "Cancelar Turnos de Medico (CU aparte, motivoCancelacion BAJA_DE_MEDICO) cancela en lote los turnos no finales del medico sin dar de baja nada mas; es el camino para cumplir la precondicion de la baja"
       ]
     },
     {
@@ -1312,8 +1312,9 @@
       ],
       "reglasValidacion": [
         "Exactamente uno de medico / admin esta presente",
-        "La asociacion con Medico y con Admin es bidireccional: la FK vive en usuario, pero Medico y Admin conocen su Usuario",
-        "Dar de baja el Usuario no da de baja a la persona; dar de baja la persona si da de baja el Usuario",
+        "La asociacion con Medico y con Admin es unidireccional: la FK vive en usuario; Medico y Admin no la navegan de vuelta",
+        "Crear un Usuario crea tambien, en la misma operacion, la instancia de la persona segun el rol: rol medico crea un Medico con los datos recibidos, rol admin crea un Admin",
+        "La baja del Usuario y la baja de la persona (Medico/Admin) son independientes: ninguna arrastra a la otra a nivel de modelo",
         "Los artefactos de UserDetails de Spring Security no son parte del modelo: isEnabled() se deriva de deletedAt vacio"
       ]
     },
@@ -1602,16 +1603,16 @@
       "destino": "Medico",
       "multOrigen": "0..1",
       "multDestino": "1",
-      "navegable": "bidireccional",
-      "nota": "La FK vive en usuario, pero la asociación es navegable en ambos sentidos: la baja de la persona necesita alcanzar su credencial."
+      "navegable": "origen->destino",
+      "nota": "La FK vive en usuario. Medico no navega de vuelta; su baja y la del Usuario son independientes."
     },
     {
       "origen": "Usuario",
       "destino": "Admin",
       "multOrigen": "0..1",
       "multDestino": "1",
-      "navegable": "bidireccional",
-      "nota": "La FK vive en usuario, pero la asociación es navegable en ambos sentidos: la baja de la persona necesita alcanzar su credencial."
+      "navegable": "origen->destino",
+      "nota": "La FK vive en usuario. Admin no navega de vuelta; su baja y la del Usuario son independientes."
     },
     {
       "origen": "UsuarioRol",

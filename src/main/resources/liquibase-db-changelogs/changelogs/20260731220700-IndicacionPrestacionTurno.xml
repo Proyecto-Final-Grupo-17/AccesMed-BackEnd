@@ -20,7 +20,7 @@
                 <constraints nullable="false" foreignKeyName="fk_indicacion_prestacion_turno_indicacion_prestacion" references="indicacion_prestacion(id)"/>
             </column>
             <column name="validado_por_id" type="uuid">
-                <constraints nullable="true" foreignKeyName="fk_indicacion_prestacion_turno_validado_por" references="usuario(id)"/>
+                <constraints nullable="true" foreignKeyName="fk_indicacion_prestacion_turno_validado_por" references="admin(id)"/>
             </column>
             <!-- ====== Columnas auditoría (incluye a la baja) ====== -->
             <column name="created_at" type="timestamptz">
