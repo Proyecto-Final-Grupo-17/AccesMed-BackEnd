@@ -12,19 +12,14 @@ import com.accesmed.backend.Records.Prestacion.Request.DeshabilitarPrestacionReq
 import com.accesmed.backend.Records.Prestacion.Request.UpdatePrestacionRequest;
 import com.accesmed.backend.Records.Prestacion.Response.CambioEstadoPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.CreatePrestacionResponse;
-import com.accesmed.backend.Records.Prestacion.Response.GetPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.ListPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.UpdatePrestacionResponse;
-import com.accesmed.backend.Services.DomainServices.EspecialidadDomainService;
-import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
-import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
-import com.accesmed.backend.Services.DomainServices.TipoIndicacionPrestacionDomainService;
+import com.accesmed.backend.Services.DomainServices.*;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.Mappers.IndicacionPrestacionMapper;
 import com.accesmed.backend.Services.Mappers.PrestacionMapper;
-import com.accesmed.backend.Services.QueryServices.IndicacionPrestacionQueryService;
 import com.accesmed.backend.Services.QueryServices.PrestacionQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,17 +40,22 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PrestacionApp {
 
-    //region ========== Dependencias o inyecciones ==========
+    //region ========== Dependencias ==========
 
+
+    //Domain Services
     private final PrestacionDomainService prestacionDomainService;
     private final IndicacionPrestacionDomainService indicacionPrestacionDomainService;
     private final EspecialidadDomainService especialidadDomainService;
     private final TipoIndicacionPrestacionDomainService tipoIndicacionPrestacionDomainService;
-    private final PrestacionQueryService prestacionQueryService;
-    private final IndicacionPrestacionQueryService indicacionPrestacionQueryService;
+    private final HistoricoEstadoPrestacionDomainService historicoEstadoPrestacionDomainService;
+
+    //Mappers
     private final PrestacionMapper prestacionMapper;
     private final IndicacionPrestacionMapper indicacionPrestacionMapper;
 
+    //Query Services
+    private final PrestacionQueryService prestacionQueryService;
     //endregion
 
     //region ========== Métodos ==========
@@ -74,9 +74,13 @@ public class PrestacionApp {
 
         log.info("Creación de prestación iniciada: código={}", createPrestacionRequest.codigo());
 
+        //Validar que el código sea único para una prestación activa.
         prestacionDomainService.validateCodigoPrestacionIsUnique(createPrestacionRequest.codigo());
+
+        //Validar que el nombre sea único para una prestación activa.
         prestacionDomainService.validateNombrePrestacionIsUnique(createPrestacionRequest.nombre());
 
+        //Validar tolerancias.
         prestacionDomainService.validateToleranciasPrestacion(
                 createPrestacionRequest.duracionMinimaMinutos(),
                 createPrestacionRequest.duracionMaximaMinutos(),
@@ -89,13 +93,19 @@ public class PrestacionApp {
                 createPrestacionRequest.tiempoRecordatorioConfirmacionMinutos()
         );
 
-        Especialidad especialidadExistente = especialidadDomainService.findEspecialidadById(createPrestacionRequest.especialidadId());
+        //Validar que la especialidad existe y este activa
+        Especialidad especialidadExistente = especialidadDomainService.findActiveEspecialidadById(createPrestacionRequest.especialidadId());
 
+        //Mapear nueva Prestacion y setear su Especialiad
         Prestacion prestacionNueva = prestacionMapper.toEntity(createPrestacionRequest);
         prestacionNueva.setEspecialidad(especialidadExistente);
 
+        //Setear estado inicial
+        historicoEstadoPrestacionDomainService.setInitialEstadoForNewPrestacion(prestacionNueva);
+
+        //Guardar Prestacion
         Prestacion prestacionGuardada = prestacionDomainService.savePrestacion(prestacionNueva);
-        prestacionDomainService.abrirTramoInicial(prestacionGuardada);
+
 
         List<GetIndicacionPrestacionResponse> indicacionesResponse = new ArrayList<>();
         if (createPrestacionRequest.indicaciones() != null && !createPrestacionRequest.indicaciones().isEmpty()) {
@@ -171,17 +181,6 @@ public class PrestacionApp {
 
     }
 
-    /**
-     * Resuelve el valor en minutos a usar para revalidar la cadena de tolerancias:
-     * el nuevo valor si vino en el request, o el valor actual de la prestación si no.
-     *
-     * @param minutosNuevos {@code Integer} valor nuevo, o {@code null} si no vino en el request
-     * @param duracionActual {@code java.time.Duration} valor actual de la prestación
-     * @return {@code Integer} el valor en minutos a usar para la revalidación
-     */
-    private Integer orElseActual(Integer minutosNuevos, java.time.Duration duracionActual) {
-        return minutosNuevos != null ? minutosNuevos : (int) duracionActual.toMinutes();
-    }
 
     /**
      * Publica una prestación (transición reversible {@code NO_PUBLICADA -> PUBLICADA}).
@@ -193,15 +192,13 @@ public class PrestacionApp {
      * @throws ReglaNegocioException {@code ReglaNegocioException} si no se puede publicar desde el estado actual
      */
     @Transactional
-    public CambioEstadoPrestacionResponse publicarPrestacion(UUID id) {
+    public CambioEstadoPrestacionResponse publishPrestacion(UUID id) {
 
         log.info("Publicación de prestación iniciada: id={}", id);
 
         Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(id);
 
-        prestacionDomainService.validatePuedePublicar(prestacionExistente);
-
-        Prestacion prestacionPublicada = prestacionDomainService.abrirTramoEstado(prestacionExistente, EstadoPrestacion.PUBLICADA, null);
+        Prestacion prestacionPublicada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(prestacionExistente, EstadoPrestacion.PUBLICADA, null);
 
         return prestacionMapper.toCambioEstadoResponse(prestacionPublicada);
 
@@ -216,15 +213,13 @@ public class PrestacionApp {
      * @throws ReglaNegocioException {@code ReglaNegocioException} si no se puede despublicar desde el estado actual
      */
     @Transactional
-    public CambioEstadoPrestacionResponse despublicarPrestacion(UUID id) {
+    public CambioEstadoPrestacionResponse unpublishPrestacion(UUID id) {
 
         log.info("Despublicación de prestación iniciada: id={}", id);
 
         Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(id);
 
-        prestacionDomainService.validatePuedeDespublicar(prestacionExistente);
-
-        Prestacion prestacionDespublicada = prestacionDomainService.abrirTramoEstado(prestacionExistente, EstadoPrestacion.NO_PUBLICADA, null);
+        Prestacion prestacionDespublicada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(prestacionExistente, EstadoPrestacion.NO_PUBLICADA, null);
 
         return prestacionMapper.toCambioEstadoResponse(prestacionDespublicada);
 
@@ -242,7 +237,7 @@ public class PrestacionApp {
      * @throws ReglaNegocioException {@code ReglaNegocioException} si ya está deshabilitada o tiene uso vigente
      */
     @Transactional
-    public CambioEstadoPrestacionResponse deshabilitarPrestacion(UUID id, DeshabilitarPrestacionRequest deshabilitarPrestacionRequest) {
+    public CambioEstadoPrestacionResponse disablePrestacion(UUID id, DeshabilitarPrestacionRequest deshabilitarPrestacionRequest) {
 
         log.info("Deshabilitación de prestación iniciada: id={}", id);
 
@@ -268,22 +263,6 @@ public class PrestacionApp {
      * @return {@code GetPrestacionResponse} la prestación encontrada, con sus indicaciones
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la prestación no existe
      */
-    @Transactional(readOnly = true)
-    public GetPrestacionResponse findPrestacionById(UUID id) {
-
-        log.info("Búsqueda de prestación iniciada: id={}", id);
-
-        Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(id);
-
-        List<IndicacionPrestacion> indicacionesActivas = indicacionPrestacionQueryService
-                .findIndicacionesPrestacionByPrestacion(id);
-        List<GetIndicacionPrestacionResponse> indicacionesResponse = indicacionesActivas.stream()
-                .map(indicacionPrestacionMapper::toGetResponse)
-                .toList();
-
-        return prestacionMapper.toGetResponse(prestacionExistente, indicacionesResponse);
-
-    }
 
     /**
      * Lista prestaciones según los filtros proporcionados.
@@ -314,6 +293,20 @@ public class PrestacionApp {
                 .toList();
 
     }
+
+
+    /**
+     * Resuelve el valor en minutos a usar para revalidar la cadena de tolerancias:
+     * el nuevo valor si vino en el request, o el valor actual de la prestación si no.
+     *
+     * @param minutosNuevos {@code Integer} valor nuevo, o {@code null} si no vino en el request
+     * @param duracionActual {@code java.time.Duration} valor actual de la prestación
+     * @return {@code Integer} el valor en minutos a usar para la revalidación
+     */
+    private Integer orElseActual(Integer minutosNuevos, java.time.Duration duracionActual) {
+        return minutosNuevos != null ? minutosNuevos : (int) duracionActual.toMinutes();
+    }
+
 
     //endregion
 
