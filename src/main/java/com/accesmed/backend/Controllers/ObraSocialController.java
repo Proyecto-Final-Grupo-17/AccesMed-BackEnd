@@ -56,9 +56,9 @@ public class ObraSocialController {
 
         log.info("Solicitud recibida: crear obra social código={}", createObraSocialRequest.codigo());
 
-        CreateObraSocialResponse response = obraSocialApp.createObraSocial(createObraSocialRequest);
+        CreateObraSocialResponse createObraSocialResponse = obraSocialApp.createObraSocial(createObraSocialRequest);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createObraSocialResponse);
 
     }
 
@@ -85,10 +85,10 @@ public class ObraSocialController {
         }
 
         //Invocar caso de uso
-        GetObraSocialResponse response = obraSocialApp.updateObraSocial(id, updateObraSocialRequest);
+        GetObraSocialResponse getObraSocialResponse = obraSocialApp.updateObraSocial(updateObraSocialRequest);
 
         //Devolver Respuesta
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(getObraSocialResponse);
 
     }
 
@@ -103,9 +103,9 @@ public class ObraSocialController {
 
         log.info("Solicitud recibida: obtener obra social id={}", id);
 
-        GetObraSocialResponse response = obraSocialApp.findObraSocialById(id);
+        GetObraSocialResponse getObraSocialResponse = obraSocialApp.findObraSocialById(id);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(getObraSocialResponse);
 
     }
 
@@ -119,9 +119,9 @@ public class ObraSocialController {
 
         log.info("Solicitud recibida: listar obras sociales");
 
-        List<ListObraSocialResponse> response = obraSocialApp.findObrasSociales();
+        List<ListObraSocialResponse> listObraSocialResponse = obraSocialApp.findObrasSociales();
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(listObraSocialResponse);
 
     }
 
@@ -137,9 +137,9 @@ public class ObraSocialController {
 
         log.info("Solicitud recibida: dar de baja obra social id={}", id);
 
-        SoftDeleteObraSocialResponse response = obraSocialApp.softDeleteObraSocial(id);
+        SoftDeleteObraSocialResponse softDeleteObraSocialResponse = obraSocialApp.softDeleteObraSocial(id);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(softDeleteObraSocialResponse);
 
     }
 

@@ -92,10 +92,8 @@ public class ObraSocialApp {
             planesResponse.add(planMapper.toGetPlanAnidadoResponse(planGuardado));
         }
 
-        //Mapear a create ObraSocial Response
+        //Devolver response mapeado
         CreateObraSocialResponse createObraSocialResponse = obraSocialMapper.toCreateResponse(obraSocialGuardada, planesResponse);
-
-        //Retornar Respuesta
         return createObraSocialResponse;
 
     }
@@ -103,14 +101,16 @@ public class ObraSocialApp {
     /**
      * Actualiza una obra social existente.
      *
-     * @param id {@code UUID} identificador de la ruta
-     * @param updateObraSocialRequest {@code UpdateObraSocialRequest} datos a actualizar
+     * @param updateObraSocialRequest {@code UpdateObraSocialRequest} datos a actualizar, incluyendo
+     *        el id de la obra social (ya validado contra la ruta en el Controller)
      * @return {@code GetObraSocialResponse} la obra social actualizada, con sus planes
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la obra social no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el código o nombre son duplicados
      */
     @Transactional
-    public GetObraSocialResponse updateObraSocial(UUID id, UpdateObraSocialRequest updateObraSocialRequest) {
+    public GetObraSocialResponse updateObraSocial(UpdateObraSocialRequest updateObraSocialRequest) {
+
+        UUID id = updateObraSocialRequest.id();
 
         log.info("Actualización de obra social iniciada: id={}", id);
 
@@ -129,12 +129,10 @@ public class ObraSocialApp {
         obraSocialMapper.updateObraSocial(obraSocialExistente, updateObraSocialRequest);
         ObraSocial obraSocialActualizada = obraSocialDomainService.saveObraSocial(obraSocialExistente);
 
-        //Mapear a get ObraSocial Response con sus planes
+        //Devolver response mapeado, con los planes de la obra social
         List<GetPlanAnidadoResponse> planesResponse = planMapper
                 .toGetPlanAnidadoResponses(planQueryService.findPlanesByObraSocial(id));
         GetObraSocialResponse getObraSocialResponse = obraSocialMapper.toGetResponse(obraSocialActualizada, planesResponse);
-
-        //Retornar Respuesta
         return getObraSocialResponse;
 
     }
@@ -172,10 +170,8 @@ public class ObraSocialApp {
         //Dar de baja la obra social
         obraSocialDomainService.softDeleteObraSocial(obraSocialExistente, "Baja de obra social");
 
-        //Mapear a soft delete ObraSocial Response
+        //Devolver response mapeado
         SoftDeleteObraSocialResponse softDeleteObraSocialResponse = obraSocialMapper.toSoftDeleteResponse(obraSocialExistente);
-
-        //Retornar Respuesta
         return softDeleteObraSocialResponse;
 
     }
@@ -197,10 +193,8 @@ public class ObraSocialApp {
         List<GetPlanAnidadoResponse> planesResponse = planMapper
                 .toGetPlanAnidadoResponses(planQueryService.findPlanesByObraSocial(id));
 
-        //Mapear a get ObraSocial Response
+        //Devolver response mapeado
         GetObraSocialResponse getObraSocialResponse = obraSocialMapper.toGetResponse(obraSocialExistente, planesResponse);
-
-        //Retornar Respuesta
         return getObraSocialResponse;
 
     }
@@ -215,7 +209,9 @@ public class ObraSocialApp {
 
         log.info("Listado de obras sociales iniciado");
 
-        return obraSocialMapper.toListResponses(obraSocialQueryService.findAllObrasSociales());
+        List<ListObraSocialResponse> listObraSocialResponse = obraSocialMapper
+                .toListResponses(obraSocialQueryService.findAllObrasSociales());
+        return listObraSocialResponse;
 
     }
 

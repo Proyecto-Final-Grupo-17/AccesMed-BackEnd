@@ -58,9 +58,9 @@ public class PrestacionController {
 
         log.info("Solicitud recibida: crear prestación código={}", createPrestacionRequest.codigo());
 
-        CreatePrestacionResponse response = prestacionApp.createPrestacion(createPrestacionRequest);
+        CreatePrestacionResponse createPrestacionResponse = prestacionApp.createPrestacion(createPrestacionRequest);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createPrestacionResponse);
 
     }
 
@@ -87,7 +87,7 @@ public class PrestacionController {
         }
 
         //Invocar caso de uso.
-        UpdatePrestacionResponse updatePrestacionResponse = prestacionApp.updatePrestacion(id, updatePrestacionRequest);
+        UpdatePrestacionResponse updatePrestacionResponse = prestacionApp.updatePrestacion(updatePrestacionRequest);
 
         //Devolver Respuesta
         return ResponseEntity.ok(updatePrestacionResponse);
@@ -155,7 +155,7 @@ public class PrestacionController {
         }
 
         //Invocar caso de uso.
-        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionApp.disablePrestacion(id, deshabilitarPrestacionRequest);
+        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionApp.disablePrestacion(deshabilitarPrestacionRequest);
 
         //Devolver Respuesta
         return ResponseEntity.ok(cambioEstadoPrestacionResponse);
@@ -176,9 +176,9 @@ public class PrestacionController {
 
         log.info("Solicitud recibida: listar prestaciones especialidadId={} estadoActual={}", especialidadId, estadoActual);
 
-        List<ListPrestacionResponse> response = prestacionApp.findPrestaciones(especialidadId, estadoActual);
+        List<ListPrestacionResponse> listPrestacionResponse = prestacionApp.findPrestaciones(especialidadId, estadoActual);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(listPrestacionResponse);
 
     }
 

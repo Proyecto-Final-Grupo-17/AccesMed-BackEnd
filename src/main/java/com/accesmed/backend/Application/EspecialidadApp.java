@@ -67,10 +67,8 @@ public class EspecialidadApp {
         Especialidad especialidadNueva = especialidadMapper.toEntity(createEspecialidadRequest);
         Especialidad especialidadGuardada = especialidadDomainService.saveEspecialidad(especialidadNueva);
 
-        //Mapear a create Especialidad Response
+        //Devolver response mapeado
         CreateEspecialidadResponse createEspecialidadResponse = especialidadMapper.toCreateResponse(especialidadGuardada);
-
-        //Retornar Respuesta
         return createEspecialidadResponse;
 
     }
@@ -78,14 +76,16 @@ public class EspecialidadApp {
     /**
      * Actualiza una especialidad existente.
      *
-     * @param id {@code UUID} identificador de la ruta
-     * @param updateEspecialidadRequest {@code UpdateEspecialidadRequest} datos a actualizar
+     * @param updateEspecialidadRequest {@code UpdateEspecialidadRequest} datos a actualizar,
+     *        incluyendo el id de la especialidad (ya validado contra la ruta en el Controller)
      * @return {@code GetEspecialidadResponse} la especialidad actualizada
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la especialidad no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el código o nombre son duplicados
      */
     @Transactional
-    public GetEspecialidadResponse updateEspecialidad(UUID id, UpdateEspecialidadRequest updateEspecialidadRequest) {
+    public GetEspecialidadResponse updateEspecialidad(UpdateEspecialidadRequest updateEspecialidadRequest) {
+
+        UUID id = updateEspecialidadRequest.id();
 
         log.info("Actualización de especialidad iniciada: id={}", id);
 
@@ -104,10 +104,8 @@ public class EspecialidadApp {
         especialidadMapper.updateEspecialidad(especialidadExistente, updateEspecialidadRequest);
         Especialidad especialidadActualizada = especialidadDomainService.saveEspecialidad(especialidadExistente);
 
-        //Mapear a get Especialidad Response
+        //Devolver response mapeado
         GetEspecialidadResponse getEspecialidadResponse = especialidadMapper.toGetResponse(especialidadActualizada);
-
-        //Retornar Respuesta
         return getEspecialidadResponse;
 
     }
@@ -136,10 +134,8 @@ public class EspecialidadApp {
         //Dar de baja
         especialidadDomainService.softDeleteEspecialidad(especialidadExistente, "Baja de especialidad");
 
-        //Mapear a soft delete Especialidad Response
+        //Devolver response mapeado
         SoftDeleteEspecialidadResponse softDeleteEspecialidadResponse = especialidadMapper.toSoftDeleteResponse(especialidadExistente);
-
-        //Retornar Respuesta
         return softDeleteEspecialidadResponse;
 
     }
@@ -159,7 +155,6 @@ public class EspecialidadApp {
         Especialidad especialidadExistente = especialidadDomainService.findEspecialidadActivaById(id);
 
         GetEspecialidadResponse getEspecialidadResponse = especialidadMapper.toGetResponse(especialidadExistente);
-
         return getEspecialidadResponse;
 
     }
@@ -177,7 +172,6 @@ public class EspecialidadApp {
         List<ListEspecialidadResponse> listEspecialidadResponse = especialidadQueryService.findAllEspecialidades().stream()
                 .map(especialidadMapper::toListResponse)
                 .toList();
-
         return listEspecialidadResponse;
 
     }

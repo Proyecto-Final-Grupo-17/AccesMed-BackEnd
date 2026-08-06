@@ -62,7 +62,7 @@ public class PlanApp {
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el código o nombre ya existen en la obra social
      */
     @Transactional
-    public GetPlanResponse addPlan(AddPlanRequest addPlanRequest) {
+    public GetPlanResponse createPlan(AddPlanRequest addPlanRequest) {
 
         log.info("Alta de plan iniciada: obraSocialId={}, código={}", addPlanRequest.obraSocialId(), addPlanRequest.codigo());
 
@@ -81,10 +81,8 @@ public class PlanApp {
         //Setear estado inicial
         historicoEstadoPlanDomainService.setInitialEstadoForNewPlan(planGuardado);
 
-        //Mapear a get Plan Response
+        //Devolver response mapeado
         GetPlanResponse getPlanResponse = planMapper.toGetResponse(planGuardado);
-
-        //Retornar Respuesta
         return getPlanResponse;
 
     }
@@ -93,14 +91,16 @@ public class PlanApp {
      * Actualiza código y nombre de un plan existente. Se puede modificar en cualquier
      * estado salvo {@code DESHABILITADO} (terminal e irreversible).
      *
-     * @param id {@code UUID} identificador de la ruta
-     * @param updatePlanRequest {@code UpdatePlanRequest} datos a actualizar
+     * @param updatePlanRequest {@code UpdatePlanRequest} datos a actualizar, incluyendo el id
+     *        del plan (ya validado contra la ruta en el Controller)
      * @return {@code GetPlanResponse} el plan actualizado
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el plan no existe o está deshabilitado
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el nombre es duplicado
      */
     @Transactional
-    public GetPlanResponse updatePlan(UUID id, UpdatePlanRequest updatePlanRequest) {
+    public GetPlanResponse updatePlan(UpdatePlanRequest updatePlanRequest) {
+
+        UUID id = updatePlanRequest.id();
 
         log.info("Actualización de plan iniciada: id={}", id);
 
@@ -119,10 +119,8 @@ public class PlanApp {
         planMapper.updatePlan(planExistente, updatePlanRequest);
         Plan planActualizado = planDomainService.savePlan(planExistente);
 
-        //Mapear a get Plan Response
+        //Devolver response mapeado
         GetPlanResponse getPlanResponse = planMapper.toGetResponse(planActualizado);
-
-        //Retornar Respuesta
         return getPlanResponse;
 
     }
@@ -136,17 +134,15 @@ public class PlanApp {
      *         ya está deshabilitado, o no se puede publicar desde el estado actual
      */
     @Transactional
-    public CambioEstadoPlanResponse publicarPlan(UUID id) {
+    public CambioEstadoPlanResponse publishPlan(UUID id) {
 
         log.info("Publicación de plan iniciada: id={}", id);
 
         //Transicionar el estado a PUBLICADO
         Plan planPublicado = historicoEstadoPlanDomainService.changeEstadoPlan(id, EstadoPlan.PUBLICADO, null);
 
-        //Mapear a cambio de estado Response
+        //Devolver response mapeado
         CambioEstadoPlanResponse cambioEstadoPlanResponse = planMapper.toCambioEstadoResponse(planPublicado);
-
-        //Retornar Respuesta
         return cambioEstadoPlanResponse;
 
     }
@@ -160,17 +156,15 @@ public class PlanApp {
      *         ya está deshabilitado, o no se puede despublicar desde el estado actual
      */
     @Transactional
-    public CambioEstadoPlanResponse despublicarPlan(UUID id) {
+    public CambioEstadoPlanResponse unpublishPlan(UUID id) {
 
         log.info("Despublicación de plan iniciada: id={}", id);
 
         //Transicionar el estado a NO_PUBLICADO
         Plan planDespublicado = historicoEstadoPlanDomainService.changeEstadoPlan(id, EstadoPlan.NO_PUBLICADO, null);
 
-        //Mapear a cambio de estado Response
+        //Devolver response mapeado
         CambioEstadoPlanResponse cambioEstadoPlanResponse = planMapper.toCambioEstadoResponse(planDespublicado);
-
-        //Retornar Respuesta
         return cambioEstadoPlanResponse;
 
     }
@@ -180,14 +174,16 @@ public class PlanApp {
      * hay turnos vivos cubiertos por el plan. No rige la regla del "último plan no
      * deshabilitado de una obra social activa" (eliminada en v3).
      *
-     * @param id {@code UUID} identificador de la ruta
-     * @param deshabilitarPlanRequest {@code DeshabilitarPlanRequest} motivo opcional
+     * @param deshabilitarPlanRequest {@code DeshabilitarPlanRequest} motivo opcional, incluyendo
+     *        el id del plan (ya validado contra la ruta en el Controller)
      * @return {@code CambioEstadoPlanResponse} el plan deshabilitado
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el plan no existe,
      *         ya está deshabilitado, o tiene turnos vivos cubiertos
      */
     @Transactional
-    public CambioEstadoPlanResponse deshabilitarPlan(UUID id, DeshabilitarPlanRequest deshabilitarPlanRequest) {
+    public CambioEstadoPlanResponse disablePlan(DeshabilitarPlanRequest deshabilitarPlanRequest) {
+
+        UUID id = deshabilitarPlanRequest.id();
 
         log.info("Deshabilitación de plan iniciada: id={}", id);
 
@@ -200,10 +196,8 @@ public class PlanApp {
         Plan planDeshabilitado = historicoEstadoPlanDomainService.changeEstadoPlan(
                 id, EstadoPlan.DESHABILITADO, deshabilitarPlanRequest.motivo());
 
-        //Mapear a cambio de estado Response
+        //Devolver response mapeado
         CambioEstadoPlanResponse cambioEstadoPlanResponse = planMapper.toCambioEstadoResponse(planDeshabilitado);
-
-        //Retornar Respuesta
         return cambioEstadoPlanResponse;
 
     }
@@ -223,7 +217,6 @@ public class PlanApp {
         Plan planExistente = planDomainService.findPlanById(id);
 
         GetPlanResponse getPlanResponse = planMapper.toGetResponse(planExistente);
-
         return getPlanResponse;
 
     }
@@ -240,7 +233,6 @@ public class PlanApp {
         log.info("Listado de planes iniciado: obraSocialId={}", obraSocialId);
 
         List<ListPlanResponse> listPlanResponse = planMapper.toListResponses(planQueryService.findPlanesByObraSocial(obraSocialId));
-
         return listPlanResponse;
 
     }

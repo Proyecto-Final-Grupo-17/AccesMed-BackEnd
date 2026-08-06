@@ -56,10 +56,10 @@ public class TipoIndicacionPrestacionController {
 
         log.info("Solicitud recibida: crear tipo de indicación código={}", createTipoIndicacionPrestacionRequest.codigo());
 
-        CreateTipoIndicacionPrestacionResponse response = tipoIndicacionPrestacionApp
+        CreateTipoIndicacionPrestacionResponse createTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionApp
                 .createTipoIndicacionPrestacion(createTipoIndicacionPrestacionRequest);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createTipoIndicacionPrestacionResponse);
 
     }
 
@@ -85,10 +85,10 @@ public class TipoIndicacionPrestacionController {
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
-        UpdateTipoIndicacionPrestacionResponse response = tipoIndicacionPrestacionApp
-                .updateTipoIndicacionPrestacion(id, updateTipoIndicacionPrestacionRequest);
+        UpdateTipoIndicacionPrestacionResponse updateTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionApp
+                .updateTipoIndicacionPrestacion(updateTipoIndicacionPrestacionRequest);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(updateTipoIndicacionPrestacionResponse);
 
     }
 
@@ -103,9 +103,10 @@ public class TipoIndicacionPrestacionController {
 
         log.info("Solicitud recibida: dar de baja tipo de indicación id={}", id);
 
-        SoftDeleteTipoIndicacionPrestacionResponse response = tipoIndicacionPrestacionApp.softDeleteTipoIndicacionPrestacion(id);
+        SoftDeleteTipoIndicacionPrestacionResponse softDeleteTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionApp
+                .softDeleteTipoIndicacionPrestacion(id);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(softDeleteTipoIndicacionPrestacionResponse);
 
     }
 
@@ -120,10 +121,10 @@ public class TipoIndicacionPrestacionController {
 
         log.info("Solicitud recibida: obtener tipo de indicación id={}", id);
 
-        GetTipoIndicacionPrestacionResponse response = tipoIndicacionPrestacionApp
+        GetTipoIndicacionPrestacionResponse getTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionApp
                 .findTipoIndicacionPrestacionById(id);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(getTipoIndicacionPrestacionResponse);
 
     }
 
@@ -137,10 +138,10 @@ public class TipoIndicacionPrestacionController {
 
         log.info("Solicitud recibida: listar todos los tipos de indicación");
 
-        List<ListTipoIndicacionPrestacionResponse> response = tipoIndicacionPrestacionApp
+        List<ListTipoIndicacionPrestacionResponse> listTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionApp
                 .findAllTiposIndicacionPrestacion();
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(listTipoIndicacionPrestacionResponse);
 
     }
 

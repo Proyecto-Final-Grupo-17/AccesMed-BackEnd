@@ -5,7 +5,15 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
-    <changeSet id="20260731215700-added-table-IndicacionPrestacion" author="claude">
+    <!-- Requerida por el EXCLUDE USING gist de mas abajo (no solapamiento de vigencias). -->
+    <changeSet id="20260731215700-enabled-extension-btree-gist" author="claude">
+        <sql>CREATE EXTENSION IF NOT EXISTS btree_gist;</sql>
+        <rollback>
+            <sql>DROP EXTENSION IF EXISTS btree_gist;</sql>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="20260731215701-added-table-IndicacionPrestacion" author="claude">
         <createTable tableName="indicacion_prestacion">
             <!-- ====== Columnas ====== -->
             <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
@@ -20,6 +28,11 @@
             <column name="requiere_validacion" type="boolean">
                 <constraints nullable="false"/>
             </column>
+            <!-- ====== Vigencia ====== -->
+            <column name="fecha_inicio_vigencia" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_fin_vigencia" type="timestamptz"/>
             <!-- ====== Relaciones ====== -->
             <column name="prestacion_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_indicacion_prestacion_prestacion" references="prestacion(id)"/>
@@ -27,22 +40,31 @@
             <column name="tipo_indicacion_prestacion_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_indicacion_prestacion_tipo_indicacion_prestacion" references="tipo_indicacion_prestacion(id)"/>
             </column>
-            <!-- ====== Columnas auditoría (incluye a la baja) ====== -->
+            <!-- ====== Columnas auditoría (sin baja: IndicacionPrestacion se gobierna por vigencia) ====== -->
             <column name="created_at" type="timestamptz">
                 <constraints nullable="false"/>
             </column>
             <column name="updated_at" type="timestamptz"/>
             <column name="created_by" type="varchar(255)"/>
             <column name="updated_by" type="varchar(255)"/>
-            <column name="deleted_at" type="timestamptz"/>
-            <column name="deleted_by" type="uuid"/>
-            <column name="deleted_reason" type="varchar(500)"/>
         </createTable>
 
-        <sql>CREATE UNIQUE INDEX uq_indicacion_prestacion_prestacion_nombre ON indicacion_prestacion (prestacion_id, nombre) WHERE deleted_at IS NULL;</sql>
+        <sql>ALTER TABLE indicacion_prestacion ADD CONSTRAINT ck_indicacion_prestacion_vigencia CHECK (fecha_fin_vigencia IS NULL OR fecha_fin_vigencia > fecha_inicio_vigencia);</sql>
+
+        <!-- No solapamiento de vigencias del mismo (prestacion, nombre): permite el relevo (cerrar una, abrir otra en el mismo corte) sin ambigüedad. -->
+        <sql>
+            ALTER TABLE indicacion_prestacion ADD CONSTRAINT ex_indicacion_prestacion_no_solapamiento
+            EXCLUDE USING gist (
+                prestacion_id WITH =,
+                nombre WITH =,
+                tstzrange(fecha_inicio_vigencia, fecha_fin_vigencia) WITH &amp;&amp;
+            );
+        </sql>
+
         <sql>CREATE INDEX idx_indicacion_prestacion_tipo_indicacion_prestacion ON indicacion_prestacion (tipo_indicacion_prestacion_id);</sql>
         <rollback>
-            <sql>DROP INDEX IF EXISTS uq_indicacion_prestacion_prestacion_nombre;</sql>
+            <sql>ALTER TABLE indicacion_prestacion DROP CONSTRAINT IF EXISTS ck_indicacion_prestacion_vigencia;</sql>
+            <sql>ALTER TABLE indicacion_prestacion DROP CONSTRAINT IF EXISTS ex_indicacion_prestacion_no_solapamiento;</sql>
             <sql>DROP INDEX IF EXISTS idx_indicacion_prestacion_tipo_indicacion_prestacion;</sql>
         </rollback>
     </changeSet>

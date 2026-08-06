@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,29 +28,29 @@ public class IndicacionPrestacionQueryService {
     //region ========== Métodos ==========
 
     /**
-     * Lista todas las indicaciones de prestación activas.
+     * Lista todas las indicaciones de prestación vigentes.
      *
-     * @return {@code List<IndicacionPrestacion>} lista de indicaciones activas
+     * @return {@code List<IndicacionPrestacion>} lista de indicaciones vigentes
      */
     public List<IndicacionPrestacion> findAllIndicacionesPrestacion() {
 
-        log.debug("Listando todas las indicaciones de prestación activas");
+        log.debug("Listando todas las indicaciones de prestación vigentes");
 
-        return indicacionPrestacionRepository.findAllByDeletedAtIsNull();
+        return indicacionPrestacionRepository.findAllVigentes(ZonedDateTime.now());
 
     }
 
     /**
-     * Lista todas las indicaciones de prestación activas asociadas a una prestación determinada.
+     * Lista todas las indicaciones de prestación vigentes asociadas a una prestación determinada.
      *
      * @param prestacionId {@code UUID} identificador de la prestación
-     * @return {@code List<IndicacionPrestacion>} lista de indicaciones activas de esa prestación
+     * @return {@code List<IndicacionPrestacion>} lista de indicaciones vigentes de esa prestación
      */
     public List<IndicacionPrestacion> findIndicacionesPrestacionByPrestacion(UUID prestacionId) {
 
         log.debug("Listando indicaciones de prestación para prestación: {}", prestacionId);
 
-        return indicacionPrestacionRepository.findAllByPrestacionIdAndDeletedAtIsNull(prestacionId);
+        return indicacionPrestacionRepository.findAllVigentesByPrestacionId(prestacionId, ZonedDateTime.now());
 
     }
 

@@ -2,19 +2,20 @@ package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.IndicacionPrestacionApp;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.CreateIndicacionesPrestacionRequest;
+import com.accesmed.backend.Records.IndicacionPrestacion.Request.ScheduleBajaIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.UpdateIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.CreateIndicacionesPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.UpdateIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
-import com.accesmed.backend.Records.IndicacionPrestacion.Response.SoftDeleteIndicacionPrestacionResponse;
+import com.accesmed.backend.Records.IndicacionPrestacion.Response.ScheduleBajaIndicacionPrestacionResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -58,10 +59,10 @@ public class IndicacionPrestacionController {
         log.info("Solicitud recibida: crear indicaciones de prestación prestacionId={}",
                 createIndicacionesPrestacionRequest.prestacionId());
 
-        CreateIndicacionesPrestacionResponse response = indicacionPrestacionApp
+        CreateIndicacionesPrestacionResponse createIndicacionesPrestacionResponse = indicacionPrestacionApp
                 .createIndicacionesPrestacion(createIndicacionesPrestacionRequest);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createIndicacionesPrestacionResponse);
 
     }
 
@@ -87,27 +88,40 @@ public class IndicacionPrestacionController {
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
-        UpdateIndicacionPrestacionResponse response = indicacionPrestacionApp
-                .updateIndicacionPrestacion(id, updateIndicacionPrestacionRequest);
+        UpdateIndicacionPrestacionResponse updateIndicacionPrestacionResponse = indicacionPrestacionApp
+                .updateIndicacionPrestacion(updateIndicacionPrestacionRequest);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(updateIndicacionPrestacionResponse);
 
     }
 
     /**
-     * Da de baja una indicación de prestación (baja lógica).
+     * Programa la baja de una indicación de prestación, cerrando su vigencia. Admite una
+     * fecha futura para dejar el retiro agendado.
      *
      * @param id {@code UUID} identificador de la indicación
-     * @return {@code ResponseEntity<SoftDeleteIndicacionPrestacionResponse>} la confirmación de la baja (HTTP 200)
+     * @param scheduleBajaIndicacionPrestacionRequest {@code ScheduleBajaIndicacionPrestacionRequest} fecha de fin de vigencia opcional
+     * @return {@code ResponseEntity<ScheduleBajaIndicacionPrestacionResponse>} la confirmación de la baja programada (HTTP 200)
+     * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
-    @DeleteMapping("/IndicacionPrestacion/{id}")
-    public ResponseEntity<SoftDeleteIndicacionPrestacionResponse> softDeleteIndicacionPrestacion(@PathVariable UUID id) {
+    @PatchMapping("/IndicacionPrestacion/{id}/Baja")
+    public ResponseEntity<ScheduleBajaIndicacionPrestacionResponse> scheduleBajaIndicacionPrestacion(
+            @PathVariable UUID id,
+            @Valid @RequestBody ScheduleBajaIndicacionPrestacionRequest scheduleBajaIndicacionPrestacionRequest) {
 
         log.info("Solicitud recibida: dar de baja indicación de prestación id={}", id);
 
-        SoftDeleteIndicacionPrestacionResponse response = indicacionPrestacionApp.softDeleteIndicacionPrestacion(id);
+        //El id de la ruta identifica el recurso: si el body trae otro, el request es inconsistente
+        if (!id.equals(scheduleBajaIndicacionPrestacionRequest.id())) {
+            log.warn("Id de ruta ({}) distinto al del body ({})", id, scheduleBajaIndicacionPrestacionRequest.id());
+            throw new ValidacionException(getClass(),
+                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+        }
 
-        return ResponseEntity.ok(response);
+        ScheduleBajaIndicacionPrestacionResponse scheduleBajaIndicacionPrestacionResponse = indicacionPrestacionApp
+                .scheduleBajaIndicacionPrestacion(scheduleBajaIndicacionPrestacionRequest);
+
+        return ResponseEntity.ok(scheduleBajaIndicacionPrestacionResponse);
 
     }
 
@@ -122,9 +136,10 @@ public class IndicacionPrestacionController {
 
         log.info("Solicitud recibida: obtener indicación de prestación id={}", id);
 
-        GetIndicacionPrestacionResponse response = indicacionPrestacionApp.findIndicacionPrestacionById(id);
+        GetIndicacionPrestacionResponse getIndicacionPrestacionResponse = indicacionPrestacionApp
+                .findIndicacionPrestacionById(id);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(getIndicacionPrestacionResponse);
 
     }
 
@@ -140,10 +155,10 @@ public class IndicacionPrestacionController {
 
         log.info("Solicitud recibida: listar indicaciones de prestación prestacionId={}", prestacionId);
 
-        List<ListIndicacionPrestacionResponse> response = indicacionPrestacionApp
+        List<ListIndicacionPrestacionResponse> listIndicacionPrestacionResponse = indicacionPrestacionApp
                 .findIndicacionesPrestacion(prestacionId);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(listIndicacionPrestacionResponse);
 
     }
 

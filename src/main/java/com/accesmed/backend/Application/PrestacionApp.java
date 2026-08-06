@@ -26,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -135,10 +136,8 @@ public class PrestacionApp {
                     .toList();
         }
 
-        //Mapear a create Prestacion Response
+        //Devolver response mapeado
         CreatePrestacionResponse createPrestacionResponse = prestacionMapper.toCreateResponse(prestacionGuardada, indicacionesResponse);
-
-        //Retornar Respuesta
         return createPrestacionResponse;
 
     }
@@ -147,15 +146,17 @@ public class PrestacionApp {
      * Actualiza nombre y tolerancias/duraciones de una prestación. Se puede modificar en
      * cualquier estado salvo {@code DESHABILITADA} (terminal e irreversible).
      *
-     * @param id {@code UUID} identificador de la ruta
-     * @param updatePrestacionRequest {@code UpdatePrestacionRequest} datos a actualizar
+     * @param updatePrestacionRequest {@code UpdatePrestacionRequest} datos a actualizar, incluyendo
+     *        el id de la prestación (ya validado contra la ruta en el Controller)
      * @return {@code UpdatePrestacionResponse} la prestación actualizada
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la prestación no existe o está deshabilitada
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el nombre es duplicado
      * @throws ValidacionException {@code ValidacionException} si las reglas de tolerancia fallan
      */
     @Transactional
-    public UpdatePrestacionResponse updatePrestacion(UUID id, UpdatePrestacionRequest updatePrestacionRequest) {
+    public UpdatePrestacionResponse updatePrestacion(UpdatePrestacionRequest updatePrestacionRequest) {
+
+        UUID id = updatePrestacionRequest.id();
 
         log.info("Actualización de prestación iniciada: id={}", id);
 
@@ -188,10 +189,8 @@ public class PrestacionApp {
         //Guardar la prestación actualizada
         Prestacion prestacionActualizada = prestacionDomainService.savePrestacion(prestacionExistente);
 
-        //Mapear a update Prestacion Response
+        //Devolver response mapeado
         UpdatePrestacionResponse updatePrestacionResponse = prestacionMapper.toUpdateResponse(prestacionActualizada);
-
-        //Retornar Respuesta
         return updatePrestacionResponse;
 
     }
@@ -214,10 +213,8 @@ public class PrestacionApp {
         //Transicionar el estado a PUBLICADA
         Prestacion prestacionPublicada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(id, EstadoPrestacion.PUBLICADA, null);
 
-        //Mapear a cambio de estado Response
+        //Devolver response mapeado
         CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(prestacionPublicada);
-
-        //Retornar Respuesta
         return cambioEstadoPrestacionResponse;
 
     }
@@ -238,10 +235,8 @@ public class PrestacionApp {
         //Transicionar el estado a NO_PUBLICADA
         Prestacion prestacionDespublicada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(id, EstadoPrestacion.NO_PUBLICADA, null);
 
-        //Mapear a cambio de estado Response
+        //Devolver response mapeado
         CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(prestacionDespublicada);
-
-        //Retornar Respuesta
         return cambioEstadoPrestacionResponse;
 
     }
@@ -251,14 +246,16 @@ public class PrestacionApp {
      * "estados"). Restrictiva: rechaza si hay turnos vivos o agenda futura ocupada de esa
      * prestación.
      *
-     * @param id {@code UUID} identificador de la ruta
-     * @param deshabilitarPrestacionRequest {@code DeshabilitarPrestacionRequest} motivo opcional
+     * @param deshabilitarPrestacionRequest {@code DeshabilitarPrestacionRequest} motivo opcional,
+     *        incluyendo el id de la prestación (ya validado contra la ruta en el Controller)
      * @return {@code CambioEstadoPrestacionResponse} la prestación deshabilitada
      * @throws ReglaNegocioException {@code ReglaNegocioException} si la prestación no existe,
      *         ya está deshabilitada, o tiene turnos vivos o agenda futura ocupada
      */
     @Transactional
-    public CambioEstadoPrestacionResponse disablePrestacion(UUID id, DeshabilitarPrestacionRequest deshabilitarPrestacionRequest) {
+    public CambioEstadoPrestacionResponse disablePrestacion(DeshabilitarPrestacionRequest deshabilitarPrestacionRequest) {
+
+        UUID id = deshabilitarPrestacionRequest.id();
 
         log.info("Deshabilitación de prestación iniciada: id={}", id);
 
@@ -268,17 +265,19 @@ public class PrestacionApp {
         //Validar que no tenga agenda futura ocupada
         agendaHorariosDomainService.validateSinAgendaFuturaOcupada(id);
 
+        //Cerrar la vigencia de las indicaciones vigentes: sin turnos vivos (ya validado arriba),
+        //"ahora" nunca puede caer antes de un turno que necesite protección.
+        indicacionPrestacionDomainService.cerrarVigenciaIndicacionesPrestacionByPrestacion(id, ZonedDateTime.now());
+
         //TODO cascada de escritura: cerrar MedicoPrestacion vigentes, bajar AgendaHorarios libres,
-        // cerrar IndicacionPrestacion vigentes, bajar ObraSocialPlanPrestacion (módulos fuera de alcance).
+        // bajar ObraSocialPlanPrestacion (módulos fuera de alcance).
 
         //Transicionar el estado a DESHABILITADA
         Prestacion prestacionDeshabilitada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(
                 id, EstadoPrestacion.DESHABILITADA, deshabilitarPrestacionRequest.motivo());
 
-        //Mapear a cambio de estado Response
+        //Devolver response mapeado
         CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(prestacionDeshabilitada);
-
-        //Retornar Respuesta
         return cambioEstadoPrestacionResponse;
 
     }
@@ -307,12 +306,10 @@ public class PrestacionApp {
             prestaciones = prestacionQueryService.findAllPrestaciones();
         }
 
-        //Mapear a list Prestacion Response
+        //Devolver response mapeado
         List<ListPrestacionResponse> listPrestacionResponse = prestaciones.stream()
                 .map(prestacionMapper::toListResponse)
                 .toList();
-
-        //Retornar Respuesta
         return listPrestacionResponse;
 
     }

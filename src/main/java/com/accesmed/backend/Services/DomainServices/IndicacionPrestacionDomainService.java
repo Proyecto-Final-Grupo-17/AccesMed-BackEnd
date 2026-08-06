@@ -3,17 +3,18 @@ package com.accesmed.backend.Services.DomainServices;
 import com.accesmed.backend.Domain.IndicacionPrestacion;
 import com.accesmed.backend.Repositories.IndicacionPrestacionRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
+import com.accesmed.backend.Services.Errors.ValidacionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
 
 /**
  * Lógica de dominio y persistencia para la entidad {@code IndicacionPrestacion}.
- * Encapsula las operaciones de guardar, buscar y baja lógica.
+ * Encapsula las operaciones de guardar, buscar y cierre de vigencia.
  */
 @Slf4j
 @Service
@@ -57,86 +58,95 @@ public class IndicacionPrestacionDomainService {
     }
 
     /**
-     * Busca una indicación de prestación activa por su identificador.
+     * Busca una indicación de prestación vigente por su identificador.
      *
      * @param id {@code UUID} identificador de la indicación
-     * @return {@code IndicacionPrestacion} la indicación activa correspondiente al id
+     * @return {@code IndicacionPrestacion} la indicación vigente correspondiente al id
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe una
-     *         indicación activa con ese id
+     *         indicación vigente con ese id
      */
-    public IndicacionPrestacion findIndicacionPrestacionById(UUID id) {
+    public IndicacionPrestacion findIndicacionPrestacionVigenteById(UUID id) {
 
-        log.debug("Buscando indicación de prestación por id: {}", id);
+        log.debug("Buscando indicación de prestación vigente por id: {}", id);
 
-        return indicacionPrestacionRepository.findByIdAndDeletedAtIsNull(id)
+        return indicacionPrestacionRepository.findVigenteById(id, ZonedDateTime.now())
                 .orElseThrow(() -> {
                     log.warn("No se encontró la indicación de prestación: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "INDICACION_PRESTACION_NO_ENCONTRADA",
-                            "No existe una indicación de prestación activa con el id " + id);
+                            "No existe una indicación de prestación vigente con el id " + id);
                 });
 
     }
 
     /**
-     * Verifica si existen indicaciones de prestación activas que referencian un tipo de
+     * Verifica si existen indicaciones de prestación vigentes que referencian un tipo de
      * indicación. Usada por la baja restrictiva de {@code TipoIndicacionPrestacion}.
      *
      * @param tipoIndicacionPrestacionId {@code UUID} identificador del tipo de indicación
-     * @return {@code boolean} {@code true} si existe al menos una indicación activa de ese tipo
+     * @return {@code boolean} {@code true} si existe al menos una indicación vigente de ese tipo
      */
-    public boolean existsIndicacionesActivasByTipo(UUID tipoIndicacionPrestacionId) {
+    public boolean existsIndicacionesVigentesByTipo(UUID tipoIndicacionPrestacionId) {
 
-        return indicacionPrestacionRepository.existsByTipoIndicacionPrestacionIdAndDeletedAtIsNull(tipoIndicacionPrestacionId);
+        return indicacionPrestacionRepository.existsVigenteByTipoIndicacionPrestacionId(tipoIndicacionPrestacionId, ZonedDateTime.now());
 
     }
 
     /**
-     * Busca todas las indicaciones de prestación activas asociadas a una prestación.
+     * Busca todas las indicaciones de prestación vigentes asociadas a una prestación.
      *
      * @param prestacionId {@code UUID} identificador de la prestación
-     * @return {@code List<IndicacionPrestacion>} lista de indicaciones activas de esa prestación
+     * @return {@code List<IndicacionPrestacion>} lista de indicaciones vigentes de esa prestación
      */
-    public List<IndicacionPrestacion> findIndicacionesPrestacionByPrestacionId(UUID prestacionId) {
+    public List<IndicacionPrestacion> findIndicacionesPrestacionVigentesByPrestacionId(UUID prestacionId) {
 
-        log.debug("Buscando indicaciones de prestación para prestación: {}", prestacionId);
+        log.debug("Buscando indicaciones de prestación vigentes para prestación: {}", prestacionId);
 
-        return indicacionPrestacionRepository.findAllByPrestacionIdAndDeletedAtIsNull(prestacionId);
+        return indicacionPrestacionRepository.findAllVigentesByPrestacionId(prestacionId, ZonedDateTime.now());
 
     }
 
     /**
-     * Realiza la baja lógica de una indicación de prestación.
+     * Cierra la vigencia de una indicación de prestación, reemplazando su
+     * {@code fechaFinVigencia}. Admite una fecha futura para programar el retiro.
      *
-     * @param indicacionPrestacion {@code IndicacionPrestacion} indicación a dar de baja
-     * @param motivo {@code String} motivo de la baja
+     * @param indicacionPrestacion {@code IndicacionPrestacion} indicación a retirar
+     * @param fechaFinVigencia {@code ZonedDateTime} fecha en la que deja de estar vigente
+     * @throws ValidacionException {@code ValidacionException} si {@code fechaFinVigencia} no es
+     *         posterior a {@code fechaInicioVigencia}
      */
-    public void softDeleteIndicacionPrestacion(IndicacionPrestacion indicacionPrestacion, String motivo) {
+    public void cerrarVigenciaIndicacionPrestacion(IndicacionPrestacion indicacionPrestacion, ZonedDateTime fechaFinVigencia) {
 
-        log.debug("Dando de baja indicación de prestación: id={}, motivo={}", indicacionPrestacion.getId(), motivo);
+        if (!fechaFinVigencia.isAfter(indicacionPrestacion.getFechaInicioVigencia())) {
+            log.warn("No se pudo cerrar la vigencia de la indicación: fechaFinVigencia {} no es posterior a fechaInicioVigencia {}",
+                    fechaFinVigencia, indicacionPrestacion.getFechaInicioVigencia());
+            throw new ValidacionException(getClass(),
+                    List.of("La fecha de fin de vigencia debe ser posterior a la fecha de inicio de vigencia."));
+        }
 
-        indicacionPrestacion.setDeletedAt(Instant.now());
-        indicacionPrestacion.setDeletedReason(motivo);
-        //deletedBy se completará cuando exista el módulo de seguridad
+        log.debug("Cerrando vigencia de indicación de prestación: id={}, fechaFinVigencia={}",
+                indicacionPrestacion.getId(), fechaFinVigencia);
+
+        indicacionPrestacion.setFechaFinVigencia(fechaFinVigencia);
 
         saveIndicacionPrestacion(indicacionPrestacion);
 
     }
 
     /**
-     * Realiza la baja lógica de todas las indicaciones activas de una prestación.
-     * Utilizada cuando se da de baja la prestación.
+     * Cierra la vigencia de todas las indicaciones vigentes de una prestación. Utilizada
+     * cuando se deshabilita la prestación.
      *
      * @param prestacionId {@code UUID} identificador de la prestación
-     * @param motivo {@code String} motivo de la baja
+     * @param fechaFinVigencia {@code ZonedDateTime} fecha en la que dejan de estar vigentes
      */
-    public void softDeleteIndicacionesPrestacionByPrestacion(UUID prestacionId, String motivo) {
+    public void cerrarVigenciaIndicacionesPrestacionByPrestacion(UUID prestacionId, ZonedDateTime fechaFinVigencia) {
 
-        log.debug("Dando de baja todas las indicaciones de la prestación: {}", prestacionId);
+        log.debug("Cerrando vigencia de todas las indicaciones de la prestación: {}", prestacionId);
 
-        List<IndicacionPrestacion> indicacionesActivas = findIndicacionesPrestacionByPrestacionId(prestacionId);
+        List<IndicacionPrestacion> indicacionesVigentes = findIndicacionesPrestacionVigentesByPrestacionId(prestacionId);
 
-        for (IndicacionPrestacion indicacion : indicacionesActivas) {
-            softDeleteIndicacionPrestacion(indicacion, motivo);
+        for (IndicacionPrestacion indicacion : indicacionesVigentes) {
+            cerrarVigenciaIndicacionPrestacion(indicacion, fechaFinVigencia);
         }
 
     }

@@ -17,12 +17,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
 /**
- * Requisito previo de una {@link Prestacion}. Admite alta y baja lógica. Nunca existe
- * suelta ni se comparte entre prestaciones.
+ * Requisito previo de una {@link Prestacion}, acotado por vigencia. No tiene baja lógica:
+ * se retira cerrando {@code fechaFinVigencia}, que admite fecha futura para programar el
+ * retiro. Nunca existe suelta ni se comparte entre prestaciones.
  */
 @Getter
 @Setter(AccessLevel.NONE)
@@ -73,19 +74,16 @@ public class IndicacionPrestacion extends Auditable {
 
     //endregion
 
-    //region ========== Baja ==========
+    //region ========== Vigencia ==========
+
+    @NotNull
+    @Setter
+    @Column(name = "fecha_inicio_vigencia", nullable = false)
+    private ZonedDateTime fechaInicioVigencia;
 
     @Setter
-    @Column(name = "deleted_at")
-    private Instant deletedAt;
-
-    @Setter
-    @Column(name = "deleted_by")
-    private UUID deletedBy;
-
-    @Setter
-    @Column(name = "deleted_reason", length = 500)
-    private String deletedReason;
+    @Column(name = "fecha_fin_vigencia")
+    private ZonedDateTime fechaFinVigencia;
 
     //endregion
 

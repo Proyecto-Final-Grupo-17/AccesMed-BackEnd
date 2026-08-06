@@ -51,13 +51,13 @@ public class PlanController {
      * @return {@code ResponseEntity<GetPlanResponse>} el plan agregado (HTTP 201)
      */
     @PostMapping("/Plan")
-    public ResponseEntity<GetPlanResponse> addPlan(@Valid @RequestBody AddPlanRequest addPlanRequest) {
+    public ResponseEntity<GetPlanResponse> createPlan(@Valid @RequestBody AddPlanRequest addPlanRequest) {
 
         log.info("Solicitud recibida: agregar plan obraSocialId={} código={}", addPlanRequest.obraSocialId(), addPlanRequest.codigo());
 
-        GetPlanResponse response = planApp.addPlan(addPlanRequest);
+        GetPlanResponse getPlanResponse = planApp.createPlan(addPlanRequest);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(getPlanResponse);
 
     }
 
@@ -84,10 +84,10 @@ public class PlanController {
         }
 
         //Invocar caso de uso
-        GetPlanResponse response = planApp.updatePlan(id, updatePlanRequest);
+        GetPlanResponse getPlanResponse = planApp.updatePlan(updatePlanRequest);
 
         //Devolver Respuesta
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(getPlanResponse);
 
     }
 
@@ -98,13 +98,13 @@ public class PlanController {
      * @return {@code ResponseEntity<CambioEstadoPlanResponse>} el plan publicado (HTTP 200)
      */
     @PatchMapping("/Plan/{id}/Publicar")
-    public ResponseEntity<CambioEstadoPlanResponse> publicarPlan(@PathVariable UUID id) {
+    public ResponseEntity<CambioEstadoPlanResponse> publishPlan(@PathVariable UUID id) {
 
         log.info("Solicitud recibida: publicar plan id={}", id);
 
-        CambioEstadoPlanResponse response = planApp.publicarPlan(id);
+        CambioEstadoPlanResponse cambioEstadoPlanResponse = planApp.publishPlan(id);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(cambioEstadoPlanResponse);
 
     }
 
@@ -115,13 +115,13 @@ public class PlanController {
      * @return {@code ResponseEntity<CambioEstadoPlanResponse>} el plan despublicado (HTTP 200)
      */
     @PatchMapping("/Plan/{id}/Despublicar")
-    public ResponseEntity<CambioEstadoPlanResponse> despublicarPlan(@PathVariable UUID id) {
+    public ResponseEntity<CambioEstadoPlanResponse> unpublishPlan(@PathVariable UUID id) {
 
         log.info("Solicitud recibida: despublicar plan id={}", id);
 
-        CambioEstadoPlanResponse response = planApp.despublicarPlan(id);
+        CambioEstadoPlanResponse cambioEstadoPlanResponse = planApp.unpublishPlan(id);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(cambioEstadoPlanResponse);
 
     }
 
@@ -134,7 +134,7 @@ public class PlanController {
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
     @PatchMapping("/Plan/{id}/Deshabilitar")
-    public ResponseEntity<CambioEstadoPlanResponse> deshabilitarPlan(
+    public ResponseEntity<CambioEstadoPlanResponse> disablePlan(
             @PathVariable UUID id,
             @Valid @RequestBody DeshabilitarPlanRequest deshabilitarPlanRequest) {
 
@@ -148,10 +148,10 @@ public class PlanController {
         }
 
         //Invocar caso de uso
-        CambioEstadoPlanResponse response = planApp.deshabilitarPlan(id, deshabilitarPlanRequest);
+        CambioEstadoPlanResponse cambioEstadoPlanResponse = planApp.disablePlan(deshabilitarPlanRequest);
 
         //Devolver Respuesta
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(cambioEstadoPlanResponse);
 
     }
 
@@ -166,9 +166,9 @@ public class PlanController {
 
         log.info("Solicitud recibida: obtener plan id={}", id);
 
-        GetPlanResponse response = planApp.findPlanById(id);
+        GetPlanResponse getPlanResponse = planApp.findPlanById(id);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(getPlanResponse);
 
     }
 
@@ -183,9 +183,9 @@ public class PlanController {
 
         log.info("Solicitud recibida: listar planes obraSocialId={}", obraSocialId);
 
-        List<ListPlanResponse> response = planApp.findPlanesByObraSocial(obraSocialId);
+        List<ListPlanResponse> listPlanResponse = planApp.findPlanesByObraSocial(obraSocialId);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(listPlanResponse);
 
     }
 

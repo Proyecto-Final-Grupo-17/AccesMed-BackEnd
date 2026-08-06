@@ -7,7 +7,7 @@ import com.accesmed.backend.Records.IndicacionPrestacion.Response.UpdateIndicaci
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.CreateIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
-import com.accesmed.backend.Records.IndicacionPrestacion.Response.SoftDeleteIndicacionPrestacionResponse;
+import com.accesmed.backend.Records.IndicacionPrestacion.Response.ScheduleBajaIndicacionPrestacionResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
@@ -36,15 +36,14 @@ public interface IndicacionPrestacionMapper {
     @Mapping(target = "nombre", source = "nombre")
     @Mapping(target = "descripcion", source = "descripcion")
     @Mapping(target = "requiereValidacion", source = "requiereValidacion")
+    @Mapping(target = "fechaInicioVigencia", ignore = true)
+    @Mapping(target = "fechaFinVigencia", ignore = true)
     @Mapping(target = "prestacion", ignore = true)
     @Mapping(target = "tipoIndicacionPrestacion", ignore = true)
     @Mapping(target = "createdDate", ignore = true)
     @Mapping(target = "lastModifiedDate", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "lastModifiedBy", ignore = true)
-    @Mapping(target = "deletedAt", ignore = true)
-    @Mapping(target = "deletedBy", ignore = true)
-    @Mapping(target = "deletedReason", ignore = true)
     IndicacionPrestacion toEntity(CreateIndicacionPrestacionAnidadaRequest createIndicacionPrestacionAnidadaRequest);
 
     /**
@@ -67,15 +66,14 @@ public interface IndicacionPrestacionMapper {
     @Mapping(target = "nombre", source = "updateIndicacionPrestacionRequest.nombre")
     @Mapping(target = "descripcion", source = "updateIndicacionPrestacionRequest.descripcion")
     @Mapping(target = "requiereValidacion", source = "updateIndicacionPrestacionRequest.requiereValidacion")
+    @Mapping(target = "fechaInicioVigencia", ignore = true)
+    @Mapping(target = "fechaFinVigencia", ignore = true)
     @Mapping(target = "prestacion", ignore = true)
     @Mapping(target = "tipoIndicacionPrestacion", ignore = true)
     @Mapping(target = "createdDate", ignore = true)
     @Mapping(target = "lastModifiedDate", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "lastModifiedBy", ignore = true)
-    @Mapping(target = "deletedAt", ignore = true)
-    @Mapping(target = "deletedBy", ignore = true)
-    @Mapping(target = "deletedReason", ignore = true)
     void updateIndicacionPrestacion(@MappingTarget IndicacionPrestacion indicacionPrestacion,
                                     UpdateIndicacionPrestacionRequest updateIndicacionPrestacionRequest);
 
@@ -156,11 +154,11 @@ public interface IndicacionPrestacionMapper {
     List<GetIndicacionPrestacionResponse> toGetResponses(List<IndicacionPrestacion> indicacionesPrestacion);
 
     /**
-     * Convierte una entidad {@code IndicacionPrestacion} a {@code SoftDeleteIndicacionPrestacionResponse}.
+     * Convierte una entidad {@code IndicacionPrestacion} a {@code ScheduleBajaIndicacionPrestacionResponse}.
      *
-     * @param indicacionPrestacion {@code IndicacionPrestacion} entidad dada de baja
-     * @return {@code SoftDeleteIndicacionPrestacionResponse} respuesta de baja lógica
+     * @param indicacionPrestacion {@code IndicacionPrestacion} entidad con la vigencia cerrada
+     * @return {@code ScheduleBajaIndicacionPrestacionResponse} respuesta de la baja programada
      */
-    SoftDeleteIndicacionPrestacionResponse toSoftDeleteResponse(IndicacionPrestacion indicacionPrestacion);
+    ScheduleBajaIndicacionPrestacionResponse toScheduleBajaResponse(IndicacionPrestacion indicacionPrestacion);
 
 }

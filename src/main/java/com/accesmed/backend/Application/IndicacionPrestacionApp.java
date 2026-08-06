@@ -4,13 +4,14 @@ import com.accesmed.backend.Domain.IndicacionPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.CreateIndicacionesPrestacionRequest;
+import com.accesmed.backend.Records.IndicacionPrestacion.Request.ScheduleBajaIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.UpdateIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.CreateIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.CreateIndicacionesPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.UpdateIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
-import com.accesmed.backend.Records.IndicacionPrestacion.Response.SoftDeleteIndicacionPrestacionResponse;
+import com.accesmed.backend.Records.IndicacionPrestacion.Response.ScheduleBajaIndicacionPrestacionResponse;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.TipoIndicacionPrestacionDomainService;
@@ -21,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -76,19 +78,18 @@ public class IndicacionPrestacionApp {
 
             indicacionesNuevas.get(i).setPrestacion(prestacionExistente);
             indicacionesNuevas.get(i).setTipoIndicacionPrestacion(tipoIndicacionExistente);
+            indicacionesNuevas.get(i).setFechaInicioVigencia(ZonedDateTime.now());
         }
 
         //Guardar las indicaciones
         List<IndicacionPrestacion> indicacionesGuardadas = indicacionPrestacionDomainService
                 .saveIndicacionesPrestacion(indicacionesNuevas);
 
-        //Mapear a create Indicaciones Prestacion Response
+        //Devolver response mapeado
         List<CreateIndicacionPrestacionResponse> indicacionesResponse = indicacionPrestacionMapper
                 .toCreateResponses(indicacionesGuardadas);
         CreateIndicacionesPrestacionResponse createIndicacionesPrestacionResponse =
                 new CreateIndicacionesPrestacionResponse(indicacionesResponse);
-
-        //Retornar Respuesta
         return createIndicacionesPrestacionResponse;
 
     }
@@ -96,21 +97,23 @@ public class IndicacionPrestacionApp {
     /**
      * Actualiza una indicación de prestación existente.
      *
-     * @param id {@code UUID} identificador de la ruta
-     * @param updateIndicacionPrestacionRequest {@code UpdateIndicacionPrestacionRequest} datos a actualizar
+     * @param updateIndicacionPrestacionRequest {@code UpdateIndicacionPrestacionRequest} datos a actualizar,
+     *        incluyendo el id de la indicación (ya validado contra la ruta en el Controller)
      * @return {@code UpdateIndicacionPrestacionResponse} la indicación actualizada
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException
      *         {@code RecursoNoEncontradoException} si la indicación no existe
      */
     @Transactional
     public UpdateIndicacionPrestacionResponse updateIndicacionPrestacion(
-            UUID id, UpdateIndicacionPrestacionRequest updateIndicacionPrestacionRequest) {
+            UpdateIndicacionPrestacionRequest updateIndicacionPrestacionRequest) {
+
+        UUID id = updateIndicacionPrestacionRequest.id();
 
         log.info("Actualización de indicación de prestación iniciada: id={}", id);
 
         //Buscar la indicación
         IndicacionPrestacion indicacionExistente = indicacionPrestacionDomainService
-                .findIndicacionPrestacionById(id);
+                .findIndicacionPrestacionVigenteById(id);
 
         //Actualizar
         indicacionPrestacionMapper.updateIndicacionPrestacion(indicacionExistente, updateIndicacionPrestacionRequest);
@@ -120,32 +123,49 @@ public class IndicacionPrestacionApp {
                 .saveIndicacionPrestacion(indicacionExistente);
 
         //Devolver response mapeado
-        return indicacionPrestacionMapper.toUpdateResponse(indicacionActualizada);
+        UpdateIndicacionPrestacionResponse updateIndicacionPrestacionResponse = indicacionPrestacionMapper
+                .toUpdateResponse(indicacionActualizada);
+        return updateIndicacionPrestacionResponse;
 
     }
 
     /**
-     * Da de baja una indicación de prestación (baja lógica).
+     * Programa la baja de una indicación de prestación, cerrando su vigencia. Admite una
+     * fecha futura para dejar el retiro agendado.
      *
-     * @param id {@code UUID} identificador de la indicación
-     * @return {@code SoftDeleteIndicacionPrestacionResponse} la confirmación de la baja
+     * @param scheduleBajaIndicacionPrestacionRequest {@code ScheduleBajaIndicacionPrestacionRequest}
+     *        fecha de fin de vigencia opcional, incluyendo el id de la indicación (ya validado
+     *        contra la ruta en el Controller)
+     * @return {@code ScheduleBajaIndicacionPrestacionResponse} la confirmación de la baja programada
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException
      *         {@code RecursoNoEncontradoException} si la indicación no existe
+     * @throws com.accesmed.backend.Services.Errors.ValidacionException
+     *         {@code ValidacionException} si la fecha de fin de vigencia no es posterior al inicio
      */
     @Transactional
-    public SoftDeleteIndicacionPrestacionResponse softDeleteIndicacionPrestacion(UUID id) {
+    public ScheduleBajaIndicacionPrestacionResponse scheduleBajaIndicacionPrestacion(
+            ScheduleBajaIndicacionPrestacionRequest scheduleBajaIndicacionPrestacionRequest) {
+
+        UUID id = scheduleBajaIndicacionPrestacionRequest.id();
 
         log.info("Baja de indicación de prestación iniciada: id={}", id);
 
-        //Buscar la indicación
+        //Buscar la indicación vigente
         IndicacionPrestacion indicacionExistente = indicacionPrestacionDomainService
-                .findIndicacionPrestacionById(id);
+                .findIndicacionPrestacionVigenteById(id);
 
-        //Dar de baja
-        indicacionPrestacionDomainService.softDeleteIndicacionPrestacion(indicacionExistente, "Baja de indicación");
+        //Si no vino fecha de fin de vigencia, la baja es inmediata
+        ZonedDateTime fechaFinVigencia = scheduleBajaIndicacionPrestacionRequest.fechaFinVigencia() != null
+                ? scheduleBajaIndicacionPrestacionRequest.fechaFinVigencia()
+                : ZonedDateTime.now();
 
-        //Devolver el response
-        return indicacionPrestacionMapper.toSoftDeleteResponse(indicacionExistente);
+        //Cerrar la vigencia
+        indicacionPrestacionDomainService.cerrarVigenciaIndicacionPrestacion(indicacionExistente, fechaFinVigencia);
+
+        //Devolver response mapeado
+        ScheduleBajaIndicacionPrestacionResponse scheduleBajaIndicacionPrestacionResponse = indicacionPrestacionMapper
+                .toScheduleBajaResponse(indicacionExistente);
+        return scheduleBajaIndicacionPrestacionResponse;
 
     }
 
@@ -164,10 +184,12 @@ public class IndicacionPrestacionApp {
 
         //Buscar la indicación
         IndicacionPrestacion indicacionExistente = indicacionPrestacionDomainService
-                .findIndicacionPrestacionById(id);
+                .findIndicacionPrestacionVigenteById(id);
 
         //Devolver response mapeado
-        return indicacionPrestacionMapper.toGetResponse(indicacionExistente);
+        GetIndicacionPrestacionResponse getIndicacionPrestacionResponse = indicacionPrestacionMapper
+                .toGetResponse(indicacionExistente);
+        return getIndicacionPrestacionResponse;
 
     }
 
@@ -192,9 +214,10 @@ public class IndicacionPrestacionApp {
         }
 
         //Mapear a response
-        return indicaciones.stream()
+        List<ListIndicacionPrestacionResponse> listIndicacionPrestacionResponse = indicaciones.stream()
                 .map(indicacionPrestacionMapper::toListResponse)
                 .toList();
+        return listIndicacionPrestacionResponse;
 
     }
 

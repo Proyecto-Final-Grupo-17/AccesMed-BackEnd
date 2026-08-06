@@ -31,11 +31,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TipoIndicacionPrestacionApp {
 
-    //region ========== Dependencias o inyecciones ==========
+    //region ========== Dependencias ==============
 
+    //Domain Services
     private final TipoIndicacionPrestacionDomainService tipoIndicacionPrestacionDomainService;
     private final IndicacionPrestacionDomainService indicacionPrestacionDomainService;
+
+    //Query Services
     private final TipoIndicacionPrestacionQueryService tipoIndicacionPrestacionQueryService;
+
+    //Mappers
     private final TipoIndicacionPrestacionMapper tipoIndicacionPrestacionMapper;
 
     //endregion
@@ -73,15 +78,17 @@ public class TipoIndicacionPrestacionApp {
                 .saveTipoIndicacionPrestacion(tipoNuevo);
 
         //Devolver response mapeado
-        return tipoIndicacionPrestacionMapper.toCreateResponse(tipoGuardado);
+        CreateTipoIndicacionPrestacionResponse createTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionMapper
+                .toCreateResponse(tipoGuardado);
+        return createTipoIndicacionPrestacionResponse;
 
     }
 
     /**
      * Actualiza un tipo de indicación de prestación existente.
      *
-     * @param id {@code UUID} identificador de la ruta
-     * @param updateTipoIndicacionPrestacionRequest {@code UpdateTipoIndicacionPrestacionRequest} datos a actualizar
+     * @param updateTipoIndicacionPrestacionRequest {@code UpdateTipoIndicacionPrestacionRequest} datos a actualizar,
+     *        incluyendo el id del tipo (ya validado contra la ruta en el Controller)
      * @return {@code UpdateTipoIndicacionPrestacionResponse} el tipo actualizado
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException
      *         {@code RecursoNoEncontradoException} si el tipo no existe
@@ -90,7 +97,9 @@ public class TipoIndicacionPrestacionApp {
      */
     @Transactional
     public UpdateTipoIndicacionPrestacionResponse updateTipoIndicacionPrestacion(
-            UUID id, UpdateTipoIndicacionPrestacionRequest updateTipoIndicacionPrestacionRequest) {
+            UpdateTipoIndicacionPrestacionRequest updateTipoIndicacionPrestacionRequest) {
+
+        UUID id = updateTipoIndicacionPrestacionRequest.id();
 
         log.info("Actualización de tipo de indicación iniciada: id={}", id);
 
@@ -115,7 +124,9 @@ public class TipoIndicacionPrestacionApp {
                 .saveTipoIndicacionPrestacion(tipoExistente);
 
         //Devolver response mapeado
-        return tipoIndicacionPrestacionMapper.toUpdateResponse(tipoActualizado);
+        UpdateTipoIndicacionPrestacionResponse updateTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionMapper
+                .toUpdateResponse(tipoActualizado);
+        return updateTipoIndicacionPrestacionResponse;
 
     }
 
@@ -127,7 +138,7 @@ public class TipoIndicacionPrestacionApp {
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException
      *         {@code RecursoNoEncontradoException} si el tipo no existe
      * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException
-     *         {@code ReglaNegocioException} si hay indicaciones activas que lo referencian
+     *         {@code ReglaNegocioException} si hay indicaciones vigentes que lo referencian
      */
     @Transactional
     public SoftDeleteTipoIndicacionPrestacionResponse softDeleteTipoIndicacionPrestacion(UUID id) {
@@ -139,17 +150,19 @@ public class TipoIndicacionPrestacionApp {
                 .findTipoIndicacionPrestacionActivoById(id);
 
         //Validar que no esté en uso (esta es la ÚNICA validación restrictiva del sistema)
-        if (indicacionPrestacionDomainService.existsIndicacionesActivasByTipo(id)) {
-            log.warn("No se puede dar de baja el tipo de indicación: hay indicaciones activas que lo referencian. id={}", id);
+        if (indicacionPrestacionDomainService.existsIndicacionesVigentesByTipo(id)) {
+            log.warn("No se puede dar de baja el tipo de indicación: hay indicaciones vigentes que lo referencian. id={}", id);
             throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_EN_USO",
-                    "No se puede dar de baja el tipo de indicación porque hay indicaciones activas que lo referencian.");
+                    "No se puede dar de baja el tipo de indicación porque hay indicaciones vigentes que lo referencian.");
         }
 
         //Dar de baja
         tipoIndicacionPrestacionDomainService.softDeleteTipoIndicacionPrestacion(tipoExistente, "Baja de tipo de indicación");
 
         //Devolver el response
-        return tipoIndicacionPrestacionMapper.toSoftDeleteResponse(tipoExistente);
+        SoftDeleteTipoIndicacionPrestacionResponse softDeleteTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionMapper
+                .toSoftDeleteResponse(tipoExistente);
+        return softDeleteTipoIndicacionPrestacionResponse;
 
     }
 
@@ -171,7 +184,10 @@ public class TipoIndicacionPrestacionApp {
                 .findTipoIndicacionPrestacionActivoById(id);
 
         //Devolver response mapeado
-        return tipoIndicacionPrestacionMapper.toGetResponse(tipoExistente);
+        GetTipoIndicacionPrestacionResponse getTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionMapper
+                .toGetResponse(tipoExistente);
+
+        return getTipoIndicacionPrestacionResponse;
 
     }
 
@@ -190,7 +206,10 @@ public class TipoIndicacionPrestacionApp {
                 .findAllTiposIndicacionPrestacion();
 
         //Mapear a response
-        return tipoIndicacionPrestacionMapper.toListResponses(tipos);
+        List<ListTipoIndicacionPrestacionResponse> listTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionMapper
+                .toListResponses(tipos);
+
+        return listTipoIndicacionPrestacionResponse;
 
     }
 

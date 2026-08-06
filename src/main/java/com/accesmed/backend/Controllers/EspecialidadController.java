@@ -56,9 +56,9 @@ public class EspecialidadController {
 
         log.info("Solicitud recibida: crear especialidad código={}", createEspecialidadRequest.codigo());
 
-        CreateEspecialidadResponse response = especialidadApp.createEspecialidad(createEspecialidadRequest);
+        CreateEspecialidadResponse createEspecialidadResponse = especialidadApp.createEspecialidad(createEspecialidadRequest);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createEspecialidadResponse);
 
     }
 
@@ -85,10 +85,10 @@ public class EspecialidadController {
         }
 
         //Invocar caso de uso
-        GetEspecialidadResponse response = especialidadApp.updateEspecialidad(id, updateEspecialidadRequest);
+        GetEspecialidadResponse getEspecialidadResponse = especialidadApp.updateEspecialidad(updateEspecialidadRequest);
 
         //Devolver Respuesta
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(getEspecialidadResponse);
 
     }
 
@@ -103,9 +103,9 @@ public class EspecialidadController {
 
         log.info("Solicitud recibida: obtener especialidad id={}", id);
 
-        GetEspecialidadResponse response = especialidadApp.findEspecialidadById(id);
+        GetEspecialidadResponse getEspecialidadResponse = especialidadApp.findEspecialidadById(id);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(getEspecialidadResponse);
 
     }
 
@@ -119,9 +119,9 @@ public class EspecialidadController {
 
         log.info("Solicitud recibida: listar especialidades");
 
-        List<ListEspecialidadResponse> response = especialidadApp.findEspecialidades();
+        List<ListEspecialidadResponse> listEspecialidadResponse = especialidadApp.findEspecialidades();
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(listEspecialidadResponse);
 
     }
 
@@ -136,9 +136,9 @@ public class EspecialidadController {
 
         log.info("Solicitud recibida: dar de baja especialidad id={}", id);
 
-        SoftDeleteEspecialidadResponse response = especialidadApp.softDeleteEspecialidad(id);
+        SoftDeleteEspecialidadResponse softDeleteEspecialidadResponse = especialidadApp.softDeleteEspecialidad(id);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(softDeleteEspecialidadResponse);
 
     }
 
