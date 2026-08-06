@@ -66,11 +66,12 @@ del **recurso** que toca la operación (ambos en PascalCase singular, como en el
 ```
 
 ```
-POST   /accesmed-api/Prestacion/Prestacion        crear
-GET    /accesmed-api/Prestacion/Prestacion/{id}   obtener por id
-PUT    /accesmed-api/Prestacion/Prestacion/{id}   actualizar
-DELETE /accesmed-api/Prestacion/Prestacion/{id}   dar de baja (soft delete)
-POST   /accesmed-api/AgendaMedico/Agenda          crear la agenda de un médico
+POST   /accesmed-api/Prestacion/Prestacion               crear
+GET    /accesmed-api/Prestacion/Prestacion                listar (paginado, con filtros)
+PUT    /accesmed-api/Prestacion/Prestacion/{id}           actualizar
+DELETE /accesmed-api/Prestacion/Prestacion/{id}           dar de baja (soft delete)
+GET    /accesmed-api/Especialidad/Especialidad/Buscar     traer una única especialidad, por filtro
+POST   /accesmed-api/AgendaMedico/Agenda                  crear la agenda de un médico
 ```
 
 Reglas que importan del lado del front:
@@ -82,6 +83,11 @@ Reglas que importan del lado del front:
   en la URL. Mandá el request sin cuerpo.
 - **`DELETE` es la baja lógica** (soft delete), responde **204** y no borra el registro:
   deja de aparecer en los listados por defecto, pero el id siguió existiendo.
+- **Ya no hay un `GET /{id}` de toda la vida** en las entidades de catálogo (`Especialidad`,
+  `ObraSocial`, `Plan`, `TipoIndicacionPrestacion`, `IndicacionPrestacion`): "obtener por id"
+  y "listar" comparten el mismo lenguaje de filtros dinámicos. Ver
+  [`FILTRADO-DINAMICO.md`](FILTRADO-DINAMICO.md) — es obligatorio leerlo antes de armar
+  cualquier pantalla de listado o de detalle de estas entidades.
 
 La lista exacta de rutas está siempre en Swagger (§4).
 
@@ -148,3 +154,4 @@ mira ahí antes de preguntar.
 - [ ] Manejar fechas en UTC; convertir solo para mostrar.
 - [ ] En `PUT`/`PATCH`, mandar el mismo `id` en la URL y en el body (si difieren, 422).
 - [ ] Disparar transiciones de Turno por sus endpoints de acción, no por un campo estado.
+- [ ] Listados y "obtener por id" de `Especialidad`/`ObraSocial`/`Plan`/`TipoIndicacionPrestacion`/`IndicacionPrestacion` usan filtrado dinámico — ver [`FILTRADO-DINAMICO.md`](FILTRADO-DINAMICO.md).

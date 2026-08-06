@@ -1,6 +1,7 @@
 package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.ObraSocialApp;
+import com.accesmed.backend.Records.ObraSocial.Criteria.ObraSocialCriteria;
 import com.accesmed.backend.Records.ObraSocial.Request.CreateObraSocialRequest;
 import com.accesmed.backend.Records.ObraSocial.Request.UpdateObraSocialRequest;
 import com.accesmed.backend.Records.ObraSocial.Response.CreateObraSocialResponse;
@@ -8,8 +9,12 @@ import com.accesmed.backend.Records.ObraSocial.Response.GetObraSocialResponse;
 import com.accesmed.backend.Records.ObraSocial.Response.ListObraSocialResponse;
 import com.accesmed.backend.Records.ObraSocial.Response.SoftDeleteObraSocialResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -93,35 +98,42 @@ public class ObraSocialController {
     }
 
     /**
-     * Obtiene una obra social por su identificador, con sus planes.
+     * Busca la obra social activa que cumple el criteria de filtrado dinámico
+     * proporcionado, con sus planes. A diferencia de {@link #findObrasSociales}, devuelve
+     * una única obra social (no paginada) — pensado para criterios que identifican una obra
+     * social puntual (ej. {@code id.equals}).
      *
-     * @param id {@code UUID} identificador de la obra social
+     * @param obraSocialCriteria {@code ObraSocialCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @return {@code ResponseEntity<GetObraSocialResponse>} la obra social encontrada (HTTP 200)
      */
-    @GetMapping("/ObraSocial/{id}")
-    public ResponseEntity<GetObraSocialResponse> findObraSocialById(@PathVariable UUID id) {
+    @GetMapping("/ObraSocial/Buscar")
+    public ResponseEntity<GetObraSocialResponse> findObraSocialByCriteria(@ParameterObject ObraSocialCriteria obraSocialCriteria) {
 
-        log.info("Solicitud recibida: obtener obra social id={}", id);
+        log.info("Solicitud recibida: buscar obra social criteria={}", obraSocialCriteria);
 
-        GetObraSocialResponse getObraSocialResponse = obraSocialApp.findObraSocialById(id);
+        GetObraSocialResponse getObraSocialResponse = obraSocialApp.findObraSocialByCriteria(obraSocialCriteria);
 
         return ResponseEntity.ok(getObraSocialResponse);
 
     }
 
     /**
-     * Lista todas las obras sociales activas.
+     * Lista obras sociales activas según el criteria de filtrado dinámico proporcionado.
      *
-     * @return {@code ResponseEntity<List<ListObraSocialResponse>>} lista de obras sociales (HTTP 200)
+     * @param obraSocialCriteria {@code ObraSocialCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param pageable {@code Pageable} página solicitada
+     * @return {@code ResponseEntity<PageResponse<ListObraSocialResponse>>} página de obras sociales (HTTP 200)
      */
     @GetMapping("/ObraSocial")
-    public ResponseEntity<List<ListObraSocialResponse>> findObrasSociales() {
+    public ResponseEntity<PageResponse<ListObraSocialResponse>> findObrasSociales(
+            @ParameterObject ObraSocialCriteria obraSocialCriteria,
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
 
-        log.info("Solicitud recibida: listar obras sociales");
+        log.info("Solicitud recibida: listar obras sociales criteria={} page={}", obraSocialCriteria, pageable);
 
-        List<ListObraSocialResponse> listObraSocialResponse = obraSocialApp.findObrasSociales();
+        PageResponse<ListObraSocialResponse> pageResponse = obraSocialApp.findObrasSociales(obraSocialCriteria, pageable);
 
-        return ResponseEntity.ok(listObraSocialResponse);
+        return ResponseEntity.ok(pageResponse);
 
     }
 

@@ -1,6 +1,7 @@
 package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.EspecialidadApp;
+import com.accesmed.backend.Records.Especialidad.Criteria.EspecialidadCriteria;
 import com.accesmed.backend.Records.Especialidad.Request.CreateEspecialidadRequest;
 import com.accesmed.backend.Records.Especialidad.Request.UpdateEspecialidadRequest;
 import com.accesmed.backend.Records.Especialidad.Response.CreateEspecialidadResponse;
@@ -8,8 +9,12 @@ import com.accesmed.backend.Records.Especialidad.Response.GetEspecialidadRespons
 import com.accesmed.backend.Records.Especialidad.Response.ListEspecialidadResponse;
 import com.accesmed.backend.Records.Especialidad.Response.SoftDeleteEspecialidadResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -93,35 +98,42 @@ public class EspecialidadController {
     }
 
     /**
-     * Obtiene una especialidad por su identificador.
+     * Busca la especialidad activa que cumple el criteria de filtrado dinámico
+     * proporcionado. A diferencia de {@link #findEspecialidades}, devuelve una única
+     * especialidad (no paginada) — pensado para criterios que identifican una especialidad
+     * puntual (ej. {@code id.equals}).
      *
-     * @param id {@code UUID} identificador de la especialidad
+     * @param especialidadCriteria {@code EspecialidadCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @return {@code ResponseEntity<GetEspecialidadResponse>} la especialidad encontrada (HTTP 200)
      */
-    @GetMapping("/Especialidad/{id}")
-    public ResponseEntity<GetEspecialidadResponse> findEspecialidadById(@PathVariable UUID id) {
+    @GetMapping("/Especialidad/Buscar")
+    public ResponseEntity<GetEspecialidadResponse> findEspecialidadByCriteria(@ParameterObject EspecialidadCriteria especialidadCriteria) {
 
-        log.info("Solicitud recibida: obtener especialidad id={}", id);
+        log.info("Solicitud recibida: buscar especialidad criteria={}", especialidadCriteria);
 
-        GetEspecialidadResponse getEspecialidadResponse = especialidadApp.findEspecialidadById(id);
+        GetEspecialidadResponse getEspecialidadResponse = especialidadApp.findEspecialidadByCriteria(especialidadCriteria);
 
         return ResponseEntity.ok(getEspecialidadResponse);
 
     }
 
     /**
-     * Lista todas las especialidades activas.
+     * Lista especialidades activas según el criteria de filtrado dinámico proporcionado.
      *
-     * @return {@code ResponseEntity<List<ListEspecialidadResponse>>} lista de especialidades (HTTP 200)
+     * @param especialidadCriteria {@code EspecialidadCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param pageable {@code Pageable} página solicitada
+     * @return {@code ResponseEntity<PageResponse<ListEspecialidadResponse>>} página de especialidades (HTTP 200)
      */
     @GetMapping("/Especialidad")
-    public ResponseEntity<List<ListEspecialidadResponse>> findEspecialidades() {
+    public ResponseEntity<PageResponse<ListEspecialidadResponse>> findEspecialidades(
+            @ParameterObject EspecialidadCriteria especialidadCriteria,
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
 
-        log.info("Solicitud recibida: listar especialidades");
+        log.info("Solicitud recibida: listar especialidades criteria={} page={}", especialidadCriteria, pageable);
 
-        List<ListEspecialidadResponse> listEspecialidadResponse = especialidadApp.findEspecialidades();
+        PageResponse<ListEspecialidadResponse> pageResponse = especialidadApp.findEspecialidades(especialidadCriteria, pageable);
 
-        return ResponseEntity.ok(listEspecialidadResponse);
+        return ResponseEntity.ok(pageResponse);
 
     }
 

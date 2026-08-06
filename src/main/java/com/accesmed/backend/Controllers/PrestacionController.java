@@ -1,7 +1,7 @@
 package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.PrestacionApp;
-import com.accesmed.backend.Domain.EstadoPrestacion;
+import com.accesmed.backend.Records.Prestacion.Criteria.PrestacionCriteria;
 import com.accesmed.backend.Records.Prestacion.Request.CreatePrestacionRequest;
 import com.accesmed.backend.Records.Prestacion.Request.DeshabilitarPrestacionRequest;
 import com.accesmed.backend.Records.Prestacion.Request.UpdatePrestacionRequest;
@@ -10,8 +10,12 @@ import com.accesmed.backend.Records.Prestacion.Response.CreatePrestacionResponse
 import com.accesmed.backend.Records.Prestacion.Response.ListPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.UpdatePrestacionResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,7 +24,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -163,22 +166,22 @@ public class PrestacionController {
     }
 
     /**
-     * Lista prestaciones según los filtros proporcionados.
+     * Lista prestaciones según el criteria de filtrado dinámico proporcionado.
      *
-     * @param especialidadId {@code UUID} opcional, para filtrar por especialidad
-     * @param estadoActual {@code EstadoPrestacion} opcional, para filtrar por estado
-     * @return {@code ResponseEntity<List<ListPrestacionResponse>>} lista de prestaciones (HTTP 200)
+     * @param prestacionCriteria {@code PrestacionCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param pageable {@code Pageable} página solicitada
+     * @return {@code ResponseEntity<PageResponse<ListPrestacionResponse>>} página de prestaciones (HTTP 200)
      */
     @GetMapping("/Prestacion")
-    public ResponseEntity<List<ListPrestacionResponse>> findPrestaciones(
-            @RequestParam(required = false) UUID especialidadId,
-            @RequestParam(required = false) EstadoPrestacion estadoActual) {
+    public ResponseEntity<PageResponse<ListPrestacionResponse>> findPrestaciones(
+            @ParameterObject PrestacionCriteria prestacionCriteria,
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
 
-        log.info("Solicitud recibida: listar prestaciones especialidadId={} estadoActual={}", especialidadId, estadoActual);
+        log.info("Solicitud recibida: listar prestaciones criteria={} page={}", prestacionCriteria, pageable);
 
-        List<ListPrestacionResponse> listPrestacionResponse = prestacionApp.findPrestaciones(especialidadId, estadoActual);
+        PageResponse<ListPrestacionResponse> pageResponse = prestacionApp.findPrestaciones(prestacionCriteria, pageable);
 
-        return ResponseEntity.ok(listPrestacionResponse);
+        return ResponseEntity.ok(pageResponse);
 
     }
 

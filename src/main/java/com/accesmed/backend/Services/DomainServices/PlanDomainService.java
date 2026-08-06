@@ -43,27 +43,6 @@ public class PlanDomainService {
     }
 
     /**
-     * Busca un plan por su identificador.
-     *
-     * @param id {@code UUID} identificador del plan
-     * @return {@code Plan} el plan correspondiente al id
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe
-     *         un plan con ese id
-     */
-    public Plan findPlanById(UUID id) {
-
-        log.debug("Buscando plan por id: {}", id);
-
-        return planRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.warn("No se encontró el plan: id={}", id);
-                    return new RecursoNoEncontradoException(getClass(), "PLAN_NO_ENCONTRADO",
-                            "No existe un plan con el id " + id);
-                });
-
-    }
-
-    /**
      * Busca un plan activo (no deshabilitado) por su identificador. Deshabilitado es
      * terminal e irreversible, así que un plan en ese estado se trata como no disponible
      * para más operaciones.

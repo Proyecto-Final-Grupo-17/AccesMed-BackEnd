@@ -1,6 +1,7 @@
 package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.TipoIndicacionPrestacionApp;
+import com.accesmed.backend.Records.TipoIndicacionPrestacion.Criteria.TipoIndicacionPrestacionCriteria;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Request.UpdateTipoIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Request.CreateTipoIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.UpdateTipoIndicacionPrestacionResponse;
@@ -9,8 +10,12 @@ import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.ListTipoIn
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.GetTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.SoftDeleteTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -111,37 +116,48 @@ public class TipoIndicacionPrestacionController {
     }
 
     /**
-     * Obtiene un tipo de indicación de prestación por su identificador.
+     * Busca el tipo de indicación de prestación activo que cumple el criteria de filtrado
+     * dinámico proporcionado. A diferencia de {@link #findTiposIndicacionPrestacion},
+     * devuelve un único tipo (no paginado) — pensado para criterios que identifican un tipo
+     * puntual (ej. {@code id.equals}).
      *
-     * @param id {@code UUID} identificador del tipo
+     * @param tipoIndicacionPrestacionCriteria {@code TipoIndicacionPrestacionCriteria} filtros a aplicar
+     *        (ver {@code Docs/ARQUITECTURA.md §7})
      * @return {@code ResponseEntity<GetTipoIndicacionPrestacionResponse>} el tipo encontrado (HTTP 200)
      */
-    @GetMapping("/TipoIndicacionPrestacion/{id}")
-    public ResponseEntity<GetTipoIndicacionPrestacionResponse> findTipoIndicacionPrestacionById(@PathVariable UUID id) {
+    @GetMapping("/TipoIndicacionPrestacion/Buscar")
+    public ResponseEntity<GetTipoIndicacionPrestacionResponse> findTipoIndicacionPrestacionByCriteria(
+            @ParameterObject TipoIndicacionPrestacionCriteria tipoIndicacionPrestacionCriteria) {
 
-        log.info("Solicitud recibida: obtener tipo de indicación id={}", id);
+        log.info("Solicitud recibida: buscar tipo de indicación criteria={}", tipoIndicacionPrestacionCriteria);
 
         GetTipoIndicacionPrestacionResponse getTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionApp
-                .findTipoIndicacionPrestacionById(id);
+                .findTipoIndicacionPrestacionByCriteria(tipoIndicacionPrestacionCriteria);
 
         return ResponseEntity.ok(getTipoIndicacionPrestacionResponse);
 
     }
 
     /**
-     * Lista todos los tipos de indicación de prestación activos.
+     * Lista tipos de indicación de prestación activos según el criteria de filtrado
+     * dinámico proporcionado.
      *
-     * @return {@code ResponseEntity<List<ListTipoIndicacionPrestacionResponse>>} lista de tipos (HTTP 200)
+     * @param tipoIndicacionPrestacionCriteria {@code TipoIndicacionPrestacionCriteria} filtros a aplicar
+     *        (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param pageable {@code Pageable} página solicitada
+     * @return {@code ResponseEntity<PageResponse<ListTipoIndicacionPrestacionResponse>>} página de tipos (HTTP 200)
      */
     @GetMapping("/TipoIndicacionPrestacion")
-    public ResponseEntity<List<ListTipoIndicacionPrestacionResponse>> findAllTiposIndicacionPrestacion() {
+    public ResponseEntity<PageResponse<ListTipoIndicacionPrestacionResponse>> findTiposIndicacionPrestacion(
+            @ParameterObject TipoIndicacionPrestacionCriteria tipoIndicacionPrestacionCriteria,
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
 
-        log.info("Solicitud recibida: listar todos los tipos de indicación");
+        log.info("Solicitud recibida: listar tipos de indicación criteria={} page={}", tipoIndicacionPrestacionCriteria, pageable);
 
-        List<ListTipoIndicacionPrestacionResponse> listTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionApp
-                .findAllTiposIndicacionPrestacion();
+        PageResponse<ListTipoIndicacionPrestacionResponse> pageResponse = tipoIndicacionPrestacionApp
+                .findTiposIndicacionPrestacion(tipoIndicacionPrestacionCriteria, pageable);
 
-        return ResponseEntity.ok(listTipoIndicacionPrestacionResponse);
+        return ResponseEntity.ok(pageResponse);
 
     }
 

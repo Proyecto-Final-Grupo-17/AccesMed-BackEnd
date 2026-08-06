@@ -1,6 +1,7 @@
 package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.PlanApp;
+import com.accesmed.backend.Records.Plan.Criteria.PlanCriteria;
 import com.accesmed.backend.Records.Plan.Request.AddPlanRequest;
 import com.accesmed.backend.Records.Plan.Request.DeshabilitarPlanRequest;
 import com.accesmed.backend.Records.Plan.Request.UpdatePlanRequest;
@@ -8,8 +9,12 @@ import com.accesmed.backend.Records.Plan.Response.CambioEstadoPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.GetPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.ListPlanResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,7 +23,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -156,36 +160,41 @@ public class PlanController {
     }
 
     /**
-     * Obtiene un plan por su identificador.
+     * Busca el plan que cumple el criteria de filtrado dinámico proporcionado. A
+     * diferencia de {@link #findPlanes}, devuelve un único plan (no paginado) — pensado
+     * para criterios que identifican un plan puntual (ej. {@code id.equals}).
      *
-     * @param id {@code UUID} identificador del plan
+     * @param planCriteria {@code PlanCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @return {@code ResponseEntity<GetPlanResponse>} el plan encontrado (HTTP 200)
      */
-    @GetMapping("/Plan/{id}")
-    public ResponseEntity<GetPlanResponse> findPlanById(@PathVariable UUID id) {
+    @GetMapping("/Plan/Buscar")
+    public ResponseEntity<GetPlanResponse> findPlanByCriteria(@ParameterObject PlanCriteria planCriteria) {
 
-        log.info("Solicitud recibida: obtener plan id={}", id);
+        log.info("Solicitud recibida: buscar plan criteria={}", planCriteria);
 
-        GetPlanResponse getPlanResponse = planApp.findPlanById(id);
+        GetPlanResponse getPlanResponse = planApp.findPlanByCriteria(planCriteria);
 
         return ResponseEntity.ok(getPlanResponse);
 
     }
 
     /**
-     * Lista los planes de una obra social determinada.
+     * Lista planes según el criteria de filtrado dinámico proporcionado.
      *
-     * @param obraSocialId {@code UUID} identificador de la obra social
-     * @return {@code ResponseEntity<List<ListPlanResponse>>} lista de planes de esa obra social (HTTP 200)
+     * @param planCriteria {@code PlanCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param pageable {@code Pageable} página solicitada
+     * @return {@code ResponseEntity<PageResponse<ListPlanResponse>>} página de planes (HTTP 200)
      */
     @GetMapping("/Plan")
-    public ResponseEntity<List<ListPlanResponse>> findPlanesByObraSocial(@RequestParam UUID obraSocialId) {
+    public ResponseEntity<PageResponse<ListPlanResponse>> findPlanes(
+            @ParameterObject PlanCriteria planCriteria,
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
 
-        log.info("Solicitud recibida: listar planes obraSocialId={}", obraSocialId);
+        log.info("Solicitud recibida: listar planes criteria={} page={}", planCriteria, pageable);
 
-        List<ListPlanResponse> listPlanResponse = planApp.findPlanesByObraSocial(obraSocialId);
+        PageResponse<ListPlanResponse> pageResponse = planApp.findPlanes(planCriteria, pageable);
 
-        return ResponseEntity.ok(listPlanResponse);
+        return ResponseEntity.ok(pageResponse);
 
     }
 

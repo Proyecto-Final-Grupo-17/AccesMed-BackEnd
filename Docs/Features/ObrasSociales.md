@@ -75,12 +75,18 @@ Mismo formato que la respuesta de obtención (ver abajo).
 
 ---
 
-### Obtener obra social — `GET /accesmed-api/ObraSocial/ObraSocial/{id}`
+### Buscar obra social — `GET /accesmed-api/ObraSocial/ObraSocial/Buscar`
+
+Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
+[`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md) para el formato completo de filtros.
 
 **Flujo simplificado:**
-1. Busca la obra social activa por `id`.
+1. Busca la única obra social activa que cumple el criteria (típico: `id.equals=<uuid>`).
 2. Carga todos sus planes (cualquier estado).
-3. Devuelve los datos completos.
+3. Devuelve los datos completos, o 404 si ninguna matchea.
+
+**Query params** — `ObraSocialCriteria`: `id`, `codigo`, `nombre`, `razonSocial`,
+`createdDate`, `lastModifiedDate`.
 
 **Response para el front — `GetObraSocialResponse`**
 
@@ -93,24 +99,30 @@ Mismo formato que la respuesta de obtención (ver abajo).
 | `planes` | Array de `{id, codigo, nombre, estadoActual}` | Para listar los planes de la obra social y su estado (publicar/despublicar/deshabilitar). |
 
 **Errores posibles:**
-- `OBRA_SOCIAL_NO_ENCONTRADA` (404): no existe o está de baja.
+- `OBRA_SOCIAL_NO_ENCONTRADA` (404): ninguna obra social activa cumple el criteria.
 
 ---
 
 ### Listar obras sociales — `GET /accesmed-api/ObraSocial/ObraSocial`
 
-**Flujo simplificado:**
-1. Recupera todas las obras sociales activas.
-2. Devuelve una lista compacta (sin planes).
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
 
-**Response para el front — `List<ListObraSocialResponse>`**
+**Flujo simplificado:**
+1. Recupera las obras sociales activas que cumplen el criteria (sin filtros = todas).
+2. Devuelve una página de resultados (sin planes).
+
+**Query params** — `ObraSocialCriteria` (`id`, `codigo`, `nombre`, `razonSocial`,
+`createdDate`, `lastModifiedDate`) + paginación (`page`, `size`, `sort`).
+
+**Response para el front — `PageResponse<ListObraSocialResponse>`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id` | UUID | Para navegar al detalle. |
-| `codigo` | String | Código. |
-| `nombre` | String | Nombre. |
-| `razonSocial` | String | Razón social. |
+| `content[].id` | UUID | Para navegar al detalle. |
+| `content[].codigo` | String | Código. |
+| `content[].nombre` | String | Nombre. |
+| `content[].razonSocial` | String | Razón social. |
+| `page`, `size`, `totalElements`, `totalPages` | number | Metadatos de paginación. |
 
 ---
 
@@ -281,35 +293,49 @@ Igual formato que "Publicar plan", con `estadoActual = DESHABILITADO`.
 
 ---
 
-### Obtener plan — `GET /accesmed-api/Plan/Plan/{id}`
+### Buscar plan — `GET /accesmed-api/Plan/Plan/Buscar`
+
+Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
+[`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md) para el formato completo de filtros.
+Trae el plan en **cualquier estado**, incluidos los deshabilitados (a diferencia de otros
+flujos del módulo, que solo ven planes no deshabilitados).
+
+**Query params** — `PlanCriteria`: `id`, `codigo`, `nombre`, `estadoActual`, `obraSocialId`,
+`createdDate`, `lastModifiedDate`.
 
 **Response para el front — `GetPlanResponse`**
 
 Mismo formato que en "Agregar plan a obra social".
 
 **Errores posibles:**
-- `PLAN_NO_ENCONTRADO` (404).
+- `PLAN_NO_ENCONTRADO` (404): ningún plan cumple el criteria.
 
 ---
 
-### Listar planes de una obra social — `GET /accesmed-api/Plan/Plan?obraSocialId={id}`
+### Listar planes — `GET /accesmed-api/Plan/Plan`
 
-**Query parameters**
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
+`obraSocialId` **dejó de ser obligatorio**: sin filtros trae planes de todas las obras
+sociales; para los planes de una sola, seguí mandando `obraSocialId.equals=<uuid>`.
 
-| Parámetro | Tipo | Obligatorio | Significado |
-|-----------|------|-------------|-------------|
-| `obraSocialId` | UUID | Sí | Obra social cuyos planes se listan. |
+**Query params** — `PlanCriteria` (`id`, `codigo`, `nombre`, `estadoActual`, `obraSocialId`,
+`createdDate`, `lastModifiedDate`) + paginación (`page`, `size`, `sort`).
 
-**Response para el front — `List<ListPlanResponse>`**
+```
+GET /accesmed-api/Plan/Plan?obraSocialId.equals=3fa85f64-5717-4562-b3fc-2c963f66afa6
+```
+
+**Response para el front — `PageResponse<ListPlanResponse>`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id` | UUID | Para navegar al detalle o gestionar el estado. |
-| `codigo` | String | Código del plan. |
-| `nombre` | String | Nombre del plan. |
-| `obraSocialId` | UUID | Confirmación de la obra social. |
-| `obraSocialNombre` | String | Nombre de la obra social. |
-| `estadoActual` | String | Para marcar visualmente o filtrar por estado. |
+| `content[].id` | UUID | Para navegar al detalle o gestionar el estado. |
+| `content[].codigo` | String | Código del plan. |
+| `content[].nombre` | String | Nombre del plan. |
+| `content[].obraSocialId` | UUID | Confirmación de la obra social. |
+| `content[].obraSocialNombre` | String | Nombre de la obra social. |
+| `content[].estadoActual` | String | Para marcar visualmente o filtrar por estado. |
+| `page`, `size`, `totalElements`, `totalPages` | number | Metadatos de paginación. |
 
 ---
 

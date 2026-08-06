@@ -874,25 +874,103 @@ línea Spring Boot 4). Acá va el qué y el porqué de cada dependencia.
 > `spring-restdocs-mockmvc` / `asciidoctor-maven-plugin` (redundante con springdoc-openapi,
 > que ya es la documentación viva). Detalle en `STACK.md`.
 
-### Filtrado dinámico: JPA Specifications + metamodelo estático
+### Filtrado dinámico: JPA Specifications + metamodelo estático (modelo JHipster)
 
-Para búsquedas con múltiples filtros opcionales (`search<Entidad>` en el `QueryService`),
-se usa **Spring Data JPA Specifications** (`Specification<T>` + `JpaSpecificationExecutor<T>`
-en el repository), combinadas con el **metamodelo estático de JPA** generado por
-`hibernate-processor` para no usar nombres de campo como string literal.
+Para listados con múltiples filtros opcionales (`find<Entidad>` en el `App`, que delega en
+`findByCriteria` del `QueryService`), se usa **Spring Data JPA Specifications**
+(`Specification<T>` + `JpaSpecificationExecutor<T>` en el repository), combinadas con el
+**metamodelo estático de JPA** generado por `hibernate-processor` para no usar nombres de
+campo como string literal. El diseño sigue el mecanismo de JHipster (Criteria +
+`QueryService`), vendorizado a mano en `Services/QueryServices/Filtering/` en vez de sumar
+la dependencia `tech.jhipster:jhipster-framework` completa.
 
-- **`<Entidad>Criteria`**: `record` con todos los campos opcionales (excepción a la regla
-  `<Accion><Entidad>Request`, porque no es un endpoint de escritura sino un objeto de
-  filtro). Sin Bean Validation: todo es opcional.
-- **`<Entidad>Specifications`**: clase con métodos estáticos, uno por campo filtrable, cada
-  uno devuelve `null` si el criterio no vino (Spring Data ignora los `Specification` nulos
-  al combinarlos con `Specification.where(...).and(...)`).
+- **`Filter<T>`** (`Services/QueryServices/Filtering/Filter.java`): filtro genérico de un
+  campo, con los operadores `equals`/`notEquals`/`in`/`notIn`/`specified` (presencia/
+  ausencia). Dos subclases agregan operadores propios del tipo de dato:
+  **`RangeFilter<T extends Comparable<? super T>>`** suma `greaterThan`/`lessThan`/
+  `greaterThanOrEqual`/`lessThanOrEqual` (rangos: fechas, números); **`StringFilter`** suma
+  `contains` (`LIKE` case-insensitive).
+- **Reificaciones concretas** (`UUIDFilter`, `InstantFilter extends RangeFilter<Instant>`,
+  `BooleanFilter`, y una por cada enum de dominio que entre en un Criteria — ej.
+  `EstadoPrestacionFilter extends Filter<EstadoPrestacion>`): Spring necesita un tipo
+  concreto, no uno genérico, para bindear los query params anidados de un `GET`
+  (`campo.equals=x`) y para que el esquema de OpenAPI sea legible.
+- **`<Entidad>Criteria`** (`Records/<Entidad>/Criteria/<Entidad>Criteria.java`): clase
+  mutable con un campo `Filter`/`RangeFilter`/`StringFilter` (o su reificación) por campo
+  filtrable — excepción a la regla `<Accion><Entidad>Request` (no es un endpoint de
+  escritura sino un objeto de filtro para un `GET`) y a "records para DTOs" (necesita
+  setters + constructor vacío para que Spring la bindee, no un `record`). Sin Bean
+  Validation: todo campo es opcional. Anotada con
+  `@org.springdoc.core.annotations.ParameterObject` para que Swagger la aplane como
+  parámetros de query individuales en vez de mostrarla como un objeto anidado.
+- **`<Entidad>QueryService extends AbstractFiltroQueryService<Entidad, Criteria>`**
+  (`Services/QueryServices/Filtering/AbstractFiltroQueryService.java`): la base implementa
+  `findByCriteria(criteria, pageable)` (devuelve `Page<Entidad>`) y expone los helpers
+  `buildSpecification`/`buildRangeSpecification`/`buildStringSpecification`, que traducen
+  cada `Filter` a un fragmento de `Specification` usando el metamodelo (`Prestacion_.nombre`)
+  o, para relaciones, un `root.join(...)` (ej. `especialidadId` sobre `Prestacion_.especialidad`).
+  Cada subclase solo implementa `getRepository()` y `createSpecification(criteria)`.
 - **Metamodelo** (`hibernate-processor`, se declara junto a Lombok en
   `annotationProcessorPaths` del `maven-compiler-plugin` para evitar conflicto entre
   procesadores de anotaciones): usar `Turno_.estadoActual` en vez de
   `root.get("estadoActual")` — seguro ante refactors, error de compilación si el campo no existe.
+- **`PageResponse<T>`** (`Services/QueryServices/Filtering/PageResponse.java`): envelope de
+  paginación (`content`, `page`, `size`, `totalElements`, `totalPages`) que devuelven todos
+  los endpoints de listado, armado con `PageResponse.from(page, mapper::toListResponse)`. Se
+  prefiere a serializar `Page` directo (formato inestable, Spring lo desaconseja) o a mandar
+  la paginación por headers HTTP (más incómodo de consumir para el bot de WhatsApp/Flowise
+  que para el panel). El `Controller` recibe además `@ParameterObject Pageable pageable`
+  (con `@PageableDefault` para el tamaño/orden por defecto).
+- Excepción de ubicación: `Filtering/` y `PageResponse` viven en `Services/QueryServices/`
+  y no en `Records/`, porque son infraestructura transversal a *todos* los listados, no de
+  una entidad puntual — el proyecto no tiene carpeta `Shared` (§5), así que esto vive en el
+  rol que lo produce (`QueryServices`), no en uno aparte.
 
-> **Pendiente de definir**: un helper genérico de soft delete (ej.
-> `AuditableSpecifications.isActive()`) que filtre por `deleted_at IS NULL` de forma
-> reutilizable. No se implementa todavía porque no está confirmado que **todas** las
-> entidades usen `deleted_at` de la misma manera — a resolver antes de generalizarlo.
+### `find<Entidad>ById` se retira: se resuelve con el mismo Criteria, en singular
+
+Las entidades con filtrado dinámico **no tienen un `GET /<Entidad>/{id}` aparte**. Traer un
+único registro (por id o por cualquier otro campo que lo identifique, ej. `codigo`) usa el
+mismo `<Entidad>Criteria` que el listado, con una ruta y una capa de servicio propias que
+devuelven un único objeto en vez de una página:
+
+- **`AbstractFiltroQueryService.findOneByCriteria(criteria)`**: genérico, devuelve
+  `Optional<ENTIDAD>` — arma la `Specification` igual que `findByCriteria` y delega en
+  `JpaSpecificationExecutor.findOne(Specification)`.
+- **`<Entidad>QueryService.find<Entidad>ByCriteria(criteria)`**: por entidad, porque necesita
+  el código/mensaje de error específico — envuelve `findOneByCriteria` con
+  `.orElseThrow(...)` y el `log.warn` correspondiente (regla de siempre: el Service loguea y
+  lanza, no el App). Ej. `PlanQueryService.findPlanByCriteria`.
+- **`<Entidad>App.find<Entidad>ByCriteria(criteria)`**: delega en el `QueryService` y mapea
+  al response de siempre (`Get<Entidad>Response`) — sin envelope de paginación.
+- **`Controller`**: `@GetMapping("/<Entidad>/Buscar")`, recibe `@ParameterObject
+  <Entidad>Criteria` (mismo tipo que el `GetMapping("/<Entidad>")` de listado), devuelve
+  `ResponseEntity<Get<Entidad>Response>`.
+
+Aplicado en `Plan`, `Especialidad`, `ObraSocial`, `TipoIndicacionPrestacion` e
+`IndicacionPrestacion`. `Prestacion` no tenía un `GET /{id}` previo — queda pendiente sumar
+su `/Buscar` si hace falta (requiere resolver también las indicaciones anidadas del
+response, como hace `ObraSocialApp.findObraSocialByCriteria` con sus planes).
+
+Contrato para el front: ver `Docs/FILTRADO-DINAMICO.md`.
+
+**Soft delete y vigencia: filtro implícito, no expuesto en el Criteria.** Resolvía la nota
+"pendiente de definir" de una versión anterior de esta sección: no es un helper genérico en
+`AbstractFiltroQueryService`, porque no todas las entidades excluyen registros "de baja" de
+la misma manera:
+
+- Entidades con `deleted_at` (`Especialidad`, `ObraSocial`, `TipoIndicacionPrestacion`,
+  `IndicacionPrestacion`... salvo que tengan otro eje, ver siguiente punto): su
+  `createSpecification` agrega siempre `cb.isNull(root.get(Entidad_.deletedAt))`, sin
+  exponer `deletedAt` como campo del Criteria (para que ningún filtro externo pueda listar
+  bajas lógicas).
+- Entidades que se retiran por estado (`Plan`, `Prestacion`, eje `estadoActual`): no llevan
+  ningún filtro implícito — el estado se filtra explícitamente por `estadoActual` si el
+  Criteria lo pide, igual que cualquier otro campo.
+- `IndicacionPrestacion` no tiene baja lógica ni estados: se retira cerrando
+  `fechaFinVigencia` (admite fecha futura para programar el retiro). Su
+  `createSpecification` agrega siempre la condición de vigencia al momento de la consulta
+  (`fechaInicioVigencia <= ahora AND (fechaFinVigencia IS NULL OR fechaFinVigencia > ahora)`),
+  el equivalente funcional a `deletedAt IS NULL` para este eje, tampoco expuesto en el Criteria.
+
+Cada entidad nueva que sume filtrado dinámico decide a cuál de estos tres grupos pertenece
+(o si necesita uno propio) antes de escribir su `createSpecification`.

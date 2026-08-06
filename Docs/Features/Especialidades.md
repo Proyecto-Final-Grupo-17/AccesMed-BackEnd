@@ -68,11 +68,16 @@
 
 ---
 
-### Obtener especialidad — `GET /accesmed-api/Especialidad/Especialidad/{id}`
+### Buscar especialidad — `GET /accesmed-api/Especialidad/Especialidad/Buscar`
+
+Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
+[`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md) para el formato completo de filtros.
 
 **Flujo simplificado:**
-1. Busca la especialidad activa por `id`.
-2. Devuelve sus datos.
+1. Busca la única especialidad activa que cumple el criteria (típico: `id.equals=<uuid>`).
+2. Devuelve sus datos, o 404 si ninguna matchea.
+
+**Query params** — `EspecialidadCriteria`: `id`, `codigo`, `nombre`, `createdDate`, `lastModifiedDate`.
 
 **Response para el front — `GetEspecialidadResponse`**
 
@@ -83,23 +88,29 @@
 | `nombre` | String | Nombre. |
 
 **Errores posibles:**
-- `ESPECIALIDAD_NO_ENCONTRADA` (404): no existe o está de baja.
+- `ESPECIALIDAD_NO_ENCONTRADA` (404): ninguna especialidad activa cumple el criteria.
 
 ---
 
 ### Listar especialidades — `GET /accesmed-api/Especialidad/Especialidad`
 
-**Flujo simplificado:**
-1. Recupera todas las especialidades activas.
-2. Devuelve una lista compacta.
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
 
-**Response para el front — `List<ListEspecialidadResponse>`**
+**Flujo simplificado:**
+1. Recupera las especialidades activas que cumplen el criteria (sin filtros = todas).
+2. Devuelve una página de resultados.
+
+**Query params** — `EspecialidadCriteria` (`id`, `codigo`, `nombre`, `createdDate`,
+`lastModifiedDate`) + paginación (`page`, `size`, `sort`).
+
+**Response para el front — `PageResponse<ListEspecialidadResponse>`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id` | UUID | Para navegar a detalle/edición, o para usar como `especialidadId` al crear un médico/prestación. |
-| `codigo` | String | Código de la especialidad. |
-| `nombre` | String | Nombre, para mostrar en selects/listados. |
+| `content[].id` | UUID | Para navegar a detalle/edición, o para usar como `especialidadId` al crear un médico/prestación. |
+| `content[].codigo` | String | Código de la especialidad. |
+| `content[].nombre` | String | Nombre, para mostrar en selects/listados. |
+| `page`, `size`, `totalElements`, `totalPages` | number | Metadatos de paginación. |
 
 ---
 

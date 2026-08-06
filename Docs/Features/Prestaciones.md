@@ -95,11 +95,13 @@
 
 ---
 
-### Obtener tipo de indicación — `GET /accesmed-api/TipoIndicacionPrestacion/TipoIndicacionPrestacion/{id}`
+### Buscar tipo de indicación — `GET /accesmed-api/TipoIndicacionPrestacion/TipoIndicacionPrestacion/Buscar`
 
-**Flujo simplificado:**
-1. Busca el tipo activo por `id`.
-2. Devuelve sus datos.
+Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
+[`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md) para el formato completo de filtros.
+
+**Query params** — `TipoIndicacionPrestacionCriteria`: `id`, `codigo`, `nombre`,
+`createdDate`, `lastModifiedDate`.
 
 **Response para el front — `GetTipoIndicacionPrestacionResponse`**
 
@@ -110,23 +112,25 @@
 | `nombre` | String | Nombre para mostrar en detalle. |
 
 **Errores posibles:**
-- `TIPO_INDICACION_PRESTACION_NO_ENCONTRADO` (404): no existe o está de baja.
+- `TIPO_INDICACION_PRESTACION_NO_ENCONTRADO` (404): ningún tipo activo cumple el criteria.
 
 ---
 
 ### Listar tipos de indicación — `GET /accesmed-api/TipoIndicacionPrestacion/TipoIndicacionPrestacion`
 
-**Flujo simplificado:**
-1. Recupera todos los tipos activos.
-2. Devuelve la lista.
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
 
-**Response para el front — `List<ListTipoIndicacionPrestacionResponse>`**
+**Query params** — `TipoIndicacionPrestacionCriteria` (`id`, `codigo`, `nombre`,
+`createdDate`, `lastModifiedDate`) + paginación (`page`, `size`, `sort`).
+
+**Response para el front — `PageResponse<ListTipoIndicacionPrestacionResponse>`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id` | UUID | Identificador para seleccionar en dropdowns al crear indicaciones. |
-| `codigo` | String | Código para mostrar en listados. |
-| `nombre` | String | Nombre descriptivo para mostrar al usuario. |
+| `content[].id` | UUID | Identificador para seleccionar en dropdowns al crear indicaciones. |
+| `content[].codigo` | String | Código para mostrar en listados. |
+| `content[].nombre` | String | Nombre descriptivo para mostrar al usuario. |
+| `page`, `size`, `totalElements`, `totalPages` | number | Metadatos de paginación. |
 
 ---
 
@@ -352,62 +356,33 @@ implementa cuando esos módulos existan.
 
 ---
 
-### Obtener prestación — `GET /accesmed-api/Prestacion/Prestacion/{id}`
-
-**Flujo simplificado:**
-1. Busca la prestación por `id`.
-2. Carga todas sus indicaciones activas.
-3. Devuelve los datos completos.
-
-**Response para el front — `GetPrestacionResponse`**
-
-| Campo | Tipo | Para qué lo usa el front |
-|-------|------|--------------------------|
-| `id` | UUID | Identificador de la prestación. |
-| `codigo` | String | Código de la prestación. |
-| `nombre` | String | Nombre. |
-| `duracionMinimaMinutos` | Integer | Duraciones (para mostrar en detalle). |
-| `duracionMaximaMinutos` | Integer | |
-| `tiempoToleranciaSolicitudMinutos` | Integer | Todas las tolerancias (para editar o mostrar). |
-| `tiempoToleranciaValidacionMinutos` | Integer | |
-| `tiempoToleranciaReprogramacionMinutos` | Integer | |
-| `tiempoToleranciaConfirmacionMinutos` | Integer | |
-| `tiempoToleranciaCancelacionMinutos` | Integer | |
-| `tiempoToleranciaAnuncioMinutos` | Integer | |
-| `tiempoRecordatorioConfirmacionMinutos` | Integer | |
-| `especialidadId` | UUID | Para confirmar la especialidad. |
-| `especialidadNombre` | String | Nombre de la especialidad. |
-| `estadoActual` | String (`NO_PUBLICADA`\|`PUBLICADA`\|`DESHABILITADA`) | Para mostrar el estado y habilitar los botones de transición que correspondan. |
-| `indicaciones` | Array | Lista completa de indicaciones activas (cada una con su tipo). |
-
-**Errores posibles:**
-- `PRESTACION_NO_ENCONTRADA` (404): no existe.
-
----
+> **`Prestacion` todavía no tiene `/Buscar`** (a diferencia de las demás entidades de este
+> módulo): por ahora no hay forma de traer una prestación puntual con su lista de
+> indicaciones salvo filtrando el listado por `id.equals=<uuid>` y leyendo `content[0]` (sin
+> indicaciones — ese response solo trae los campos de `ListPrestacionResponse`). Pendiente.
 
 ### Listar prestaciones — `GET /accesmed-api/Prestacion/Prestacion`
 
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
+
 **Flujo simplificado:**
-1. Recupera prestaciones, opcionalmente filtradas por especialidad y/o estado.
-2. Devuelve una lista compacta.
+1. Recupera las prestaciones que cumplen el criteria (sin filtros = todas).
+2. Devuelve una página de resultados.
 
-**Query parameters (opcionales)**
+**Query params** — `PrestacionCriteria` (`id`, `codigo`, `nombre`, `estadoActual`,
+`especialidadId`, `createdDate`, `lastModifiedDate`) + paginación (`page`, `size`, `sort`).
 
-| Parámetro | Tipo | Significado |
-|-----------|------|-------------|
-| `especialidadId` | UUID | Filtrar por especialidad. |
-| `estadoActual` | String (`NO_PUBLICADA`\|`PUBLICADA`\|`DESHABILITADA`) | Filtrar por estado; sin parámetro = todas. |
-
-**Response para el front — `List<ListPrestacionResponse>`**
+**Response para el front — `PageResponse<ListPrestacionResponse>`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id` | UUID | Para navegar a detalle o edición. |
-| `codigo` | String | Código de la prestación. |
-| `nombre` | String | Nombre. |
-| `especialidadId` | UUID | Para mostrar relaciones. |
-| `especialidadNombre` | String | Nombre de la especialidad (para mostrar). |
-| `estadoActual` | String | Para marcar visualmente o filtrar (colores, estados, etc.). |
+| `content[].id` | UUID | Para navegar a detalle o edición. |
+| `content[].codigo` | String | Código de la prestación. |
+| `content[].nombre` | String | Nombre. |
+| `content[].especialidadId` | UUID | Para mostrar relaciones. |
+| `content[].especialidadNombre` | String | Nombre de la especialidad (para mostrar). |
+| `content[].estadoActual` | String | Para marcar visualmente o filtrar (colores, estados, etc.). |
+| `page`, `size`, `totalElements`, `totalPages` | number | Metadatos de paginación. |
 
 ---
 
@@ -501,11 +476,15 @@ prestación (a diferencia del soft delete, que siempre es de a una).
 
 ---
 
-### Obtener indicación de prestación — `GET /accesmed-api/IndicacionPrestacion/IndicacionPrestacion/{id}`
+### Buscar indicación de prestación — `GET /accesmed-api/IndicacionPrestacion/IndicacionPrestacion/Buscar`
 
-**Flujo simplificado:**
-1. Busca la indicación activa por `id`.
-2. Devuelve sus datos.
+Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
+[`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md) para el formato completo de filtros. Solo
+matchea indicaciones **vigentes** al momento de la consulta (no hay baja lógica en esta
+entidad: se retira cerrando `fechaFinVigencia`).
+
+**Query params** — `IndicacionPrestacionCriteria`: `id`, `nombre`, `requiereValidacion`,
+`prestacionId`, `tipoIndicacionPrestacionId`, `createdDate`, `lastModifiedDate`.
 
 **Response para el front — `GetIndicacionPrestacionResponse`**
 
@@ -520,32 +499,29 @@ prestación (a diferencia del soft delete, que siempre es de a una).
 | `tipoIndicacionPrestacionNombre` | String | Nombre del tipo (para mostrar). |
 
 **Errores posibles:**
-- `INDICACION_PRESTACION_NO_ENCONTRADA` (404): no existe o está de baja.
+- `INDICACION_PRESTACION_NO_ENCONTRADA` (404): ninguna indicación vigente cumple el criteria.
 
 ---
 
 ### Listar indicaciones de prestación — `GET /accesmed-api/IndicacionPrestacion/IndicacionPrestacion`
 
-**Flujo simplificado:**
-1. Recupera indicaciones activas, opcionalmente filtradas por prestación.
-2. Devuelve la lista.
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
 
-**Query parameters (opcionales)**
+**Query params** — `IndicacionPrestacionCriteria` (`id`, `nombre`, `requiereValidacion`,
+`prestacionId`, `tipoIndicacionPrestacionId`, `createdDate`, `lastModifiedDate`) +
+paginación (`page`, `size`, `sort`).
 
-| Parámetro | Tipo | Significado |
-|-----------|------|-------------|
-| `prestacionId` | UUID | Filtrar por prestación. |
-
-**Response para el front — `List<ListIndicacionPrestacionResponse>`**
+**Response para el front — `PageResponse<ListIndicacionPrestacionResponse>`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id` | UUID | Para navegar a detalle o edición. |
-| `nombre` | String | Nombre de la indicación. |
-| `requiereValidacion` | Boolean | Para mostrar en listados. |
-| `prestacionId` | UUID | Para confirmar la relación. |
-| `tipoIndicacionPrestacionId` | UUID | Para confirmar el tipo. |
-| `tipoIndicacionPrestacionNombre` | String | Nombre del tipo. |
+| `content[].id` | UUID | Para navegar a detalle o edición. |
+| `content[].nombre` | String | Nombre de la indicación. |
+| `content[].requiereValidacion` | Boolean | Para mostrar en listados. |
+| `content[].prestacionId` | UUID | Para confirmar la relación. |
+| `content[].tipoIndicacionPrestacionId` | UUID | Para confirmar el tipo. |
+| `content[].tipoIndicacionPrestacionNombre` | String | Nombre del tipo. |
+| `page`, `size`, `totalElements`, `totalPages` | number | Metadatos de paginación. |
 
 ---
 
@@ -596,7 +572,8 @@ Las reglas de tolerancia se **validan al guardar la prestación** (no en el alta
    - `PATCH /Prestacion/{id}/Publicar` → `PUBLICADA`. No exige médico asignado.
    - `PATCH /Prestacion/{id}/Despublicar` → vuelve a `NO_PUBLICADA`.
 
-5. **Listar y filtrar**: `GET /Prestacion` con parámetros `especialidadId` y/o `estadoActual`
+5. **Listar y filtrar**: `GET /Prestacion` con filtrado dinámico (`especialidadId.equals`,
+   `estadoActual.equals`, etc. — ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md))
    - Para separar catálogo publicado de no publicado en los listados del panel.
 
 6. **Deshabilitar eventualmente** (terminal, restrictiva): `PATCH /Prestacion/{id}/Deshabilitar`

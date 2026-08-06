@@ -2,6 +2,7 @@ package com.accesmed.backend.Repositories;
 
 import com.accesmed.backend.Domain.IndicacionPrestacion;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -15,10 +16,12 @@ import java.util.UUID;
  * Repositorio de acceso a datos para la entidad {@code IndicacionPrestacion}.
  * Las consultas de vigencia evalúan {@code fechaInicioVigencia}/{@code fechaFinVigencia}
  * contra un instante recibido por parámetro, ya que la combinación AND/OR no se puede
- * expresar por derivación de nombre de Spring Data.
+ * expresar por derivación de nombre de Spring Data. Extiende {@code JpaSpecificationExecutor}
+ * para el filtrado dinámico de {@code IndicacionPrestacionQueryService}
+ * (ver {@code Docs/ARQUITECTURA.md §7}).
  */
 @Repository
-public interface IndicacionPrestacionRepository extends JpaRepository<IndicacionPrestacion, UUID> {
+public interface IndicacionPrestacionRepository extends JpaRepository<IndicacionPrestacion, UUID>, JpaSpecificationExecutor<IndicacionPrestacion> {
 
     /**
      * Busca una indicación de prestación vigente en un instante dado, por su identificador.

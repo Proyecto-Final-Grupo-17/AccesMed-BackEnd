@@ -3,6 +3,7 @@ package com.accesmed.backend.Application;
 import com.accesmed.backend.Domain.EstadoPlan;
 import com.accesmed.backend.Domain.ObraSocial;
 import com.accesmed.backend.Domain.Plan;
+import com.accesmed.backend.Records.Plan.Criteria.PlanCriteria;
 import com.accesmed.backend.Records.Plan.Request.AddPlanRequest;
 import com.accesmed.backend.Records.Plan.Request.DeshabilitarPlanRequest;
 import com.accesmed.backend.Records.Plan.Request.UpdatePlanRequest;
@@ -16,13 +17,15 @@ import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.PlanMapper;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import com.accesmed.backend.Services.QueryServices.PlanQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -203,18 +206,20 @@ public class PlanApp {
     }
 
     /**
-     * Busca un plan por su identificador.
+     * Busca el plan que cumple el criteria de filtrado dinámico proporcionado. A
+     * diferencia de {@link #findPlanes}, devuelve un único plan (no paginado) — pensado
+     * para criterios que identifican un plan puntual (ej. {@code id.equals}).
      *
-     * @param id {@code UUID} identificador del plan
+     * @param planCriteria {@code PlanCriteria} filtros a aplicar
      * @return {@code GetPlanResponse} el plan encontrado
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el plan no existe
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ningún plan cumple el criteria
      */
     @Transactional(readOnly = true)
-    public GetPlanResponse findPlanById(UUID id) {
+    public GetPlanResponse findPlanByCriteria(PlanCriteria planCriteria) {
 
-        log.info("Búsqueda de plan iniciada: id={}", id);
+        log.info("Búsqueda de plan iniciada: criteria={}", planCriteria);
 
-        Plan planExistente = planDomainService.findPlanById(id);
+        Plan planExistente = planQueryService.findPlanByCriteria(planCriteria);
 
         GetPlanResponse getPlanResponse = planMapper.toGetResponse(planExistente);
         return getPlanResponse;
@@ -222,18 +227,23 @@ public class PlanApp {
     }
 
     /**
-     * Lista los planes de una obra social determinada.
+     * Lista planes según el criteria de filtrado dinámico proporcionado.
      *
-     * @param obraSocialId {@code UUID} identificador de la obra social
-     * @return {@code List<ListPlanResponse>} lista de planes de esa obra social
+     * @param planCriteria {@code PlanCriteria} filtros a aplicar, o {@code null} para no filtrar
+     * @param pageable {@code Pageable} página solicitada
+     * @return {@code PageResponse<ListPlanResponse>} página de planes que cumplen el criteria
      */
     @Transactional(readOnly = true)
-    public List<ListPlanResponse> findPlanesByObraSocial(UUID obraSocialId) {
+    public PageResponse<ListPlanResponse> findPlanes(PlanCriteria planCriteria, Pageable pageable) {
 
-        log.info("Listado de planes iniciado: obraSocialId={}", obraSocialId);
+        log.info("Listado de planes iniciado: criteria={}, page={}", planCriteria, pageable);
 
-        List<ListPlanResponse> listPlanResponse = planMapper.toListResponses(planQueryService.findPlanesByObraSocial(obraSocialId));
-        return listPlanResponse;
+        //Buscar planes que cumplen el criteria, paginados
+        Page<Plan> planesPagina = planQueryService.findByCriteria(planCriteria, pageable);
+
+        //Devolver response mapeado
+        PageResponse<ListPlanResponse> pageResponse = PageResponse.from(planesPagina, planMapper::toListResponse);
+        return pageResponse;
 
     }
 

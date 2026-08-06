@@ -3,6 +3,7 @@ package com.accesmed.backend.Repositories;
 import com.accesmed.backend.Domain.EstadoPlan;
 import com.accesmed.backend.Domain.Plan;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -12,10 +13,12 @@ import java.util.UUID;
 /**
  * Repositorio de acceso a datos para la entidad {@code Plan}.
  * Plan se retira por estados, no por baja lógica: la unicidad (por obra social) y los
- * filtros de "activo" se resuelven contra {@code estadoActual}.
+ * filtros de "activo" se resuelven contra {@code estadoActual}. Extiende
+ * {@code JpaSpecificationExecutor} para el filtrado dinámico de {@code PlanQueryService}
+ * (ver {@code Docs/ARQUITECTURA.md §7}).
  */
 @Repository
-public interface PlanRepository extends JpaRepository<Plan, UUID> {
+public interface PlanRepository extends JpaRepository<Plan, UUID>, JpaSpecificationExecutor<Plan> {
 
     /**
      * Busca un plan por su identificador.

@@ -2,18 +2,20 @@ package com.accesmed.backend.Repositories;
 
 import com.accesmed.backend.Domain.Especialidad;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Repositorio de acceso a datos para la entidad {@code Especialidad}.
  * Todas las consultas filtran registros con baja lógica ({@code deletedAt IS NULL}).
+ * Extiende {@code JpaSpecificationExecutor} para el filtrado dinámico de
+ * {@code EspecialidadQueryService} (ver {@code Docs/ARQUITECTURA.md §7}).
  */
 @Repository
-public interface EspecialidadRepository extends JpaRepository<Especialidad, UUID> {
+public interface EspecialidadRepository extends JpaRepository<Especialidad, UUID>, JpaSpecificationExecutor<Especialidad> {
 
     /**
      * Busca una especialidad activa por su identificador.
@@ -23,13 +25,6 @@ public interface EspecialidadRepository extends JpaRepository<Especialidad, UUID
      *         {@code Optional.empty()} en caso contrario
      */
     Optional<Especialidad> findByIdAndDeletedAtIsNull(UUID id);
-
-    /**
-     * Lista todas las especialidades activas.
-     *
-     * @return {@code List<Especialidad>} lista de especialidades activas
-     */
-    List<Especialidad> findAllByDeletedAtIsNull();
 
     /**
      * Verifica si existe una especialidad activa con el código especificado.

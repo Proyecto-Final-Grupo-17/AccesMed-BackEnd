@@ -2,18 +2,20 @@ package com.accesmed.backend.Repositories;
 
 import com.accesmed.backend.Domain.ObraSocial;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Repositorio de acceso a datos para la entidad {@code ObraSocial}.
  * Todas las consultas filtran registros con baja lógica ({@code deletedAt IS NULL}).
+ * Extiende {@code JpaSpecificationExecutor} para el filtrado dinámico de
+ * {@code ObraSocialQueryService} (ver {@code Docs/ARQUITECTURA.md §7}).
  */
 @Repository
-public interface ObraSocialRepository extends JpaRepository<ObraSocial, UUID> {
+public interface ObraSocialRepository extends JpaRepository<ObraSocial, UUID>, JpaSpecificationExecutor<ObraSocial> {
 
     /**
      * Busca una obra social activa por su identificador.
@@ -22,13 +24,6 @@ public interface ObraSocialRepository extends JpaRepository<ObraSocial, UUID> {
      * @return {@code Optional<ObraSocial>} la obra social si existe y está activa
      */
     Optional<ObraSocial> findByIdAndDeletedAtIsNull(UUID id);
-
-    /**
-     * Lista todas las obras sociales activas.
-     *
-     * @return {@code List<ObraSocial>} lista de obras sociales activas
-     */
-    List<ObraSocial> findAllByDeletedAtIsNull();
 
     /**
      * Verifica si existe una obra social activa con el código especificado.

@@ -2,18 +2,20 @@ package com.accesmed.backend.Repositories;
 
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Repositorio de acceso a datos para la entidad {@code TipoIndicacionPrestacion}.
  * Todas las consultas filtran registros con baja lógica ({@code deletedAt IS NULL}).
+ * Extiende {@code JpaSpecificationExecutor} para el filtrado dinámico de
+ * {@code TipoIndicacionPrestacionQueryService} (ver {@code Docs/ARQUITECTURA.md §7}).
  */
 @Repository
-public interface TipoIndicacionPrestacionRepository extends JpaRepository<TipoIndicacionPrestacion, UUID> {
+public interface TipoIndicacionPrestacionRepository extends JpaRepository<TipoIndicacionPrestacion, UUID>, JpaSpecificationExecutor<TipoIndicacionPrestacion> {
 
     /**
      * Verifica si existe un tipo de indicación activo con el código especificado.
@@ -63,12 +65,5 @@ public interface TipoIndicacionPrestacionRepository extends JpaRepository<TipoIn
      *         {@code Optional.empty()} en caso contrario
      */
     Optional<TipoIndicacionPrestacion> findByIdAndDeletedAtIsNull(UUID id);
-
-    /**
-     * Lista todos los tipos de indicación activos.
-     *
-     * @return {@code List<TipoIndicacionPrestacion>} lista de tipos activos
-     */
-    List<TipoIndicacionPrestacion> findAllByDeletedAtIsNull();
 
 }

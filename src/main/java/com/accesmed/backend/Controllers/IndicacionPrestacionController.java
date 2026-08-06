@@ -1,6 +1,7 @@
 package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.IndicacionPrestacionApp;
+import com.accesmed.backend.Records.IndicacionPrestacion.Criteria.IndicacionPrestacionCriteria;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.CreateIndicacionesPrestacionRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.ScheduleBajaIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.UpdateIndicacionPrestacionRequest;
@@ -10,8 +11,12 @@ import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacion
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ScheduleBajaIndicacionPrestacionResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,7 +26,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -126,39 +130,48 @@ public class IndicacionPrestacionController {
     }
 
     /**
-     * Obtiene una indicación de prestación por su identificador.
+     * Busca la indicación de prestación vigente que cumple el criteria de filtrado
+     * dinámico proporcionado. A diferencia de {@link #findIndicacionesPrestacion}, devuelve
+     * una única indicación (no paginada) — pensado para criterios que identifican una
+     * indicación puntual (ej. {@code id.equals}).
      *
-     * @param id {@code UUID} identificador de la indicación
+     * @param indicacionPrestacionCriteria {@code IndicacionPrestacionCriteria} filtros a aplicar
+     *        (ver {@code Docs/ARQUITECTURA.md §7})
      * @return {@code ResponseEntity<GetIndicacionPrestacionResponse>} la indicación encontrada (HTTP 200)
      */
-    @GetMapping("/IndicacionPrestacion/{id}")
-    public ResponseEntity<GetIndicacionPrestacionResponse> findIndicacionPrestacionById(@PathVariable UUID id) {
+    @GetMapping("/IndicacionPrestacion/Buscar")
+    public ResponseEntity<GetIndicacionPrestacionResponse> findIndicacionPrestacionByCriteria(
+            @ParameterObject IndicacionPrestacionCriteria indicacionPrestacionCriteria) {
 
-        log.info("Solicitud recibida: obtener indicación de prestación id={}", id);
+        log.info("Solicitud recibida: buscar indicación de prestación criteria={}", indicacionPrestacionCriteria);
 
         GetIndicacionPrestacionResponse getIndicacionPrestacionResponse = indicacionPrestacionApp
-                .findIndicacionPrestacionById(id);
+                .findIndicacionPrestacionByCriteria(indicacionPrestacionCriteria);
 
         return ResponseEntity.ok(getIndicacionPrestacionResponse);
 
     }
 
     /**
-     * Lista indicaciones de prestación según los filtros proporcionados.
+     * Lista indicaciones de prestación vigentes según el criteria de filtrado dinámico
+     * proporcionado.
      *
-     * @param prestacionId {@code UUID} opcional, para filtrar por prestación
-     * @return {@code ResponseEntity<List<ListIndicacionPrestacionResponse>>} lista de indicaciones (HTTP 200)
+     * @param indicacionPrestacionCriteria {@code IndicacionPrestacionCriteria} filtros a aplicar
+     *        (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param pageable {@code Pageable} página solicitada
+     * @return {@code ResponseEntity<PageResponse<ListIndicacionPrestacionResponse>>} página de indicaciones (HTTP 200)
      */
     @GetMapping("/IndicacionPrestacion")
-    public ResponseEntity<List<ListIndicacionPrestacionResponse>> findIndicacionesPrestacion(
-            @RequestParam(required = false) UUID prestacionId) {
+    public ResponseEntity<PageResponse<ListIndicacionPrestacionResponse>> findIndicacionesPrestacion(
+            @ParameterObject IndicacionPrestacionCriteria indicacionPrestacionCriteria,
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
 
-        log.info("Solicitud recibida: listar indicaciones de prestación prestacionId={}", prestacionId);
+        log.info("Solicitud recibida: listar indicaciones de prestación criteria={} page={}", indicacionPrestacionCriteria, pageable);
 
-        List<ListIndicacionPrestacionResponse> listIndicacionPrestacionResponse = indicacionPrestacionApp
-                .findIndicacionesPrestacion(prestacionId);
+        PageResponse<ListIndicacionPrestacionResponse> pageResponse = indicacionPrestacionApp
+                .findIndicacionesPrestacion(indicacionPrestacionCriteria, pageable);
 
-        return ResponseEntity.ok(listIndicacionPrestacionResponse);
+        return ResponseEntity.ok(pageResponse);
 
     }
 

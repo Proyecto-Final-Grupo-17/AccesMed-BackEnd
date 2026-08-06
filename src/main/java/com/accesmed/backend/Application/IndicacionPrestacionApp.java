@@ -3,6 +3,7 @@ package com.accesmed.backend.Application;
 import com.accesmed.backend.Domain.IndicacionPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion;
+import com.accesmed.backend.Records.IndicacionPrestacion.Criteria.IndicacionPrestacionCriteria;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.CreateIndicacionesPrestacionRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.ScheduleBajaIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.UpdateIndicacionPrestacionRequest;
@@ -16,9 +17,12 @@ import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainSe
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.TipoIndicacionPrestacionDomainService;
 import com.accesmed.backend.Services.Mappers.IndicacionPrestacionMapper;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import com.accesmed.backend.Services.QueryServices.IndicacionPrestacionQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -170,21 +174,25 @@ public class IndicacionPrestacionApp {
     }
 
     /**
-     * Busca una indicación de prestación por su identificador.
+     * Busca la indicación de prestación vigente que cumple el criteria de filtrado
+     * dinámico proporcionado. A diferencia de {@link #findIndicacionesPrestacion}, devuelve
+     * una única indicación (no paginada) — pensado para criterios que identifican una
+     * indicación puntual (ej. {@code id.equals}).
      *
-     * @param id {@code UUID} identificador de la indicación
+     * @param indicacionPrestacionCriteria {@code IndicacionPrestacionCriteria} filtros a aplicar
      * @return {@code GetIndicacionPrestacionResponse} la indicación encontrada
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException
-     *         {@code RecursoNoEncontradoException} si la indicación no existe
+     *         {@code RecursoNoEncontradoException} si ninguna indicación cumple el criteria
      */
     @Transactional(readOnly = true)
-    public GetIndicacionPrestacionResponse findIndicacionPrestacionById(UUID id) {
+    public GetIndicacionPrestacionResponse findIndicacionPrestacionByCriteria(
+            IndicacionPrestacionCriteria indicacionPrestacionCriteria) {
 
-        log.info("Búsqueda de indicación de prestación iniciada: id={}", id);
+        log.info("Búsqueda de indicación de prestación iniciada: criteria={}", indicacionPrestacionCriteria);
 
         //Buscar la indicación
-        IndicacionPrestacion indicacionExistente = indicacionPrestacionDomainService
-                .findIndicacionPrestacionVigenteById(id);
+        IndicacionPrestacion indicacionExistente = indicacionPrestacionQueryService
+                .findIndicacionPrestacionByCriteria(indicacionPrestacionCriteria);
 
         //Devolver response mapeado
         GetIndicacionPrestacionResponse getIndicacionPrestacionResponse = indicacionPrestacionMapper
@@ -194,30 +202,28 @@ public class IndicacionPrestacionApp {
     }
 
     /**
-     * Lista indicaciones de prestación según los filtros proporcionados.
+     * Lista indicaciones de prestación vigentes según el criteria de filtrado dinámico
+     * proporcionado.
      *
-     * @param prestacionId {@code UUID} opcional, para filtrar por prestación
-     * @return {@code List<ListIndicacionPrestacionResponse>} lista de indicaciones que cumplen los filtros
+     * @param indicacionPrestacionCriteria {@code IndicacionPrestacionCriteria} filtros a aplicar,
+     *        o {@code null} para no filtrar
+     * @param pageable {@code Pageable} página solicitada
+     * @return {@code PageResponse<ListIndicacionPrestacionResponse>} página de indicaciones que cumplen el criteria
      */
     @Transactional(readOnly = true)
-    public List<ListIndicacionPrestacionResponse> findIndicacionesPrestacion(UUID prestacionId) {
+    public PageResponse<ListIndicacionPrestacionResponse> findIndicacionesPrestacion(
+            IndicacionPrestacionCriteria indicacionPrestacionCriteria, Pageable pageable) {
 
-        log.info("Listado de indicaciones de prestación iniciado: prestacionId={}", prestacionId);
+        log.info("Listado de indicaciones de prestación iniciado: criteria={}, page={}", indicacionPrestacionCriteria, pageable);
 
-        List<IndicacionPrestacion> indicaciones;
+        //Buscar indicaciones que cumplen el criteria, paginadas
+        Page<IndicacionPrestacion> indicacionesPagina = indicacionPrestacionQueryService
+                .findByCriteria(indicacionPrestacionCriteria, pageable);
 
-        //Aplicar filtro si viene
-        if (prestacionId != null) {
-            indicaciones = indicacionPrestacionQueryService.findIndicacionesPrestacionByPrestacion(prestacionId);
-        } else {
-            indicaciones = indicacionPrestacionQueryService.findAllIndicacionesPrestacion();
-        }
-
-        //Mapear a response
-        List<ListIndicacionPrestacionResponse> listIndicacionPrestacionResponse = indicaciones.stream()
-                .map(indicacionPrestacionMapper::toListResponse)
-                .toList();
-        return listIndicacionPrestacionResponse;
+        //Devolver response mapeado
+        PageResponse<ListIndicacionPrestacionResponse> pageResponse = PageResponse.from(
+                indicacionesPagina, indicacionPrestacionMapper::toListResponse);
+        return pageResponse;
 
     }
 

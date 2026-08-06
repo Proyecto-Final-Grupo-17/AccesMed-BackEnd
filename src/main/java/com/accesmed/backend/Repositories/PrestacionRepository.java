@@ -3,6 +3,7 @@ package com.accesmed.backend.Repositories;
 import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -12,10 +13,12 @@ import java.util.UUID;
 /**
  * Repositorio de acceso a datos para la entidad {@code Prestacion}.
  * Prestacion se retira por estados, no por baja lógica: la unicidad y los filtros de
- * "activa" se resuelven contra {@code estadoActual}, no contra {@code deletedAt}.
+ * "activa" se resuelven contra {@code estadoActual}, no contra {@code deletedAt}. Extiende
+ * {@code JpaSpecificationExecutor} para el filtrado dinámico de
+ * {@code PrestacionQueryService} (ver {@code Docs/ARQUITECTURA.md §7}).
  */
 @Repository
-public interface PrestacionRepository extends JpaRepository<Prestacion, UUID> {
+public interface PrestacionRepository extends JpaRepository<Prestacion, UUID>, JpaSpecificationExecutor<Prestacion> {
 
     /**
      * Verifica si existe una prestación no deshabilitada con el código especificado.
@@ -71,31 +74,6 @@ public interface PrestacionRepository extends JpaRepository<Prestacion, UUID> {
      * @return {@code List<Prestacion>} lista de todas las prestaciones
      */
     List<Prestacion> findAll();
-
-    /**
-     * Lista todas las prestaciones de una especialidad determinada.
-     *
-     * @param especialidadId {@code UUID} identificador de la especialidad
-     * @return {@code List<Prestacion>} lista de prestaciones de esa especialidad
-     */
-    List<Prestacion> findAllByEspecialidadId(UUID especialidadId);
-
-    /**
-     * Lista todas las prestaciones en un estado determinado.
-     *
-     * @param estadoActual {@code EstadoPrestacion} estado a filtrar
-     * @return {@code List<Prestacion>} lista de prestaciones en ese estado
-     */
-    List<Prestacion> findAllByEstadoActual(EstadoPrestacion estadoActual);
-
-    /**
-     * Lista todas las prestaciones de una especialidad determinada en un estado dado.
-     *
-     * @param especialidadId {@code UUID} identificador de la especialidad
-     * @param estadoActual {@code EstadoPrestacion} estado a filtrar
-     * @return {@code List<Prestacion>} lista de prestaciones de esa especialidad en ese estado
-     */
-    List<Prestacion> findAllByEspecialidadIdAndEstadoActual(UUID especialidadId, EstadoPrestacion estadoActual);
 
     /**
      * Verifica si existe alguna prestación no deshabilitada de la especialidad indicada.

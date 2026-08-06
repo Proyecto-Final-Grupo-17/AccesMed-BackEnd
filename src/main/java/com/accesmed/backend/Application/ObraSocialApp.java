@@ -3,6 +3,7 @@ package com.accesmed.backend.Application;
 import com.accesmed.backend.Domain.EstadoPlan;
 import com.accesmed.backend.Domain.ObraSocial;
 import com.accesmed.backend.Domain.Plan;
+import com.accesmed.backend.Records.ObraSocial.Criteria.ObraSocialCriteria;
 import com.accesmed.backend.Records.ObraSocial.Request.CreateObraSocialRequest;
 import com.accesmed.backend.Records.ObraSocial.Request.CreatePlanAnidadoRequest;
 import com.accesmed.backend.Records.ObraSocial.Request.UpdateObraSocialRequest;
@@ -19,10 +20,13 @@ import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.ObraSocialMapper;
 import com.accesmed.backend.Services.Mappers.PlanMapper;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import com.accesmed.backend.Services.QueryServices.ObraSocialQueryService;
 import com.accesmed.backend.Services.QueryServices.PlanQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -177,21 +181,24 @@ public class ObraSocialApp {
     }
 
     /**
-     * Busca una obra social activa por su identificador, con sus planes.
+     * Busca la obra social activa que cumple el criteria de filtrado dinámico
+     * proporcionado, con sus planes. A diferencia de {@link #findObrasSociales}, devuelve
+     * una única obra social (no paginada) — pensado para criterios que identifican una obra
+     * social puntual (ej. {@code id.equals}).
      *
-     * @param id {@code UUID} identificador de la obra social
+     * @param obraSocialCriteria {@code ObraSocialCriteria} filtros a aplicar
      * @return {@code GetObraSocialResponse} la obra social encontrada, con sus planes
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la obra social no existe
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ninguna obra social cumple el criteria
      */
     @Transactional(readOnly = true)
-    public GetObraSocialResponse findObraSocialById(UUID id) {
+    public GetObraSocialResponse findObraSocialByCriteria(ObraSocialCriteria obraSocialCriteria) {
 
-        log.info("Búsqueda de obra social iniciada: id={}", id);
+        log.info("Búsqueda de obra social iniciada: criteria={}", obraSocialCriteria);
 
         //Buscar la obra social y sus planes
-        ObraSocial obraSocialExistente = obraSocialDomainService.findObraSocialById(id);
+        ObraSocial obraSocialExistente = obraSocialQueryService.findObraSocialByCriteria(obraSocialCriteria);
         List<GetPlanAnidadoResponse> planesResponse = planMapper
-                .toGetPlanAnidadoResponses(planQueryService.findPlanesByObraSocial(id));
+                .toGetPlanAnidadoResponses(planQueryService.findPlanesByObraSocial(obraSocialExistente.getId()));
 
         //Devolver response mapeado
         GetObraSocialResponse getObraSocialResponse = obraSocialMapper.toGetResponse(obraSocialExistente, planesResponse);
@@ -200,18 +207,23 @@ public class ObraSocialApp {
     }
 
     /**
-     * Lista todas las obras sociales activas.
+     * Lista obras sociales activas según el criteria de filtrado dinámico proporcionado.
      *
-     * @return {@code List<ListObraSocialResponse>} lista de obras sociales activas
+     * @param obraSocialCriteria {@code ObraSocialCriteria} filtros a aplicar, o {@code null} para no filtrar
+     * @param pageable {@code Pageable} página solicitada
+     * @return {@code PageResponse<ListObraSocialResponse>} página de obras sociales que cumplen el criteria
      */
     @Transactional(readOnly = true)
-    public List<ListObraSocialResponse> findObrasSociales() {
+    public PageResponse<ListObraSocialResponse> findObrasSociales(ObraSocialCriteria obraSocialCriteria, Pageable pageable) {
 
-        log.info("Listado de obras sociales iniciado");
+        log.info("Listado de obras sociales iniciado: criteria={}, page={}", obraSocialCriteria, pageable);
 
-        List<ListObraSocialResponse> listObraSocialResponse = obraSocialMapper
-                .toListResponses(obraSocialQueryService.findAllObrasSociales());
-        return listObraSocialResponse;
+        //Buscar obras sociales que cumplen el criteria, paginadas
+        Page<ObraSocial> obrasSocialesPagina = obraSocialQueryService.findByCriteria(obraSocialCriteria, pageable);
+
+        //Devolver response mapeado
+        PageResponse<ListObraSocialResponse> pageResponse = PageResponse.from(obrasSocialesPagina, obraSocialMapper::toListResponse);
+        return pageResponse;
 
     }
 
