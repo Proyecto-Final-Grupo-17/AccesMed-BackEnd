@@ -79,6 +79,56 @@ public class TurnoDomainService {
 
     }
 
+    /**
+     * Valida que un médico no tenga turnos vivos (estado actual no final). Precondición
+     * real de la baja restrictiva de un médico.
+     *
+     * @param medicoId {@code UUID} identificador del médico a validar
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si hay turnos vivos de
+     *         ese médico
+     */
+    public void validateSinTurnosVivosDeMedico(UUID medicoId) {
+
+        long turnosVivos = turnoRepository.countByMedicoIdAndEstadoActualNotIn(medicoId, EstadoTurno.FINALES);
+
+        if (turnosVivos > 0) {
+            ZonedDateTime fechaMaxima = turnoRepository
+                    .findMaxFechaHoraInicioByMedicoIdAndEstadoActualNotIn(medicoId, EstadoTurno.FINALES)
+                    .orElse(null);
+            log.warn("No se pudo validar sin turnos vivos para el médico {}: {} turno(s) vivo(s), fecha máxima {}",
+                    medicoId, turnosVivos, fechaMaxima);
+            throw new ReglaNegocioException(getClass(), "MEDICO_CON_TURNOS_VIVOS",
+                    "El médico " + medicoId + " tiene " + turnosVivos
+                            + " turno(s) vivo(s), el más lejano el " + fechaMaxima + ". No se puede dar de baja.");
+        }
+
+    }
+
+    /**
+     * Valida que un paciente no tenga turnos vivos (estado actual no final). Precondición
+     * real de la baja restrictiva de un paciente.
+     *
+     * @param pacienteId {@code UUID} identificador del paciente a validar
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si hay turnos vivos de
+     *         ese paciente
+     */
+    public void validateSinTurnosVivosDePaciente(UUID pacienteId) {
+
+        long turnosVivos = turnoRepository.countByPacienteIdAndEstadoActualNotIn(pacienteId, EstadoTurno.FINALES);
+
+        if (turnosVivos > 0) {
+            ZonedDateTime fechaMaxima = turnoRepository
+                    .findMaxFechaHoraInicioByPacienteIdAndEstadoActualNotIn(pacienteId, EstadoTurno.FINALES)
+                    .orElse(null);
+            log.warn("No se pudo validar sin turnos vivos para el paciente {}: {} turno(s) vivo(s), fecha máxima {}",
+                    pacienteId, turnosVivos, fechaMaxima);
+            throw new ReglaNegocioException(getClass(), "PACIENTE_CON_TURNOS_VIVOS",
+                    "El paciente " + pacienteId + " tiene " + turnosVivos
+                            + " turno(s) vivo(s), el más lejano el " + fechaMaxima + ". No se puede dar de baja.");
+        }
+
+    }
+
     //endregion
 
 }

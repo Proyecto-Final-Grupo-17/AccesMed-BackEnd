@@ -76,4 +76,22 @@ public class ObraSocialPaciente extends Auditable {
 
     //endregion
 
+    //region ========== Constructores ==========
+
+    /**
+     * Constructor de alta: los tres campos inmutables se fijan una única vez, al crear la
+     * cobertura. Sin setters (más allá de los de baja): no hay otra forma de mutarlos.
+     *
+     * @param nroSocio {@code String} número de socio del paciente en el plan
+     * @param paciente {@code Paciente} paciente que declara la cobertura
+     * @param plan {@code Plan} plan cubierto
+     */
+    public ObraSocialPaciente(String nroSocio, Paciente paciente, Plan plan) {
+        this.nroSocio = nroSocio;
+        this.paciente = paciente;
+        this.plan = plan;
+    }
+
+    //endregion
+
 }

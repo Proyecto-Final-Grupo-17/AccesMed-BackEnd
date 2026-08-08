@@ -76,4 +76,42 @@ public interface TurnoRepository extends JpaRepository<Turno, UUID> {
     @Query("SELECT MAX(t.fechaHoraInicio) FROM Turno t WHERE t.obraSocialPaciente.plan.id = :planId AND t.estadoActual NOT IN :estadosFinales")
     Optional<ZonedDateTime> findMaxFechaHoraInicioByPlanIdAndEstadoActualNotIn(UUID planId, Collection<EstadoTurno> estadosFinales);
 
+    /**
+     * Cuenta los turnos del médico con estado actual no final.
+     *
+     * @param medicoId {@code UUID} identificador del médico
+     * @param estadosFinales {@code Collection<EstadoTurno>} estados finales a excluir
+     * @return {@code long} cantidad de turnos vivos de ese médico
+     */
+    long countByMedicoIdAndEstadoActualNotIn(UUID medicoId, Collection<EstadoTurno> estadosFinales);
+
+    /**
+     * Busca la fecha/hora de inicio más lejana entre los turnos vivos del médico.
+     *
+     * @param medicoId {@code UUID} identificador del médico
+     * @param estadosFinales {@code Collection<EstadoTurno>} estados finales a excluir
+     * @return {@code Optional<ZonedDateTime>} la fecha máxima, vacío si no hay turnos vivos
+     */
+    @Query("SELECT MAX(t.fechaHoraInicio) FROM Turno t WHERE t.medico.id = :medicoId AND t.estadoActual NOT IN :estadosFinales")
+    Optional<ZonedDateTime> findMaxFechaHoraInicioByMedicoIdAndEstadoActualNotIn(UUID medicoId, Collection<EstadoTurno> estadosFinales);
+
+    /**
+     * Cuenta los turnos del paciente con estado actual no final.
+     *
+     * @param pacienteId {@code UUID} identificador del paciente
+     * @param estadosFinales {@code Collection<EstadoTurno>} estados finales a excluir
+     * @return {@code long} cantidad de turnos vivos de ese paciente
+     */
+    long countByPacienteIdAndEstadoActualNotIn(UUID pacienteId, Collection<EstadoTurno> estadosFinales);
+
+    /**
+     * Busca la fecha/hora de inicio más lejana entre los turnos vivos del paciente.
+     *
+     * @param pacienteId {@code UUID} identificador del paciente
+     * @param estadosFinales {@code Collection<EstadoTurno>} estados finales a excluir
+     * @return {@code Optional<ZonedDateTime>} la fecha máxima, vacío si no hay turnos vivos
+     */
+    @Query("SELECT MAX(t.fechaHoraInicio) FROM Turno t WHERE t.paciente.id = :pacienteId AND t.estadoActual NOT IN :estadosFinales")
+    Optional<ZonedDateTime> findMaxFechaHoraInicioByPacienteIdAndEstadoActualNotIn(UUID pacienteId, Collection<EstadoTurno> estadosFinales);
+
 }
