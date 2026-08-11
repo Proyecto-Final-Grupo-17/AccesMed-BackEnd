@@ -511,6 +511,22 @@ histórico invoque al `DomainService` de la entidad para guardarla en el medio, 
 las tres llamadas es siempre el `App`, dentro de su `@Transactional`. Cualquier entidad
 nueva con este mismo patrón (estado + histórico) debe seguir esta misma coreografía.
 
+**Transición de estado (`change<Estado><Entidad>`): cerrar el tramo vigente con
+`saveAndFlush`, nunca con `save`.** El esquema protege "como máximo un tramo vigente por
+entidad" con un índice único parcial (`uq_historico_estado_prestacion_vigente`,
+`uq_historico_estado_plan_vigente`, y a futuro `uq_historico_estado_turno_vigente` en
+`Turno`): `UNIQUE (<entidad>_id) WHERE fecha_hora_fin IS NULL`. El método de transición
+cierra el tramo vigente (`UPDATE`, setea `fechaHoraFin`) y abre uno nuevo (`INSERT`, con
+`fechaHoraFin` en `null`) dentro de la misma transacción. Si ambos se guardan con
+`save()`, Hibernate no los ejecuta en el orden del código: agrupa las acciones del flush
+por tipo y manda **todos los `INSERT` antes que los `UPDATE`**, así que el `INSERT` del
+tramo nuevo llega a la base antes que el `UPDATE` que cierra el viejo — por un instante
+hay dos filas vigentes para la misma entidad y el índice único parcial lo rechaza
+(`ConstraintViolationException`). La solución es forzar el flush del cierre antes de
+crear el tramo nuevo: `historicoEstadoXRepository.saveAndFlush(tramoVigente)` en vez de
+`save(tramoVigente)`. Cualquier entidad nueva con este mismo patrón (`Turno` incluido)
+tiene que replicar este `saveAndFlush` en su transición de estado.
+
 **Los errores se reparten por capa, no en una carpeta transversal.** `Services/Errors/`
 tiene las excepciones (`AccesMedException` y sus 3 subclases) porque ahí es donde se
 originan. `Controllers/Errors/` tiene el `GlobalExceptionHandler` y `AccesMedError` porque

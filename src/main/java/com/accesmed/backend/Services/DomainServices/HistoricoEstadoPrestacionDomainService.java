@@ -112,9 +112,13 @@ public class HistoricoEstadoPrestacionDomainService {
                     "La prestación " + prestacion.getCodigo() + " no se puede despublicar desde el estado " + estadoVigente + ".");
         }
 
-        //Cerrar tramo vigente
+        //Cerrar tramo vigente. saveAndFlush (no save): Hibernate agrupa las acciones del
+        //flush por tipo y ejecuta todos los INSERT antes que los UPDATE sin importar el
+        //orden del código, así que sin forzar el flush acá el INSERT del tramo nuevo
+        //(fecha_hora_fin null) se ejecutaría antes que este UPDATE, violando por un
+        //instante el índice único parcial (como máximo un tramo vigente por prestación)
         historicoEstadoPrestacionVigente.setFechaHoraFin(ZonedDateTime.now());
-        historicoEstadoPrestacionRepository.save(historicoEstadoPrestacionVigente);
+        historicoEstadoPrestacionRepository.saveAndFlush(historicoEstadoPrestacionVigente);
 
         //Abrir tramo nuevo
         HistoricoEstadoPrestacion historicoEstadoPrestacionNuevo = new HistoricoEstadoPrestacion();
