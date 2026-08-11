@@ -105,11 +105,15 @@ public class PrestacionApp {
         Prestacion prestacionNueva = prestacionMapper.toEntity(createPrestacionRequest);
         prestacionNueva.setEspecialidad(especialidadExistente);
 
+        //Setear estado inicial antes de persistir: Hibernate captura los valores a
+        //insertar en el momento del persist(), así que debe setearse antes de guardar
+        historicoEstadoPrestacionDomainService.seedEstadoInicialPrestacion(prestacionNueva);
+
         //Guardar Prestacion
         Prestacion prestacionGuardada = prestacionDomainService.savePrestacion(prestacionNueva);
 
-        //Setear estado inicial
-        historicoEstadoPrestacionDomainService.setInitialEstadoForNewPrestacion(prestacionGuardada);
+        //Abrir tramo inicial de histórico de estado
+        historicoEstadoPrestacionDomainService.openHistoricoInicialPrestacion(prestacionGuardada);
 
         //Mapear las indicaciones anidadas a entidades
         List<CreateIndicacionPrestacionAnidadaRequest> indicacionesRequest = createPrestacionRequest.indicaciones();

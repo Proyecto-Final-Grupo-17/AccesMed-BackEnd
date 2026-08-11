@@ -89,9 +89,10 @@ public class ObraSocialApp {
 
             Plan planNuevo = planMapper.toEntity(planAnidado);
             planNuevo.setObraSocial(obraSocialGuardada);
+            historicoEstadoPlanDomainService.seedEstadoInicialPlan(planNuevo);
 
             Plan planGuardado = planDomainService.savePlan(planNuevo);
-            historicoEstadoPlanDomainService.setInitialEstadoForNewPlan(planGuardado);
+            historicoEstadoPlanDomainService.openHistoricoInicialPlan(planGuardado);
 
             planesResponse.add(planMapper.toGetPlanAnidadoResponse(planGuardado));
         }

@@ -33,26 +33,36 @@ public class HistoricoEstadoPrestacionDomainService {
     //region ========== Métodos ==========
 
     /**
-     * Abre el primer tramo del histórico de estados de una prestación recién creada
-     * ({@code NO_PUBLICADA}), y setea el {@code estadoActual}.
+     * Setea el {@code estadoActual} inicial ({@code NO_PUBLICADA}) de una prestación
+     * recién mapeada, antes de persistirla. Hibernate captura los valores a insertar en
+     * el momento del {@code persist()}: hay que llamar a este método antes de
+     * {@code PrestacionDomainService.savePrestacion}, nunca después.
      *
-     * @param prestacion {@code Prestacion} prestación recién persistida
-     * @return {@code HistoricoEstadoPrestacion} el tramo abierto
+     * @param prestacion {@code Prestacion} prestación nueva, todavía no persistida
      */
-    public HistoricoEstadoPrestacion setInitialEstadoForNewPrestacion(Prestacion prestacion) {
+    public void seedEstadoInicialPrestacion(Prestacion prestacion) {
 
-        log.debug("Abriendo tramo inicial de estado para prestación: código={}", prestacion.getCodigo());
+        prestacion.setEstadoActual(EstadoPrestacion.NO_PUBLICADA);
+
+    }
+
+    /**
+     * Abre el primer tramo del histórico de estados de una prestación recién persistida
+     * ({@code NO_PUBLICADA}).
+     *
+     * @param prestacionGuardada {@code Prestacion} prestación ya persistida
+     */
+    public void openHistoricoInicialPrestacion(Prestacion prestacionGuardada) {
+
+        log.debug("Abriendo tramo inicial de estado para prestación: código={}", prestacionGuardada.getCodigo());
 
         //Crear nuevo histórico de estado con estado NO_PUBLICADA y fecha de inicio actual
         HistoricoEstadoPrestacion historicoEstadoPrestacionNuevo = new HistoricoEstadoPrestacion();
-        historicoEstadoPrestacionNuevo.setPrestacion(prestacion);
+        historicoEstadoPrestacionNuevo.setPrestacion(prestacionGuardada);
         historicoEstadoPrestacionNuevo.setEstado(EstadoPrestacion.NO_PUBLICADA);
         historicoEstadoPrestacionNuevo.setFechaHoraInicio(ZonedDateTime.now());
 
-        //Setear estado actual a la Prestacion
-        prestacion.setEstadoActual(EstadoPrestacion.NO_PUBLICADA);
-
-        return historicoEstadoPrestacionRepository.save(historicoEstadoPrestacionNuevo);
+        historicoEstadoPrestacionRepository.save(historicoEstadoPrestacionNuevo);
 
     }
 

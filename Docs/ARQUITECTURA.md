@@ -485,6 +485,32 @@ supere ~8-10 archivos de la misma entidad, recién ahí se crea un subpaquete po
 representa lógica de dominio reutilizable, puede vivir como método privado dentro del
 App. Se promueve a DomainService recién cuando un segundo flujo lo necesita.
 
+**Alta de una entidad con máquina de estados (estado + histórico): coreografía
+`seed → save → openHistorico`, siempre en ese orden.** Entidades como `Prestacion` o
+`Plan` llevan su ciclo de vida por estados, materializado en dos lugares: la columna
+`estadoActual` (`NOT NULL`) de la propia entidad, y el primer tramo de su tabla de
+histórico (`HistoricoEstadoPrestacion`, `HistoricoEstadoPlan`...), que la referencia por
+FK. El `DomainService` del histórico (`HistoricoEstadoPrestacionDomainService`,
+`HistoricoEstadoPlanDomainService`) expone dos métodos separados para esto, y el `App`
+los llama a cada lado del `save`:
+
+1. `seedEstadoInicial<Entidad>(entidadNueva)` — setea `estadoActual` en memoria.
+   **Se llama antes de guardar la entidad.** Hibernate captura los valores a insertar en
+   el momento del `persist()`, no del `flush()`: si el campo se setea después de
+   guardar, el `INSERT` sale con `estadoActual` en `null` y viola el `NOT NULL`.
+2. `<entidad>DomainService.save<Entidad>(entidadNueva)` — persiste la entidad. Recién acá
+   tiene un `id`.
+3. `openHistoricoInicial<Entidad>(entidadGuardada)` — crea y guarda el primer tramo del
+   histórico, referenciando la entidad ya persistida. **Se llama después de guardar.** Si
+   se llama antes, el histórico referencia una entidad transitoria (sin `id`) y Hibernate
+   rechaza el insert (`TransientPropertyValueException`).
+
+No se puede colapsar en un único método: haría falta que el `DomainService` del
+histórico invoque al `DomainService` de la entidad para guardarla en el medio, y los
+`DomainService` no se llaman entre sí (ver §4, capa de aplicación). El orquestador de
+las tres llamadas es siempre el `App`, dentro de su `@Transactional`. Cualquier entidad
+nueva con este mismo patrón (estado + histórico) debe seguir esta misma coreografía.
+
 **Los errores se reparten por capa, no en una carpeta transversal.** `Services/Errors/`
 tiene las excepciones (`AccesMedException` y sus 3 subclases) porque ahí es donde se
 originan. `Controllers/Errors/` tiene el `GlobalExceptionHandler` y `AccesMedError` porque

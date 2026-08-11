@@ -76,13 +76,18 @@ public class PlanApp {
         planDomainService.validateCodigoPlanIsUnique(obraSocialExistente.getId(), addPlanRequest.codigo());
         planDomainService.validateNombrePlanIsUnique(obraSocialExistente.getId(), addPlanRequest.nombre());
 
-        //Mapear y guardar
+        //Mapear y setear estado inicial antes de persistir: Hibernate captura los
+        //valores a insertar en el momento del persist(), así que debe setearse antes
+        //de guardar
         Plan planNuevo = planMapper.toEntity(addPlanRequest);
         planNuevo.setObraSocial(obraSocialExistente);
+        historicoEstadoPlanDomainService.seedEstadoInicialPlan(planNuevo);
+
+        //Guardar Plan
         Plan planGuardado = planDomainService.savePlan(planNuevo);
 
-        //Setear estado inicial
-        historicoEstadoPlanDomainService.setInitialEstadoForNewPlan(planGuardado);
+        //Abrir tramo inicial de histórico de estado
+        historicoEstadoPlanDomainService.openHistoricoInicialPlan(planGuardado);
 
         //Devolver response mapeado
         GetPlanResponse getPlanResponse = planMapper.toGetResponse(planGuardado);

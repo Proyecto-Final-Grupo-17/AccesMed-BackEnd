@@ -33,26 +33,36 @@ public class HistoricoEstadoPlanDomainService {
     //region ========== Métodos ==========
 
     /**
-     * Abre el primer tramo del histórico de estados de un plan recién agregado
-     * ({@code NO_PUBLICADO}), y setea el {@code estadoActual}.
+     * Setea el {@code estadoActual} inicial ({@code NO_PUBLICADO}) de un plan recién
+     * mapeado, antes de persistirlo. Hibernate captura los valores a insertar en el
+     * momento del {@code persist()}: hay que llamar a este método antes de
+     * {@code PlanDomainService.savePlan}, nunca después.
      *
-     * @param plan {@code Plan} plan recién persistido
-     * @return {@code HistoricoEstadoPlan} el tramo abierto
+     * @param plan {@code Plan} plan nuevo, todavía no persistido
      */
-    public HistoricoEstadoPlan setInitialEstadoForNewPlan(Plan plan) {
+    public void seedEstadoInicialPlan(Plan plan) {
 
-        log.debug("Abriendo tramo inicial de estado para plan: código={}", plan.getCodigo());
+        plan.setEstadoActual(EstadoPlan.NO_PUBLICADO);
+
+    }
+
+    /**
+     * Abre el primer tramo del histórico de estados de un plan recién persistido
+     * ({@code NO_PUBLICADO}).
+     *
+     * @param planGuardado {@code Plan} plan ya persistido
+     */
+    public void openHistoricoInicialPlan(Plan planGuardado) {
+
+        log.debug("Abriendo tramo inicial de estado para plan: código={}", planGuardado.getCodigo());
 
         //Crear nuevo histórico de estado con estado NO_PUBLICADO y fecha de inicio actual
         HistoricoEstadoPlan historicoEstadoPlanNuevo = new HistoricoEstadoPlan();
-        historicoEstadoPlanNuevo.setPlan(plan);
+        historicoEstadoPlanNuevo.setPlan(planGuardado);
         historicoEstadoPlanNuevo.setEstado(EstadoPlan.NO_PUBLICADO);
         historicoEstadoPlanNuevo.setFechaHoraInicio(ZonedDateTime.now());
 
-        //Setear estado actual al Plan
-        plan.setEstadoActual(EstadoPlan.NO_PUBLICADO);
-
-        return historicoEstadoPlanRepository.save(historicoEstadoPlanNuevo);
+        historicoEstadoPlanRepository.save(historicoEstadoPlanNuevo);
 
     }
 
