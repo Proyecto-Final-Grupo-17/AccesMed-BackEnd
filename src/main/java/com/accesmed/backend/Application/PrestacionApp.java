@@ -95,7 +95,6 @@ public class PrestacionApp {
                 createPrestacionRequest.tiempoToleranciaReprogramacionMinutos(),
                 createPrestacionRequest.tiempoToleranciaConfirmacionMinutos(),
                 createPrestacionRequest.tiempoToleranciaCancelacionMinutos(),
-                createPrestacionRequest.tiempoToleranciaAnuncioMinutos(),
                 createPrestacionRequest.tiempoRecordatorioConfirmacionMinutos()
         );
 
@@ -106,11 +105,11 @@ public class PrestacionApp {
         Prestacion prestacionNueva = prestacionMapper.toEntity(createPrestacionRequest);
         prestacionNueva.setEspecialidad(especialidadExistente);
 
-        //Setear estado inicial
-        historicoEstadoPrestacionDomainService.setInitialEstadoForNewPrestacion(prestacionNueva);
-
         //Guardar Prestacion
         Prestacion prestacionGuardada = prestacionDomainService.savePrestacion(prestacionNueva);
+
+        //Setear estado inicial
+        historicoEstadoPrestacionDomainService.setInitialEstadoForNewPrestacion(prestacionGuardada);
 
         //Mapear las indicaciones anidadas a entidades
         List<CreateIndicacionPrestacionAnidadaRequest> indicacionesRequest = createPrestacionRequest.indicaciones();
@@ -181,7 +180,6 @@ public class PrestacionApp {
                 orElseActual(updatePrestacionRequest.tiempoToleranciaReprogramacionMinutos(), prestacionExistente.getTiempoToleranciaReprogramacion()),
                 orElseActual(updatePrestacionRequest.tiempoToleranciaConfirmacionMinutos(), prestacionExistente.getTiempoToleranciaConfirmacion()),
                 orElseActual(updatePrestacionRequest.tiempoToleranciaCancelacionMinutos(), prestacionExistente.getTiempoToleranciaCancelacion()),
-                orElseActual(updatePrestacionRequest.tiempoToleranciaAnuncioMinutos(), prestacionExistente.getTiempoToleranciaAnuncio()),
                 orElseActual(updatePrestacionRequest.tiempoRecordatorioConfirmacionMinutos(), prestacionExistente.getTiempoRecordatorioConfirmacion())
         );
 

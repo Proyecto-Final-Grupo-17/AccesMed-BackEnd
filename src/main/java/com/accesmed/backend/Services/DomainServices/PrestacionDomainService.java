@@ -155,15 +155,13 @@ public class PrestacionDomainService {
      * @param reprogramacionMinutos {@code Integer} tolerancia de reprogramación en minutos
      * @param confirmacionMinutos {@code Integer} tolerancia de confirmación en minutos
      * @param cancelacionMinutos {@code Integer} tolerancia de cancelación en minutos
-     * @param anuncioMinutos {@code Integer} tolerancia de anuncio en minutos
      * @param recordatorioMinutos {@code Integer} recordatorio de confirmación en minutos
      * @throws ValidacionException {@code ValidacionException} si alguna de las validaciones falla
      */
     public void validateToleranciasPrestacion(Integer duracionMinimaMinutos, Integer duracionMaximaMinutos,
                                              Integer solicitudMinutos, Integer validacionMinutos,
                                              Integer reprogramacionMinutos, Integer confirmacionMinutos,
-                                             Integer cancelacionMinutos, Integer anuncioMinutos,
-                                             Integer recordatorioMinutos) {
+                                             Integer cancelacionMinutos, Integer recordatorioMinutos) {
 
         List<String> errores = new ArrayList<>();
 
@@ -207,15 +205,6 @@ public class PrestacionDomainService {
             if (confirmacionMinutos < cancelacionMinutos) {
                 errores.add("La tolerancia de confirmación no puede ser menor a la de cancelación.");
             }
-        }
-
-        if (cancelacionMinutos != null && cancelacionMinutos < 0) {
-            errores.add("La tolerancia de cancelación no puede ser negativa.");
-        }
-
-        //Validar el anuncio (no depende de la cadena)
-        if (anuncioMinutos != null && anuncioMinutos < 0) {
-            errores.add("La tolerancia de anuncio no puede ser negativa.");
         }
 
         //Validar el recordatorio de confirmación (entre la tolerancia de confirmación y la de solicitud)
