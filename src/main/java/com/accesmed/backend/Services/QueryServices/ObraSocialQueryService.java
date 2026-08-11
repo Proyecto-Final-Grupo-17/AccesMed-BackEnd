@@ -75,7 +75,7 @@ public class ObraSocialQueryService extends AbstractFiltroQueryService<ObraSocia
         log.debug("Armando specification de obras sociales: criteria={}", criteria);
 
         Specification<ObraSocial> specification = Specification
-                .where((Specification<ObraSocial>) null)
+                .<ObraSocial>unrestricted()
                 .and((root, query, cb) -> cb.isNull(root.get(ObraSocial_.deletedAt)));
 
         if (criteria == null) {

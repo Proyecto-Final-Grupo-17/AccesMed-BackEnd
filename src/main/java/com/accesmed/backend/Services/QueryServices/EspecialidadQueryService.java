@@ -75,7 +75,7 @@ public class EspecialidadQueryService extends AbstractFiltroQueryService<Especia
         log.debug("Armando specification de especialidades: criteria={}", criteria);
 
         Specification<Especialidad> specification = Specification
-                .where((Specification<Especialidad>) null)
+                .<Especialidad>unrestricted()
                 .and((root, query, cb) -> cb.isNull(root.get(Especialidad_.deletedAt)));
 
         if (criteria == null) {

@@ -75,7 +75,7 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
         log.debug("Armando specification de pacientes: criteria={}", criteria);
 
         Specification<Paciente> specification = Specification
-                .where((Specification<Paciente>) null)
+                .<Paciente>unrestricted()
                 .and((root, query, cb) -> cb.isNull(root.get(Paciente_.deletedAt)));
 
         if (criteria == null) {

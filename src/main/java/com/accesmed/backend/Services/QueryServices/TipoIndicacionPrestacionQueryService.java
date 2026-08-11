@@ -75,7 +75,7 @@ public class TipoIndicacionPrestacionQueryService extends AbstractFiltroQuerySer
         log.debug("Armando specification de tipos de indicación de prestación: criteria={}", criteria);
 
         Specification<TipoIndicacionPrestacion> specification = Specification
-                .where((Specification<TipoIndicacionPrestacion>) null)
+                .<TipoIndicacionPrestacion>unrestricted()
                 .and((root, query, cb) -> cb.isNull(root.get(TipoIndicacionPrestacion_.deletedAt)));
 
         if (criteria == null) {

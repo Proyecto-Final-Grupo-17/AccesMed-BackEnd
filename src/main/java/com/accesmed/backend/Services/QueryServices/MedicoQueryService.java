@@ -77,7 +77,7 @@ public class MedicoQueryService extends AbstractFiltroQueryService<Medico, Medic
         log.debug("Armando specification de médicos: criteria={}", criteria);
 
         Specification<Medico> specification = Specification
-                .where((Specification<Medico>) null)
+                .<Medico>unrestricted()
                 .and((root, query, cb) -> cb.isNull(root.get(Medico_.deletedAt)));
 
         if (criteria == null) {

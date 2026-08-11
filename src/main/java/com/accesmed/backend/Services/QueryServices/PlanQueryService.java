@@ -111,7 +111,7 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
 
         log.debug("Armando specification de planes: criteria={}", criteria);
 
-        Specification<Plan> specification = Specification.where((Specification<Plan>) null);
+        Specification<Plan> specification = Specification.unrestricted();
 
         if (criteria == null) {
             return specification;

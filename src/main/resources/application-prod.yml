@@ -4,3 +4,7 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+
+accesmed:
+  cors:
+    allowed-origins: ${ACCESMED_CORS_ALLOWED_ORIGINS}

@@ -53,7 +53,7 @@ public class PrestacionQueryService extends AbstractFiltroQueryService<Prestacio
 
         log.debug("Armando specification de prestaciones: criteria={}", criteria);
 
-        Specification<Prestacion> specification = Specification.where((Specification<Prestacion>) null);
+        Specification<Prestacion> specification = Specification.unrestricted();
 
         if (criteria == null) {
             return specification;

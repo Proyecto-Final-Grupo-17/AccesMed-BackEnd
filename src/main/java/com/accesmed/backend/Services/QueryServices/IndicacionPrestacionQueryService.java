@@ -84,7 +84,7 @@ public class IndicacionPrestacionQueryService extends AbstractFiltroQueryService
 
         ZonedDateTime ahora = ZonedDateTime.now();
         Specification<IndicacionPrestacion> specification = Specification
-                .where((Specification<IndicacionPrestacion>) null)
+                .<IndicacionPrestacion>unrestricted()
                 .and((root, query, cb) -> cb.and(
                         cb.lessThanOrEqualTo(root.get(IndicacionPrestacion_.fechaInicioVigencia), ahora),
                         cb.or(
