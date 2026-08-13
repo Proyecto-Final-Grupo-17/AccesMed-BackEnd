@@ -1,6 +1,8 @@
 package com.accesmed.backend.Services.Mappers;
 
 import com.accesmed.backend.Domain.IndicacionPrestacion;
+import com.accesmed.backend.Domain.Prestacion;
+import com.accesmed.backend.Domain.TipoIndicacionPrestacion;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.UpdateIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.Prestacion.Request.CreateIndicacionPrestacionAnidadaRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.UpdateIndicacionPrestacionResponse;
@@ -8,19 +10,25 @@ import com.accesmed.backend.Records.IndicacionPrestacion.Response.CreateIndicaci
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ScheduleBajaIndicacionPrestacionResponse;
+import org.mapstruct.Context;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Mapper para la entidad {@code IndicacionPrestacion}. Realiza conversiones entre
  * records de request/response y la entidad JPA.
  *
- * Nota: las FKs {@code prestacion} y {@code tipoIndicacionPrestacion} se ignoran en el mapeo
- * (la entidad tiene @Setter(AccessLevel.NONE) en ellas) y se setean en el App
- * después de validar su existencia.
+ * Nota: las FKs {@code prestacion} y {@code tipoIndicacionPrestacion} no pueden resolverse
+ * con datos propios del request (requieren búsqueda por id). El App las busca y valida su
+ * existencia primero, y se las pasa al mapper como parámetros {@code @Context}: la
+ * {@code Prestacion} ya guardada y un {@code Map} de {@code TipoIndicacionPrestacion} ya
+ * validados, indexado por id. Así el mapeo de la lista completa (entidad y FKs) queda en
+ * el mapper y el App no itera manualmente.
  */
 @Mapper(componentModel = "spring")
 public interface IndicacionPrestacionMapper {
@@ -30,31 +38,43 @@ public interface IndicacionPrestacionMapper {
      * Utilizado durante la creación anidada de indicaciones en una prestación.
      *
      * @param createIndicacionPrestacionAnidadaRequest {@code CreateIndicacionPrestacionAnidadaRequest} datos del request anidado
+     * @param prestacion {@code Prestacion} prestación ya guardada a la que pertenece la indicación
+     * @param tiposIndicacionPorId {@code Map<UUID, TipoIndicacionPrestacion>} tipos de indicación ya
+     *        validados por el App, indexados por id
      * @return {@code IndicacionPrestacion} entidad lista para persistir
      */
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "descripcion", source = "descripcion")
-    @Mapping(target = "requiereValidacion", source = "requiereValidacion")
-    @Mapping(target = "fechaInicioVigencia", ignore = true)
+    @Mapping(target = "nombre", source = "createIndicacionPrestacionAnidadaRequest.nombre")
+    @Mapping(target = "descripcion", source = "createIndicacionPrestacionAnidadaRequest.descripcion")
+    @Mapping(target = "requiereValidacion", source = "createIndicacionPrestacionAnidadaRequest.requiereValidacion")
+    @Mapping(target = "fechaInicioVigencia", expression = "java(java.time.ZonedDateTime.now())")
     @Mapping(target = "fechaFinVigencia", ignore = true)
-    @Mapping(target = "prestacion", ignore = true)
-    @Mapping(target = "tipoIndicacionPrestacion", ignore = true)
+    @Mapping(target = "prestacion", expression = "java(prestacion)")
+    @Mapping(target = "tipoIndicacionPrestacion",
+            expression = "java(tiposIndicacionPorId.get(createIndicacionPrestacionAnidadaRequest.tipoIndicacionPrestacionId()))")
     @Mapping(target = "createdDate", ignore = true)
     @Mapping(target = "lastModifiedDate", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "lastModifiedBy", ignore = true)
-    IndicacionPrestacion toEntity(CreateIndicacionPrestacionAnidadaRequest createIndicacionPrestacionAnidadaRequest);
+    IndicacionPrestacion toEntity(CreateIndicacionPrestacionAnidadaRequest createIndicacionPrestacionAnidadaRequest,
+                                   @Context Prestacion prestacion,
+                                   @Context Map<UUID, TipoIndicacionPrestacion> tiposIndicacionPorId);
 
     /**
      * Convierte una lista de {@code CreateIndicacionPrestacionAnidadaRequest} a una lista
-     * de entidades {@code IndicacionPrestacion}, reutilizando el mapeo singular. Utilizado
-     * durante la creación anidada de indicaciones en una prestación.
+     * de entidades {@code IndicacionPrestacion}, reutilizando el mapeo singular para cada
+     * elemento (incluida la resolución de FKs vía contexto). Utilizado durante la creación
+     * anidada de indicaciones en una prestación.
      *
      * @param createIndicacionesPrestacionAnidadaRequest {@code List<CreateIndicacionPrestacionAnidadaRequest>} datos de los requests anidados
+     * @param prestacion {@code Prestacion} prestación ya guardada a la que pertenecen las indicaciones
+     * @param tiposIndicacionPorId {@code Map<UUID, TipoIndicacionPrestacion>} tipos de indicación ya
+     *        validados por el App, indexados por id
      * @return {@code List<IndicacionPrestacion>} entidades listas para persistir
      */
-    List<IndicacionPrestacion> toEntities(List<CreateIndicacionPrestacionAnidadaRequest> createIndicacionesPrestacionAnidadaRequest);
+    List<IndicacionPrestacion> toEntities(List<CreateIndicacionPrestacionAnidadaRequest> createIndicacionesPrestacionAnidadaRequest,
+                                           @Context Prestacion prestacion,
+                                           @Context Map<UUID, TipoIndicacionPrestacion> tiposIndicacionPorId);
 
     /**
      * Actualiza una indicación existente con datos de {@code UpdateIndicacionPrestacionRequest}.

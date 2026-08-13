@@ -13,6 +13,7 @@ import com.accesmed.backend.Records.IndicacionPrestacion.Response.UpdateIndicaci
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ScheduleBajaIndicacionPrestacionResponse;
+import com.accesmed.backend.Records.Prestacion.Request.CreateIndicacionPrestacionAnidadaRequest;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.TipoIndicacionPrestacionDomainService;
@@ -28,7 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Caso de uso de Indicación de Prestación. Orquesta el flujo completo de los endpoints
@@ -70,20 +73,15 @@ public class IndicacionPrestacionApp {
         //Buscar la prestación
         Prestacion prestacionExistente = prestacionDomainService.findPrestacionById(createIndicacionesPrestacionRequest.prestacionId());
 
-        //Mapear las indicaciones a entidades
-        List<IndicacionPrestacion> indicacionesNuevas = indicacionPrestacionMapper
-                .toEntities(createIndicacionesPrestacionRequest.indicaciones());
+        //Validar que los tipos de indicación existan y estén activos, indexados por id
+        Map<UUID, TipoIndicacionPrestacion> tiposIndicacionPorId = createIndicacionesPrestacionRequest.indicaciones().stream()
+                .map(CreateIndicacionPrestacionAnidadaRequest::tipoIndicacionPrestacionId)
+                .distinct()
+                .collect(Collectors.toMap(id -> id, tipoIndicacionPrestacionDomainService::findTipoIndicacionPrestacionActivoById));
 
-        //Resolver las relaciones que el mapper no puede resolver (requieren búsqueda por id)
-        for (int i = 0; i < indicacionesNuevas.size(); i++) {
-            TipoIndicacionPrestacion tipoIndicacionExistente = tipoIndicacionPrestacionDomainService
-                    .findTipoIndicacionPrestacionActivoById(
-                            createIndicacionesPrestacionRequest.indicaciones().get(i).tipoIndicacionPrestacionId());
-
-            indicacionesNuevas.get(i).setPrestacion(prestacionExistente);
-            indicacionesNuevas.get(i).setTipoIndicacionPrestacion(tipoIndicacionExistente);
-            indicacionesNuevas.get(i).setFechaInicioVigencia(ZonedDateTime.now());
-        }
+        //Mapear las indicaciones a entidades, resolviendo prestación y tipo de indicación
+        List<IndicacionPrestacion> indicacionesNuevas = indicacionPrestacionMapper.toEntities(
+                createIndicacionesPrestacionRequest.indicaciones(), prestacionExistente, tiposIndicacionPorId);
 
         //Guardar las indicaciones
         List<IndicacionPrestacion> indicacionesGuardadas = indicacionPrestacionDomainService

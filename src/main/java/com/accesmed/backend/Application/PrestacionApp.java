@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Caso de uso de Prestación. Orquesta el flujo completo de los endpoints de prestaciones
@@ -116,16 +117,14 @@ public class PrestacionApp {
         List<CreateIndicacionPrestacionAnidadaRequest> indicacionesRequest = createPrestacionRequest.indicaciones();
         List<IndicacionPrestacion> indicacionesNuevas = new ArrayList<>();
         if (indicacionesRequest != null && !indicacionesRequest.isEmpty()) {
-            indicacionesNuevas = indicacionPrestacionMapper.toEntities(indicacionesRequest);
 
-            //Resolver las relaciones que el mapper no puede resolver (requieren búsqueda por id)
-            for (int i = 0; i < indicacionesNuevas.size(); i++) {
-                TipoIndicacionPrestacion tipoIndicacionExistente = tipoIndicacionPrestacionDomainService
-                        .findTipoIndicacionPrestacionActivoById(indicacionesRequest.get(i).tipoIndicacionPrestacionId());
+            //Validar que los tipos de indicación existan y estén activos, indexados por id
+            Map<UUID, TipoIndicacionPrestacion> tiposIndicacionPorId = indicacionesRequest.stream()
+                    .map(CreateIndicacionPrestacionAnidadaRequest::tipoIndicacionPrestacionId)
+                    .distinct()
+                    .collect(Collectors.toMap(id -> id, tipoIndicacionPrestacionDomainService::findTipoIndicacionPrestacionActivoById));
 
-                indicacionesNuevas.get(i).setPrestacion(prestacionGuardada);
-                indicacionesNuevas.get(i).setTipoIndicacionPrestacion(tipoIndicacionExistente);
-            }
+            indicacionesNuevas = indicacionPrestacionMapper.toEntities(indicacionesRequest, prestacionGuardada, tiposIndicacionPorId);
         }
 
         //Guardar las indicaciones mapeadas
@@ -135,9 +134,7 @@ public class PrestacionApp {
                     .saveIndicacionesPrestacion(indicacionesNuevas);
 
             //Mapear la respuesta de indicaciones
-            indicacionesResponse = indicacionesGuardadas.stream()
-                    .map(indicacionPrestacionMapper::toGetResponse)
-                    .toList();
+            indicacionesResponse = indicacionPrestacionMapper.toGetResponses(indicacionesGuardadas);
         }
 
         //Devolver response mapeado. Recién abierto el tramo inicial, el estado vigente es NO_PUBLICADA.

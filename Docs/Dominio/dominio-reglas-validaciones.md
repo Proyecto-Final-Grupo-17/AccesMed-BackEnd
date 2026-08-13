@@ -514,7 +514,7 @@ Los períodos del par `(prestacion, nombre)` no se solapan, así que el relevo e
 
 **El histórico de estados va solo en `Plan`, no en `ObraSocial`.** `Plan` es lo que el paciente elige al declarar cobertura y lo que cuelga de `ObraSocialPlanPrestacion`; la obra social es un agrupador. Ponerle estados a las dos duplicaría la regla de derivación — habría que decidir qué pasa con un plan publicado de una obra social despublicada — sin ganar poder expresivo. `ObraSocial` conserva su baja lógica y opera sobre sus planes en cascada.
 
-- Multiplicidad `ObraSocial 1 → 1..N Plan`. El alta de obra social crea la obra social **y al menos un plan** en el mismo `Confirmar`. El plan nace **No Publicado**.
+- Multiplicidad `ObraSocial 1 → 0..N Plan`. El alta de obra social puede crear, opcionalmente, sus planes iniciales en el mismo `Confirmar` (si no se envían, la obra social nace sin planes y se agregan después). Cada plan nace **No Publicado**.
 - La FK `Plan → ObraSocial` es **inmutable** después del alta.
 - `codigo` y `nombre` son editables en ambas.
 

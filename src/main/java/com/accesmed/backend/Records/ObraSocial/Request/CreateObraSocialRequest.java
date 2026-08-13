@@ -2,14 +2,13 @@ package com.accesmed.backend.Records.ObraSocial.Request;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
 /**
- * Record para la creación de una obra social nueva, junto con al menos un plan
- * (alta atómica: obra social + planes en la misma transacción).
+ * Record para la creación de una obra social nueva, opcionalmente junto con sus planes
+ * iniciales (alta atómica: obra social + planes en la misma transacción).
  */
 public record CreateObraSocialRequest(
 
@@ -35,10 +34,9 @@ public record CreateObraSocialRequest(
         String razonSocial,
 
         /**
-         * Planes iniciales de la obra social ({@code List<CreatePlanAnidadoRequest>}).
-         * Al menos uno es obligatorio.
+         * Planes iniciales de la obra social ({@code List<CreatePlanAnidadoRequest>}), opcionales.
+         * Si se proporciona, cada elemento se valida con {@link Valid}.
          */
-        @NotEmpty(message = "La obra social debe tener al menos un plan.")
         @Valid
         List<CreatePlanAnidadoRequest> planes
 

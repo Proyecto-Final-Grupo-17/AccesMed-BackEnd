@@ -11,16 +11,18 @@
 
 ### Crear obra social (con planes) — `POST /accesmed-api/ObraSocial/ObraSocial`
 
-Alta atómica: la obra social y **al menos un plan** se crean en la misma transacción. Cada
-plan nace en estado `NO_PUBLICADO`.
+Alta atómica: la obra social y, opcionalmente, sus planes iniciales se crean en la misma
+transacción. Si no se envían planes, la obra social nace sin ninguno y se agregan después
+con el alta individual (`POST /accesmed-api/Plan/Plan`). Cada plan nace en estado
+`NO_PUBLICADO`.
 
 **Flujo simplificado:**
 1. Valida que el `codigo` y `nombre` de la obra social sean únicos entre activas.
 2. Crea la obra social.
-3. Para cada plan del array: valida que su `codigo`/`nombre` sean únicos dentro de la obra
-   social (entre no deshabilitados), lo crea en `NO_PUBLICADO` y abre su primer tramo de
-   histórico de estados.
-4. Devuelve la obra social creada con todos sus planes.
+3. Si vino el array de planes: para cada uno valida que su `codigo`/`nombre` sean únicos
+   dentro de la obra social (entre no deshabilitados), lo crea en `NO_PUBLICADO` y abre su
+   primer tramo de histórico de estados.
+4. Devuelve la obra social creada con sus planes (si se enviaron).
 
 **Request para el front — `CreateObraSocialRequest`**
 
@@ -29,7 +31,7 @@ plan nace en estado `NO_PUBLICADO`.
 | `codigo` | String (máx. 20) | Sí | Código único entre obras sociales activas. |
 | `nombre` | String (máx. 150) | Sí | Nombre comercial, único entre activas. |
 | `razonSocial` | String (máx. 200) | Sí | Razón social. |
-| `planes` | Array | Sí, al menos 1 | Planes iniciales. Cada elemento: `codigo` (máx. 20) y `nombre` (máx. 150), únicos dentro de esta obra social. |
+| `planes` | Array | No | Planes iniciales, opcionales. Si se omite o va vacío, la obra social se crea sin planes. Cada elemento: `codigo` (máx. 20) y `nombre` (máx. 150), únicos dentro de esta obra social. |
 
 **Response para el front — `CreateObraSocialResponse`**
 
@@ -39,12 +41,12 @@ plan nace en estado `NO_PUBLICADO`.
 | `codigo` | String | Confirmación del código. |
 | `nombre` | String | Confirmación del nombre. |
 | `razonSocial` | String | Confirmación de la razón social. |
-| `planes` | Array de `{id, codigo, nombre, estadoActual}` | Planes creados, cada uno en `NO_PUBLICADO`. Para navegar a la gestión de cada plan. |
+| `planes` | Array de `{id, codigo, nombre, estadoActual}` | Planes creados (vacío si no se enviaron), cada uno en `NO_PUBLICADO`. Para navegar a la gestión de cada plan. |
 
 **Errores posibles:**
 - `OBRA_SOCIAL_CODIGO_DUPLICADO` / `OBRA_SOCIAL_NOMBRE_DUPLICADO` (409).
 - `PLAN_CODIGO_DUPLICADO` / `PLAN_NOMBRE_DUPLICADO` (409): algún plan del array repite código o nombre dentro de la obra social.
-- Validación Bean (422): array de planes vacío, campos vacíos o exceso de longitud.
+- Validación Bean (422): campos vacíos o exceso de longitud (código, nombre, razón social, o algún plan del array).
 
 ---
 

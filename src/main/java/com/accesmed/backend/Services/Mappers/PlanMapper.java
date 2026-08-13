@@ -1,6 +1,7 @@
 package com.accesmed.backend.Services.Mappers;
 
 import com.accesmed.backend.Domain.EstadoPlan;
+import com.accesmed.backend.Domain.ObraSocial;
 import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Records.ObraSocial.Request.CreatePlanAnidadoRequest;
 import com.accesmed.backend.Records.ObraSocial.Response.GetPlanAnidadoResponse;
@@ -10,19 +11,24 @@ import com.accesmed.backend.Records.Plan.Response.CambioEstadoPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.GetPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.ListPlanResponse;
 import org.mapstruct.BeanMapping;
+import org.mapstruct.Context;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
+import java.util.List;
+
 /**
  * Mapper para la entidad {@code Plan}. Realiza conversiones entre records de
  * request/response y la entidad JPA.
  *
- * Nota: la FK {@code obraSocial} se ignora en el mapeo y se setea en el App después de
- * validar su existencia. El estado ya no se persiste en la entidad: en los responses, el
- * campo {@code estadoActual} se alimenta desde el parámetro {@code estadoVigente} que el
- * App calcula del histórico y pasa al mapper.
+ * Nota: la FK {@code obraSocial} no puede resolverse con datos propios del request de plan
+ * anidado. El App la busca/guarda primero y se la pasa al mapper como parámetro
+ * {@code @Context}, para que el mapeo de la lista completa (entidad y FK) quede en el
+ * mapper y el App no itere manualmente. El estado ya no se persiste en la entidad: en los
+ * responses, el campo {@code estadoActual} se alimenta desde el parámetro
+ * {@code estadoVigente} que el App calcula del histórico y pasa al mapper.
  */
 @Mapper(componentModel = "spring")
 public interface PlanMapper {
@@ -48,17 +54,30 @@ public interface PlanMapper {
      * social) a una entidad {@code Plan}.
      *
      * @param createPlanAnidadoRequest {@code CreatePlanAnidadoRequest} datos del plan anidado
+     * @param obraSocial {@code ObraSocial} obra social ya guardada a la que pertenece el plan
      * @return {@code Plan} entidad lista para persistir
      */
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "codigo", source = "codigo")
-    @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "obraSocial", ignore = true)
+    @Mapping(target = "codigo", source = "createPlanAnidadoRequest.codigo")
+    @Mapping(target = "nombre", source = "createPlanAnidadoRequest.nombre")
+    @Mapping(target = "obraSocial", expression = "java(obraSocial)")
     @Mapping(target = "createdDate", ignore = true)
     @Mapping(target = "lastModifiedDate", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "lastModifiedBy", ignore = true)
-    Plan toEntity(CreatePlanAnidadoRequest createPlanAnidadoRequest);
+    Plan toEntity(CreatePlanAnidadoRequest createPlanAnidadoRequest, @Context ObraSocial obraSocial);
+
+    /**
+     * Convierte una lista de {@code CreatePlanAnidadoRequest} a una lista de entidades
+     * {@code Plan}, reutilizando el mapeo singular para cada elemento (incluida la
+     * resolución de la FK {@code obraSocial} vía contexto). Utilizado durante la creación
+     * anidada de planes en una obra social.
+     *
+     * @param createPlanesAnidadoRequest {@code List<CreatePlanAnidadoRequest>} datos de los planes anidados
+     * @param obraSocial {@code ObraSocial} obra social ya guardada a la que pertenecen los planes
+     * @return {@code List<Plan>} entidades listas para persistir
+     */
+    List<Plan> toEntities(List<CreatePlanAnidadoRequest> createPlanesAnidadoRequest, @Context ObraSocial obraSocial);
 
     /**
      * Actualiza código y nombre de un plan existente con datos de

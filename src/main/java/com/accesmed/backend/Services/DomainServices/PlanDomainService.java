@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -39,6 +40,20 @@ public class PlanDomainService {
         log.debug("Guardando plan: código={}", plan.getCodigo());
 
         return planRepository.save(plan);
+
+    }
+
+    /**
+     * Guarda varios planes en la base de datos en una sola operación.
+     *
+     * @param planes {@code List<Plan>} entidades a persistir
+     * @return {@code List<Plan>} los planes guardados
+     */
+    public List<Plan> savePlanes(List<Plan> planes) {
+
+        log.debug("Guardando {} planes", planes.size());
+
+        return planRepository.saveAll(planes);
 
     }
 

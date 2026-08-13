@@ -44,10 +44,10 @@ public class IndicacionPrestacionDomainService {
     }
 
     /**
-     * Guarda varias indicaciones de prestación en la base de datos.
+     * Guarda varias indicaciones de prestación en la base de datos en una sola operación.
      *
-     * @param indicacionesPrestacion {@code List<IndicacionPrestacion>} lista de entidades a persistir
-     * @return {@code List<IndicacionPrestacion>} lista de indicaciones guardadas
+     * @param indicacionesPrestacion {@code List<IndicacionPrestacion>} entidades a persistir
+     * @return {@code List<IndicacionPrestacion>} las indicaciones guardadas
      */
     public List<IndicacionPrestacion> saveIndicacionesPrestacion(List<IndicacionPrestacion> indicacionesPrestacion) {
 

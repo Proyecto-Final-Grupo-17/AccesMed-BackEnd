@@ -61,11 +61,12 @@ public class ObraSocialApp {
     //region ========== Métodos ==========
 
     /**
-     * Crea una obra social nueva junto con sus planes iniciales, en una única
-     * transacción atómica. Cada plan nace en estado {@code NO_PUBLICADO}.
+     * Crea una obra social nueva, opcionalmente junto con sus planes iniciales, en una
+     * única transacción atómica. Cada plan nace en estado {@code NO_PUBLICADO}.
      *
-     * @param createObraSocialRequest {@code CreateObraSocialRequest} datos de la obra social y sus planes
-     * @return {@code CreateObraSocialResponse} la obra social creada, con sus planes
+     * @param createObraSocialRequest {@code CreateObraSocialRequest} datos de la obra social y,
+     *        opcionalmente, sus planes
+     * @return {@code CreateObraSocialResponse} la obra social creada, con sus planes (si se enviaron)
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el código o nombre de la
      *         obra social (o de algún plan) ya existen
      */
@@ -82,20 +83,28 @@ public class ObraSocialApp {
         ObraSocial obraSocialNueva = obraSocialMapper.toEntity(createObraSocialRequest);
         ObraSocial obraSocialGuardada = obraSocialDomainService.saveObraSocial(obraSocialNueva);
 
-        //Crear cada plan inicial asociado
+        //Los planes iniciales son opcionales
+        List<CreatePlanAnidadoRequest> planesRequest = createObraSocialRequest.planes();
         List<GetPlanAnidadoResponse> planesResponse = new ArrayList<>();
-        for (CreatePlanAnidadoRequest planAnidado : createObraSocialRequest.planes()) {
-            planDomainService.validateCodigoPlanIsUnique(obraSocialGuardada.getId(), planAnidado.codigo());
-            planDomainService.validateNombrePlanIsUnique(obraSocialGuardada.getId(), planAnidado.nombre());
+        if (planesRequest != null && !planesRequest.isEmpty()) {
 
-            Plan planNuevo = planMapper.toEntity(planAnidado);
-            planNuevo.setObraSocial(obraSocialGuardada);
+            //Validar que el código y el nombre de cada plan sean únicos en la obra social
+            for (CreatePlanAnidadoRequest planAnidado : planesRequest) {
+                planDomainService.validateCodigoPlanIsUnique(obraSocialGuardada.getId(), planAnidado.codigo());
+                planDomainService.validateNombrePlanIsUnique(obraSocialGuardada.getId(), planAnidado.nombre());
+            }
 
-            Plan planGuardado = planDomainService.savePlan(planNuevo);
-            historicoEstadoPlanDomainService.openHistoricoInicialPlan(planGuardado);
+            //Mapear y guardar los planes iniciales asociados
+            List<Plan> planesNuevos = planMapper.toEntities(planesRequest, obraSocialGuardada);
+            List<Plan> planesGuardados = planDomainService.savePlanes(planesNuevos);
 
-            //Recién abierto el tramo inicial, el estado vigente es NO_PUBLICADO
-            planesResponse.add(planMapper.toGetPlanAnidadoResponse(planGuardado, EstadoPlan.NO_PUBLICADO));
+            //Abrir el tramo inicial de histórico de cada plan (nace en NO_PUBLICADO; requiere el id ya asignado)
+            planesGuardados.forEach(historicoEstadoPlanDomainService::openHistoricoInicialPlan);
+
+            //Recién abierto el tramo inicial, el estado vigente de todos es NO_PUBLICADO
+            planesResponse = planesGuardados.stream()
+                    .map(plan -> planMapper.toGetPlanAnidadoResponse(plan, EstadoPlan.NO_PUBLICADO))
+                    .toList();
         }
 
         //Devolver response mapeado
