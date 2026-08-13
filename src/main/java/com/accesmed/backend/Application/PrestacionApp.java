@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -105,14 +106,10 @@ public class PrestacionApp {
         Prestacion prestacionNueva = prestacionMapper.toEntity(createPrestacionRequest);
         prestacionNueva.setEspecialidad(especialidadExistente);
 
-        //Setear estado inicial antes de persistir: Hibernate captura los valores a
-        //insertar en el momento del persist(), así que debe setearse antes de guardar
-        historicoEstadoPrestacionDomainService.seedEstadoInicialPrestacion(prestacionNueva);
-
         //Guardar Prestacion
         Prestacion prestacionGuardada = prestacionDomainService.savePrestacion(prestacionNueva);
 
-        //Abrir tramo inicial de histórico de estado
+        //Abrir tramo inicial de histórico de estado (nace en NO_PUBLICADA)
         historicoEstadoPrestacionDomainService.openHistoricoInicialPrestacion(prestacionGuardada);
 
         //Mapear las indicaciones anidadas a entidades
@@ -143,8 +140,9 @@ public class PrestacionApp {
                     .toList();
         }
 
-        //Devolver response mapeado
-        CreatePrestacionResponse createPrestacionResponse = prestacionMapper.toCreateResponse(prestacionGuardada, indicacionesResponse);
+        //Devolver response mapeado. Recién abierto el tramo inicial, el estado vigente es NO_PUBLICADA.
+        CreatePrestacionResponse createPrestacionResponse = prestacionMapper.toCreateResponse(
+                prestacionGuardada, indicacionesResponse, EstadoPrestacion.NO_PUBLICADA);
         return createPrestacionResponse;
 
     }
@@ -195,8 +193,11 @@ public class PrestacionApp {
         //Guardar la prestación actualizada
         Prestacion prestacionActualizada = prestacionDomainService.savePrestacion(prestacionExistente);
 
+        //Calcular el estado vigente del histórico para el response
+        EstadoPrestacion estadoVigente = historicoEstadoPrestacionDomainService.getEstadoVigente(id);
+
         //Devolver response mapeado
-        UpdatePrestacionResponse updatePrestacionResponse = prestacionMapper.toUpdateResponse(prestacionActualizada);
+        UpdatePrestacionResponse updatePrestacionResponse = prestacionMapper.toUpdateResponse(prestacionActualizada, estadoVigente);
         return updatePrestacionResponse;
 
     }
@@ -219,8 +220,9 @@ public class PrestacionApp {
         //Transicionar el estado a PUBLICADA
         Prestacion prestacionPublicada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(id, EstadoPrestacion.PUBLICADA, null);
 
-        //Devolver response mapeado
-        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(prestacionPublicada);
+        //Devolver response mapeado (el estado vigente tras la transición es PUBLICADA)
+        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(
+                prestacionPublicada, EstadoPrestacion.PUBLICADA);
         return cambioEstadoPrestacionResponse;
 
     }
@@ -241,8 +243,9 @@ public class PrestacionApp {
         //Transicionar el estado a NO_PUBLICADA
         Prestacion prestacionDespublicada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(id, EstadoPrestacion.NO_PUBLICADA, null);
 
-        //Devolver response mapeado
-        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(prestacionDespublicada);
+        //Devolver response mapeado (el estado vigente tras la transición es NO_PUBLICADA)
+        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(
+                prestacionDespublicada, EstadoPrestacion.NO_PUBLICADA);
         return cambioEstadoPrestacionResponse;
 
     }
@@ -282,8 +285,9 @@ public class PrestacionApp {
         Prestacion prestacionDeshabilitada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(
                 id, EstadoPrestacion.DESHABILITADA, deshabilitarPrestacionRequest.motivo());
 
-        //Devolver response mapeado
-        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(prestacionDeshabilitada);
+        //Devolver response mapeado (el estado vigente tras la transición es DESHABILITADA)
+        CambioEstadoPrestacionResponse cambioEstadoPrestacionResponse = prestacionMapper.toCambioEstadoResponse(
+                prestacionDeshabilitada, EstadoPrestacion.DESHABILITADA);
         return cambioEstadoPrestacionResponse;
 
     }
@@ -303,8 +307,13 @@ public class PrestacionApp {
         //Buscar prestaciones que cumplen el criteria, paginadas
         Page<Prestacion> prestacionesPagina = prestacionQueryService.findByCriteria(prestacionCriteria, pageable);
 
-        //Devolver response mapeado
-        PageResponse<ListPrestacionResponse> pageResponse = PageResponse.from(prestacionesPagina, prestacionMapper::toListResponse);
+        //Cargar el estado vigente de toda la página en una sola consulta (evita N+1)
+        Map<UUID, EstadoPrestacion> estadosVigentes = historicoEstadoPrestacionDomainService.getEstadosVigentes(
+                prestacionesPagina.getContent().stream().map(Prestacion::getId).toList());
+
+        //Devolver response mapeado, alimentando el estado de cada fila desde el mapa
+        PageResponse<ListPrestacionResponse> pageResponse = PageResponse.from(prestacionesPagina,
+                prestacion -> prestacionMapper.toListResponse(prestacion, estadosVigentes.get(prestacion.getId())));
         return pageResponse;
 
     }

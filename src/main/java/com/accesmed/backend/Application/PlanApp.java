@@ -26,6 +26,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -76,21 +77,18 @@ public class PlanApp {
         planDomainService.validateCodigoPlanIsUnique(obraSocialExistente.getId(), addPlanRequest.codigo());
         planDomainService.validateNombrePlanIsUnique(obraSocialExistente.getId(), addPlanRequest.nombre());
 
-        //Mapear y setear estado inicial antes de persistir: Hibernate captura los
-        //valores a insertar en el momento del persist(), así que debe setearse antes
-        //de guardar
+        //Mapear y setear la obra social
         Plan planNuevo = planMapper.toEntity(addPlanRequest);
         planNuevo.setObraSocial(obraSocialExistente);
-        historicoEstadoPlanDomainService.seedEstadoInicialPlan(planNuevo);
 
         //Guardar Plan
         Plan planGuardado = planDomainService.savePlan(planNuevo);
 
-        //Abrir tramo inicial de histórico de estado
+        //Abrir tramo inicial de histórico de estado (nace en NO_PUBLICADO)
         historicoEstadoPlanDomainService.openHistoricoInicialPlan(planGuardado);
 
-        //Devolver response mapeado
-        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planGuardado);
+        //Devolver response mapeado. Recién abierto el tramo inicial, el estado vigente es NO_PUBLICADO.
+        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planGuardado, EstadoPlan.NO_PUBLICADO);
         return getPlanResponse;
 
     }
@@ -127,8 +125,11 @@ public class PlanApp {
         planMapper.updatePlan(planExistente, updatePlanRequest);
         Plan planActualizado = planDomainService.savePlan(planExistente);
 
+        //Calcular el estado vigente del histórico para el response
+        EstadoPlan estadoVigente = historicoEstadoPlanDomainService.getEstadoVigente(id);
+
         //Devolver response mapeado
-        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planActualizado);
+        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planActualizado, estadoVigente);
         return getPlanResponse;
 
     }
@@ -149,8 +150,8 @@ public class PlanApp {
         //Transicionar el estado a PUBLICADO
         Plan planPublicado = historicoEstadoPlanDomainService.changeEstadoPlan(id, EstadoPlan.PUBLICADO, null);
 
-        //Devolver response mapeado
-        CambioEstadoPlanResponse cambioEstadoPlanResponse = planMapper.toCambioEstadoResponse(planPublicado);
+        //Devolver response mapeado (el estado vigente tras la transición es PUBLICADO)
+        CambioEstadoPlanResponse cambioEstadoPlanResponse = planMapper.toCambioEstadoResponse(planPublicado, EstadoPlan.PUBLICADO);
         return cambioEstadoPlanResponse;
 
     }
@@ -171,8 +172,8 @@ public class PlanApp {
         //Transicionar el estado a NO_PUBLICADO
         Plan planDespublicado = historicoEstadoPlanDomainService.changeEstadoPlan(id, EstadoPlan.NO_PUBLICADO, null);
 
-        //Devolver response mapeado
-        CambioEstadoPlanResponse cambioEstadoPlanResponse = planMapper.toCambioEstadoResponse(planDespublicado);
+        //Devolver response mapeado (el estado vigente tras la transición es NO_PUBLICADO)
+        CambioEstadoPlanResponse cambioEstadoPlanResponse = planMapper.toCambioEstadoResponse(planDespublicado, EstadoPlan.NO_PUBLICADO);
         return cambioEstadoPlanResponse;
 
     }
@@ -204,8 +205,8 @@ public class PlanApp {
         Plan planDeshabilitado = historicoEstadoPlanDomainService.changeEstadoPlan(
                 id, EstadoPlan.DESHABILITADO, deshabilitarPlanRequest.motivo());
 
-        //Devolver response mapeado
-        CambioEstadoPlanResponse cambioEstadoPlanResponse = planMapper.toCambioEstadoResponse(planDeshabilitado);
+        //Devolver response mapeado (el estado vigente tras la transición es DESHABILITADO)
+        CambioEstadoPlanResponse cambioEstadoPlanResponse = planMapper.toCambioEstadoResponse(planDeshabilitado, EstadoPlan.DESHABILITADO);
         return cambioEstadoPlanResponse;
 
     }
@@ -226,7 +227,10 @@ public class PlanApp {
 
         Plan planExistente = planQueryService.findPlanByCriteria(planCriteria);
 
-        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planExistente);
+        //Calcular el estado vigente del histórico para el response
+        EstadoPlan estadoVigente = historicoEstadoPlanDomainService.getEstadoVigente(planExistente.getId());
+
+        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planExistente, estadoVigente);
         return getPlanResponse;
 
     }
@@ -246,8 +250,13 @@ public class PlanApp {
         //Buscar planes que cumplen el criteria, paginados
         Page<Plan> planesPagina = planQueryService.findByCriteria(planCriteria, pageable);
 
-        //Devolver response mapeado
-        PageResponse<ListPlanResponse> pageResponse = PageResponse.from(planesPagina, planMapper::toListResponse);
+        //Cargar el estado vigente de toda la página en una sola consulta (evita N+1)
+        Map<UUID, EstadoPlan> estadosVigentes = historicoEstadoPlanDomainService.getEstadosVigentes(
+                planesPagina.getContent().stream().map(Plan::getId).toList());
+
+        //Devolver response mapeado, alimentando el estado de cada fila desde el mapa
+        PageResponse<ListPlanResponse> pageResponse = PageResponse.from(planesPagina,
+                plan -> planMapper.toListResponse(plan, estadosVigentes.get(plan.getId())));
         return pageResponse;
 
     }

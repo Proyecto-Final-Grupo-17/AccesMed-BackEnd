@@ -486,30 +486,31 @@ representa lógica de dominio reutilizable, puede vivir como método privado den
 App. Se promueve a DomainService recién cuando un segundo flujo lo necesita.
 
 **Alta de una entidad con máquina de estados (estado + histórico): coreografía
-`seed → save → openHistorico`, siempre en ese orden.** Entidades como `Prestacion` o
-`Plan` llevan su ciclo de vida por estados, materializado en dos lugares: la columna
-`estadoActual` (`NOT NULL`) de la propia entidad, y el primer tramo de su tabla de
-histórico (`HistoricoEstadoPrestacion`, `HistoricoEstadoPlan`...), que la referencia por
-FK. El `DomainService` del histórico (`HistoricoEstadoPrestacionDomainService`,
-`HistoricoEstadoPlanDomainService`) expone dos métodos separados para esto, y el `App`
-los llama a cada lado del `save`:
+`save → openHistorico`, en ese orden.** Entidades como `Prestacion` o `Plan` llevan su
+ciclo de vida por estados. El estado vigente **no se materializa** en la entidad (no hay
+columna `estadoActual`): la **única fuente** es el tramo de su tabla de histórico
+(`HistoricoEstadoPrestacion`, `HistoricoEstadoPlan`...) con `fecha_hora_fin` vacío. La
+relación entidad↔histórico es **unidireccional**: solo el `@ManyToOne` del histórico la
+mapea. El `DomainService` del histórico (`HistoricoEstadoPrestacionDomainService`,
+`HistoricoEstadoPlanDomainService`) expone `openHistoricoInicial<Entidad>` para el alta y
+`getEstadoVigente(id)` / `getEstadosVigentes(ids)` para leer el estado; el `App` orquesta:
 
-1. `seedEstadoInicial<Entidad>(entidadNueva)` — setea `estadoActual` en memoria.
-   **Se llama antes de guardar la entidad.** Hibernate captura los valores a insertar en
-   el momento del `persist()`, no del `flush()`: si el campo se setea después de
-   guardar, el `INSERT` sale con `estadoActual` en `null` y viola el `NOT NULL`.
-2. `<entidad>DomainService.save<Entidad>(entidadNueva)` — persiste la entidad. Recién acá
+1. `<entidad>DomainService.save<Entidad>(entidadNueva)` — persiste la entidad. Recién acá
    tiene un `id`.
-3. `openHistoricoInicial<Entidad>(entidadGuardada)` — crea y guarda el primer tramo del
-   histórico, referenciando la entidad ya persistida. **Se llama después de guardar.** Si
-   se llama antes, el histórico referencia una entidad transitoria (sin `id`) y Hibernate
-   rechaza el insert (`TransientPropertyValueException`).
+2. `openHistoricoInicial<Entidad>(entidadGuardada)` — crea y guarda el primer tramo del
+   histórico (estado inicial `NO_PUBLICADA`/`NO_PUBLICADO`), referenciando la entidad ya
+   persistida. **Se llama después de guardar.** Si se llama antes, el histórico referencia
+   una entidad transitoria (sin `id`) y Hibernate rechaza el insert
+   (`TransientPropertyValueException`).
 
-No se puede colapsar en un único método: haría falta que el `DomainService` del
-histórico invoque al `DomainService` de la entidad para guardarla en el medio, y los
-`DomainService` no se llaman entre sí (ver §4, capa de aplicación). El orquestador de
-las tres llamadas es siempre el `App`, dentro de su `@Transactional`. Cualquier entidad
-nueva con este mismo patrón (estado + histórico) debe seguir esta misma coreografía.
+Ya no hay un paso `seedEstadoInicial` previo al `save`: no existe columna que sembrar. En
+los responses, el estado que el front espera (`estadoActual`) lo alimenta el `App`: para
+un alta o una transición es una constante conocida (`NO_PUBLICADA`, `PUBLICADA`...); para
+una lectura puntual lo pide con `getEstadoVigente(id)`; y para un listado carga todos los
+estados de la página en una sola consulta (`getEstadosVigentes(ids) → Map<UUID, EstadoX>`,
+sin N+1) y lo pasa al mapper. El orquestador es siempre el `App`, dentro de su
+`@Transactional`; los `DomainService` no se llaman entre sí (ver §4). Cualquier entidad
+nueva con este mismo patrón debe seguir esta coreografía.
 
 **Transición de estado (`change<Estado><Entidad>`): cerrar el tramo vigente con
 `saveAndFlush`, nunca con `save`.** El esquema protege "como máximo un tramo vigente por
@@ -954,8 +955,8 @@ la dependencia `tech.jhipster:jhipster-framework` completa.
   Cada subclase solo implementa `getRepository()` y `createSpecification(criteria)`.
 - **Metamodelo** (`hibernate-processor`, se declara junto a Lombok en
   `annotationProcessorPaths` del `maven-compiler-plugin` para evitar conflicto entre
-  procesadores de anotaciones): usar `Turno_.estadoActual` en vez de
-  `root.get("estadoActual")` — seguro ante refactors, error de compilación si el campo no existe.
+  procesadores de anotaciones): usar `Prestacion_.codigo` en vez de
+  `root.get("codigo")` — seguro ante refactors, error de compilación si el campo no existe.
 - **`PageResponse<T>`** (`Services/QueryServices/Filtering/PageResponse.java`): envelope de
   paginación (`content`, `page`, `size`, `totalElements`, `totalPages`) que devuelven todos
   los endpoints de listado, armado con `PageResponse.from(page, mapper::toListResponse)`. Se
@@ -1005,9 +1006,12 @@ la misma manera:
   `createSpecification` agrega siempre `cb.isNull(root.get(Entidad_.deletedAt))`, sin
   exponer `deletedAt` como campo del Criteria (para que ningún filtro externo pueda listar
   bajas lógicas).
-- Entidades que se retiran por estado (`Plan`, `Prestacion`, eje `estadoActual`): no llevan
-  ningún filtro implícito — el estado se filtra explícitamente por `estadoActual` si el
-  Criteria lo pide, igual que cualquier otro campo.
+- Entidades que se retiran por estado (`Plan`, `Prestacion`): no llevan ningún filtro
+  implícito. El estado vigente no está materializado en la entidad, así que el filtro
+  `estadoActual` del Criteria (el contrato de query string no cambia) se traduce a una
+  **subconsulta correlacionada `EXISTS`** sobre el histórico (`HistoricoEstadoPrestacion`/
+  `HistoricoEstadoPlan`) con `fecha_hora_fin IS NULL`, no a un `root.get(...)` directo (la
+  relación es unidireccional, no hay `join` desde la entidad al histórico).
 - `IndicacionPrestacion` no tiene baja lógica ni estados: se retira cerrando
   `fechaFinVigencia` (admite fecha futura para programar el retiro). Su
   `createSpecification` agrega siempre la condición de vigencia al momento de la consulta

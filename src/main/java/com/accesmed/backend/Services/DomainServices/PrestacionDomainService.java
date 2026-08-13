@@ -81,7 +81,7 @@ public class PrestacionDomainService {
 
         log.debug("Buscando prestación activa por id: {}", id);
 
-        return prestacionRepository.findByIdAndEstadoActualNot(id, EstadoPrestacion.DESHABILITADA)
+        return prestacionRepository.findByIdAndEstadoVigenteNot(id, EstadoPrestacion.DESHABILITADA)
                 .orElseThrow(() -> {
                     log.warn("No se encontró la prestación activa: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "PRESTACION_NO_ENCONTRADA",
@@ -99,7 +99,7 @@ public class PrestacionDomainService {
      */
     public void validateCodigoPrestacionIsUnique(String codigo) {
 
-        if (prestacionRepository.existsByCodigoAndEstadoActualNot(codigo, EstadoPrestacion.DESHABILITADA)) {
+        if (prestacionRepository.existsByCodigoAndEstadoVigenteNot(codigo, EstadoPrestacion.DESHABILITADA)) {
             log.warn("No se pudo crear la prestación: código {} ya existe", codigo);
             throw new ReglaNegocioException(getClass(), "PRESTACION_CODIGO_DUPLICADO",
                     "Ya existe una prestación no deshabilitada con el código " + codigo);
@@ -116,7 +116,7 @@ public class PrestacionDomainService {
      */
     public void validateNombrePrestacionIsUnique(String nombre) {
 
-        if (prestacionRepository.existsByNombreAndEstadoActualNot(nombre, EstadoPrestacion.DESHABILITADA)) {
+        if (prestacionRepository.existsByNombreAndEstadoVigenteNot(nombre, EstadoPrestacion.DESHABILITADA)) {
             log.warn("No se pudo crear la prestación: nombre {} ya existe", nombre);
             throw new ReglaNegocioException(getClass(), "PRESTACION_NOMBRE_DUPLICADO",
                     "Ya existe una prestación no deshabilitada con el nombre " + nombre);
@@ -135,7 +135,7 @@ public class PrestacionDomainService {
      */
     public void validateNombrePrestacionIsUnique(String nombre, UUID idExcluido) {
 
-        if (prestacionRepository.existsByNombreAndEstadoActualNotAndIdNot(nombre, EstadoPrestacion.DESHABILITADA, idExcluido)) {
+        if (prestacionRepository.existsByNombreAndEstadoVigenteNotAndIdNot(nombre, EstadoPrestacion.DESHABILITADA, idExcluido)) {
             log.warn("No se pudo actualizar la prestación: nombre {} ya existe en otra prestación", nombre);
             throw new ReglaNegocioException(getClass(), "PRESTACION_NOMBRE_DUPLICADO",
                     "Ya existe otra prestación no deshabilitada con el nombre " + nombre);
@@ -238,7 +238,7 @@ public class PrestacionDomainService {
      */
     public void validateSinPrestacionesActivas(UUID especialidadId) {
 
-        if (prestacionRepository.existsByEspecialidadIdAndEstadoActualNot(especialidadId, EstadoPrestacion.DESHABILITADA)) {
+        if (prestacionRepository.existsByEspecialidadIdAndEstadoVigenteNot(especialidadId, EstadoPrestacion.DESHABILITADA)) {
             log.warn("No se pudo validar sin prestaciones activas para la especialidad {}: tiene prestaciones no deshabilitadas", especialidadId);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_CON_PRESTACIONES_ACTIVAS",
                     "La especialidad " + especialidadId + " tiene prestaciones no deshabilitadas. No se puede dar de baja.");

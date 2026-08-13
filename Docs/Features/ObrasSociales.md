@@ -269,7 +269,7 @@ planes deshabilitados sin que eso la afecte.
 3. **Precondición restrictiva real**: rechaza si hay algún `Turno` con
    `obraSocialPaciente.plan` apuntando a este plan y estado no final.
 4. Cierra el tramo vigente del histórico, abre uno nuevo en `DESHABILITADO` (con el
-   `motivo`, si vino) y actualiza `estadoActual`.
+   `motivo`, si vino); el estado vigente se deriva del histórico, no se cachea.
 5. Devuelve el plan deshabilitado.
 
 **Pendiente (TODO)**: bajar `ObraSocialPlanPrestacion` y `ObraSocialPaciente` asociados —

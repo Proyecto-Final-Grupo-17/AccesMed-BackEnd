@@ -17,9 +17,6 @@
             <column name="nombre" type="varchar(150)">
                 <constraints nullable="false"/>
             </column>
-            <column name="estado_actual" type="varchar(20)">
-                <constraints nullable="false"/>
-            </column>
             <!-- ====== Relaciones ====== -->
             <column name="obra_social_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_plan_obra_social" references="obra_social(id)"/>
@@ -33,18 +30,10 @@
             <column name="updated_by" type="varchar(255)"/>
         </createTable>
 
-        <sql>ALTER TABLE plan ADD CONSTRAINT ck_plan_estado_actual CHECK (estado_actual IN ('NO_PUBLICADO','PUBLICADO','DESHABILITADO'));</sql>
-
-        <!-- Unicos parciales: la unicidad rige entre los no-deshabilitados. -->
-        <sql>CREATE UNIQUE INDEX uq_plan_obra_social_codigo ON plan (obra_social_id, codigo) WHERE estado_actual &lt;&gt; 'DESHABILITADO';</sql>
-        <sql>CREATE UNIQUE INDEX uq_plan_obra_social_nombre ON plan (obra_social_id, nombre) WHERE estado_actual &lt;&gt; 'DESHABILITADO';</sql>
-        <sql>CREATE INDEX idx_plan_estado_actual ON plan (estado_actual);</sql>
-        <rollback>
-            <sql>ALTER TABLE plan DROP CONSTRAINT IF EXISTS ck_plan_estado_actual;</sql>
-            <sql>DROP INDEX IF EXISTS uq_plan_obra_social_codigo;</sql>
-            <sql>DROP INDEX IF EXISTS uq_plan_obra_social_nombre;</sql>
-            <sql>DROP INDEX IF EXISTS idx_plan_estado_actual;</sql>
-        </rollback>
+        <!-- La unicidad de codigo/nombre por obra social "entre no-deshabilitados" ya no se
+             refuerza en BD: dependia de estado_actual (eliminada). Ahora se valida en la capa
+             de aplicacion (join al historico de estados vigente). Ver PlanDomainService. -->
+        <rollback/>
     </changeSet>
 
 </databaseChangeLog>

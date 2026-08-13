@@ -44,9 +44,6 @@
             <column name="tiempo_recordatorio_confirmacion" type="interval">
                 <constraints nullable="false"/>
             </column>
-            <column name="estado_actual" type="varchar(20)">
-                <constraints nullable="false"/>
-            </column>
             <!-- ====== Relaciones ====== -->
             <column name="especialidad_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_prestacion_especialidad" references="especialidad(id)"/>
@@ -82,23 +79,16 @@
                 duracion_minima > interval '0' AND duracion_minima &lt;= duracion_maxima
             );
         </sql>
-        <sql>ALTER TABLE prestacion ADD CONSTRAINT ck_prestacion_estado_actual CHECK (estado_actual IN ('NO_PUBLICADA','PUBLICADA','DESHABILITADA'));</sql>
-
-        <!-- Unicos parciales: la unicidad rige entre las no-deshabilitadas (DESHABILITADA es terminal, libera el codigo/nombre). -->
-        <sql>CREATE UNIQUE INDEX uq_prestacion_codigo ON prestacion (codigo) WHERE estado_actual &lt;&gt; 'DESHABILITADA';</sql>
-        <sql>CREATE UNIQUE INDEX uq_prestacion_nombre ON prestacion (nombre) WHERE estado_actual &lt;&gt; 'DESHABILITADA';</sql>
+        <!-- La unicidad de codigo/nombre "entre no-deshabilitadas" ya no se refuerza en BD:
+             dependia de estado_actual (eliminada). Ahora se valida en la capa de aplicacion
+             (join al historico de estados vigente). Ver PrestacionDomainService. -->
         <sql>CREATE INDEX idx_prestacion_especialidad ON prestacion (especialidad_id);</sql>
-        <sql>CREATE INDEX idx_prestacion_estado_actual ON prestacion (estado_actual);</sql>
         <rollback>
             <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_tolerancias;</sql>
             <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_tolerancia_anuncio;</sql>
             <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_recordatorio;</sql>
             <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_duracion;</sql>
-            <sql>ALTER TABLE prestacion DROP CONSTRAINT IF EXISTS ck_prestacion_estado_actual;</sql>
-            <sql>DROP INDEX IF EXISTS uq_prestacion_codigo;</sql>
-            <sql>DROP INDEX IF EXISTS uq_prestacion_nombre;</sql>
             <sql>DROP INDEX IF EXISTS idx_prestacion_especialidad;</sql>
-            <sql>DROP INDEX IF EXISTS idx_prestacion_estado_actual;</sql>
         </rollback>
     </changeSet>
 

@@ -5,6 +5,8 @@ import com.accesmed.backend.Domain.HistoricoEstadoPlan;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,5 +35,16 @@ public interface HistoricoEstadoPlanRepository extends JpaRepository<HistoricoEs
      *         estado, si existe
      */
     Optional<HistoricoEstadoPlan> findByPlanIdAndFechaHoraFinIsNullAndEstadoNot(UUID planId, EstadoPlan estado);
+
+    /**
+     * Busca los tramos vigentes (sin {@code fechaHoraFin}) de un conjunto de planes.
+     * Pensado para resolver el estado vigente de toda una página de planes (o de los
+     * planes anidados de una obra social) con una única consulta (evita el N+1), armando
+     * luego un {@code Map<UUID, EstadoPlan>}.
+     *
+     * @param planIds {@code Collection<UUID>} identificadores de los planes
+     * @return {@code List<HistoricoEstadoPlan>} tramos vigentes de esos planes
+     */
+    List<HistoricoEstadoPlan> findByPlanIdInAndFechaHoraFinIsNull(Collection<UUID> planIds);
 
 }

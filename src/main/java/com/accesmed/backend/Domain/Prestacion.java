@@ -2,8 +2,6 @@ package com.accesmed.backend.Domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -35,12 +33,14 @@ import java.util.UUID;
  * {@code especialidad} también es inmutable tras el alta.</p>
  *
  * <p>El ciclo de vida es por estados ({@link EstadoPrestacion}), no baja lógica:
- * {@code No Publicada ⇄ Publicada → Deshabilitada}. {@code estadoActual} es la
- * materialización del tramo vigente de {@link HistoricoEstadoPrestacion}, mantenida por
- * el {@code DomainService} en la misma transacción que abre el tramo. Deshabilitar es
- * terminal e irreversible: a partir de ahí no hay transición de vuelta, y el
- * {@code codigo}/{@code nombre} quedan libres para reutilizarse porque la unicidad es
- * entre no-deshabilitadas.</p>
+ * {@code No Publicada ⇄ Publicada → Deshabilitada}. El estado vigente <b>no se
+ * materializa</b> en la entidad: se deriva siempre del tramo de
+ * {@link HistoricoEstadoPrestacion} con {@code fechaHoraFin} vacío, consultado desde el
+ * lado del histórico (la relación es unidireccional: solo el {@code @ManyToOne} de
+ * {@code HistoricoEstadoPrestacion} la mapea). Deshabilitar es terminal e irreversible: a
+ * partir de ahí no hay transición de vuelta, y el {@code codigo}/{@code nombre} quedan
+ * libres para reutilizarse porque la unicidad es entre no-deshabilitadas (validada en la
+ * capa de aplicación, no en el esquema).</p>
  */
 @Getter
 @Setter
@@ -114,15 +114,6 @@ public class Prestacion extends Auditable {
     @JdbcTypeCode(SqlTypes.INTERVAL_SECOND)
     @Column(name = "tiempo_recordatorio_confirmacion", nullable = false, columnDefinition = "interval")
     private Duration tiempoRecordatorioConfirmacion; //No puede superar a tiempoToleranciaSolicitud
-
-    /**
-     * Estado actual del ciclo de vida del catálogo, mantenido por el
-     * {@code DomainService} junto con el tramo de {@link HistoricoEstadoPrestacion}.
-     */
-    @NotNull
-    @Enumerated(EnumType.STRING)
-    @Column(name = "estado_actual", nullable = false, length = 20)
-    private EstadoPrestacion estadoActual;
 
     //endregion
 

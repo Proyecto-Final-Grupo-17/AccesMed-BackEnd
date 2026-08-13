@@ -4,13 +4,17 @@ import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.HistoricoEstadoPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Repositories.HistoricoEstadoPrestacionRepository;
+import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.ZonedDateTime;
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Lógica de dominio y persistencia para la entidad {@code HistoricoEstadoPrestacion}.
@@ -33,16 +37,48 @@ public class HistoricoEstadoPrestacionDomainService {
     //region ========== Métodos ==========
 
     /**
-     * Setea el {@code estadoActual} inicial ({@code NO_PUBLICADA}) de una prestación
-     * recién mapeada, antes de persistirla. Hibernate captura los valores a insertar en
-     * el momento del {@code persist()}: hay que llamar a este método antes de
-     * {@code PrestacionDomainService.savePrestacion}, nunca después.
+     * Obtiene el estado vigente de una prestación desde su histórico: el estado del tramo
+     * con {@code fechaHoraFin} vacío. Es la única fuente del estado actual (ya no se
+     * cachea en la entidad); se usa para alimentar los mappers en las lecturas puntuales.
      *
-     * @param prestacion {@code Prestacion} prestación nueva, todavía no persistida
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @return {@code EstadoPrestacion} estado vigente de la prestación
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la
+     *         prestación no tiene un tramo de estado vigente (no debería pasar: toda
+     *         prestación abre su tramo inicial al crearse)
      */
-    public void seedEstadoInicialPrestacion(Prestacion prestacion) {
+    public EstadoPrestacion getEstadoVigente(UUID prestacionId) {
 
-        prestacion.setEstadoActual(EstadoPrestacion.NO_PUBLICADA);
+        log.debug("Buscando estado vigente de prestación: id={}", prestacionId);
+
+        return historicoEstadoPrestacionRepository.findByPrestacionIdAndFechaHoraFinIsNull(prestacionId)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró tramo de estado vigente para la prestación: id={}", prestacionId);
+                    return new RecursoNoEncontradoException(getClass(), "PRESTACION_SIN_ESTADO_VIGENTE",
+                            "No existe un tramo de estado vigente para la prestación " + prestacionId);
+                })
+                .getEstado();
+
+    }
+
+    /**
+     * Obtiene el estado vigente de un conjunto de prestaciones en una única consulta,
+     * armando un {@code Map<UUID, EstadoPrestacion>} (id de prestación → estado). Pensado
+     * para alimentar el estado de toda una página de prestaciones sin incurrir en N+1.
+     *
+     * @param prestacionIds {@code Collection<UUID>} identificadores de las prestaciones
+     * @return {@code Map<UUID, EstadoPrestacion>} estado vigente por id de prestación
+     */
+    public Map<UUID, EstadoPrestacion> getEstadosVigentes(Collection<UUID> prestacionIds) {
+
+        if (prestacionIds.isEmpty()) {
+            return Map.of();
+        }
+
+        log.debug("Buscando estados vigentes de {} prestación(es)", prestacionIds.size());
+
+        return historicoEstadoPrestacionRepository.findByPrestacionIdInAndFechaHoraFinIsNull(prestacionIds).stream()
+                .collect(Collectors.toMap(historico -> historico.getPrestacion().getId(), HistoricoEstadoPrestacion::getEstado));
 
     }
 
@@ -67,17 +103,16 @@ public class HistoricoEstadoPrestacionDomainService {
     }
 
     /**
-     * Cierra el tramo vigente del histórico de estados de la prestación, abre uno nuevo
-     * con el estado destino, y actualiza {@code prestacion.estadoActual} — cache e
-     * histórico en la misma transacción. La {@code Prestacion} se obtiene a través de la
-     * relación del propio tramo, sin llamar a {@code PrestacionDomainService}: queda
-     * persistida por dirty checking al cerrar la transacción abierta por el caso de uso
-     * que invoca este método.
+     * Cierra el tramo vigente del histórico de estados de la prestación y abre uno nuevo
+     * con el estado destino — el histórico es la única fuente del estado, así que la
+     * transición se resuelve por completo acá, sin ninguna caché que mantener. La
+     * {@code Prestacion} se obtiene a través de la relación del propio tramo, sin llamar a
+     * {@code PrestacionDomainService}.
      *
      * @param prestacionId {@code UUID} identificador de la prestación a transicionar
      * @param estadoNuevo {@code EstadoPrestacion} estado destino de la transición
      * @param motivo {@code String} motivo de la transición, opcional
-     * @return {@code Prestacion} la prestación con el nuevo estado actual
+     * @return {@code Prestacion} la prestación transicionada
      * @throws ReglaNegocioException {@code ReglaNegocioException} si la prestación ya
      *         está deshabilitada o si la transición no es válida desde el estado vigente
      */
@@ -127,9 +162,6 @@ public class HistoricoEstadoPrestacionDomainService {
         historicoEstadoPrestacionNuevo.setFechaHoraInicio(ZonedDateTime.now());
         historicoEstadoPrestacionNuevo.setMotivo(motivo);
         historicoEstadoPrestacionRepository.save(historicoEstadoPrestacionNuevo);
-
-        //Actualizar estadoActual en memoria (se persiste por dirty checking)
-        prestacion.setEstadoActual(estadoNuevo);
 
         return prestacion;
 

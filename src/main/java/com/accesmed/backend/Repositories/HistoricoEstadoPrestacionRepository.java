@@ -5,6 +5,8 @@ import com.accesmed.backend.Domain.HistoricoEstadoPrestacion;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,5 +35,15 @@ public interface HistoricoEstadoPrestacionRepository extends JpaRepository<Histo
      *         ese estado, si existe
      */
     Optional<HistoricoEstadoPrestacion> findByPrestacionIdAndFechaHoraFinIsNullAndEstadoNot(UUID prestacionId, EstadoPrestacion estado);
+
+    /**
+     * Busca los tramos vigentes (sin {@code fechaHoraFin}) de un conjunto de prestaciones.
+     * Pensado para resolver el estado vigente de toda una página de prestaciones con una
+     * única consulta (evita el N+1), armando luego un {@code Map<UUID, EstadoPrestacion>}.
+     *
+     * @param prestacionIds {@code Collection<UUID>} identificadores de las prestaciones
+     * @return {@code List<HistoricoEstadoPrestacion>} tramos vigentes de esas prestaciones
+     */
+    List<HistoricoEstadoPrestacion> findByPrestacionIdInAndFechaHoraFinIsNull(Collection<UUID> prestacionIds);
 
 }

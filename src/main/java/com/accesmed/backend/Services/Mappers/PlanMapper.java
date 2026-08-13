@@ -1,5 +1,6 @@
 package com.accesmed.backend.Services.Mappers;
 
+import com.accesmed.backend.Domain.EstadoPlan;
 import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Records.ObraSocial.Request.CreatePlanAnidadoRequest;
 import com.accesmed.backend.Records.ObraSocial.Response.GetPlanAnidadoResponse;
@@ -14,15 +15,14 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-import java.util.List;
-
 /**
  * Mapper para la entidad {@code Plan}. Realiza conversiones entre records de
  * request/response y la entidad JPA.
  *
  * Nota: la FK {@code obraSocial} se ignora en el mapeo y se setea en el App después de
- * validar su existencia; {@code estadoActual} lo setea el {@code DomainService} al abrir
- * el tramo inicial.
+ * validar su existencia. El estado ya no se persiste en la entidad: en los responses, el
+ * campo {@code estadoActual} se alimenta desde el parámetro {@code estadoVigente} que el
+ * App calcula del histórico y pasa al mapper.
  */
 @Mapper(componentModel = "spring")
 public interface PlanMapper {
@@ -36,7 +36,6 @@ public interface PlanMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "codigo", source = "codigo")
     @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "estadoActual", ignore = true)
     @Mapping(target = "obraSocial", ignore = true)
     @Mapping(target = "createdDate", ignore = true)
     @Mapping(target = "lastModifiedDate", ignore = true)
@@ -54,7 +53,6 @@ public interface PlanMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "codigo", source = "codigo")
     @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "estadoActual", ignore = true)
     @Mapping(target = "obraSocial", ignore = true)
     @Mapping(target = "createdDate", ignore = true)
     @Mapping(target = "lastModifiedDate", ignore = true)
@@ -73,7 +71,6 @@ public interface PlanMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "codigo", source = "updatePlanRequest.codigo")
     @Mapping(target = "nombre", source = "updatePlanRequest.nombre")
-    @Mapping(target = "estadoActual", ignore = true)
     @Mapping(target = "obraSocial", ignore = true)
     @Mapping(target = "createdDate", ignore = true)
     @Mapping(target = "lastModifiedDate", ignore = true)
@@ -85,69 +82,57 @@ public interface PlanMapper {
      * Convierte una entidad {@code Plan} a {@code GetPlanResponse}.
      *
      * @param plan {@code Plan} entidad
+     * @param estadoVigente {@code EstadoPlan} estado vigente calculado del histórico
      * @return {@code GetPlanResponse} respuesta de obtención (también usada al agregar y actualizar)
      */
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "codigo", source = "codigo")
-    @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "obraSocialId", source = "obraSocial.id")
-    @Mapping(target = "obraSocialNombre", source = "obraSocial.nombre")
-    @Mapping(target = "estadoActual", source = "estadoActual")
-    GetPlanResponse toGetResponse(Plan plan);
+    @Mapping(target = "id", source = "plan.id")
+    @Mapping(target = "codigo", source = "plan.codigo")
+    @Mapping(target = "nombre", source = "plan.nombre")
+    @Mapping(target = "obraSocialId", source = "plan.obraSocial.id")
+    @Mapping(target = "obraSocialNombre", source = "plan.obraSocial.nombre")
+    @Mapping(target = "estadoActual", source = "estadoVigente")
+    GetPlanResponse toGetResponse(Plan plan, EstadoPlan estadoVigente);
 
     /**
      * Convierte una entidad {@code Plan} a {@code ListPlanResponse}.
      *
      * @param plan {@code Plan} entidad
+     * @param estadoVigente {@code EstadoPlan} estado vigente calculado del histórico
      * @return {@code ListPlanResponse} respuesta de listado
      */
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "codigo", source = "codigo")
-    @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "obraSocialId", source = "obraSocial.id")
-    @Mapping(target = "obraSocialNombre", source = "obraSocial.nombre")
-    @Mapping(target = "estadoActual", source = "estadoActual")
-    ListPlanResponse toListResponse(Plan plan);
-
-    /**
-     * Convierte una lista de entidades {@code Plan} a una lista de {@code ListPlanResponse}.
-     *
-     * @param planes {@code List<Plan>} lista de entidades
-     * @return {@code List<ListPlanResponse>} lista de respuestas
-     */
-    List<ListPlanResponse> toListResponses(List<Plan> planes);
+    @Mapping(target = "id", source = "plan.id")
+    @Mapping(target = "codigo", source = "plan.codigo")
+    @Mapping(target = "nombre", source = "plan.nombre")
+    @Mapping(target = "obraSocialId", source = "plan.obraSocial.id")
+    @Mapping(target = "obraSocialNombre", source = "plan.obraSocial.nombre")
+    @Mapping(target = "estadoActual", source = "estadoVigente")
+    ListPlanResponse toListResponse(Plan plan, EstadoPlan estadoVigente);
 
     /**
      * Convierte una entidad {@code Plan} a {@code CambioEstadoPlanResponse}.
      *
      * @param plan {@code Plan} entidad tras la transición de estado
+     * @param estadoVigente {@code EstadoPlan} estado vigente tras la transición
      * @return {@code CambioEstadoPlanResponse} respuesta de la transición
      */
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "codigo", source = "codigo")
-    @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "estadoActual", source = "estadoActual")
-    CambioEstadoPlanResponse toCambioEstadoResponse(Plan plan);
+    @Mapping(target = "id", source = "plan.id")
+    @Mapping(target = "codigo", source = "plan.codigo")
+    @Mapping(target = "nombre", source = "plan.nombre")
+    @Mapping(target = "estadoActual", source = "estadoVigente")
+    CambioEstadoPlanResponse toCambioEstadoResponse(Plan plan, EstadoPlan estadoVigente);
 
     /**
      * Convierte una entidad {@code Plan} a {@code GetPlanAnidadoResponse}, para anidar en
      * las respuestas de {@code ObraSocial}.
      *
      * @param plan {@code Plan} entidad
+     * @param estadoVigente {@code EstadoPlan} estado vigente calculado del histórico
      * @return {@code GetPlanAnidadoResponse} respuesta anidada
      */
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "codigo", source = "codigo")
-    @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "estadoActual", source = "estadoActual")
-    GetPlanAnidadoResponse toGetPlanAnidadoResponse(Plan plan);
-
-    /**
-     * Convierte una lista de entidades {@code Plan} a una lista de {@code GetPlanAnidadoResponse}.
-     *
-     * @param planes {@code List<Plan>} lista de entidades
-     * @return {@code List<GetPlanAnidadoResponse>} lista de respuestas anidadas
-     */
-    List<GetPlanAnidadoResponse> toGetPlanAnidadoResponses(List<Plan> planes);
+    @Mapping(target = "id", source = "plan.id")
+    @Mapping(target = "codigo", source = "plan.codigo")
+    @Mapping(target = "nombre", source = "plan.nombre")
+    @Mapping(target = "estadoActual", source = "estadoVigente")
+    GetPlanAnidadoResponse toGetPlanAnidadoResponse(Plan plan, EstadoPlan estadoVigente);
 
 }

@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -89,12 +90,12 @@ public class ObraSocialApp {
 
             Plan planNuevo = planMapper.toEntity(planAnidado);
             planNuevo.setObraSocial(obraSocialGuardada);
-            historicoEstadoPlanDomainService.seedEstadoInicialPlan(planNuevo);
 
             Plan planGuardado = planDomainService.savePlan(planNuevo);
             historicoEstadoPlanDomainService.openHistoricoInicialPlan(planGuardado);
 
-            planesResponse.add(planMapper.toGetPlanAnidadoResponse(planGuardado));
+            //Recién abierto el tramo inicial, el estado vigente es NO_PUBLICADO
+            planesResponse.add(planMapper.toGetPlanAnidadoResponse(planGuardado, EstadoPlan.NO_PUBLICADO));
         }
 
         //Devolver response mapeado
@@ -134,9 +135,8 @@ public class ObraSocialApp {
         obraSocialMapper.updateObraSocial(obraSocialExistente, updateObraSocialRequest);
         ObraSocial obraSocialActualizada = obraSocialDomainService.saveObraSocial(obraSocialExistente);
 
-        //Devolver response mapeado, con los planes de la obra social
-        List<GetPlanAnidadoResponse> planesResponse = planMapper
-                .toGetPlanAnidadoResponses(planQueryService.findPlanesByObraSocial(id));
+        //Devolver response mapeado, con los planes de la obra social (estado vigente por lote)
+        List<GetPlanAnidadoResponse> planesResponse = mapPlanesAnidados(planQueryService.findPlanesByObraSocial(id));
         GetObraSocialResponse getObraSocialResponse = obraSocialMapper.toGetResponse(obraSocialActualizada, planesResponse);
         return getObraSocialResponse;
 
@@ -196,10 +196,10 @@ public class ObraSocialApp {
 
         log.info("Búsqueda de obra social iniciada: criteria={}", obraSocialCriteria);
 
-        //Buscar la obra social y sus planes
+        //Buscar la obra social y sus planes (estado vigente por lote)
         ObraSocial obraSocialExistente = obraSocialQueryService.findObraSocialByCriteria(obraSocialCriteria);
-        List<GetPlanAnidadoResponse> planesResponse = planMapper
-                .toGetPlanAnidadoResponses(planQueryService.findPlanesByObraSocial(obraSocialExistente.getId()));
+        List<GetPlanAnidadoResponse> planesResponse = mapPlanesAnidados(
+                planQueryService.findPlanesByObraSocial(obraSocialExistente.getId()));
 
         //Devolver response mapeado
         GetObraSocialResponse getObraSocialResponse = obraSocialMapper.toGetResponse(obraSocialExistente, planesResponse);
@@ -225,6 +225,24 @@ public class ObraSocialApp {
         //Devolver response mapeado
         PageResponse<ListObraSocialResponse> pageResponse = PageResponse.from(obrasSocialesPagina, obraSocialMapper::toListResponse);
         return pageResponse;
+
+    }
+
+    /**
+     * Mapea una lista de planes a sus responses anidados, resolviendo el estado vigente de
+     * todos en una única consulta (evita N+1) y alimentándolo a cada response.
+     *
+     * @param planes {@code List<Plan>} planes a mapear
+     * @return {@code List<GetPlanAnidadoResponse>} responses anidados con su estado vigente
+     */
+    private List<GetPlanAnidadoResponse> mapPlanesAnidados(List<Plan> planes) {
+
+        Map<UUID, EstadoPlan> estadosVigentes = historicoEstadoPlanDomainService.getEstadosVigentes(
+                planes.stream().map(Plan::getId).toList());
+
+        return planes.stream()
+                .map(plan -> planMapper.toGetPlanAnidadoResponse(plan, estadosVigentes.get(plan.getId())))
+                .toList();
 
     }
 

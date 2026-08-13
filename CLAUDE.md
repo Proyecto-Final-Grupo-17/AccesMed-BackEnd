@@ -38,6 +38,14 @@ Reglas de dominio que hay que respetar (son verdad de terreno, salen del diagram
 - Estados del `Turno` (DTE): `Pendiente → EsperaValidacion → Confirmado →
   Iniciado/Ausente → Finalizado/Cancelado`, con `EnSalaDeEspera` entre Confirmado e
   Iniciado/Ausente. El estado activo es el `HistoricoEstadoTurno` con `finishedAt` vacío.
+- **El estado vigente NO se materializa** en `Prestacion`, `Plan` ni `Turno` (no hay
+  columna `estado_actual`): es siempre el tramo del `HistoricoEstado*` con `fecha_hora_fin`
+  vacío. La relación entidad↔histórico es **unidireccional** (solo el `@ManyToOne` del
+  histórico la mapea); las consultas por estado se escriben desde el histórico o con una
+  subconsulta `EXISTS`. Los Response siguen exponiendo `estadoActual` (contrato intacto),
+  alimentado por el `App`. La unicidad de `codigo`/`nombre` "entre no deshabilitados"
+  (Prestacion/Plan) se valida **solo en la capa de aplicación** (consulta al histórico
+  vigente), sin índice único parcial de BD.
 - Los horarios de los turnos se **calculan al vuelo** (`slot(n) = startTime + n ×
   durationMinutes`), nunca se persisten como catálogo.
 - **Atomicidad**: 1 `Confirmar` = 1 operación atómica = 1 endpoint/transacción.

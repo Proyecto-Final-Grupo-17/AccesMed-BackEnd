@@ -1,5 +1,6 @@
 package com.accesmed.backend.Services.Mappers;
 
+import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Request.CreatePrestacionRequest;
@@ -25,8 +26,10 @@ import java.util.List;
  * en minutos ({@link Integer}) ↔ {@link Duration}.
  *
  * Nota: la FK {@code especialidad} se ignora en el mapeo y se setea en el App
- * después de validar su existencia. Del mismo modo, las indicaciones se arman en el App,
- * y {@code estadoActual} lo setea el {@code DomainService} al abrir el tramo inicial.
+ * después de validar su existencia. Del mismo modo, las indicaciones se arman en el App.
+ * El estado ya no se persiste en la entidad: en los responses, el campo
+ * {@code estadoActual} se alimenta desde el parámetro {@code estadoVigente} que el App
+ * calcula del histórico y pasa al mapper.
  */
 @Mapper(componentModel = "spring")
 public interface PrestacionMapper {
@@ -49,7 +52,6 @@ public interface PrestacionMapper {
     @Mapping(target = "tiempoToleranciaCancelacion", source = "tiempoToleranciaCancelacionMinutos", qualifiedByName = "toDuration")
     @Mapping(target = "tiempoToleranciaAnuncio", source = "tiempoToleranciaAnuncioMinutos", qualifiedByName = "toDuration")
     @Mapping(target = "tiempoRecordatorioConfirmacion", source = "tiempoRecordatorioConfirmacionMinutos", qualifiedByName = "toDuration")
-    @Mapping(target = "estadoActual", ignore = true)
     @Mapping(target = "especialidad", ignore = true)
     @Mapping(target = "createdDate", ignore = true)
     @Mapping(target = "lastModifiedDate", ignore = true)
@@ -77,7 +79,6 @@ public interface PrestacionMapper {
     @Mapping(target = "tiempoToleranciaCancelacion", source = "updatePrestacionRequest.tiempoToleranciaCancelacionMinutos", qualifiedByName = "toDuration")
     @Mapping(target = "tiempoToleranciaAnuncio", source = "updatePrestacionRequest.tiempoToleranciaAnuncioMinutos", qualifiedByName = "toDuration")
     @Mapping(target = "tiempoRecordatorioConfirmacion", source = "updatePrestacionRequest.tiempoRecordatorioConfirmacionMinutos", qualifiedByName = "toDuration")
-    @Mapping(target = "estadoActual", ignore = true)
     @Mapping(target = "especialidad", ignore = true)
     @Mapping(target = "createdDate", ignore = true)
     @Mapping(target = "lastModifiedDate", ignore = true)
@@ -90,6 +91,7 @@ public interface PrestacionMapper {
      *
      * @param prestacion {@code Prestacion} entidad
      * @param indicaciones {@code List<GetIndicacionPrestacionResponse>} lista de indicaciones
+     * @param estadoVigente {@code EstadoPrestacion} estado vigente calculado del histórico
      * @return {@code CreatePrestacionResponse} respuesta de creación
      */
     @Mapping(target = "id", source = "prestacion.id")
@@ -106,50 +108,53 @@ public interface PrestacionMapper {
     @Mapping(target = "tiempoRecordatorioConfirmacionMinutos", source = "prestacion.tiempoRecordatorioConfirmacion", qualifiedByName = "toMinutos")
     @Mapping(target = "especialidadId", source = "prestacion.especialidad.id")
     @Mapping(target = "especialidadNombre", source = "prestacion.especialidad.nombre")
-    @Mapping(target = "estadoActual", source = "prestacion.estadoActual")
+    @Mapping(target = "estadoActual", source = "estadoVigente")
     @Mapping(target = "indicaciones", source = "indicaciones")
-    CreatePrestacionResponse toCreateResponse(Prestacion prestacion, List<GetIndicacionPrestacionResponse> indicaciones);
+    CreatePrestacionResponse toCreateResponse(Prestacion prestacion, List<GetIndicacionPrestacionResponse> indicaciones, EstadoPrestacion estadoVigente);
 
     /**
      * Convierte una entidad {@code Prestacion} a {@code UpdatePrestacionResponse}.
      *
      * @param prestacion {@code Prestacion} entidad
+     * @param estadoVigente {@code EstadoPrestacion} estado vigente calculado del histórico
      * @return {@code UpdatePrestacionResponse} respuesta de actualización
      */
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "codigo", source = "codigo")
-    @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "duracionMinimaMinutos", source = "duracionMinima", qualifiedByName = "toMinutos")
-    @Mapping(target = "duracionMaximaMinutos", source = "duracionMaxima", qualifiedByName = "toMinutos")
-    @Mapping(target = "tiempoToleranciaSolicitudMinutos", source = "tiempoToleranciaSolicitud", qualifiedByName = "toMinutos")
-    @Mapping(target = "tiempoToleranciaValidacionMinutos", source = "tiempoToleranciaValidacion", qualifiedByName = "toMinutos")
-    @Mapping(target = "tiempoToleranciaReprogramacionMinutos", source = "tiempoToleranciaReprogramacion", qualifiedByName = "toMinutos")
-    @Mapping(target = "tiempoToleranciaConfirmacionMinutos", source = "tiempoToleranciaConfirmacion", qualifiedByName = "toMinutos")
-    @Mapping(target = "tiempoToleranciaCancelacionMinutos", source = "tiempoToleranciaCancelacion", qualifiedByName = "toMinutos")
-    @Mapping(target = "tiempoToleranciaAnuncioMinutos", source = "tiempoToleranciaAnuncio", qualifiedByName = "toMinutos")
-    @Mapping(target = "tiempoRecordatorioConfirmacionMinutos", source = "tiempoRecordatorioConfirmacion", qualifiedByName = "toMinutos")
-    @Mapping(target = "especialidadId", source = "especialidad.id")
-    @Mapping(target = "especialidadNombre", source = "especialidad.nombre")
-    @Mapping(target = "estadoActual", source = "estadoActual")
-    UpdatePrestacionResponse toUpdateResponse(Prestacion prestacion);
+    @Mapping(target = "id", source = "prestacion.id")
+    @Mapping(target = "codigo", source = "prestacion.codigo")
+    @Mapping(target = "nombre", source = "prestacion.nombre")
+    @Mapping(target = "duracionMinimaMinutos", source = "prestacion.duracionMinima", qualifiedByName = "toMinutos")
+    @Mapping(target = "duracionMaximaMinutos", source = "prestacion.duracionMaxima", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaSolicitudMinutos", source = "prestacion.tiempoToleranciaSolicitud", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaValidacionMinutos", source = "prestacion.tiempoToleranciaValidacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaReprogramacionMinutos", source = "prestacion.tiempoToleranciaReprogramacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaConfirmacionMinutos", source = "prestacion.tiempoToleranciaConfirmacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaCancelacionMinutos", source = "prestacion.tiempoToleranciaCancelacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoToleranciaAnuncioMinutos", source = "prestacion.tiempoToleranciaAnuncio", qualifiedByName = "toMinutos")
+    @Mapping(target = "tiempoRecordatorioConfirmacionMinutos", source = "prestacion.tiempoRecordatorioConfirmacion", qualifiedByName = "toMinutos")
+    @Mapping(target = "especialidadId", source = "prestacion.especialidad.id")
+    @Mapping(target = "especialidadNombre", source = "prestacion.especialidad.nombre")
+    @Mapping(target = "estadoActual", source = "estadoVigente")
+    UpdatePrestacionResponse toUpdateResponse(Prestacion prestacion, EstadoPrestacion estadoVigente);
 
     /**
      * Convierte una entidad {@code Prestacion} a {@code CambioEstadoPrestacionResponse}.
      *
      * @param prestacion {@code Prestacion} entidad tras la transición de estado
+     * @param estadoVigente {@code EstadoPrestacion} estado vigente tras la transición
      * @return {@code CambioEstadoPrestacionResponse} respuesta de la transición
      */
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "codigo", source = "codigo")
-    @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "estadoActual", source = "estadoActual")
-    CambioEstadoPrestacionResponse toCambioEstadoResponse(Prestacion prestacion);
+    @Mapping(target = "id", source = "prestacion.id")
+    @Mapping(target = "codigo", source = "prestacion.codigo")
+    @Mapping(target = "nombre", source = "prestacion.nombre")
+    @Mapping(target = "estadoActual", source = "estadoVigente")
+    CambioEstadoPrestacionResponse toCambioEstadoResponse(Prestacion prestacion, EstadoPrestacion estadoVigente);
 
     /**
      * Convierte una entidad {@code Prestacion} y su lista de indicaciones a {@code GetPrestacionResponse}.
      *
      * @param prestacion {@code Prestacion} entidad
      * @param indicaciones {@code List<GetIndicacionPrestacionResponse>} lista de indicaciones
+     * @param estadoVigente {@code EstadoPrestacion} estado vigente calculado del histórico
      * @return {@code GetPrestacionResponse} respuesta de obtención
      */
     @Mapping(target = "id", source = "prestacion.id")
@@ -166,31 +171,24 @@ public interface PrestacionMapper {
     @Mapping(target = "tiempoRecordatorioConfirmacionMinutos", source = "prestacion.tiempoRecordatorioConfirmacion", qualifiedByName = "toMinutos")
     @Mapping(target = "especialidadId", source = "prestacion.especialidad.id")
     @Mapping(target = "especialidadNombre", source = "prestacion.especialidad.nombre")
-    @Mapping(target = "estadoActual", source = "prestacion.estadoActual")
+    @Mapping(target = "estadoActual", source = "estadoVigente")
     @Mapping(target = "indicaciones", source = "indicaciones")
-    GetPrestacionResponse toGetResponse(Prestacion prestacion, List<GetIndicacionPrestacionResponse> indicaciones);
+    GetPrestacionResponse toGetResponse(Prestacion prestacion, List<GetIndicacionPrestacionResponse> indicaciones, EstadoPrestacion estadoVigente);
 
     /**
      * Convierte una entidad {@code Prestacion} a {@code ListPrestacionResponse}.
      *
      * @param prestacion {@code Prestacion} entidad
+     * @param estadoVigente {@code EstadoPrestacion} estado vigente calculado del histórico
      * @return {@code ListPrestacionResponse} respuesta de listado
      */
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "codigo", source = "codigo")
-    @Mapping(target = "nombre", source = "nombre")
-    @Mapping(target = "especialidadId", source = "especialidad.id")
-    @Mapping(target = "especialidadNombre", source = "especialidad.nombre")
-    @Mapping(target = "estadoActual", source = "estadoActual")
-    ListPrestacionResponse toListResponse(Prestacion prestacion);
-
-    /**
-     * Convierte una lista de entidades {@code Prestacion} a una lista de {@code ListPrestacionResponse}.
-     *
-     * @param prestaciones {@code List<Prestacion>} lista de entidades
-     * @return {@code List<ListPrestacionResponse>} lista de respuestas
-     */
-    List<ListPrestacionResponse> toListResponses(List<Prestacion> prestaciones);
+    @Mapping(target = "id", source = "prestacion.id")
+    @Mapping(target = "codigo", source = "prestacion.codigo")
+    @Mapping(target = "nombre", source = "prestacion.nombre")
+    @Mapping(target = "especialidadId", source = "prestacion.especialidad.id")
+    @Mapping(target = "especialidadNombre", source = "prestacion.especialidad.nombre")
+    @Mapping(target = "estadoActual", source = "estadoVigente")
+    ListPrestacionResponse toListResponse(Prestacion prestacion, EstadoPrestacion estadoVigente);
 
     /**
      * Convierte un {@link Integer} (minutos) a {@link Duration}.

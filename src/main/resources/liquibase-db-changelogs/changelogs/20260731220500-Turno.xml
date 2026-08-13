@@ -45,9 +45,6 @@
                 <constraints nullable="false"/>
             </column>
             <column name="motivo_cancelacion" type="varchar(30)"/>
-            <column name="estado_actual" type="varchar(20)">
-                <constraints nullable="false"/>
-            </column>
             <!-- ====== Relaciones ====== -->
             <column name="paciente_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_turno_paciente" references="paciente(id)"/>
@@ -81,7 +78,6 @@
         <sql>ALTER TABLE turno ADD CONSTRAINT ck_turno_recordatorio_antes_de_limite CHECK (fecha_hora_recordatorio_confirmacion &lt; fecha_limite_confirmacion);</sql>
         <sql>ALTER TABLE turno ADD CONSTRAINT ck_turno_ventana_anuncio CHECK (fecha_limite_anuncio_temprano &lt;= fecha_hora_inicio AND fecha_hora_inicio &lt;= fecha_limite_anuncio_tardio);</sql>
         <sql>ALTER TABLE turno ADD CONSTRAINT ck_turno_monto CHECK (monto_a_pagar >= 0);</sql>
-        <sql>ALTER TABLE turno ADD CONSTRAINT ck_turno_estado_actual CHECK (estado_actual IN ('ESPERA_VALIDACION','PENDIENTE','CONFIRMADO','EN_SALA_DE_ESPERA','EN_CURSO','CANCELADO','REPROGRAMADO','AUSENTE','FINALIZADO'));</sql>
 
         <!-- codigo es UNIQUE plano (no parcial): Turno no tiene baja logica, el codigo nunca se reutiliza. -->
         <sql>ALTER TABLE turno ADD CONSTRAINT uq_turno_codigo UNIQUE (codigo);</sql>
@@ -93,14 +89,12 @@
         <sql>CREATE INDEX idx_turno_paciente ON turno (paciente_id);</sql>
         <sql>CREATE INDEX idx_turno_medico ON turno (medico_id);</sql>
         <sql>CREATE INDEX idx_turno_prestacion ON turno (prestacion_id);</sql>
-        <sql>CREATE INDEX idx_turno_estado_actual ON turno (estado_actual);</sql>
         <rollback>
             <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS ck_turno_motivo_cancelacion;</sql>
             <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS ck_turno_cobertura_coherente;</sql>
             <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS ck_turno_recordatorio_antes_de_limite;</sql>
             <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS ck_turno_ventana_anuncio;</sql>
             <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS ck_turno_monto;</sql>
-            <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS ck_turno_estado_actual;</sql>
             <sql>ALTER TABLE turno DROP CONSTRAINT IF EXISTS uq_turno_codigo;</sql>
             <sql>DROP INDEX IF EXISTS idx_turno_fecha_limite_confirmacion;</sql>
             <sql>DROP INDEX IF EXISTS idx_turno_fecha_limite_validacion;</sql>
@@ -108,7 +102,6 @@
             <sql>DROP INDEX IF EXISTS idx_turno_paciente;</sql>
             <sql>DROP INDEX IF EXISTS idx_turno_medico;</sql>
             <sql>DROP INDEX IF EXISTS idx_turno_prestacion;</sql>
-            <sql>DROP INDEX IF EXISTS idx_turno_estado_actual;</sql>
         </rollback>
     </changeSet>
 

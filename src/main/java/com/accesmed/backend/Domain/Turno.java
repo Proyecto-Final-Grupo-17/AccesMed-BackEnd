@@ -31,6 +31,11 @@ import java.util.UUID;
  * <p>No lleva FK a {@link MedicoPrestacion}: el par {@code (medico, prestacion)} se valida
  * buscando una {@code MedicoPrestacion} activa en el {@code DomainService}, porque el
  * esquema ya no lo garantiza.</p>
+ *
+ * <p>El estado vigente <b>no se materializa</b> en la entidad: se deriva siempre del
+ * tramo de {@link HistoricoEstadoTurno} con {@code fechaHoraFin} vacío, consultado desde
+ * el lado del histórico (la relación es unidireccional: solo el {@code @ManyToOne} de
+ * {@code HistoricoEstadoTurno} la mapea).</p>
  */
 @Getter
 @Setter
@@ -96,16 +101,6 @@ public class Turno extends Auditable {
     @Enumerated(EnumType.STRING)
     @Column(name = "motivo_cancelacion", length = 30)
     private MotivoCancelacion motivoCancelacion;
-
-    /**
-     * Estado actual del turno, mantenido por el {@code DomainService} en cada transición
-     * junto con el tramo de {@link HistoricoEstadoTurno}. Sin mantenedor hasta que exista
-     * el módulo Turno: queda pre-posicionado para las consultas por estado actual.
-     */
-    @NotNull
-    @Enumerated(EnumType.STRING)
-    @Column(name = "estado_actual", nullable = false, length = 20)
-    private EstadoTurno estadoActual;
 
     //endregion
 

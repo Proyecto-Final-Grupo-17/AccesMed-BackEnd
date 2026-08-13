@@ -265,7 +265,7 @@ Transición **reversible** `NO_PUBLICADA → PUBLICADA`. No exige tener un médi
 **Flujo simplificado:**
 1. Valida que la prestación exista.
 2. Valida que esté en `NO_PUBLICADA` (si no, rechaza).
-3. Cierra el tramo vigente del histórico, abre uno nuevo en `PUBLICADA` y actualiza `estadoActual`.
+3. Cierra el tramo vigente del histórico y abre uno nuevo en `PUBLICADA` (el estado vigente se deriva del histórico, no se cachea).
 4. Devuelve la prestación publicada.
 
 **Este endpoint no lleva body en el request.**
@@ -292,7 +292,7 @@ Transición **reversible** `PUBLICADA → NO_PUBLICADA`.
 **Flujo simplificado:**
 1. Valida que la prestación exista.
 2. Valida que esté en `PUBLICADA` (si no, rechaza).
-3. Cierra el tramo vigente del histórico, abre uno nuevo en `NO_PUBLICADA` y actualiza `estadoActual`.
+3. Cierra el tramo vigente del histórico y abre uno nuevo en `NO_PUBLICADA` (el estado vigente se deriva del histórico, no se cachea).
 4. Devuelve la prestación despublicada.
 
 **Este endpoint no lleva body en el request.**
@@ -324,8 +324,8 @@ prestación está en uso vigente.
 2. Valida que no esté ya deshabilitada.
 3. **Precondición restrictiva real**: rechaza si hay algún `Turno` de la prestación con
    estado no final, o algún `AgendaHorarios` futuro ocupado de la prestación.
-4. Cierra el tramo vigente del histórico, abre uno nuevo en `DESHABILITADA` (con el
-   `motivo`, si vino) y actualiza `estadoActual`.
+4. Cierra el tramo vigente del histórico y abre uno nuevo en `DESHABILITADA` (con el
+   `motivo`, si vino); el estado vigente se deriva del histórico, no se cachea.
 5. Devuelve la prestación deshabilitada.
 
 **Pendiente (TODO)**: cerrar `MedicoPrestacion` vigentes, bajar `AgendaHorarios` libres,

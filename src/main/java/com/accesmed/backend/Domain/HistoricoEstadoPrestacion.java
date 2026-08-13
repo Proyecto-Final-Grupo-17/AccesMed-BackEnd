@@ -22,9 +22,9 @@ import java.util.UUID;
 
 /**
  * Tramo de permanencia de una {@link Prestacion} en un {@link EstadoPrestacion}. El
- * vigente es el que tiene {@code fechaHoraFin} vacío. Es la auditoría del ciclo de vida
- * del catálogo, no la fuente de la consulta caliente (eso lo resuelve
- * {@code Prestacion.estadoActual}).
+ * vigente es el que tiene {@code fechaHoraFin} vacío, y es la <b>única fuente</b> del
+ * estado actual del catálogo: {@code Prestacion} ya no cachea el estado, se calcula
+ * siempre desde acá.
  */
 @Getter
 @Setter

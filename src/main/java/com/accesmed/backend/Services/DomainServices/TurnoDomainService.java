@@ -30,7 +30,7 @@ public class TurnoDomainService {
     //region ========== Métodos ==========
 
     /**
-     * Valida que una prestación no tenga turnos vivos (estado actual no final).
+     * Valida que una prestación no tenga turnos vivos (estado vigente no final).
      * Precondición real de la baja restrictiva de deshabilitar una prestación.
      *
      * @param prestacionId {@code UUID} identificador de la prestación a validar
@@ -39,11 +39,11 @@ public class TurnoDomainService {
      */
     public void validateSinTurnosVivos(UUID prestacionId) {
 
-        long turnosVivos = turnoRepository.countByPrestacionIdAndEstadoActualNotIn(prestacionId, EstadoTurno.FINALES);
+        long turnosVivos = turnoRepository.countByPrestacionIdAndEstadoVigenteNotIn(prestacionId, EstadoTurno.FINALES);
 
         if (turnosVivos > 0) {
             ZonedDateTime fechaMaxima = turnoRepository
-                    .findMaxFechaHoraInicioByPrestacionIdAndEstadoActualNotIn(prestacionId, EstadoTurno.FINALES)
+                    .findMaxFechaHoraInicioByPrestacionIdAndEstadoVigenteNotIn(prestacionId, EstadoTurno.FINALES)
                     .orElse(null);
             log.warn("No se pudo validar sin turnos vivos para la prestación {}: {} turno(s) vivo(s), fecha máxima {}",
                     prestacionId, turnosVivos, fechaMaxima);
@@ -55,7 +55,7 @@ public class TurnoDomainService {
     }
 
     /**
-     * Valida que un plan no tenga turnos vivos (estado actual no final) cubiertos por él.
+     * Valida que un plan no tenga turnos vivos (estado vigente no final) cubiertos por él.
      * Precondición real de la baja restrictiva de deshabilitar un plan.
      *
      * @param planId {@code UUID} identificador del plan a validar
@@ -64,11 +64,11 @@ public class TurnoDomainService {
      */
     public void validateSinTurnosVivosDePlan(UUID planId) {
 
-        long turnosVivos = turnoRepository.countByObraSocialPaciente_Plan_IdAndEstadoActualNotIn(planId, EstadoTurno.FINALES);
+        long turnosVivos = turnoRepository.countByPlanIdAndEstadoVigenteNotIn(planId, EstadoTurno.FINALES);
 
         if (turnosVivos > 0) {
             ZonedDateTime fechaMaxima = turnoRepository
-                    .findMaxFechaHoraInicioByPlanIdAndEstadoActualNotIn(planId, EstadoTurno.FINALES)
+                    .findMaxFechaHoraInicioByPlanIdAndEstadoVigenteNotIn(planId, EstadoTurno.FINALES)
                     .orElse(null);
             log.warn("No se pudo validar sin turnos vivos para el plan {}: {} turno(s) vivo(s), fecha máxima {}",
                     planId, turnosVivos, fechaMaxima);
@@ -80,7 +80,7 @@ public class TurnoDomainService {
     }
 
     /**
-     * Valida que un médico no tenga turnos vivos (estado actual no final). Precondición
+     * Valida que un médico no tenga turnos vivos (estado vigente no final). Precondición
      * real de la baja restrictiva de un médico.
      *
      * @param medicoId {@code UUID} identificador del médico a validar
@@ -89,11 +89,11 @@ public class TurnoDomainService {
      */
     public void validateSinTurnosVivosDeMedico(UUID medicoId) {
 
-        long turnosVivos = turnoRepository.countByMedicoIdAndEstadoActualNotIn(medicoId, EstadoTurno.FINALES);
+        long turnosVivos = turnoRepository.countByMedicoIdAndEstadoVigenteNotIn(medicoId, EstadoTurno.FINALES);
 
         if (turnosVivos > 0) {
             ZonedDateTime fechaMaxima = turnoRepository
-                    .findMaxFechaHoraInicioByMedicoIdAndEstadoActualNotIn(medicoId, EstadoTurno.FINALES)
+                    .findMaxFechaHoraInicioByMedicoIdAndEstadoVigenteNotIn(medicoId, EstadoTurno.FINALES)
                     .orElse(null);
             log.warn("No se pudo validar sin turnos vivos para el médico {}: {} turno(s) vivo(s), fecha máxima {}",
                     medicoId, turnosVivos, fechaMaxima);
@@ -105,7 +105,7 @@ public class TurnoDomainService {
     }
 
     /**
-     * Valida que un paciente no tenga turnos vivos (estado actual no final). Precondición
+     * Valida que un paciente no tenga turnos vivos (estado vigente no final). Precondición
      * real de la baja restrictiva de un paciente.
      *
      * @param pacienteId {@code UUID} identificador del paciente a validar
@@ -114,11 +114,11 @@ public class TurnoDomainService {
      */
     public void validateSinTurnosVivosDePaciente(UUID pacienteId) {
 
-        long turnosVivos = turnoRepository.countByPacienteIdAndEstadoActualNotIn(pacienteId, EstadoTurno.FINALES);
+        long turnosVivos = turnoRepository.countByPacienteIdAndEstadoVigenteNotIn(pacienteId, EstadoTurno.FINALES);
 
         if (turnosVivos > 0) {
             ZonedDateTime fechaMaxima = turnoRepository
-                    .findMaxFechaHoraInicioByPacienteIdAndEstadoActualNotIn(pacienteId, EstadoTurno.FINALES)
+                    .findMaxFechaHoraInicioByPacienteIdAndEstadoVigenteNotIn(pacienteId, EstadoTurno.FINALES)
                     .orElse(null);
             log.warn("No se pudo validar sin turnos vivos para el paciente {}: {} turno(s) vivo(s), fecha máxima {}",
                     pacienteId, turnosVivos, fechaMaxima);

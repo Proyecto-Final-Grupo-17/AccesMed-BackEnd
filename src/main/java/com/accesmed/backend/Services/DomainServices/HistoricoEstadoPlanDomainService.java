@@ -4,13 +4,17 @@ import com.accesmed.backend.Domain.EstadoPlan;
 import com.accesmed.backend.Domain.HistoricoEstadoPlan;
 import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Repositories.HistoricoEstadoPlanRepository;
+import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.ZonedDateTime;
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Lógica de dominio y persistencia para la entidad {@code HistoricoEstadoPlan}.
@@ -33,16 +37,49 @@ public class HistoricoEstadoPlanDomainService {
     //region ========== Métodos ==========
 
     /**
-     * Setea el {@code estadoActual} inicial ({@code NO_PUBLICADO}) de un plan recién
-     * mapeado, antes de persistirlo. Hibernate captura los valores a insertar en el
-     * momento del {@code persist()}: hay que llamar a este método antes de
-     * {@code PlanDomainService.savePlan}, nunca después.
+     * Obtiene el estado vigente de un plan desde su histórico: el estado del tramo con
+     * {@code fechaHoraFin} vacío. Es la única fuente del estado actual (ya no se cachea en
+     * la entidad); se usa para alimentar los mappers en las lecturas puntuales.
      *
-     * @param plan {@code Plan} plan nuevo, todavía no persistido
+     * @param planId {@code UUID} identificador del plan
+     * @return {@code EstadoPlan} estado vigente del plan
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el plan
+     *         no tiene un tramo de estado vigente (no debería pasar: todo plan abre su
+     *         tramo inicial al crearse)
      */
-    public void seedEstadoInicialPlan(Plan plan) {
+    public EstadoPlan getEstadoVigente(UUID planId) {
 
-        plan.setEstadoActual(EstadoPlan.NO_PUBLICADO);
+        log.debug("Buscando estado vigente de plan: id={}", planId);
+
+        return historicoEstadoPlanRepository.findByPlanIdAndFechaHoraFinIsNull(planId)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró tramo de estado vigente para el plan: id={}", planId);
+                    return new RecursoNoEncontradoException(getClass(), "PLAN_SIN_ESTADO_VIGENTE",
+                            "No existe un tramo de estado vigente para el plan " + planId);
+                })
+                .getEstado();
+
+    }
+
+    /**
+     * Obtiene el estado vigente de un conjunto de planes en una única consulta, armando un
+     * {@code Map<UUID, EstadoPlan>} (id de plan → estado). Pensado para alimentar el estado
+     * de toda una página de planes (o de los planes anidados de una obra social) sin
+     * incurrir en N+1.
+     *
+     * @param planIds {@code Collection<UUID>} identificadores de los planes
+     * @return {@code Map<UUID, EstadoPlan>} estado vigente por id de plan
+     */
+    public Map<UUID, EstadoPlan> getEstadosVigentes(Collection<UUID> planIds) {
+
+        if (planIds.isEmpty()) {
+            return Map.of();
+        }
+
+        log.debug("Buscando estados vigentes de {} plan(es)", planIds.size());
+
+        return historicoEstadoPlanRepository.findByPlanIdInAndFechaHoraFinIsNull(planIds).stream()
+                .collect(Collectors.toMap(historico -> historico.getPlan().getId(), HistoricoEstadoPlan::getEstado));
 
     }
 
@@ -67,16 +104,16 @@ public class HistoricoEstadoPlanDomainService {
     }
 
     /**
-     * Cierra el tramo vigente del histórico de estados del plan, abre uno nuevo con el
-     * estado destino, y actualiza {@code plan.estadoActual} — cache e histórico en la
-     * misma transacción. El {@code Plan} se obtiene a través de la relación del propio
-     * tramo, sin llamar a {@code PlanDomainService}: queda persistido por dirty checking
-     * al cerrar la transacción abierta por el caso de uso que invoca este método.
+     * Cierra el tramo vigente del histórico de estados del plan y abre uno nuevo con el
+     * estado destino — el histórico es la única fuente del estado, así que la transición
+     * se resuelve por completo acá, sin ninguna caché que mantener. El {@code Plan} se
+     * obtiene a través de la relación del propio tramo, sin llamar a
+     * {@code PlanDomainService}.
      *
      * @param planId {@code UUID} identificador del plan a transicionar
      * @param estadoNuevo {@code EstadoPlan} estado destino de la transición
      * @param motivo {@code String} motivo de la transición, opcional
-     * @return {@code Plan} el plan con el nuevo estado actual
+     * @return {@code Plan} el plan transicionado
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el plan ya está
      *         deshabilitado o si la transición no es válida desde el estado vigente
      */
@@ -125,9 +162,6 @@ public class HistoricoEstadoPlanDomainService {
         historicoEstadoPlanNuevo.setFechaHoraInicio(ZonedDateTime.now());
         historicoEstadoPlanNuevo.setMotivo(motivo);
         historicoEstadoPlanRepository.save(historicoEstadoPlanNuevo);
-
-        //Actualizar estadoActual en memoria (se persiste por dirty checking)
-        plan.setEstadoActual(estadoNuevo);
 
         return plan;
 

@@ -58,7 +58,7 @@ Fuente de verdad estructural: `modelo_acces_med_v3.json` y `modelo_dte_turno_v3.
 - **Especialidad** — agrupa médicos y prestaciones. Un médico tiene **una sola**.
 - **Medico** — profesional. Su `email` es dato de contacto, no credencial.
 - **Prestacion** — el servicio que se presta. Es la clase que concentra toda la configuración temporal del ciclo de vida del turno: seis tolerancias, el tiempo de recordatorio y el rango de duración admitido. **No tiene baja lógica**: se gobierna por estados.
-- **EstadoPrestacion** — **enum** Java (no entidad/tabla), tres valores: `NO_PUBLICADA`, `PUBLICADA`, `DESHABILITADA`. `Prestacion.estadoActual` (columna enum, con índice) materializa el tramo vigente para consulta rápida.
+- **EstadoPrestacion** — **enum** Java (no entidad/tabla), tres valores: `NO_PUBLICADA`, `PUBLICADA`, `DESHABILITADA`. El estado vigente **no se materializa** en `Prestacion`: se deriva siempre del tramo de `HistoricoEstadoPrestacion` con `fecha_hora_fin` vacío (relación unidireccional; se consulta desde el histórico).
 - **HistoricoEstadoPrestacion** — tramo de permanencia de una prestación en un estado (columna `estado` enum, no FK a catálogo), con un `motivo` opcional de auditoría.
 - **MedicoPrestacion** — clase asociativa que dice qué prestaciones atiende cada médico, **durante qué período** y a qué precio particular. Es la **única** fuente del precio: `Prestacion` no tiene precio propio. **No tiene baja lógica**: se desasigna cerrando `fechaFinVigencia`, y reasignar es crear una instancia nueva.
 - **TipoIndicacionPrestacion** — clasificación de las indicaciones (ayuno, estudio previo, etc.).
@@ -75,13 +75,13 @@ Fuente de verdad estructural: `modelo_acces_med_v3.json` y `modelo_dte_turno_v3.
 - **Paciente** — se identifica por `numeroTelefono` en el canal chatbot.
 - **Archivo** — documento adjunto. Pertenece **siempre** a un `Paciente` y **opcionalmente** a un `Turno`. El binario no vive en la base: la tabla guarda la clave del objeto en el almacenamiento.
 - **ObraSocial** → **Plan** (1 a 1..N) → **ObraSocialPlanPrestacion** (cobertura sobre una prestación). `ObraSocial` conserva baja lógica; `Plan` **no**: se gobierna por estados.
-- **EstadoPlan** / **HistoricoEstadoPlan** — el mismo mecanismo que en `Prestacion` (enum + columna `estado_actual`), con los valores `NO_PUBLICADO`, `PUBLICADO`, `DESHABILITADO`.
+- **EstadoPlan** / **HistoricoEstadoPlan** — el mismo mecanismo que en `Prestacion` (enum + histórico, sin columna `estado_actual`; el estado vigente se deriva del tramo con `fecha_hora_fin` vacío), con los valores `NO_PUBLICADO`, `PUBLICADO`, `DESHABILITADO`.
 - **ObraSocialPaciente** — cobertura declarada por un paciente sobre un plan. Inmutable: alta y baja. La obra social se alcanza navegando por `Plan`.
 
 ### Turnos
 
 - **Turno** — snapshot transaccional. **No tiene baja lógica**: su ciclo de vida se gobierna por estados.
-- **EstadoTurno** — **enum** Java (no entidad/tabla), nueve valores (ver `modelo_dte_turno.json`). Los finales (`CANCELADO`, `REPROGRAMADO`, `AUSENTE`, `FINALIZADO`) son una **constante de código** (`EstadoTurno.FINALES`/`esFinal()`), no un dato en base. `Turno.estadoActual` (columna enum, con índice) materializa el tramo vigente.
+- **EstadoTurno** — **enum** Java (no entidad/tabla), nueve valores (ver `modelo_dte_turno.json`). Los finales (`CANCELADO`, `REPROGRAMADO`, `AUSENTE`, `FINALIZADO`) son una **constante de código** (`EstadoTurno.FINALES`/`esFinal()`), no un dato en base. El estado vigente **no se materializa** en `Turno`: se deriva del tramo de `HistoricoEstadoTurno` con `fecha_hora_fin` vacío (las consultas de "turnos vivos" se escriben desde el histórico).
 - **HistoricoEstadoTurno** — tramo de permanencia en un estado (columna `estado` enum, no FK a catálogo). El vigente es el que tiene `fechaHoraFin` vacío.
 - **IndicacionPrestacionTurno** — registro por turno del cumplimiento de una indicación. **No duplica texto**: `nombre`, `descripcion` y `requiereValidacion` se leen por navegabilidad hacia `IndicacionPrestacion`. Solo aporta `fechaHoraValidacion` y `validadoPor`.
 
@@ -178,14 +178,15 @@ Plan       : (obraSocial, codigo) · (obraSocial, nombre)  entre los no Deshabil
 ```
 
 El problema de implementación es que el estado vive en el histórico, no en la fila. La
-solución adoptada: **columna derivada** `estado_actual` (enum, `NOT NULL`, con índice),
-mantenida por el `DomainService` en la misma transacción que abre el tramo del histórico
-(`abrirTramoEstado`), más el índice único parcial `WHERE estado_actual <> 'DESHABILITADA'`
-(`'DESHABILITADO'` en `Plan`). Recupera la garantía real a nivel de base al precio de un
-dato redundante que hay que mantener sincronizado con el histórico — exactamente el mismo
-compromiso que ya se acepta en `AgendaHorarios.estaOcupada`, un derivado materializado por
-razones de consulta. El histórico queda como auditoría del ciclo de vida, no como fuente
-de la consulta caliente.
+solución adoptada: **calcular siempre el estado vigente desde el histórico** (el tramo con
+`fecha_hora_fin` vacío), sin materializarlo en la fila. La unicidad "entre no
+deshabilitadas" se valida **en la capa de aplicación**, con una consulta al histórico
+vigente (`existsBy...EstadoVigenteNot`), y se acepta la pérdida de la red de seguridad que
+daba el índice único parcial de BD (que dependía de `estado_actual`, ahora eliminada).
+Antes existía una columna derivada `estado_actual` que cacheaba el tramo vigente; se
+eliminó para no tener dos fuentes de verdad ni la doble escritura (histórico + caché) en
+cada transición. El histórico queda como **única fuente** del estado, además de auditoría
+del ciclo de vida.
 
 #### Las excepciones
 
@@ -735,7 +736,7 @@ Tabla de referencia para generar entidad y changelog en el mismo paso.
 | Formato | `@Pattern` / `@Email` | `CHECK` si Postgres lo valida razonablemente; si no, queda solo en la aplicación y se documenta |
 | Unicidad simple global | `@Column(unique = true)` | `UNIQUE` → `uq_<tabla>_<columna>` |
 | **Unicidad entre activos** | no se resuelve con `@Column(unique)`; es regla del `DomainService` | índice único parcial `uq_<tabla>_<columna>` con `WHERE deleted_at IS NULL` |
-| **Unicidad entre no deshabilitadas** | regla del `DomainService`, resolviendo el estado vigente | índice único parcial con `WHERE esta_deshabilitada = false` sobre la columna derivada materializada |
+| **Unicidad entre no deshabilitadas** | regla del `DomainService`, resolviendo el estado vigente desde el histórico (`existsBy...EstadoVigenteNot`) | no se refuerza en BD: sin columna `estado_actual`, no hay índice único parcial; queda solo en la capa de aplicación |
 | **Baja restrictiva** | regla del `DomainService`: contar dependientes antes de escribir | no expresable; el `ON DELETE RESTRICT` no aplica porque la baja es lógica |
 | Rango numérico | `@Positive` / `@Min` / `@DecimalMax` | `CHECK` → `ck_<tabla>_<regla>` |
 | Regla cruzada entre columnas | `@AssertTrue` en el record | `CHECK` → `ck_<tabla>_<regla>` |
@@ -886,8 +887,8 @@ Fuera de alcance en esta versión. No implementar sin decisión previa.
 - **`Medico N→1 Especialidad`**: si aparecen médicos con dos especialidades, hay que cambiar la
   multiplicidad. Afecta también a la baja restrictiva de `Especialidad`.
 - **Valores del enum `MotivoCancelacion`**: los cinco vigentes están a confirmar.
-- **Unicidad entre no deshabilitadas**: falta decidir entre validación solo en el `DomainService` o
-  columna derivada materializada con índice parcial. Ver §3.2.
+- **Unicidad entre no deshabilitadas**: decidido — se valida **solo en el `DomainService`** (consulta
+  al histórico vigente), sin columna derivada ni índice único parcial de BD. Ver §3.2.
 - **Publicar una prestación sin médicos asignados**: ¿excepción dura o advertencia?
 - **Archivos por el canal del chatbot**: hoy solo los carga el personal interno.
 - **Turnos vivos de un paciente dado de baja**: la baja de paciente no los cancela ni se bloquea por

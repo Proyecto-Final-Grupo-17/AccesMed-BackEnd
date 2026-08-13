@@ -16,7 +16,7 @@ import java.util.function.Function;
  * {@link #findByCriteria} gratis (arma la {@link Specification} vía
  * {@link #createSpecification} y delega en el repositorio) y expone los helpers para
  * traducir cada {@link Filter} del criteria a un fragmento de {@code Specification}, usando
- * el metamodelo estático de JPA (ej. {@code Prestacion_.estadoActual}) para no referenciar
+ * el metamodelo estático de JPA (ej. {@code Prestacion_.codigo}) para no referenciar
  * campos como string literal.
  *
  * @param <ENTIDAD> entidad JPA sobre la que se filtra
