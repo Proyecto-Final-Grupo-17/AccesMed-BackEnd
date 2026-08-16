@@ -64,6 +64,22 @@ public class Clinica extends Auditable {
     @Column(name = "telefono", nullable = false, length = 30)
     private String telefono;
 
+    /**
+     * Zona horaria de la clínica, como identificador IANA (ej.
+     * {@code America/Argentina/Buenos_Aires}). Es la zona con la que se resuelven a
+     * instante absoluto las fechas y horas de calendario del dominio — sobre todo
+     * {@code AgendaHorarios.fechaLimiteReserva}, que nace de combinar
+     * {@code AgendaDia.fecha} con {@code horaDesde}. No se usa la zona del sistema: el
+     * servidor suele correr en UTC y eso correría todos los plazos de reserva.
+     *
+     * <p>Que sea un identificador válido de {@code ZoneId} se valida en el
+     * {@code DomainService}: el esquema solo garantiza que no venga vacío.</p>
+     */
+    @NotBlank
+    @Size(max = 64)
+    @Column(name = "zona_horaria", nullable = false, length = 64)
+    private String zonaHoraria;
+
     @NotNull
     @Column(name = "horario_inicio_atencion", nullable = false)
     private LocalTime horarioInicioAtencion;
