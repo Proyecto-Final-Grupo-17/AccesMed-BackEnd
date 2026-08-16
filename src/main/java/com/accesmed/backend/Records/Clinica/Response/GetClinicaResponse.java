@@ -43,14 +43,10 @@ public record GetClinicaResponse(
         LocalTime horarioFinAtencion,
 
         /**
-         * Días mínimos de vigencia de agenda ({@code Integer}).
+         * Días máximos de anticipación con los que se puede reservar un turno
+         * ({@code Integer}).
          */
-        Integer diasMinimosVigenciaAgenda,
-
-        /**
-         * Días máximos de vigencia de agenda ({@code Integer}).
-         */
-        Integer diasMaximosVigenciaAgenda
+        Integer diasMaximosAnticipacionReserva
 
 ) {
 }

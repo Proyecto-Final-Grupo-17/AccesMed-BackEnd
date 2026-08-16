@@ -74,13 +74,8 @@ public class Clinica extends Auditable {
 
     @NotNull
     @Min(1)
-    @Column(name = "dias_minimos_vigencia_agenda", nullable = false)
-    private Integer diasMinimosVigenciaAgenda;
-
-    @NotNull
-    @Min(1)
-    @Column(name = "dias_maximos_vigencia_agenda", nullable = false)
-    private Integer diasMaximosVigenciaAgenda;
+    @Column(name = "dias_maximos_anticipacion_reserva", nullable = false)
+    private Integer diasMaximosAnticipacionReserva;
 
     //endregion
 

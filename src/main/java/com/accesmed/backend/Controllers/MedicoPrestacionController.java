@@ -2,13 +2,14 @@ package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.MedicoPrestacionApp;
 import com.accesmed.backend.Records.MedicoPrestacion.Request.AssignMedicoPrestacionRequest;
+import com.accesmed.backend.Records.MedicoPrestacion.Request.UnassignMedicoPrestacionRequest;
 import com.accesmed.backend.Records.MedicoPrestacion.Response.GetMedicoPrestacionResponse;
-import com.accesmed.backend.Records.MedicoPrestacion.Response.SoftDeleteMedicoPrestacionResponse;
+import com.accesmed.backend.Records.MedicoPrestacion.Response.UnassignMedicoPrestacionResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -57,19 +58,25 @@ public class MedicoPrestacionController {
     }
 
     /**
-     * Desasigna una prestación de un médico (baja lógica de la asignación).
+     * Desasigna una prestación de un médico: cierra el período de vigencia de la
+     * asignación (no la borra).
      *
      * @param id {@code UUID} identificador de la asignación
-     * @return {@code ResponseEntity<SoftDeleteMedicoPrestacionResponse>} la confirmación de la baja (HTTP 200)
+     * @param unassignMedicoPrestacionRequest {@code UnassignMedicoPrestacionRequest} fecha de corte
+     * @return {@code ResponseEntity<UnassignMedicoPrestacionResponse>} la confirmación del cierre de
+     *         vigencia (HTTP 200)
      */
-    @DeleteMapping("/{id}")
-    public ResponseEntity<SoftDeleteMedicoPrestacionResponse> unassignPrestacion(@PathVariable UUID id) {
+    @PatchMapping("/Vigencia/{id}")
+    public ResponseEntity<UnassignMedicoPrestacionResponse> unassignPrestacion(
+            @PathVariable UUID id,
+            @Valid @RequestBody UnassignMedicoPrestacionRequest unassignMedicoPrestacionRequest) {
 
         log.info("Solicitud recibida: desasignar prestación, id={}", id);
 
-        SoftDeleteMedicoPrestacionResponse softDeleteMedicoPrestacionResponse = medicoPrestacionApp.unassignPrestacion(id);
+        UnassignMedicoPrestacionResponse unassignMedicoPrestacionResponse =
+                medicoPrestacionApp.unassignPrestacion(id, unassignMedicoPrestacionRequest);
 
-        return ResponseEntity.ok(softDeleteMedicoPrestacionResponse);
+        return ResponseEntity.ok(unassignMedicoPrestacionResponse);
 
     }
 

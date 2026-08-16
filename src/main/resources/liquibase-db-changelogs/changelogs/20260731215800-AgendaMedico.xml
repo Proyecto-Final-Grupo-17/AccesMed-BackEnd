@@ -5,14 +5,7 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
-    <!-- Requerida por el EXCLUDE USING gist de mas abajo (no solapamiento de vigencias). -->
-    <changeSet id="20260731215800-enabled-extension-btree-gist" author="claude">
-        <sql>CREATE EXTENSION IF NOT EXISTS btree_gist;</sql>
-        <rollback>
-            <sql>DROP EXTENSION IF EXISTS btree_gist;</sql>
-        </rollback>
-    </changeSet>
-
+    <!-- El EXCLUDE USING gist de mas abajo requiere btree_gist, habilitada en Infraestructura. -->
     <changeSet id="20260731215801-added-table-AgendaMedico" author="claude">
         <createTable tableName="agenda_medico">
             <!-- ====== Columnas ====== -->

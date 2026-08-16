@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
 /**
@@ -35,7 +36,13 @@ public record AssignMedicoPrestacionRequest(
          */
         @NotNull(message = "El precio particular es obligatorio.")
         @Positive(message = "El precio particular debe ser mayor a cero.")
-        BigDecimal precioParticular
+        BigDecimal precioParticular,
+
+        /**
+         * Fecha de inicio de vigencia de la asignación ({@code ZonedDateTime}).
+         * {@code null} u ausente equivale a "ahora".
+         */
+        ZonedDateTime fechaInicioVigencia
 
 ) {
 }

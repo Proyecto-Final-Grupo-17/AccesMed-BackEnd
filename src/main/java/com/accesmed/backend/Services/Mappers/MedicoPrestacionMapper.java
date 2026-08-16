@@ -5,7 +5,7 @@ import com.accesmed.backend.Records.Medico.Request.AsignarPrestacionAnidadaReque
 import com.accesmed.backend.Records.Medico.Response.GetPrestacionAnidadaResponse;
 import com.accesmed.backend.Records.MedicoPrestacion.Request.AssignMedicoPrestacionRequest;
 import com.accesmed.backend.Records.MedicoPrestacion.Response.GetMedicoPrestacionResponse;
-import com.accesmed.backend.Records.MedicoPrestacion.Response.SoftDeleteMedicoPrestacionResponse;
+import com.accesmed.backend.Records.MedicoPrestacion.Response.UnassignMedicoPrestacionResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -34,9 +34,8 @@ public interface MedicoPrestacionMapper {
     @Mapping(target = "lastModifiedDate", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "lastModifiedBy", ignore = true)
-    @Mapping(target = "deletedAt", ignore = true)
-    @Mapping(target = "deletedBy", ignore = true)
-    @Mapping(target = "deletedReason", ignore = true)
+    @Mapping(target = "fechaInicioVigencia", ignore = true)
+    @Mapping(target = "fechaFinVigencia", ignore = true)
     MedicoPrestacion toEntity(AssignMedicoPrestacionRequest assignMedicoPrestacionRequest);
 
     /**
@@ -52,9 +51,8 @@ public interface MedicoPrestacionMapper {
     @Mapping(target = "lastModifiedDate", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "lastModifiedBy", ignore = true)
-    @Mapping(target = "deletedAt", ignore = true)
-    @Mapping(target = "deletedBy", ignore = true)
-    @Mapping(target = "deletedReason", ignore = true)
+    @Mapping(target = "fechaInicioVigencia", ignore = true)
+    @Mapping(target = "fechaFinVigencia", ignore = true)
     MedicoPrestacion toEntity(AsignarPrestacionAnidadaRequest asignarPrestacionAnidadaRequest);
 
     /**
@@ -91,11 +89,11 @@ public interface MedicoPrestacionMapper {
     List<GetPrestacionAnidadaResponse> toGetPrestacionAnidadaResponses(List<MedicoPrestacion> medicoPrestaciones);
 
     /**
-     * Convierte una entidad {@code MedicoPrestacion} a {@code SoftDeleteMedicoPrestacionResponse}.
+     * Convierte una entidad {@code MedicoPrestacion} a {@code UnassignMedicoPrestacionResponse}.
      *
-     * @param medicoPrestacion {@code MedicoPrestacion} entidad dada de baja
-     * @return {@code SoftDeleteMedicoPrestacionResponse} respuesta de baja lógica
+     * @param medicoPrestacion {@code MedicoPrestacion} entidad con la vigencia cerrada
+     * @return {@code UnassignMedicoPrestacionResponse} respuesta de cierre de vigencia
      */
-    SoftDeleteMedicoPrestacionResponse toSoftDeleteResponse(MedicoPrestacion medicoPrestacion);
+    UnassignMedicoPrestacionResponse toUnassignResponse(MedicoPrestacion medicoPrestacion);
 
 }

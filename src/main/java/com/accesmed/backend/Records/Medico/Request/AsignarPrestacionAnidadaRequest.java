@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
 /**
@@ -28,7 +29,13 @@ public record AsignarPrestacionAnidadaRequest(
          */
         @NotNull(message = "El precio particular es obligatorio.")
         @Positive(message = "El precio particular debe ser mayor a cero.")
-        BigDecimal precioParticular
+        BigDecimal precioParticular,
+
+        /**
+         * Momento desde el que rige la asignación ({@code ZonedDateTime}). Opcional: si no
+         * viene, la asignación arranca en el instante del alta.
+         */
+        ZonedDateTime fechaInicioVigencia
 
 ) {
 }

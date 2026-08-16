@@ -16,12 +16,14 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
 /**
  * Clase asociativa: asignación de una {@link Prestacion} a un {@link Medico}. Guarda las
- * condiciones de atención particular.
+ * condiciones de atención particular. No tiene baja lógica: se retira cerrando
+ * {@code fechaFinVigencia}, que admite fecha futura para programar el corte. Reasignar es
+ * crear una instancia nueva, no reabrir la vieja.
  *
  * <p>La regla "la especialidad de la prestación coincide con la del médico" no es
  * expresable en el esquema: se valida en el {@code DomainService}.</p>
@@ -65,16 +67,14 @@ public class MedicoPrestacion extends Auditable {
 
     //endregion
 
-    //region ========== Baja ==========
+    //region ========== Vigencia ==========
 
-    @Column(name = "deleted_at")
-    private Instant deletedAt;
+    @NotNull
+    @Column(name = "fecha_inicio_vigencia", nullable = false)
+    private ZonedDateTime fechaInicioVigencia;
 
-    @Column(name = "deleted_by")
-    private UUID deletedBy;
-
-    @Column(name = "deleted_reason", length = 500)
-    private String deletedReason;
+    @Column(name = "fecha_fin_vigencia")
+    private ZonedDateTime fechaFinVigencia;
 
     //endregion
 

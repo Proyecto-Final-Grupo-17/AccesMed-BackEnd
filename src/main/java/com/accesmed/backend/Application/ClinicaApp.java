@@ -35,15 +35,17 @@ public class ClinicaApp {
 
     /**
      * Actualiza la instancia única de clínica. Un campo en {@code null} deja ese dato
-     * sin tocar; los horarios y los días de vigencia de agenda se validan con sus valores
-     * efectivos (el que viene en el request, o si no vino, el ya guardado).
+     * sin tocar; el horario de atención se valida con sus valores efectivos (el que viene
+     * en el request, o si no vino, el ya guardado). El horizonte de reserva
+     * (`diasMaximosAnticipacionReserva`) queda cubierto por Bean Validation
+     * ({@code @Min(1)}), sin regla de negocio adicional.
      *
      * @param updateClinicaRequest {@code UpdateClinicaRequest} datos a actualizar
      * @return {@code GetClinicaResponse} la clínica actualizada
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la fila de
      *         configuración no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el horario de inicio no es
-     *         anterior al de fin, o si los días mínimos de vigencia de agenda superan a los máximos
+     *         anterior al de fin
      */
     @Transactional
     public GetClinicaResponse updateClinica(UpdateClinicaRequest updateClinicaRequest) {
@@ -53,18 +55,12 @@ public class ClinicaApp {
         //Buscar la instancia única de clínica
         Clinica clinicaExistente = clinicaDomainService.findClinica();
 
-        //Resolver valores efectivos y validar los horarios y los días de vigencia de agenda
+        //Resolver valores efectivos y validar el horario de atención
         LocalTime horarioInicioEfectivo = updateClinicaRequest.horarioInicioAtencion() != null
                 ? updateClinicaRequest.horarioInicioAtencion() : clinicaExistente.getHorarioInicioAtencion();
         LocalTime horarioFinEfectivo = updateClinicaRequest.horarioFinAtencion() != null
                 ? updateClinicaRequest.horarioFinAtencion() : clinicaExistente.getHorarioFinAtencion();
         clinicaDomainService.validateHorarioAtencion(horarioInicioEfectivo, horarioFinEfectivo);
-
-        Integer diasMinimosEfectivo = updateClinicaRequest.diasMinimosVigenciaAgenda() != null
-                ? updateClinicaRequest.diasMinimosVigenciaAgenda() : clinicaExistente.getDiasMinimosVigenciaAgenda();
-        Integer diasMaximosEfectivo = updateClinicaRequest.diasMaximosVigenciaAgenda() != null
-                ? updateClinicaRequest.diasMaximosVigenciaAgenda() : clinicaExistente.getDiasMaximosVigenciaAgenda();
-        clinicaDomainService.validateDiasVigenciaAgenda(diasMinimosEfectivo, diasMaximosEfectivo);
 
         //Aplicar los cambios y guardar
         clinicaMapper.updateClinica(clinicaExistente, updateClinicaRequest);

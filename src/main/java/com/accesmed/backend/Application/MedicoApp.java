@@ -31,6 +31,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -101,9 +102,14 @@ public class MedicoApp {
                 Prestacion prestacionExistente = prestacionDomainService.findPrestacionActivaById(prestacionAnidada.prestacionId());
                 medicoPrestacionDomainService.validateEspecialidadCoincide(medicoGuardado, prestacionExistente);
 
+                //Resolver la fecha de inicio de vigencia efectiva (ausente = ahora)
+                ZonedDateTime fechaInicioVigenciaEfectiva = prestacionAnidada.fechaInicioVigencia() != null
+                        ? prestacionAnidada.fechaInicioVigencia() : ZonedDateTime.now();
+
                 MedicoPrestacion medicoPrestacionNueva = medicoPrestacionMapper.toEntity(prestacionAnidada);
                 medicoPrestacionNueva.setMedico(medicoGuardado);
                 medicoPrestacionNueva.setPrestacion(prestacionExistente);
+                medicoPrestacionNueva.setFechaInicioVigencia(fechaInicioVigenciaEfectiva);
 
                 MedicoPrestacion medicoPrestacionGuardada = medicoPrestacionDomainService.saveMedicoPrestacion(medicoPrestacionNueva);
                 prestacionesResponse.add(medicoPrestacionMapper.toGetPrestacionAnidadaResponse(medicoPrestacionGuardada));
@@ -155,9 +161,9 @@ public class MedicoApp {
         }
         Medico medicoActualizado = medicoDomainService.saveMedico(medicoExistente);
 
-        //Devolver response mapeado, con las prestaciones del médico
+        //Devolver response mapeado, con las prestaciones vigentes del médico
         List<GetPrestacionAnidadaResponse> prestacionesResponse = medicoPrestacionMapper
-                .toGetPrestacionAnidadaResponses(medicoPrestacionDomainService.findAsignacionesActivasByMedico(id));
+                .toGetPrestacionAnidadaResponses(medicoPrestacionDomainService.findAsignacionesVigentesByMedico(id, ZonedDateTime.now()));
         GetMedicoResponse getMedicoResponse = medicoMapper.toGetResponse(medicoActualizado, prestacionesResponse);
         return getMedicoResponse;
 
@@ -206,10 +212,10 @@ public class MedicoApp {
 
         log.info("Búsqueda de médico iniciada: criteria={}", medicoCriteria);
 
-        //Buscar el médico y sus prestaciones
+        //Buscar el médico y sus prestaciones vigentes
         Medico medicoExistente = medicoQueryService.findMedicoByCriteria(medicoCriteria);
-        List<GetPrestacionAnidadaResponse> prestacionesResponse = medicoPrestacionMapper
-                .toGetPrestacionAnidadaResponses(medicoPrestacionDomainService.findAsignacionesActivasByMedico(medicoExistente.getId()));
+        List<GetPrestacionAnidadaResponse> prestacionesResponse = medicoPrestacionMapper.toGetPrestacionAnidadaResponses(
+                medicoPrestacionDomainService.findAsignacionesVigentesByMedico(medicoExistente.getId(), ZonedDateTime.now()));
 
         //Devolver response mapeado
         GetMedicoResponse getMedicoResponse = medicoMapper.toGetResponse(medicoExistente, prestacionesResponse);

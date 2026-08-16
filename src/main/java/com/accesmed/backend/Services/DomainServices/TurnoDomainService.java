@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.ZonedDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -126,6 +127,25 @@ public class TurnoDomainService {
                     "El paciente " + pacienteId + " tiene " + turnosVivos
                             + " turno(s) vivo(s), el más lejano el " + fechaMaxima + ". No se puede dar de baja.");
         }
+
+    }
+
+    /**
+     * Busca la fecha/hora de inicio más lejana entre los turnos vivos del par
+     * médico-prestación indicado. Piso duro del corte de vigencia de {@code MedicoPrestacion}
+     * (A1): la orquestación (comparar contra la fecha de corte propuesta) vive en
+     * {@code MedicoPrestacionApp}, no acá.
+     *
+     * @param medicoId {@code UUID} identificador del médico
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @return {@code Optional<ZonedDateTime>} la fecha máxima, vacío si no hay turnos vivos de ese par
+     */
+    public Optional<ZonedDateTime> findMaxFechaHoraInicioTurnoVivo(UUID medicoId, UUID prestacionId) {
+
+        log.debug("Buscando fecha máxima de turno vivo para el par médico={}, prestación={}", medicoId, prestacionId);
+
+        return turnoRepository.findMaxFechaHoraInicioByMedicoIdAndPrestacionIdAndEstadoVigenteNotIn(
+                medicoId, prestacionId, EstadoTurno.FINALES);
 
     }
 

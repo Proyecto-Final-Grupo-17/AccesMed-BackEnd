@@ -12,6 +12,7 @@ import com.accesmed.backend.Records.Plan.Response.GetPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.ListPlanResponse;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoPlanDomainService;
 import com.accesmed.backend.Services.DomainServices.ObraSocialDomainService;
+import com.accesmed.backend.Services.DomainServices.ObraSocialPacienteDomainService;
 import com.accesmed.backend.Services.DomainServices.PlanDomainService;
 import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
@@ -46,6 +47,7 @@ public class PlanApp {
     private final ObraSocialDomainService obraSocialDomainService;
     private final HistoricoEstadoPlanDomainService historicoEstadoPlanDomainService;
     private final TurnoDomainService turnoDomainService;
+    private final ObraSocialPacienteDomainService obraSocialPacienteDomainService;
 
     //Mappers
     private final PlanMapper planMapper;
@@ -199,7 +201,12 @@ public class PlanApp {
         //Validar que no tenga turnos vivos cubiertos
         turnoDomainService.validateSinTurnosVivosDePlan(id);
 
-        //TODO cascada de escritura: bajar ObraSocialPlanPrestacion y ObraSocialPaciente asociados (fuera de alcance).
+        //Dar de baja las ObraSocialPaciente que referencian el plan (A5, paso 2)
+        obraSocialPacienteDomainService.softDeleteByPlan(id, "Baja de plan");
+
+        //TODO (A5, paso 1): dar de baja las ObraSocialPlanPrestacion del plan. Sin módulo
+        // (repo/service/App/controller) al que delegarlo todavía. Ver
+        // Docs/Planes/auditoria-v3-y-feature-agenda.md.
 
         //Transicionar el estado a DESHABILITADO
         Plan planDeshabilitado = historicoEstadoPlanDomainService.changeEstadoPlan(

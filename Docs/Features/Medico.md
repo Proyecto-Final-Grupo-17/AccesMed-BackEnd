@@ -49,6 +49,7 @@
 | `prestacionId` | UUID | Sí | Debe ser una prestación existente y no deshabilitada, con la misma especialidad que el médico. |
 | `atiendeParticular` | Boolean | Sí | Para mostrar el ícono/badge de atención particular. |
 | `precioParticular` | BigDecimal (> 0) | Sí | Para mostrar el precio particular de esa prestación con este médico. |
+| `fechaInicioVigencia` | ZonedDateTime | No | Desde cuándo rige la asignación. Ausente = el instante del alta. |
 
 **Response para el front — `CreateMedicoResponse`**
 
@@ -57,7 +58,7 @@
 | `id` | UUID | Identificador único del médico, necesario para editar, dar de baja o asignarle más prestaciones. |
 | `matricula`, `dni`, `nombre`, `apellido`, `email`, `numeroTelefono` | String | Para mostrar en listados y fichas. |
 | `especialidadId` | UUID | Para mostrar la especialidad o resolverla contra el catálogo. |
-| `prestaciones` | Array de `GetPrestacionAnidadaResponse` | Para mostrar de entrada las prestaciones que atiende. Cada ítem trae `id` (de la asignación, usado para desasignar), `prestacionId`, `prestacionCodigo`, `prestacionNombre`, `atiendeParticular`, `precioParticular`. |
+| `prestaciones` | Array de `GetPrestacionAnidadaResponse` | Para mostrar de entrada las prestaciones que atiende. Cada ítem trae `id` (de la asignación, usado para cerrarle la vigencia), `prestacionId`, `prestacionCodigo`, `prestacionNombre`, `atiendeParticular`, `precioParticular`, `fechaInicioVigencia` y `fechaFinVigencia`. Solo llegan las **vigentes**. |
 
 ---
 
@@ -128,10 +129,17 @@ médico ya creado, fuera del alta atómica.
 
 ### Asignar prestación a médico — `POST /accesmed-api/MedicoPrestacion/Asignar`
 
+> **`MedicoPrestacion` se rige por vigencia, no por baja lógica.** Una asignación es un
+> período (`fechaInicioVigencia` → `fechaFinVigencia`), no una fila que se borra.
+> Desasignar es **cerrar el período**, y reasignar es **crear una instancia nueva**, nunca
+> reabrir la vieja. Consecuencia para el front: un médico puede tener varias asignaciones
+> de la misma prestación a lo largo del tiempo, y las listas pueden traer períodos ya
+> cerrados — filtrar por `fechaFinVigencia === null` para ver solo las vigentes.
+
 **Flujo simplificado:**
 1. Busca el médico y la prestación (ambos deben existir y estar activos).
 2. Valida que la especialidad de la prestación coincida con la del médico.
-3. Valida que no exista ya una asignación activa entre ese médico y esa prestación.
+3. Valida que el período nuevo no se solape con otro del mismo par médico-prestación.
 4. Crea el vínculo y lo devuelve.
 
 **Request para el front — `AssignMedicoPrestacionRequest`**
@@ -142,25 +150,43 @@ médico ya creado, fuera del alta atómica.
 | `prestacionId` | UUID | Sí | Prestación existente y no deshabilitada, con la misma especialidad que el médico. |
 | `atiendeParticular` | Boolean | Sí | |
 | `precioParticular` | BigDecimal (> 0) | Sí | |
+| `fechaInicioVigencia` | ZonedDateTime | No | Desde cuándo rige la asignación. Ausente = ahora. Admite fecha futura: así se programa un alta. |
 
 **Response para el front — `GetMedicoPrestacionResponse`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id` | UUID | Identificador de la asignación, necesario para desasignarla después. |
+| `id` | UUID | Identificador de la asignación, necesario para cerrarle la vigencia después. |
 | `medicoId`, `prestacionId` | UUID | Para relacionar la asignación con médico y prestación. |
 | `prestacionCodigo`, `prestacionNombre` | String | Para mostrar sin otra consulta. |
 | `atiendeParticular`, `precioParticular` | Boolean / BigDecimal | Para mostrar las condiciones particulares. |
+| `fechaInicioVigencia` | ZonedDateTime | Desde cuándo rige. |
+| `fechaFinVigencia` | ZonedDateTime \| null | Hasta cuándo. `null` = vigente sin corte. |
 
 **Errores posibles:**
 - `MEDICO_PRESTACION_ESPECIALIDAD_DISTINTA` (422): la especialidad de la prestación no coincide con la del médico.
-- `MEDICO_PRESTACION_YA_ASIGNADA` (422): ya existe una asignación activa entre ese médico y esa prestación.
+- `MEDICO_PRESTACION_SOLAPADA` (422): el período pedido se cruza con otra vigencia del mismo par médico-prestación.
 
-### Desasignar prestación de médico — `DELETE /accesmed-api/MedicoPrestacion/{id}`
+### Desasignar prestación de médico — `PATCH /accesmed-api/MedicoPrestacion/Vigencia/{id}`
 
-Da de baja lógica la asignación identificada por su propio `id` (el que devolvió el
-`Asignar`, o el que trae cada ítem de `prestaciones` en las respuestas de Médico).
-Responde con `SoftDeleteMedicoPrestacionResponse` (`id`, `deletedAt`, `deletedReason`).
+Cierra el período de vigencia de la asignación identificada por su propio `id` (el que
+devolvió el `Asignar`, o el que trae cada ítem de `prestaciones` en las respuestas de
+Médico). **No borra nada**: la fila queda con su `fechaFinVigencia` puesta.
+
+**Request — `UnassignMedicoPrestacionRequest`**
+
+| Campo | Tipo | Obligatorio | Notas |
+|-------|------|-------------|-------|
+| `id` | UUID | Sí | Debe coincidir con el `id` de la ruta. |
+| `fechaFinVigencia` | ZonedDateTime | No | Fecha de corte. Ausente = ahora. Admite fecha futura: así se programa la baja. |
+
+Responde con `UnassignMedicoPrestacionResponse` (`id`, `fechaFinVigencia`).
+
+**Errores posibles:**
+- `MEDICO_PRESTACION_NO_ENCONTRADA` (404): no hay una asignación vigente con ese id.
+- `MEDICO_PRESTACION_CORTE_ANTERIOR_A_TURNO` (422): la fecha de corte es anterior al
+  `fechaHoraInicio` de algún turno vivo de ese par. El mensaje trae la fecha del turno más
+  lejano; la salida es cancelar o reprogramar esos turnos primero.
 
 ---
 

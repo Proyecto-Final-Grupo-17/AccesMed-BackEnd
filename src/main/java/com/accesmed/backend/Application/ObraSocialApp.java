@@ -14,6 +14,7 @@ import com.accesmed.backend.Records.ObraSocial.Response.ListObraSocialResponse;
 import com.accesmed.backend.Records.ObraSocial.Response.SoftDeleteObraSocialResponse;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoPlanDomainService;
 import com.accesmed.backend.Services.DomainServices.ObraSocialDomainService;
+import com.accesmed.backend.Services.DomainServices.ObraSocialPacienteDomainService;
 import com.accesmed.backend.Services.DomainServices.PlanDomainService;
 import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
@@ -51,6 +52,7 @@ public class ObraSocialApp {
     private final PlanDomainService planDomainService;
     private final HistoricoEstadoPlanDomainService historicoEstadoPlanDomainService;
     private final TurnoDomainService turnoDomainService;
+    private final ObraSocialPacienteDomainService obraSocialPacienteDomainService;
     private final ObraSocialQueryService obraSocialQueryService;
     private final PlanQueryService planQueryService;
     private final ObraSocialMapper obraSocialMapper;
@@ -176,10 +178,15 @@ public class ObraSocialApp {
             turnoDomainService.validateSinTurnosVivosDePlan(plan.getId());
         }
 
-        //Deshabilitar en cascada los planes no deshabilitados
+        //Deshabilitar en cascada los planes no deshabilitados, arrastrando sus coberturas (A5)
         for (Plan plan : planesNoDeshabilitados) {
+            obraSocialPacienteDomainService.softDeleteByPlan(plan.getId(), "Baja de obra social");
             historicoEstadoPlanDomainService.changeEstadoPlan(plan.getId(), EstadoPlan.DESHABILITADO, "Baja de obra social");
         }
+
+        //TODO (A5, paso 1): dar de baja las ObraSocialPlanPrestacion de cada plan deshabilitado.
+        // Sin módulo (repo/service/App/controller) al que delegarlo todavía. Ver
+        // Docs/Planes/auditoria-v3-y-feature-agenda.md.
 
         //Dar de baja la obra social
         obraSocialDomainService.softDeleteObraSocial(obraSocialExistente, "Baja de obra social");

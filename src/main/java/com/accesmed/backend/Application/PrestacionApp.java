@@ -57,6 +57,7 @@ public class PrestacionApp {
     private final HistoricoEstadoPrestacionDomainService historicoEstadoPrestacionDomainService;
     private final TurnoDomainService turnoDomainService;
     private final AgendaHorariosDomainService agendaHorariosDomainService;
+    private final MedicoPrestacionDomainService medicoPrestacionDomainService;
 
     //Mappers
     private final PrestacionMapper prestacionMapper;
@@ -273,10 +274,19 @@ public class PrestacionApp {
 
         //Cerrar la vigencia de las indicaciones vigentes: sin turnos vivos (ya validado arriba),
         //"ahora" nunca puede caer antes de un turno que necesite protección.
-        indicacionPrestacionDomainService.cerrarVigenciaIndicacionesPrestacionByPrestacion(id, ZonedDateTime.now());
+        ZonedDateTime ahora = ZonedDateTime.now();
+        indicacionPrestacionDomainService.cerrarVigenciaIndicacionesPrestacionByPrestacion(id, ahora);
 
-        //TODO cascada de escritura: cerrar MedicoPrestacion vigentes, bajar AgendaHorarios libres,
-        // bajar ObraSocialPlanPrestacion (módulos fuera de alcance).
+        //Cerrar la vigencia de las MedicoPrestacion vigentes de la prestación (A4, paso 1)
+        medicoPrestacionDomainService.cerrarVigenciasByPrestacion(id, ahora);
+
+        //TODO (A4, paso 2, tras Fase B): dar de baja los AgendaHorarios futuros libres de la
+        // prestación. Requiere el stack de escritura de Agenda que todavía no existe. Ver
+        // Docs/Planes/auditoria-v3-y-feature-agenda.md.
+
+        //TODO (A4, paso 4): dar de baja las ObraSocialPlanPrestacion de la prestación. Sin
+        // módulo (repo/service/App/controller) al que delegarlo todavía. Ver
+        // Docs/Planes/auditoria-v3-y-feature-agenda.md.
 
         //Transicionar el estado a DESHABILITADA
         Prestacion prestacionDeshabilitada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(

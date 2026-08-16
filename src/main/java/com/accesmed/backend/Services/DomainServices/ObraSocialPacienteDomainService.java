@@ -135,6 +135,25 @@ public class ObraSocialPacienteDomainService {
 
     }
 
+    /**
+     * Da de baja lógica todas las coberturas activas que referencian un plan. Utilizada
+     * cuando se deshabilita el plan (A5) o, por transitividad, la obra social.
+     *
+     * @param planId {@code UUID} identificador del plan
+     * @param motivo {@code String} motivo de la baja
+     */
+    public void softDeleteByPlan(UUID planId, String motivo) {
+
+        log.debug("Dando de baja las coberturas de obra social del plan: {}", planId);
+
+        List<ObraSocialPaciente> coberturasActivas = obraSocialPacienteRepository.findByPlan_IdAndDeletedAtIsNull(planId);
+
+        for (ObraSocialPaciente obraSocialPaciente : coberturasActivas) {
+            softDeleteObraSocialPaciente(obraSocialPaciente, motivo);
+        }
+
+    }
+
     //endregion
 
 }

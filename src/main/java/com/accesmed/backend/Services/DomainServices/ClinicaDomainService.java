@@ -86,26 +86,6 @@ public class ClinicaDomainService {
 
     }
 
-    /**
-     * Valida que los días mínimos de vigencia de agenda sean menores o iguales a los
-     * máximos.
-     *
-     * @param diasMinimosVigenciaAgenda {@code Integer} días mínimos efectivos
-     * @param diasMaximosVigenciaAgenda {@code Integer} días máximos efectivos
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si el mínimo supera al
-     *         máximo
-     */
-    public void validateDiasVigenciaAgenda(Integer diasMinimosVigenciaAgenda, Integer diasMaximosVigenciaAgenda) {
-
-        if (diasMinimosVigenciaAgenda > diasMaximosVigenciaAgenda) {
-            log.warn("No se pudo actualizar la clínica: días mínimos {} superan a los máximos {}",
-                    diasMinimosVigenciaAgenda, diasMaximosVigenciaAgenda);
-            throw new ReglaNegocioException(getClass(), "CLINICA_DIAS_VIGENCIA_AGENDA_INVALIDO",
-                    "Los días mínimos de vigencia de agenda no pueden superar a los máximos.");
-        }
-
-    }
-
     //endregion
 
 }

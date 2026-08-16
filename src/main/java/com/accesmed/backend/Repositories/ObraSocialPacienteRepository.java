@@ -41,4 +41,13 @@ public interface ObraSocialPacienteRepository extends JpaRepository<ObraSocialPa
      */
     List<ObraSocialPaciente> findByPaciente_IdAndDeletedAtIsNull(UUID pacienteId);
 
+    /**
+     * Busca las coberturas activas que referencian un plan. Usada por la cascada de
+     * deshabilitación de {@code Plan} (A5).
+     *
+     * @param planId {@code UUID} identificador del plan
+     * @return {@code List<ObraSocialPaciente>} las coberturas activas de ese plan
+     */
+    List<ObraSocialPaciente> findByPlan_IdAndDeletedAtIsNull(UUID planId);
+
 }

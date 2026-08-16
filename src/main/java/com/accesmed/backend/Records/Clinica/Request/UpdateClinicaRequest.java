@@ -63,18 +63,12 @@ public record UpdateClinicaRequest(
         LocalTime horarioFinAtencion,
 
         /**
-         * Días mínimos de vigencia de agenda ({@code Integer}). Debe ser mayor o igual a 1
-         * y menor o igual al máximo (efectivo). {@code null} deja el valor sin tocar.
+         * Días máximos de anticipación con los que se puede reservar un turno
+         * ({@code Integer}). Debe ser mayor o igual a 1. {@code null} deja el valor sin
+         * tocar.
          */
-        @Min(value = 1, message = "Los días mínimos de vigencia de agenda deben ser al menos 1.")
-        Integer diasMinimosVigenciaAgenda,
-
-        /**
-         * Días máximos de vigencia de agenda ({@code Integer}). Debe ser mayor o igual al
-         * mínimo (efectivo). {@code null} deja el valor sin tocar.
-         */
-        @Min(value = 1, message = "Los días máximos de vigencia de agenda deben ser al menos 1.")
-        Integer diasMaximosVigenciaAgenda
+        @Min(value = 1, message = "Los días máximos de anticipación de reserva deben ser al menos 1.")
+        Integer diasMaximosAnticipacionReserva
 
 ) {
 }

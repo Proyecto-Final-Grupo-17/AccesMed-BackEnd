@@ -32,10 +32,8 @@
             <column name="horario_fin_atencion" type="time">
                 <constraints nullable="false"/>
             </column>
-            <column name="dias_minimos_vigencia_agenda" type="int">
-                <constraints nullable="false"/>
-            </column>
-            <column name="dias_maximos_vigencia_agenda" type="int">
+            <!-- Horizonte de reserva: hasta cuantos dias en el futuro se puede pedir un turno. -->
+            <column name="dias_maximos_anticipacion_reserva" type="int">
                 <constraints nullable="false"/>
             </column>
             <!-- ====== Guardia de singleton (no mapeada en la entidad JPA) ====== -->
@@ -52,18 +50,18 @@
         </createTable>
 
         <sql>ALTER TABLE clinica ADD CONSTRAINT ck_clinica_horario_atencion CHECK (horario_inicio_atencion &lt; horario_fin_atencion);</sql>
-        <sql>ALTER TABLE clinica ADD CONSTRAINT ck_clinica_dias_vigencia_agenda CHECK (dias_minimos_vigencia_agenda &gt;= 1 AND dias_minimos_vigencia_agenda &lt;= dias_maximos_vigencia_agenda);</sql>
+        <sql>ALTER TABLE clinica ADD CONSTRAINT ck_clinica_dias_maximos_anticipacion_reserva CHECK (dias_maximos_anticipacion_reserva &gt;= 1);</sql>
         <sql>ALTER TABLE clinica ADD CONSTRAINT ck_clinica_singleton_guard CHECK (singleton_guard = 1);</sql>
         <rollback>
             <sql>ALTER TABLE clinica DROP CONSTRAINT IF EXISTS ck_clinica_horario_atencion;</sql>
-            <sql>ALTER TABLE clinica DROP CONSTRAINT IF EXISTS ck_clinica_dias_vigencia_agenda;</sql>
+            <sql>ALTER TABLE clinica DROP CONSTRAINT IF EXISTS ck_clinica_dias_maximos_anticipacion_reserva;</sql>
             <sql>ALTER TABLE clinica DROP CONSTRAINT IF EXISTS ck_clinica_singleton_guard;</sql>
         </rollback>
     </changeSet>
 
     <!--
         Carga inicial: instancia unica de Clinica, con sus parametros de configuracion
-        (horario de atencion y rango de vigencia de agenda). Valores de ejemplo, a
+        (horario de atencion y horizonte de reserva). Valores de ejemplo, a
         ajustar por el administrador desde el panel una vez exista el CU de
         modificacion.
     -->
@@ -77,8 +75,7 @@
             <column name="telefono" value="+54 11 5555-5555"/>
             <column name="horario_inicio_atencion" valueDate="08:00:00"/>
             <column name="horario_fin_atencion" valueDate="20:00:00"/>
-            <column name="dias_minimos_vigencia_agenda" valueNumeric="7"/>
-            <column name="dias_maximos_vigencia_agenda" valueNumeric="90"/>
+            <column name="dias_maximos_anticipacion_reserva" valueNumeric="90"/>
             <column name="created_at" valueComputed="now()"/>
             <column name="created_by" value="system"/>
         </insert>
