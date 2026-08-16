@@ -82,7 +82,20 @@ public record UpdatePrestacionResponse(
         /**
          * Estado actual de la prestación ({@code EstadoPrestacion}).
          */
-        EstadoPrestacion estadoActual
+        EstadoPrestacion estadoActual,
+
+        /**
+         * Cantidad de {@code AgendaHorarios} futuros libres a los que se les recalculó
+         * {@code fechaLimiteReserva} tras cambiar {@code tiempoToleranciaSolicitud} ({@code int}).
+         * Cero si ese campo no vino en el request.
+         */
+        int cantidadHorariosRecalculados,
+
+        /**
+         * Cantidad de {@code AgendaHorarios} futuros libres dados de baja por quedar fuera
+         * del nuevo rango de duración o con el plazo de reserva vencido ({@code int}).
+         */
+        int cantidadHorariosDadosDeBaja
 
 ) {
 }

@@ -178,6 +178,29 @@ GET /accesmed-api/Prestacion/Prestacion?estadoActual.equals=PUBLICADA&page=0&siz
 | `Prestacion` | `/accesmed-api/Prestacion/Prestacion` | `id`, `codigo`, `nombre`, `estadoActual`, `especialidadId`, `createdDate`, `lastModifiedDate` |
 | `TipoIndicacionPrestacion` | `/accesmed-api/TipoIndicacionPrestacion/TipoIndicacionPrestacion` | `id`, `codigo`, `nombre`, `createdDate`, `lastModifiedDate` |
 | `IndicacionPrestacion` | `/accesmed-api/IndicacionPrestacion/IndicacionPrestacion` | `id`, `nombre`, `requiereValidacion`, `prestacionId`, `tipoIndicacionPrestacionId`, `createdDate`, `lastModifiedDate` |
+| `Medico` | `/accesmed-api/Medico/Medico` | `id`, `matricula`, `dni`, `nombre`, `apellido`, `email`, `especialidadId`, `tieneAgendaVigente`, `agendaVigenteAl`, `createdDate`, `lastModifiedDate` |
+| `AgendaMedico` | `/accesmed-api/AgendaMedico/Agenda` | `id`, `medicoId`, `especialidadId`, `fechaHoraInicioVigencia`, `fechaHoraFinVigencia`, `vigenteAl` |
+| `AgendaHorarios` | `/accesmed-api/AgendaMedico/Horarios` (panel) y `/accesmed-api/AgendaMedico/HorariosDisponibles` (chatbot) | `id`, `agendaMedicoId`, `medicoId`, `prestacionId`, `fecha`, `horaDesde`, `estaOcupada` |
+
+`Medico.tieneAgendaVigente` (`BooleanFilter`) y `agendaVigenteAl` (fecha de referencia,
+default "ahora" si no se envía) son un filtro **derivado**: no son columnas de `Medico`,
+se resuelven con un `EXISTS`/`NOT EXISTS` contra `agenda_medico`. Reemplazan al endpoint
+"médicos sin agenda vigente" de §5 AGEN — se resuelve con
+`GET /accesmed-api/Medico/Medico?tieneAgendaVigente.equals=false`. Combinando
+`agendaVigenteAl` con una fecha futura se resuelve también el caso "por vencer":
+`tieneAgendaVigente.equals=false&agendaVigenteAl.equals=<hoy+30>`.
+
+`AgendaMedico.vigenteAl` es otro filtro derivado (`inicio <= vigenteAl < fin`), pero **sin
+valor por defecto**: a diferencia de `agendaVigenteAl`, si no se envía no se aplica ningún
+filtro de vigencia — el selector de agendas del front tiene que poder listar también los
+períodos vencidos y los programados a futuro, igual que `Prestacion` no filtra por estado
+implícitamente.
+
+`AgendaHorarios` no tiene guarda fija de "activo" configurable por el front: la aplica
+siempre el `QueryService`. `listHorariosAgenda` exige `deletedAt` vacío; `listHorariosDisponibles`
+suma además `estaOcupada = false`, `ahora < fechaLimiteReserva` y
+`fecha <= hoy + diasMaximosAnticipacionReserva` (horizonte configurado en `Clinica`) — el
+front no puede pedir un slot ocupado ni uno fuera del horizonte de reserva.
 
 Los campos de auditoría (`createdDate`/`lastModifiedDate`) y de baja/vigencia (`deletedAt`,
 `fechaFinVigencia`) que la entidad excluye automáticamente **no aparecen como filtro**: los
@@ -199,6 +222,8 @@ encontrado" por entidad que vas a ver desde `/Buscar`:
 | `Plan` | `PLAN_NO_ENCONTRADO` |
 | `TipoIndicacionPrestacion` | `TIPO_INDICACION_PRESTACION_NO_ENCONTRADO` |
 | `IndicacionPrestacion` | `INDICACION_PRESTACION_NO_ENCONTRADA` |
+| `Medico` | `MEDICO_NO_ENCONTRADO` |
+| `AgendaMedico` | `AGENDA_MEDICO_NO_ENCONTRADA` |
 
 ---
 

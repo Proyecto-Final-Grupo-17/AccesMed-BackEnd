@@ -159,6 +159,25 @@ public class MedicoPrestacionDomainService {
     }
 
     /**
+     * Verifica si existe una asignación médico-prestación vigente en una fecha dada,
+     * entre el médico y la prestación indicados. Regla de Agenda (§5 AGEN, habilitada por
+     * A1): cada slot exige una {@code MedicoPrestacion} vigente en la fecha del slot, no
+     * en "ahora".
+     *
+     * @param medicoId {@code UUID} identificador del médico
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @param fecha {@code ZonedDateTime} instante contra el cual evaluar la vigencia
+     * @return {@code boolean} {@code true} si existe una asignación vigente entre ambos en ese instante
+     */
+    public boolean existsVigenteEnFecha(UUID medicoId, UUID prestacionId, ZonedDateTime fecha) {
+
+        log.debug("Verificando vigencia médico-prestación: médico={}, prestación={}, fecha={}", medicoId, prestacionId, fecha);
+
+        return medicoPrestacionRepository.existsVigenteEnFecha(medicoId, prestacionId, fecha);
+
+    }
+
+    /**
      * Cierra la vigencia de todas las asignaciones médico-prestación vigentes de una
      * prestación. Utilizada cuando se deshabilita la prestación (A4, paso 1).
      *
