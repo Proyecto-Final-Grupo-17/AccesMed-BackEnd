@@ -2,7 +2,7 @@
 
 ## Contexto
 
-- **Para qué es**: sin agenda no hay turnos. `AgendaHorarios` es el único objeto reservable
+- **Para qué es**: sin agenda no hay turnos. `AgendaHorariosDia` es el único objeto reservable
   del sistema — todo lo que el paciente puede pedir por WhatsApp o el personal puede asignar
   desde el panel sale de acá.
 - **Para qué sirve**: le permite al personal de la clínica publicar la disponibilidad real
@@ -12,8 +12,8 @@
   su propia agenda). El chatbot **solo** consume `listHorariosDisponibles` — ningún otro
   endpoint de esta feature es parte del flujo del agente.
 
-`AgendaDia` y `AgendaHorarios` no tienen controller propio ni vida independiente del
-período: siempre se crean, editan y consultan a través de `AgendaMedico`.
+`AgendaHorariosDia` no tiene controller propio ni vida independiente del período: siempre
+se crea, edita y consulta a través de `AgendaMedico`.
 
 ## Cómo se arma un período de agenda
 
@@ -62,7 +62,7 @@ resolver manualmente los turnos ocupados antes de poder liberar esos horarios.
 3. Expande el patrón semanal o los días sueltos a una lista de bloques con fecha concreta.
 4. Valida, para cada bloque: prestación publicada, `MedicoPrestacion` vigente en esa fecha,
    y las reglas de forma del slot (horario de clínica, divisibilidad, duración, superposición).
-5. Genera los slots, crea los días de agenda que hagan falta y guarda todo.
+5. Genera los slots (cada uno con su propia fecha) y guarda todo.
 6. Devuelve la agenda con sus días y horarios ya expandidos.
 
 **Request para el front — `CreateAgendaMedicoRequest`**
@@ -92,13 +92,13 @@ Cada bloque (`BloqueHorarioRequest`) lleva `horaDesde`, `horaHasta`, `prestacion
 
 **Flujo simplificado:**
 1. Valida que el `id` de la ruta coincida con el del body.
-2. Resuelve todo lo que el request daría de baja: los `AgendaDia` de `diasAExcluir` (con
-   todos sus horarios) más los `AgendaHorarios` sueltos de `horariosAExcluir`.
+2. Resuelve todo lo que el request daría de baja: los `AgendaHorariosDia` activos en las
+   `fechasAExcluir` (atajo del feriado) más los `AgendaHorariosDia` sueltos de
+   `horariosAExcluir` (por id).
 3. Si esa unión incluye algún slot ocupado, rechaza la operación completa sin escribir nada.
 4. Aplica las bajas.
-5. Aplica `horariosAAgregar`: el día es implícito — si no existe un `AgendaDia` para esa
-   fecha, se crea (nunca se agrega un día vacío por su cuenta).
-6. Da de baja automáticamente los días que quedaron sin ningún horario activo.
+5. Aplica `horariosAAgregar`: cada horario nuevo lleva su propia `fecha`, no hace falta
+   crear ni resolver ninguna entidad de día.
 
 **Request para el front — `UpdateAgendaMedicoRequest`**
 
@@ -106,11 +106,11 @@ Cada bloque (`BloqueHorarioRequest`) lleva `horaDesde`, `horaHasta`, `prestacion
 |-------|------|-------------|-------|
 | `id` | UUID | Sí | Tiene que ser el mismo que el de la URL; si difieren, 422. |
 | `horariosAAgregar` | lista de `HorarioAAgregarRequest` (fecha + bloque) | No | `null`/ausente = no agregar nada. |
-| `horariosAExcluir` | lista de UUID | No | Ids de `AgendaHorarios` a dar de baja. |
-| `diasAExcluir` | lista de UUID | No | Ids de `AgendaDia` a dar de baja completos (atajo del feriado). |
+| `horariosAExcluir` | lista de UUID | No | Ids de `AgendaHorariosDia` a dar de baja. |
+| `fechasAExcluir` | lista de `LocalDate` (ISO, ej. `"2026-12-25"`) | No | Fechas a dar de baja completas: se excluyen todos los `AgendaHorariosDia` activos de esas fechas (atajo del feriado). |
 
-No se puede excluir un día y agregar un horario en ese mismo día en el mismo request — el
-backend lo rechaza como contradictorio (422) antes de tocar nada.
+No se puede excluir una fecha y agregar un horario en esa misma fecha en el mismo request —
+el backend lo rechaza como contradictorio (422) antes de tocar nada.
 
 **Response para el front — `UpdateAgendaMedicoResponse`**
 
@@ -119,18 +119,16 @@ backend lo rechaza como contradictorio (422) antes de tocar nada.
 | `id` | UUID | Confirmar sobre qué agenda se aplicó el delta. |
 | `cantidadHorariosAgregados` | int | Mostrar cuántos slots nuevos se generaron. |
 | `cantidadHorariosExcluidos` | int | Mostrar cuántos slots se dieron de baja (directos + arrastrados). |
-| `cantidadDiasExcluidos` | int | Cuántos días se dieron de baja explícitamente por `diasAExcluir`. |
-| `cantidadDiasDadosDeBajaAutomaticamente` | int | Cuántos días quedaron vacíos y se dieron de baja solos. |
+| `cantidadFechasExcluidas` | int | Cuántas fechas se dieron de baja explícitamente por `fechasAExcluir`. |
 
 ### Actualizar vigencia de agenda — `PATCH /accesmed-api/AgendaMedico/Agenda/Vigencia/{id}`
 
 **Flujo simplificado:**
 1. Valida que el `id` de la ruta coincida con el del body.
 2. Según qué campo venga, mueve el inicio (solo si la agenda todavía no arrancó) y/o el fin.
-3. Si se adelanta el fin, calcula qué días quedan fuera del nuevo período; si alguno tiene
-   slots ocupados, rechaza toda la operación.
-4. Si pasó la validación, da de baja esos días posteriores (con sus horarios) y guarda el
-   nuevo período.
+3. Si se adelanta el fin, calcula qué `AgendaHorariosDia` quedan con fecha posterior al
+   nuevo período; si alguno está ocupado, rechaza toda la operación.
+4. Si pasó la validación, da de baja esos horarios posteriores y guarda el nuevo período.
 
 **Request para el front — `UpdateVigenciaAgendaMedicoRequest`**
 
@@ -146,7 +144,7 @@ backend lo rechaza como contradictorio (422) antes de tocar nada.
 |-------|------|--------------------------|
 | `id` | UUID | Confirmar sobre qué agenda se aplicó el cambio. |
 | `fechaHoraInicioVigencia` / `fechaHoraFinVigencia` | Instant/ISO | Refrescar el período mostrado. |
-| `cantidadDiasDadosDeBaja` | int | Avisar cuántos días se perdieron al adelantar el fin (0 si no se tocó el fin). |
+| `cantidadHorariosDadosDeBaja` | int | Avisar cuántos horarios se perdieron al adelantar el fin (0 si no se tocó el fin). |
 
 ### Listar agendas — `GET /accesmed-api/AgendaMedico/Agenda`
 
@@ -180,7 +178,7 @@ objeto en vez de una página, y 404 si no matchea. Trae la agenda con sus días 
 |-------|------|--------------------------|
 | `id`, `medicoId`, `medicoNombre`, `medicoApellido` | — | Encabezado del detalle. |
 | `fechaHoraInicioVigencia` / `fechaHoraFinVigencia` | Instant/ISO | Encabezado del detalle. |
-| `dias` | lista de `DiaAgendaResponse` (`id`, `fecha`, `horarios`) | Pintar el calendario completo de la agenda. |
+| `dias` | lista de `DiaAgendaResponse` (`fecha`, `horarios`) | Pintar el calendario completo de la agenda. |
 
 Cada horario anidado (`HorarioAgendaResponse`) trae `id`, `horaDesde`, `horaHasta`,
 `prestacionId`, `prestacionNombre`, `fechaLimiteReserva` y `estaOcupada` — suficiente para
@@ -196,7 +194,7 @@ fija (no configurable por el front): solo horarios activos.
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id`, `agendaDiaId` | UUID | Referenciar el slot y su día para excluirlo desde `updateAgendaMedico`. |
+| `id` | UUID | Referenciar el slot para excluirlo desde `updateAgendaMedico` (por id, o por fecha con `fechasAExcluir`). |
 | `fecha`, `horaDesde`, `horaHasta` | LocalDate/LocalTime | Ubicar el slot en el calendario. |
 | `medicoId`, `prestacionId`, `prestacionNombre` | — | Mostrar de qué prestación es cada celda. |
 | `fechaLimiteReserva` | Instant/ISO | Informativo: hasta cuándo se puede reservar ese slot. |

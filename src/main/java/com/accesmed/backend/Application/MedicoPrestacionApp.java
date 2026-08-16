@@ -94,32 +94,21 @@ public class MedicoPrestacionApp {
      * Desasigna una prestación de un médico: cierra el período de vigencia de la
      * asignación (no la borra). Valida el piso duro contra turnos vivos del par
      * médico-prestación antes de cerrar.
-     *
-     * @param id {@code UUID} identificador de la asignación (ya validado contra la ruta en el Controller)
      * @param unassignMedicoPrestacionRequest {@code UnassignMedicoPrestacionRequest} id de la
      *        asignación y fecha de corte (ausente = ahora)
      * @return {@code UnassignMedicoPrestacionResponse} la confirmación del cierre de vigencia
-     * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide
-     *         con el del body
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la asignación
      *         vigente no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si la fecha de corte es anterior
      *         a la fecha de inicio de algún turno vivo del par médico-prestación
      */
     @Transactional
-    public UnassignMedicoPrestacionResponse unassignPrestacion(UUID id, UnassignMedicoPrestacionRequest unassignMedicoPrestacionRequest) {
+    public UnassignMedicoPrestacionResponse unassignPrestacion(UnassignMedicoPrestacionRequest unassignMedicoPrestacionRequest) {
 
-        log.info("Desasignación de prestación de médico iniciada: id={}", id);
-
-        //El id de la ruta identifica el recurso: si el body trae otro, el request es inconsistente
-        if (!id.equals(unassignMedicoPrestacionRequest.id())) {
-            log.warn("Id de ruta ({}) distinto al del body ({})", id, unassignMedicoPrestacionRequest.id());
-            throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
-        }
+        log.info("Desasignación de prestación de médico iniciada: id={}", unassignMedicoPrestacionRequest.id());
 
         //Buscar la asignación vigente
-        MedicoPrestacion medicoPrestacionExistente = medicoPrestacionDomainService.findMedicoPrestacionVigenteById(id, ZonedDateTime.now());
+        MedicoPrestacion medicoPrestacionExistente = medicoPrestacionDomainService.findMedicoPrestacionVigenteById(unassignMedicoPrestacionRequest.id(), ZonedDateTime.now());
 
         //Resolver la fecha de corte efectiva (ausente = ahora)
         ZonedDateTime fechaFinVigenciaEfectiva = unassignMedicoPrestacionRequest.fechaFinVigencia() != null
@@ -130,7 +119,7 @@ public class MedicoPrestacionApp {
                 medicoPrestacionExistente.getMedico().getId(), medicoPrestacionExistente.getPrestacion().getId());
         if (fechaMaximaTurnoVivo.isPresent() && fechaFinVigenciaEfectiva.isBefore(fechaMaximaTurnoVivo.get())) {
             log.warn("No se pudo cerrar la vigencia {}: fecha de corte {} anterior al turno vivo más lejano {}",
-                    id, fechaFinVigenciaEfectiva, fechaMaximaTurnoVivo.get());
+                    unassignMedicoPrestacionRequest.id(), fechaFinVigenciaEfectiva, fechaMaximaTurnoVivo.get());
             throw new ReglaNegocioException(getClass(), "MEDICO_PRESTACION_CORTE_ANTERIOR_A_TURNO",
                     "La fecha de corte no puede ser anterior al turno vivo más lejano del par médico-prestación, el "
                             + fechaMaximaTurnoVivo.get() + ".");

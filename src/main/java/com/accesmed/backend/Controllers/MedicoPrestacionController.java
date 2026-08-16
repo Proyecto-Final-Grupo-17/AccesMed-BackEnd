@@ -5,6 +5,7 @@ import com.accesmed.backend.Records.MedicoPrestacion.Request.AssignMedicoPrestac
 import com.accesmed.backend.Records.MedicoPrestacion.Request.UnassignMedicoPrestacionRequest;
 import com.accesmed.backend.Records.MedicoPrestacion.Response.GetMedicoPrestacionResponse;
 import com.accesmed.backend.Records.MedicoPrestacion.Response.UnassignMedicoPrestacionResponse;
+import com.accesmed.backend.Services.Errors.ValidacionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -73,8 +76,15 @@ public class MedicoPrestacionController {
 
         log.info("Solicitud recibida: desasignar prestación, id={}", id);
 
+        //El id de la ruta identifica el recurso: si el body trae otro, el request es inconsistente
+        if (!id.equals(unassignMedicoPrestacionRequest.id())) {
+            log.warn("Id de ruta ({}) distinto al del body ({})", id, unassignMedicoPrestacionRequest.id());
+            throw new ValidacionException(getClass(),
+                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+        }
+
         UnassignMedicoPrestacionResponse unassignMedicoPrestacionResponse =
-                medicoPrestacionApp.unassignPrestacion(id, unassignMedicoPrestacionRequest);
+                medicoPrestacionApp.unassignPrestacion(unassignMedicoPrestacionRequest);
 
         return ResponseEntity.ok(unassignMedicoPrestacionResponse);
 

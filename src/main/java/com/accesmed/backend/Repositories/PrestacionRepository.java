@@ -5,8 +5,10 @@ import com.accesmed.backend.Domain.Prestacion;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -87,6 +89,20 @@ public interface PrestacionRepository extends JpaRepository<Prestacion, UUID>, J
     @Query("SELECT h.prestacion FROM HistoricoEstadoPrestacion h "
             + "WHERE h.prestacion.id = :id AND h.fechaHoraFin IS NULL AND h.estado <> :estado")
     Optional<Prestacion> findByIdAndEstadoVigenteNot(UUID id, EstadoPrestacion estado);
+
+    /**
+     * Busca las prestaciones de un lote de identificadores cuyo estado vigente no sea el
+     * excluido (típicamente {@code DESHABILITADA}), joineando al tramo vigente del
+     * histórico. Base de la resolución en lote de {@code AgendaMedicoApp} (Fase 3 bis #3):
+     * los ids pedidos que no vuelven en el resultado son los inexistentes o deshabilitados.
+     *
+     * @param ids {@code Collection<UUID>} identificadores de las prestaciones
+     * @param estado {@code EstadoPrestacion} estado a excluir (DESHABILITADA)
+     * @return {@code List<Prestacion>} las prestaciones activas entre esos identificadores
+     */
+    @Query("SELECT h.prestacion FROM HistoricoEstadoPrestacion h "
+            + "WHERE h.prestacion.id IN :ids AND h.fechaHoraFin IS NULL AND h.estado <> :estado")
+    List<Prestacion> findByIdInAndEstadoVigenteNot(@Param("ids") Collection<UUID> ids, @Param("estado") EstadoPrestacion estado);
 
     /**
      * Lista todas las prestaciones.

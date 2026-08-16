@@ -8,8 +8,9 @@ import java.time.LocalTime;
 import java.util.UUID;
 
 /**
- * Bloque horario a agregar en {@code updateAgendaMedico}. El día es implícito: si no
- * existe un {@code AgendaDia} para {@code fecha}, el {@code App} lo crea (get-or-create).
+ * Bloque horario a agregar en {@code updateAgendaMedico}. El día es implícito en
+ * {@code fecha}: no hace falta una entidad de día propia, los {@code AgendaHorariosDia}
+ * nuevos se insertan directo con esa fecha.
  *
  * @param fecha {@code LocalDate} día al que pertenece el bloque
  * @param horaDesde {@code LocalTime} inicio del bloque

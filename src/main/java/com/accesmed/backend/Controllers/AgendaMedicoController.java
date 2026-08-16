@@ -33,10 +33,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Controlador REST para los endpoints de Agenda. Agrupa {@code AgendaMedico},
- * {@code AgendaDia} y {@code AgendaHorarios}: ninguna de las dos últimas tiene vida
- * independiente del período, así que no llevan controller propio. Recibe requests, delega
- * en el caso de uso {@code AgendaMedicoApp} y devuelve responses.
+ * Controlador REST para los endpoints de Agenda. Agrupa {@code AgendaMedico} y
+ * {@code AgendaHorariosDia}: esta última no tiene vida independiente del período, así que
+ * no lleva controller propio. Recibe requests, delega en el caso de uso
+ * {@code AgendaMedicoApp} y devuelve responses.
  */
 @Slf4j
 @RestController

@@ -12,7 +12,7 @@ import java.util.UUID;
  * Alta de un período de agenda de un médico. Lleva exactamente uno de dos modos de
  * expansión: {@code patronSemanal} (se repite por día de la semana) o {@code diasSueltos}
  * (fechas concretas). Ninguno de los dos se persiste tal cual: el {@code App} los expande
- * a {@code AgendaDia} + {@code AgendaHorarios} y descarta el patrón.
+ * a {@code AgendaHorariosDia} y descarta el patrón.
  *
  * @param medicoId {@code UUID} identificador del médico dueño de la agenda
  * @param fechaHoraInicioVigencia {@code ZonedDateTime} inicio del período de vigencia

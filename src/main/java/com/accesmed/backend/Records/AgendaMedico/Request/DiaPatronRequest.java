@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * Día del patrón semanal de {@code createAgendaMedico}: se repite en cada
  * {@code diaSemana} que caiga dentro del período de vigencia de la agenda. El patrón no se
- * persiste: se expande a {@code AgendaDia} + {@code AgendaHorarios} y se descarta.
+ * persiste: se expande a {@code AgendaHorariosDia} y se descarta.
  *
  * @param diaSemana {@code DayOfWeek} día de la semana en el que se repite este bloque de horarios
  * @param bloques {@code List<BloqueHorarioRequest>} bloques horarios de ese día de la semana

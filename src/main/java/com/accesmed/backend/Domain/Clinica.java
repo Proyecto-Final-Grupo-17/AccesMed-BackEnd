@@ -68,8 +68,8 @@ public class Clinica extends Auditable {
      * Zona horaria de la clínica, como identificador IANA (ej.
      * {@code America/Argentina/Buenos_Aires}). Es la zona con la que se resuelven a
      * instante absoluto las fechas y horas de calendario del dominio — sobre todo
-     * {@code AgendaHorarios.fechaLimiteReserva}, que nace de combinar
-     * {@code AgendaDia.fecha} con {@code horaDesde}. No se usa la zona del sistema: el
+     * {@code AgendaHorariosDia.fechaLimiteReserva}, que nace de combinar
+     * {@code AgendaHorariosDia.fecha} con {@code horaDesde}. No se usa la zona del sistema: el
      * servidor suele correr en UTC y eso correría todos los plazos de reserva.
      *
      * <p>Que sea un identificador válido de {@code ZoneId} se valida en el

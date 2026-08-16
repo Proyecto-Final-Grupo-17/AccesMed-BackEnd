@@ -11,14 +11,14 @@ import java.util.UUID;
  * @param id {@code UUID} identificador de la agenda
  * @param fechaHoraInicioVigencia {@code ZonedDateTime} inicio de vigencia vigente tras la actualización
  * @param fechaHoraFinVigencia {@code ZonedDateTime} fin de vigencia vigente tras la actualización
- * @param cantidadDiasDadosDeBaja {@code int} cantidad de {@code AgendaDia} posteriores dados de baja
- *        al adelantar el fin (0 si no se adelantó el fin)
+ * @param cantidadHorariosDadosDeBaja {@code int} cantidad de {@code AgendaHorariosDia} posteriores
+ *        dados de baja al adelantar el fin (0 si no se adelantó el fin)
  */
 public record UpdateVigenciaAgendaMedicoResponse(
         UUID id,
         ZonedDateTime fechaHoraInicioVigencia,
         ZonedDateTime fechaHoraFinVigencia,
-        int cantidadDiasDadosDeBaja
+        int cantidadHorariosDadosDeBaja
 ) {
 
 }

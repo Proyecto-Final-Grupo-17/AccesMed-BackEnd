@@ -310,7 +310,7 @@
           "nombre": "tiempoToleranciaSolicitud",
           "tipo": "Duration",
           "obligatorio": true,
-          "nota": "Antelación mínima para reservar. Define AgendaHorarios.fechaLimiteReserva."
+          "nota": "Antelación mínima para reservar. Define AgendaHorariosDia.fechaLimiteReserva."
         },
         {
           "nombre": "tiempoToleranciaValidacion",
@@ -365,14 +365,14 @@
         "tiempoToleranciaConfirmacion < tiempoRecordatorioConfirmacion <= tiempoToleranciaSolicitud",
         "Nace en el estado No Publicada",
         "Se puede modificar en No Publicada o Publicada, con turnos vivos, salvo el codigo que es inmutable. Deshabilitada no admite modificaciones (terminal e irreversible)",
-        "Al modificar duracionMinima o duracionMaxima se revalidan los AgendaHorarios futuros libres de la prestacion: los que queden fuera del rango nuevo se advierten y se dan de baja. Los ocupados no se tocan",
-        "Al modificar tiempoToleranciaSolicitud se recalcula AgendaHorarios.fechaLimiteReserva de los slots futuros libres, y se dan de baja los que queden con el plazo de reserva ya vencido. Los ocupados no se tocan",
+        "Al modificar duracionMinima o duracionMaxima se revalidan los AgendaHorariosDia futuros libres de la prestacion: los que queden fuera del rango nuevo se advierten y se dan de baja. Los ocupados no se tocan",
+        "Al modificar tiempoToleranciaSolicitud se recalcula AgendaHorariosDia.fechaLimiteReserva de los slots futuros libres, y se dan de baja los que queden con el plazo de reserva ya vencido. Los ocupados no se tocan",
         "Transiciones permitidas: No Publicada <-> Publicada, y desde cualquiera de las dos hacia Deshabilitada",
         "Deshabilitada es terminal e irreversible",
-        "Solo una Prestacion Publicada se ofrece para pedir turnos y admite AgendaHorarios nuevos",
+        "Solo una Prestacion Publicada se ofrece para pedir turnos y admite AgendaHorariosDia nuevos",
         "Una Prestacion no Deshabilitada se puede asignar a un Medico, este Publicada o No Publicada",
         "No se puede deshabilitar si existe algun Turno de la prestacion cuyo estado vigente no sea final",
-        "No se puede deshabilitar si existe algun AgendaHorarios futuro con estaOcupada en verdadero",
+        "No se puede deshabilitar si existe algun AgendaHorariosDia futuro con estaOcupada en verdadero",
         "Deshabilitarla cierra la fechaFinVigencia de sus IndicacionPrestacion vigentes, no las da de baja"
       ],
       "estados": true,
@@ -472,7 +472,7 @@
         "Los periodos del mismo par (medico, prestacion) no se solapan",
         "La prestacion no puede estar Deshabilitada al crear la asignacion",
         "No se puede cerrar fechaFinVigencia en un instante anterior al fechaHoraInicio de algun Turno de ese medico y esa prestacion cuyo estado vigente no sea final",
-        "Un AgendaHorarios exige una MedicoPrestacion vigente en la fecha del slot"
+        "Un AgendaHorariosDia exige una MedicoPrestacion vigente en la fecha del slot"
       ],
       "vigencia": true,
       "derivados": [
@@ -603,43 +603,21 @@
         "fechaHoraInicioVigencia < fechaHoraFinVigencia",
         "El periodo no se solapa con otra AgendaMedico del mismo medico",
         "La duracion del periodo es libre. Se derogo la regla que la acotaba entre Clinica.diasMinimosVigenciaAgenda y Clinica.diasMaximosVigenciaAgenda",
-        "No hace falta que todos los dias del periodo tengan AgendaDia: el patron semanal es una forma de cargarlos, no la unica"
+        "No hace falta que todos los dias del periodo tengan AgendaHorariosDia generados: el patron semanal es una forma de cargarlos, no la unica"
       ]
     },
     {
-      "nombre": "AgendaDia",
+      "nombre": "AgendaHorariosDia",
       "modulo": "AGEN",
       "auditable": true,
       "bajable": true,
-      "descripcion": "Día concreto de atención dentro de una agenda. Excluir un día es darlo de baja.",
+      "descripcion": "Slot reservable de una fecha concreta dentro de una AgendaMedico, para una prestación concreta. No hay entidad de día intermedia: el slot lleva su propia fecha y una FK directa a AgendaMedico. La duración planificada se deriva de horaHasta - horaDesde; no se persiste.",
       "atributos": [
         {
           "nombre": "fecha",
           "tipo": "LocalDate",
           "obligatorio": true
-        }
-      ],
-      "unicidad": [
-        {
-          "campos": [
-            "agendaMedico",
-            "fecha"
-          ],
-          "alcance": "activos"
-        }
-      ],
-      "reglasValidacion": [
-        "fecha comprendida en el período de vigencia de la AgendaMedico",
-        "Los dias del periodo sin AgendaDia simplemente no tienen atencion. No es obligatorio cubrir el periodo completo"
-      ]
-    },
-    {
-      "nombre": "AgendaHorarios",
-      "modulo": "AGEN",
-      "auditable": true,
-      "bajable": true,
-      "descripcion": "Slot reservable de un día de agenda, para una prestación concreta. La duración planificada se deriva de horaHasta - horaDesde; no se persiste.",
-      "atributos": [
+        },
         {
           "nombre": "horaDesde",
           "tipo": "LocalTime",
@@ -672,16 +650,18 @@
         {
           "nombre": "/fechaHoraInicio",
           "tipo": "ZonedDateTime",
-          "formula": "agendaDia.fecha + horaDesde"
+          "formula": "fecha + horaDesde"
         }
       ],
       "reglasValidacion": [
+        "fecha comprendida en el período de vigencia de la AgendaMedico",
         "horaDesde < horaHasta",
         "Clinica.horarioInicioAtencion <= horaDesde y horaHasta <= Clinica.horarioFinAtencion",
         "Prestacion.duracionMinima <= /duracion <= Prestacion.duracionMaxima",
-        "No se superpone con otro AgendaHorarios activo del mismo AgendaDia",
+        "No se superpone con otro AgendaHorariosDia activo de la misma AgendaMedico y fecha",
         "Existe una MedicoPrestacion activa entre el médico de la agenda y la prestación del slot",
-        "fechaLimiteReserva se recalcula cuando cambia Prestacion.tiempoToleranciaSolicitud, solo en los slots futuros libres"
+        "fechaLimiteReserva se recalcula cuando cambia Prestacion.tiempoToleranciaSolicitud, solo en los slots futuros libres",
+        "Las fechas del periodo sin ningun AgendaHorariosDia simplemente no tienen atencion. No es obligatorio cubrir el periodo completo"
       ]
     },
     {
@@ -1127,7 +1107,7 @@
         "fechaHoraRecordatorioConfirmacion < fechaLimiteConfirmacion",
         "tipoCobertura = OBRA_SOCIAL <-> obraSocialPaciente presente",
         "tipoCobertura = PARTICULAR  -> obraSocialPaciente vacío y MedicoPrestacion.atiendeParticular verdadero",
-        "fechaHoraInicio <= ahora + Clinica.diasMaximosAnticipacionReserva. Es el borde superior de la ventana de reserva; el inferior es AgendaHorarios.fechaLimiteReserva"
+        "fechaHoraInicio <= ahora + Clinica.diasMaximosAnticipacionReserva. Es el borde superior de la ventana de reserva; el inferior es AgendaHorariosDia.fechaLimiteReserva"
       ]
     },
     {
@@ -1445,21 +1425,14 @@
       "navegable": "origen->destino"
     },
     {
-      "origen": "AgendaDia",
+      "origen": "AgendaHorariosDia",
       "destino": "AgendaMedico",
       "multOrigen": "N",
       "multDestino": "1",
       "navegable": "origen->destino"
     },
     {
-      "origen": "AgendaHorarios",
-      "destino": "AgendaDia",
-      "multOrigen": "N",
-      "multDestino": "1",
-      "navegable": "origen->destino"
-    },
-    {
-      "origen": "AgendaHorarios",
+      "origen": "AgendaHorariosDia",
       "destino": "Prestacion",
       "multOrigen": "N",
       "multDestino": "1",
@@ -1547,7 +1520,7 @@
     },
     {
       "origen": "Turno",
-      "destino": "AgendaHorarios",
+      "destino": "AgendaHorariosDia",
       "multOrigen": "N",
       "multDestino": "1",
       "navegable": "origen->destino"
@@ -1650,7 +1623,7 @@
     "El eje vigencia es el unico que admite programar: fechaInicioVigencia y fechaFinVigencia pueden ser futuras. Ni deletedAt ni las transiciones de estado se programan.",
     "IndicacionPrestacionTurno NO es snapshot: lee el texto por navegabilidad. Lo que lo hace seguro es que IndicacionPrestacion no se borra nunca y no se puede modificar con turnos vivos.",
     "Cuales indicaciones recibe un turno se resuelve contra Turno.fechaHoraInicio, no contra el instante de creacion.",
-    "La ventana de reserva tiene dos bordes y los dos se evaluan al crear el turno: el inferior es AgendaHorarios.fechaLimiteReserva (no reservar demasiado cerca) y el superior es Clinica.diasMaximosAnticipacionReserva (no reservar demasiado lejos).",
+    "La ventana de reserva tiene dos bordes y los dos se evaluan al crear el turno: el inferior es AgendaHorariosDia.fechaLimiteReserva (no reservar demasiado cerca) y el superior es Clinica.diasMaximosAnticipacionReserva (no reservar demasiado lejos).",
     "Se puede generar agenda mas alla del horizonte de reserva: los slots existen pero no son reservables hasta que el horizonte movil los alcanza."
   ]
 }

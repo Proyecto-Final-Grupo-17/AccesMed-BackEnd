@@ -123,8 +123,8 @@ public class Turno extends Auditable {
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "agenda_horarios_id", nullable = false, foreignKey = @jakarta.persistence.ForeignKey(name = "fk_turno_agenda_horarios"))
-    private AgendaHorarios agendaHorarios;
+    @JoinColumn(name = "agenda_horarios_dia_id", nullable = false, foreignKey = @jakarta.persistence.ForeignKey(name = "fk_turno_agenda_horarios_dia"))
+    private AgendaHorariosDia agendaHorarios;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "obra_social_paciente_id", foreignKey = @jakarta.persistence.ForeignKey(name = "fk_turno_obra_social_paciente"))

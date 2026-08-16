@@ -1,7 +1,7 @@
 package com.accesmed.backend.Services.DomainServices;
 
-import com.accesmed.backend.Domain.AgendaHorarios;
-import com.accesmed.backend.Repositories.AgendaHorariosRepository;
+import com.accesmed.backend.Domain.AgendaHorariosDia;
+import com.accesmed.backend.Repositories.AgendaHorariosDiaRepository;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,23 +15,26 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Lógica de dominio y persistencia para la entidad {@code AgendaHorarios}. Nació de solo
- * lectura para el enforcement de la precondición restrictiva de baja de Prestación contra
- * horarios futuros ocupados; la Fase B lo extiende con el stack de escritura completo,
- * tocando únicamente {@code AgendaHorariosRepository}.
+ * Lógica de dominio y persistencia para la entidad {@code AgendaHorariosDia}. Nació de
+ * solo lectura para el enforcement de la precondición restrictiva de baja de Prestación
+ * contra horarios futuros ocupados; la Fase B lo extiende con el stack de escritura
+ * completo, tocando únicamente {@code AgendaHorariosDiaRepository}. Absorbe también la
+ * lógica de conteo por día: un "día" es, simplemente, una fecha distinta entre los
+ * horarios activos, no una entidad propia.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AgendaHorariosDomainService {
+public class AgendaHorariosDiaDomainService {
 
     //region ========== Dependencias o inyecciones ==========
 
-    private final AgendaHorariosRepository agendaHorariosRepository;
+    private final AgendaHorariosDiaRepository agendaHorariosDiaRepository;
 
     //endregion
 
@@ -47,7 +50,7 @@ public class AgendaHorariosDomainService {
      */
     public void validateSinAgendaFuturaOcupada(UUID prestacionId) {
 
-        if (agendaHorariosRepository.existsByPrestacionIdAndEstaOcupadaTrueAndDeletedAtIsNullAndAgendaDia_FechaGreaterThanEqual(
+        if (agendaHorariosDiaRepository.existsByPrestacion_IdAndEstaOcupadaTrueAndDeletedAtIsNullAndFechaGreaterThanEqual(
                 prestacionId, LocalDate.now())) {
             log.warn("No se pudo validar sin agenda futura ocupada para la prestación {}: tiene horarios de agenda futuros ocupados", prestacionId);
             throw new ReglaNegocioException(getClass(), "PRESTACION_CON_AGENDA_OCUPADA",
@@ -59,91 +62,150 @@ public class AgendaHorariosDomainService {
     /**
      * Guarda un horario de agenda en la base de datos.
      *
-     * @param agendaHorarios {@code AgendaHorarios} entidad a persistir
-     * @return {@code AgendaHorarios} el horario guardado
+     * @param agendaHorariosDia {@code AgendaHorariosDia} entidad a persistir
+     * @return {@code AgendaHorariosDia} el horario guardado
      */
-    public AgendaHorarios saveAgendaHorarios(AgendaHorarios agendaHorarios) {
+    public AgendaHorariosDia saveAgendaHorariosDia(AgendaHorariosDia agendaHorariosDia) {
 
-        log.debug("Guardando horario de agenda: día={}", agendaHorarios.getAgendaDia().getId());
+        log.debug("Guardando horario de agenda: agenda={}, fecha={}",
+                agendaHorariosDia.getAgendaMedico().getId(), agendaHorariosDia.getFecha());
 
-        return agendaHorariosRepository.save(agendaHorarios);
+        return agendaHorariosDiaRepository.save(agendaHorariosDia);
 
     }
 
     /**
      * Guarda un lote de horarios de agenda en la base de datos.
      *
-     * @param agendaHorarios {@code List<AgendaHorarios>} entidades a persistir
-     * @return {@code List<AgendaHorarios>} los horarios guardados
+     * @param agendaHorariosDia {@code List<AgendaHorariosDia>} entidades a persistir
+     * @return {@code List<AgendaHorariosDia>} los horarios guardados
      */
-    public List<AgendaHorarios> saveAllAgendaHorarios(List<AgendaHorarios> agendaHorarios) {
+    public List<AgendaHorariosDia> saveAllAgendaHorariosDia(List<AgendaHorariosDia> agendaHorariosDia) {
 
-        log.debug("Guardando lote de {} horario(s) de agenda", agendaHorarios.size());
+        log.debug("Guardando lote de {} horario(s) de agenda", agendaHorariosDia.size());
 
-        return agendaHorariosRepository.saveAll(agendaHorarios);
+        return agendaHorariosDiaRepository.saveAll(agendaHorariosDia);
 
     }
 
     /**
-     * Lista los horarios activos de un día de agenda.
+     * Lista los horarios activos de una agenda completa. Base de {@code getAgendaMedico}.
      *
-     * @param agendaDiaId {@code UUID} identificador del {@code AgendaDia}
-     * @return {@code List<AgendaHorarios>} horarios activos de ese día
+     * @param agendaMedicoId {@code UUID} identificador de la agenda
+     * @return {@code List<AgendaHorariosDia>} horarios activos de esa agenda
      */
-    public List<AgendaHorarios> findByAgendaDiaId(UUID agendaDiaId) {
+    public List<AgendaHorariosDia> findByAgendaMedicoId(UUID agendaMedicoId) {
 
-        return agendaHorariosRepository.findByAgendaDia_IdAndDeletedAtIsNull(agendaDiaId);
+        log.debug("Buscando horarios activos de la agenda: {}", agendaMedicoId);
+
+        return agendaHorariosDiaRepository.findByAgendaMedico_IdAndDeletedAtIsNull(agendaMedicoId);
 
     }
 
     /**
-     * Lista los horarios activos de un conjunto de días de agenda.
+     * Lista los horarios activos de una agenda para un conjunto de fechas. Base de la
+     * resolución de {@code fechasAExcluir} (get por baja) y de {@code aplicarHorariosAAgregar}
+     * (rangos ya ocupados de las fechas a agregar), ambos en {@code updateAgendaMedico}.
      *
-     * @param agendaDiaIds {@code Collection<UUID>} identificadores de los {@code AgendaDia}
-     * @return {@code List<AgendaHorarios>} horarios activos de esos días
+     * @param agendaMedicoId {@code UUID} identificador de la agenda
+     * @param fechas {@code Collection<LocalDate>} fechas a buscar
+     * @return {@code List<AgendaHorariosDia>} horarios activos de esa agenda en esas fechas
      */
-    public List<AgendaHorarios> findByAgendaDiaIds(Collection<UUID> agendaDiaIds) {
+    public List<AgendaHorariosDia> findByAgendaMedicoIdAndFechas(UUID agendaMedicoId, Collection<LocalDate> fechas) {
 
-        if (agendaDiaIds.isEmpty()) {
+        if (fechas.isEmpty()) {
             return List.of();
         }
 
-        return agendaHorariosRepository.findByAgendaDia_IdInAndDeletedAtIsNull(agendaDiaIds);
+        log.debug("Buscando horarios activos de la agenda {} en las fechas: {}", agendaMedicoId, fechas);
+
+        return agendaHorariosDiaRepository.findByAgendaMedico_IdAndFechaInAndDeletedAtIsNull(agendaMedicoId, fechas);
 
     }
 
     /**
-     * Busca horarios activos por un conjunto de identificadores.
+     * Lista los horarios activos de una agenda posteriores a una fecha dada (excluida).
+     * Usado por {@code updateVigenciaAgendaMedico} al adelantar el fin de vigencia.
+     *
+     * @param agendaMedicoId {@code UUID} identificador de la agenda
+     * @param fecha {@code LocalDate} fecha a partir de la cual (exclusive) se consideran "posteriores"
+     * @return {@code List<AgendaHorariosDia>} horarios activos posteriores a esa fecha
+     */
+    public List<AgendaHorariosDia> findHorariosPosteriores(UUID agendaMedicoId, LocalDate fecha) {
+
+        log.debug("Buscando horarios de agenda posteriores a {}: agenda={}", fecha, agendaMedicoId);
+
+        return agendaHorariosDiaRepository.findByAgendaMedico_IdAndFechaGreaterThanAndDeletedAtIsNull(agendaMedicoId, fecha);
+
+    }
+
+    /**
+     * Busca horarios activos por un conjunto de identificadores. Usado para resolver
+     * {@code horariosAExcluir} de {@code updateAgendaMedico}.
      *
      * @param ids {@code Collection<UUID>} identificadores de los horarios
-     * @return {@code List<AgendaHorarios>} horarios activos que existen entre esos identificadores
+     * @return {@code List<AgendaHorariosDia>} horarios activos que existen entre esos identificadores
      */
-    public List<AgendaHorarios> findAgendaHorariosByIds(Collection<UUID> ids) {
+    public List<AgendaHorariosDia> findAgendaHorariosByIds(Collection<UUID> ids) {
 
         if (ids.isEmpty()) {
             return List.of();
         }
 
-        return agendaHorariosRepository.findByIdInAndDeletedAtIsNull(ids);
+        return agendaHorariosDiaRepository.findByIdInAndDeletedAtIsNull(ids);
 
     }
 
     /**
      * Cuenta los horarios activos de toda una agenda médica. Usado para armar los conteos
-     * de {@code listAgendaMedico}.
+     * de {@code listAgendaMedico} cuando se consulta una sola agenda.
      *
      * @param agendaMedicoId {@code UUID} identificador de la agenda
      * @return {@code long} cantidad de horarios activos de esa agenda
      */
     public long countActivosByAgendaMedico(UUID agendaMedicoId) {
 
-        return agendaHorariosRepository.countByAgendaDia_AgendaMedico_IdAndDeletedAtIsNull(agendaMedicoId);
+        return agendaHorariosDiaRepository.countByAgendaMedico_IdAndDeletedAtIsNull(agendaMedicoId);
+
+    }
+
+    /**
+     * Cuenta las fechas distintas con horarios activos de una agenda.
+     *
+     * @param agendaMedicoId {@code UUID} identificador de la agenda
+     * @return {@code long} cantidad de fechas distintas con horarios activos
+     */
+    public long countDiasActivos(UUID agendaMedicoId) {
+
+        return agendaHorariosDiaRepository.countDistinctFechasByAgendaMedico(agendaMedicoId);
+
+    }
+
+    /**
+     * Cuenta, en una sola consulta agrupada, las fechas distintas y los horarios activos
+     * de cada agenda de un lote, indexados por id de agenda. Cierra el N+1 de
+     * {@code listAgendaMedico} (Fase 3 bis #1): antes se pedían ambos conteos por fila de
+     * página.
+     *
+     * @param agendaMedicoIds {@code Collection<UUID>} identificadores de las agendas
+     * @return {@code Map<UUID, AgendaHorariosDiaRepository.ConteoAgendaMedico>} los conteos, indexados por id de agenda
+     */
+    public Map<UUID, AgendaHorariosDiaRepository.ConteoAgendaMedico> countDiasYHorariosActivosByAgendaMedicoIds(Collection<UUID> agendaMedicoIds) {
+
+        if (agendaMedicoIds.isEmpty()) {
+            return Map.of();
+        }
+
+        log.debug("Buscando conteos de días y horarios activos de {} agenda(s)", agendaMedicoIds.size());
+
+        return agendaHorariosDiaRepository.countDiasYHorariosActivosByAgendaMedicoIds(agendaMedicoIds).stream()
+                .collect(Collectors.toMap(AgendaHorariosDiaRepository.ConteoAgendaMedico::getAgendaMedicoId, conteo -> conteo));
 
     }
 
     /**
      * Valida que ninguno de los horarios indicados esté ocupado. Guarda restrictiva de
-     * {@code updateAgendaMedico} y {@code updateVigenciaAgendaMedico}: excluir un día,
+     * {@code updateAgendaMedico} y {@code updateVigenciaAgendaMedico}: excluir fechas,
      * excluir horarios o adelantar el corte se rechaza si arrastra algún horario ocupado,
      * informando cuántos y hasta qué fecha, <b>antes de escribir nada</b>.
      *
@@ -156,10 +218,10 @@ public class AgendaHorariosDomainService {
             return;
         }
 
-        long cantidadOcupados = agendaHorariosRepository.countByIdInAndEstaOcupadaTrueAndDeletedAtIsNull(ids);
+        long cantidadOcupados = agendaHorariosDiaRepository.countByIdInAndEstaOcupadaTrueAndDeletedAtIsNull(ids);
 
         if (cantidadOcupados > 0) {
-            LocalDate fechaMaxima = agendaHorariosRepository.findMaxFechaOcupadaByIdIn(ids).orElse(null);
+            LocalDate fechaMaxima = agendaHorariosDiaRepository.findMaxFechaOcupadaByIdIn(ids).orElse(null);
             log.warn("No se pudo aplicar la operación sobre la agenda: {} horario(s) ocupado(s), fecha máxima {}",
                     cantidadOcupados, fechaMaxima);
             throw new ReglaNegocioException(getClass(), "AGENDA_HORARIOS_CON_OCUPADOS",
@@ -172,23 +234,21 @@ public class AgendaHorariosDomainService {
     /**
      * Da de baja lógica un lote de horarios de agenda.
      *
-     * @param agendaHorarios {@code List<AgendaHorarios>} horarios a dar de baja
+     * @param agendaHorariosDia {@code List<AgendaHorariosDia>} horarios a dar de baja
      * @param deletedReason {@code String} motivo de la baja, o {@code null}
      */
-    public void softDeleteAll(List<AgendaHorarios> agendaHorarios, String deletedReason) {
+    public void softDeleteAll(List<AgendaHorariosDia> agendaHorariosDia, String deletedReason) {
 
         Instant ahora = Instant.now();
 
-        List<AgendaHorarios> horariosDadosDeBaja = agendaHorarios.stream()
-                .peek(horario -> {
-                    horario.setDeletedAt(ahora);
-                    horario.setDeletedReason(deletedReason);
-                })
-                .collect(Collectors.toList());
+        agendaHorariosDia.forEach(horario -> {
+            horario.setDeletedAt(ahora);
+            horario.setDeletedReason(deletedReason);
+        });
 
-        log.debug("Dando de baja lote de {} horario(s) de agenda", horariosDadosDeBaja.size());
+        log.debug("Dando de baja lote de {} horario(s) de agenda", agendaHorariosDia.size());
 
-        saveAllAgendaHorarios(horariosDadosDeBaja);
+        saveAllAgendaHorariosDia(agendaHorariosDia);
 
     }
 
@@ -216,8 +276,8 @@ public class AgendaHorariosDomainService {
      */
     public int darDeBajaFuturosLibres(UUID prestacionId, LocalDate fechaDesde, String deletedReason) {
 
-        List<AgendaHorarios> horariosLibres = agendaHorariosRepository
-                .findByPrestacion_IdAndEstaOcupadaFalseAndDeletedAtIsNullAndAgendaDia_FechaGreaterThanEqual(prestacionId, fechaDesde);
+        List<AgendaHorariosDia> horariosLibres = agendaHorariosDiaRepository
+                .findByPrestacion_IdAndEstaOcupadaFalseAndDeletedAtIsNullAndFechaGreaterThanEqual(prestacionId, fechaDesde);
 
         log.debug("Dando de baja {} horario(s) futuro(s) libre(s) de la prestación {}", horariosLibres.size(), prestacionId);
 
@@ -241,10 +301,10 @@ public class AgendaHorariosDomainService {
      */
     public int darDeBajaFueraDeRangoDuracion(UUID prestacionId, Duration duracionMinima, Duration duracionMaxima, LocalDate fechaDesde) {
 
-        List<AgendaHorarios> horariosLibres = agendaHorariosRepository
-                .findByPrestacion_IdAndEstaOcupadaFalseAndDeletedAtIsNullAndAgendaDia_FechaGreaterThanEqual(prestacionId, fechaDesde);
+        List<AgendaHorariosDia> horariosLibres = agendaHorariosDiaRepository
+                .findByPrestacion_IdAndEstaOcupadaFalseAndDeletedAtIsNullAndFechaGreaterThanEqual(prestacionId, fechaDesde);
 
-        List<AgendaHorarios> fueraDeRango = horariosLibres.stream()
+        List<AgendaHorariosDia> fueraDeRango = horariosLibres.stream()
                 .filter(horario -> {
                     Duration duracionSlot = Duration.between(horario.getHoraDesde(), horario.getHoraHasta());
                     return duracionSlot.compareTo(duracionMinima) < 0 || duracionSlot.compareTo(duracionMaxima) > 0;
@@ -274,15 +334,15 @@ public class AgendaHorariosDomainService {
     public ResultadoRecalculoTolerancia recalcularFechaLimiteReserva(UUID prestacionId, Duration nuevaTolerancia,
             LocalDate fechaDesde, ZoneId zonaHorariaClinica) {
 
-        List<AgendaHorarios> horariosLibres = agendaHorariosRepository
-                .findByPrestacion_IdAndEstaOcupadaFalseAndDeletedAtIsNullAndAgendaDia_FechaGreaterThanEqual(prestacionId, fechaDesde);
+        List<AgendaHorariosDia> horariosLibres = agendaHorariosDiaRepository
+                .findByPrestacion_IdAndEstaOcupadaFalseAndDeletedAtIsNullAndFechaGreaterThanEqual(prestacionId, fechaDesde);
 
         ZonedDateTime ahora = ZonedDateTime.now();
-        List<AgendaHorarios> aRecalcular = new ArrayList<>();
-        List<AgendaHorarios> aDarDeBaja = new ArrayList<>();
+        List<AgendaHorariosDia> aRecalcular = new ArrayList<>();
+        List<AgendaHorariosDia> aDarDeBaja = new ArrayList<>();
 
-        for (AgendaHorarios horario : horariosLibres) {
-            ZonedDateTime inicioSlot = ZonedDateTime.of(horario.getAgendaDia().getFecha(), horario.getHoraDesde(), zonaHorariaClinica);
+        for (AgendaHorariosDia horario : horariosLibres) {
+            ZonedDateTime inicioSlot = ZonedDateTime.of(horario.getFecha(), horario.getHoraDesde(), zonaHorariaClinica);
             ZonedDateTime nuevaFechaLimiteReserva = inicioSlot.minus(nuevaTolerancia);
             if (nuevaFechaLimiteReserva.isBefore(ahora)) {
                 aDarDeBaja.add(horario);
@@ -296,7 +356,7 @@ public class AgendaHorariosDomainService {
                 aRecalcular.size(), aDarDeBaja.size(), prestacionId);
 
         if (!aRecalcular.isEmpty()) {
-            saveAllAgendaHorarios(aRecalcular);
+            saveAllAgendaHorariosDia(aRecalcular);
         }
         softDeleteAll(aDarDeBaja, "Plazo de reserva vencido tras actualizar la tolerancia de solicitud de la prestación");
 

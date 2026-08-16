@@ -16,18 +16,21 @@ import lombok.Setter;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
 /**
- * Día concreto de atención dentro de una {@link AgendaMedico}. Excluir un día (feriado,
- * licencia) es darlo de baja.
+ * Slot reservable de un día concreto de una {@link AgendaMedico}, para una
+ * {@link Prestacion} determinada. La duración planificada se deriva de
+ * {@code horaHasta - horaDesde}; no se persiste como columna.
  */
 @Getter
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "agenda_dia")
-public class AgendaDia extends Auditable {
+@Table(name = "agenda_horarios_dia")
+public class AgendaHorariosDia extends Auditable {
 
     //region ========== Atributos ==========
 
@@ -40,14 +43,35 @@ public class AgendaDia extends Auditable {
     @Column(name = "fecha", nullable = false)
     private LocalDate fecha;
 
+    @NotNull
+    @Column(name = "hora_desde", nullable = false)
+    private LocalTime horaDesde;
+
+    @NotNull
+    @Column(name = "hora_hasta", nullable = false)
+    private LocalTime horaHasta;
+
+    @NotNull
+    @Column(name = "fecha_limite_reserva", nullable = false)
+    private ZonedDateTime fechaLimiteReserva;
+
+    @NotNull
+    @Column(name = "esta_ocupada", nullable = false)
+    private Boolean estaOcupada = false;
+
     //endregion
 
     //region ========== Relaciones ==========
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "agenda_medico_id", nullable = false, foreignKey = @jakarta.persistence.ForeignKey(name = "fk_agenda_dia_agenda_medico"))
+    @JoinColumn(name = "agenda_medico_id", nullable = false, foreignKey = @jakarta.persistence.ForeignKey(name = "fk_agenda_horarios_dia_agenda_medico"))
     private AgendaMedico agendaMedico;
+
+    @NotNull
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "prestacion_id", nullable = false, foreignKey = @jakarta.persistence.ForeignKey(name = "fk_agenda_horarios_dia_prestacion"))
+    private Prestacion prestacion;
 
     //endregion
 

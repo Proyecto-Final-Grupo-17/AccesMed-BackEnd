@@ -180,7 +180,7 @@ GET /accesmed-api/Prestacion/Prestacion?estadoActual.equals=PUBLICADA&page=0&siz
 | `IndicacionPrestacion` | `/accesmed-api/IndicacionPrestacion/IndicacionPrestacion` | `id`, `nombre`, `requiereValidacion`, `prestacionId`, `tipoIndicacionPrestacionId`, `createdDate`, `lastModifiedDate` |
 | `Medico` | `/accesmed-api/Medico/Medico` | `id`, `matricula`, `dni`, `nombre`, `apellido`, `email`, `especialidadId`, `tieneAgendaVigente`, `agendaVigenteAl`, `createdDate`, `lastModifiedDate` |
 | `AgendaMedico` | `/accesmed-api/AgendaMedico/Agenda` | `id`, `medicoId`, `especialidadId`, `fechaHoraInicioVigencia`, `fechaHoraFinVigencia`, `vigenteAl` |
-| `AgendaHorarios` | `/accesmed-api/AgendaMedico/Horarios` (panel) y `/accesmed-api/AgendaMedico/HorariosDisponibles` (chatbot) | `id`, `agendaMedicoId`, `medicoId`, `prestacionId`, `fecha`, `horaDesde`, `estaOcupada` |
+| `AgendaHorariosDia` | `/accesmed-api/AgendaMedico/Horarios` (panel) y `/accesmed-api/AgendaMedico/HorariosDisponibles` (chatbot) | `id`, `agendaMedicoId`, `medicoId`, `prestacionId`, `fecha`, `horaDesde`, `estaOcupada` |
 
 `Medico.tieneAgendaVigente` (`BooleanFilter`) y `agendaVigenteAl` (fecha de referencia,
 default "ahora" si no se envía) son un filtro **derivado**: no son columnas de `Medico`,
@@ -196,7 +196,7 @@ filtro de vigencia — el selector de agendas del front tiene que poder listar t
 períodos vencidos y los programados a futuro, igual que `Prestacion` no filtra por estado
 implícitamente.
 
-`AgendaHorarios` no tiene guarda fija de "activo" configurable por el front: la aplica
+`AgendaHorariosDia` no tiene guarda fija de "activo" configurable por el front: la aplica
 siempre el `QueryService`. `listHorariosAgenda` exige `deletedAt` vacío; `listHorariosDisponibles`
 suma además `estaOcupada = false`, `ahora < fechaLimiteReserva` y
 `fecha <= hoy + diasMaximosAnticipacionReserva` (horizonte configurado en `Clinica`) — el

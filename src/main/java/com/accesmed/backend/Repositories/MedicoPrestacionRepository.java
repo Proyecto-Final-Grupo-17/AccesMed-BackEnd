@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -86,5 +87,20 @@ public interface MedicoPrestacionRepository extends JpaRepository<MedicoPrestaci
             + "AND (mp.fechaFinVigencia IS NULL OR mp.fechaFinVigencia > :desde)")
     boolean existsSolapamiento(@Param("medicoId") UUID medicoId, @Param("prestacionId") UUID prestacionId,
             @Param("desde") ZonedDateTime desde, @Param("hasta") ZonedDateTime hasta);
+
+    /**
+     * Lista todas las asignaciones (vigentes o no) de un médico para un lote de
+     * prestaciones. Base del chequeo de vigencia en memoria de {@code AgendaMedicoApp}
+     * (Fase 3 bis #2): la vigencia es un período, así que conviene traer los períodos una
+     * sola vez y evaluar todas las fechas del lote sin volver a consultar la base.
+     *
+     * @param medicoId {@code UUID} identificador del médico
+     * @param prestacionIds {@code Collection<UUID>} identificadores de las prestaciones
+     * @return {@code List<MedicoPrestacion>} las asignaciones del médico para esas prestaciones
+     */
+    @Query("SELECT mp FROM MedicoPrestacion mp WHERE mp.medico.id = :medicoId "
+            + "AND mp.prestacion.id IN :prestacionIds")
+    List<MedicoPrestacion> findByMedico_IdAndPrestacion_IdIn(@Param("medicoId") UUID medicoId,
+            @Param("prestacionIds") Collection<UUID> prestacionIds);
 
 }

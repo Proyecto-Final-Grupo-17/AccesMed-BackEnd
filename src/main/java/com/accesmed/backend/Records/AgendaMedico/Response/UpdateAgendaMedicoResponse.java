@@ -9,19 +9,16 @@ import java.util.UUID;
  *
  * @param id {@code UUID} identificador de la agenda actualizada
  * @param cantidadHorariosAgregados {@code int} cantidad de slots nuevos generados por {@code horariosAAgregar}
- * @param cantidadHorariosExcluidos {@code int} cantidad de {@code AgendaHorarios} dados de baja
- *        (por {@code horariosAExcluir} más los arrastrados por {@code diasAExcluir})
- * @param cantidadDiasExcluidos {@code int} cantidad de {@code AgendaDia} dados de baja explícitamente
- *        por {@code diasAExcluir}
- * @param cantidadDiasDadosDeBajaAutomaticamente {@code int} cantidad de {@code AgendaDia} dados de baja
- *        porque quedaron sin horarios activos tras aplicar las exclusiones
+ * @param cantidadHorariosExcluidos {@code int} cantidad de {@code AgendaHorariosDia} dados de baja
+ *        (por {@code horariosAExcluir} más los arrastrados por {@code fechasAExcluir})
+ * @param cantidadFechasExcluidas {@code int} cantidad de fechas dadas de baja explícitamente
+ *        por {@code fechasAExcluir}
  */
 public record UpdateAgendaMedicoResponse(
         UUID id,
         int cantidadHorariosAgregados,
         int cantidadHorariosExcluidos,
-        int cantidadDiasExcluidos,
-        int cantidadDiasDadosDeBajaAutomaticamente
+        int cantidadFechasExcluidas
 ) {
 
 }

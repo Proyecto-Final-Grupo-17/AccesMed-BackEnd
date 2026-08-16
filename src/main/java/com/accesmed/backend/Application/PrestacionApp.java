@@ -58,7 +58,7 @@ public class PrestacionApp {
     private final TipoIndicacionPrestacionDomainService tipoIndicacionPrestacionDomainService;
     private final HistoricoEstadoPrestacionDomainService historicoEstadoPrestacionDomainService;
     private final TurnoDomainService turnoDomainService;
-    private final AgendaHorariosDomainService agendaHorariosDomainService;
+    private final AgendaHorariosDiaDomainService agendaHorariosDiaDomainService;
     private final MedicoPrestacionDomainService medicoPrestacionDomainService;
     private final ClinicaDomainService clinicaDomainService;
 
@@ -186,7 +186,7 @@ public class PrestacionApp {
                 orElseActual(updatePrestacionRequest.tiempoRecordatorioConfirmacionMinutos(), prestacionExistente.getTiempoRecordatorioConfirmacion())
         );
 
-        //Cascada AGEN (A6): revalidar/recalcular los AgendaHorarios futuros libres afectados
+        //Cascada AGEN (A6): revalidar/recalcular los AgendaHorariosDia futuros libres afectados
         //por el cambio de duraciones o de tolerancia de solicitud. Solo sobre slots futuros
         //libres: los ocupados no se tocan nunca.
         int cantidadHorariosDadosDeBaja = 0;
@@ -200,15 +200,15 @@ public class PrestacionApp {
                     orElseActual(updatePrestacionRequest.duracionMinimaMinutos(), prestacionExistente.getDuracionMinima()));
             Duration duracionMaximaNueva = Duration.ofMinutes(
                     orElseActual(updatePrestacionRequest.duracionMaximaMinutos(), prestacionExistente.getDuracionMaxima()));
-            cantidadHorariosDadosDeBaja += agendaHorariosDomainService.darDeBajaFueraDeRangoDuracion(
+            cantidadHorariosDadosDeBaja += agendaHorariosDiaDomainService.darDeBajaFueraDeRangoDuracion(
                     id, duracionMinimaNueva, duracionMaximaNueva, hoy);
         }
 
         if (updatePrestacionRequest.tiempoToleranciaSolicitudMinutos() != null) {
             Duration toleranciaSolicitudNueva = Duration.ofMinutes(updatePrestacionRequest.tiempoToleranciaSolicitudMinutos());
             //El inicio del slot es fecha + hora de calendario: se resuelve a instante con la zona de la clínica
-            AgendaHorariosDomainService.ResultadoRecalculoTolerancia resultadoRecalculo =
-                    agendaHorariosDomainService.recalcularFechaLimiteReserva(id, toleranciaSolicitudNueva, hoy,
+            AgendaHorariosDiaDomainService.ResultadoRecalculoTolerancia resultadoRecalculo =
+                    agendaHorariosDiaDomainService.recalcularFechaLimiteReserva(id, toleranciaSolicitudNueva, hoy,
                             clinicaDomainService.findZonaHorariaClinica());
             cantidadHorariosRecalculados += resultadoRecalculo.cantidadRecalculados();
             cantidadHorariosDadosDeBaja += resultadoRecalculo.cantidadDadosDeBaja();
@@ -300,7 +300,7 @@ public class PrestacionApp {
         turnoDomainService.validateSinTurnosVivos(id);
 
         //Validar que no tenga agenda futura ocupada
-        agendaHorariosDomainService.validateSinAgendaFuturaOcupada(id);
+        agendaHorariosDiaDomainService.validateSinAgendaFuturaOcupada(id);
 
         //Cerrar la vigencia de las indicaciones vigentes: sin turnos vivos (ya validado arriba),
         //"ahora" nunca puede caer antes de un turno que necesite protección.
@@ -310,9 +310,9 @@ public class PrestacionApp {
         //Cerrar la vigencia de las MedicoPrestacion vigentes de la prestación (A4, paso 1)
         medicoPrestacionDomainService.cerrarVigenciasByPrestacion(id, ahora);
 
-        //Dar de baja los AgendaHorarios futuros libres de la prestación (A4, paso 2). Los
+        //Dar de baja los AgendaHorariosDia futuros libres de la prestación (A4, paso 2). Los
         //ocupados no se tocan: ya se validó arriba que no hay agenda futura ocupada.
-        agendaHorariosDomainService.darDeBajaFuturosLibres(id, LocalDate.now(), "Prestación deshabilitada");
+        agendaHorariosDiaDomainService.darDeBajaFuturosLibres(id, LocalDate.now(), "Prestación deshabilitada");
 
         //TODO (A4, paso 4): dar de baja las ObraSocialPlanPrestacion de la prestación. Sin
         // módulo (repo/service/App/controller) al que delegarlo todavía. Ver

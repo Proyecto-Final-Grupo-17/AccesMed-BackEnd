@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -87,6 +88,27 @@ public class PrestacionDomainService {
                     return new RecursoNoEncontradoException(getClass(), "PRESTACION_NO_ENCONTRADA",
                             "No existe una prestación activa con el id " + id);
                 });
+
+    }
+
+    /**
+     * Busca las prestaciones activas (no deshabilitadas) de un lote de identificadores, en
+     * una sola consulta. Base de la resolución en lote de {@code AgendaMedicoApp} (Fase 3
+     * bis #3): los ids pedidos que no vuelven en el resultado son los inexistentes o
+     * deshabilitados, sin necesidad de un {@code try/catch} por prestación.
+     *
+     * @param ids {@code Collection<UUID>} identificadores de las prestaciones
+     * @return {@code List<Prestacion>} las prestaciones activas entre esos identificadores
+     */
+    public List<Prestacion> findPrestacionesActivasByIds(Collection<UUID> ids) {
+
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+
+        log.debug("Buscando prestaciones activas por ids: {}", ids);
+
+        return prestacionRepository.findByIdInAndEstadoVigenteNot(ids, EstadoPrestacion.DESHABILITADA);
 
     }
 

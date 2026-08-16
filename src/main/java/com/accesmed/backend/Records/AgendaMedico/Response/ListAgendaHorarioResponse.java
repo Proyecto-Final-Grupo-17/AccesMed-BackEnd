@@ -9,8 +9,7 @@ import java.util.UUID;
  * Fila de {@code listHorariosAgenda}: pinta el calendario del panel para el período de
  * agenda elegido. Guarda fija: solo horarios activos ({@code deletedAt} vacío).
  *
- * @param id {@code UUID} identificador del {@code AgendaHorarios}
- * @param agendaDiaId {@code UUID} identificador del {@code AgendaDia} al que pertenece
+ * @param id {@code UUID} identificador del {@code AgendaHorariosDia}
  * @param fecha {@code LocalDate} fecha del día
  * @param horaDesde {@code LocalTime} inicio del slot
  * @param horaHasta {@code LocalTime} fin del slot
@@ -22,7 +21,6 @@ import java.util.UUID;
  */
 public record ListAgendaHorarioResponse(
         UUID id,
-        UUID agendaDiaId,
         LocalDate fecha,
         LocalTime horaDesde,
         LocalTime horaHasta,

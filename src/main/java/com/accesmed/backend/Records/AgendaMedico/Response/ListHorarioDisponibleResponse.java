@@ -11,7 +11,7 @@ import java.util.UUID;
  * {@code ahora < fechaLimiteReserva} y {@code fecha <= hoy + diasMaximosAnticipacionReserva}
  * de la clínica — el front no puede pedir un slot ocupado ni uno fuera del horizonte.
  *
- * @param id {@code UUID} identificador del {@code AgendaHorarios}
+ * @param id {@code UUID} identificador del {@code AgendaHorariosDia}
  * @param medicoId {@code UUID} identificador del médico
  * @param medicoNombre {@code String} nombre del médico
  * @param medicoApellido {@code String} apellido del médico

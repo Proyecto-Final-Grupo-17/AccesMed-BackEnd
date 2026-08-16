@@ -8,7 +8,7 @@ import java.util.UUID;
  * Slot de agenda anidado, usado por {@code DiaAgendaResponse} dentro de las respuestas de
  * {@code createAgendaMedico} y {@code getAgendaMedico}.
  *
- * @param id {@code UUID} identificador del {@code AgendaHorarios}
+ * @param id {@code UUID} identificador del {@code AgendaHorariosDia}
  * @param horaDesde {@code LocalTime} inicio del slot
  * @param horaHasta {@code LocalTime} fin del slot
  * @param prestacionId {@code UUID} identificador de la prestación del slot

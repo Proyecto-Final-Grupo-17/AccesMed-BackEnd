@@ -1,11 +1,11 @@
 package com.accesmed.backend.Application;
 
-import com.accesmed.backend.Domain.AgendaDia;
-import com.accesmed.backend.Domain.AgendaHorarios;
+import com.accesmed.backend.Domain.AgendaHorariosDia;
 import com.accesmed.backend.Domain.AgendaMedico;
 import com.accesmed.backend.Domain.Clinica;
 import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.Medico;
+import com.accesmed.backend.Domain.MedicoPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Records.AgendaMedico.Criteria.AgendaHorariosCriteria;
 import com.accesmed.backend.Records.AgendaMedico.Criteria.AgendaMedicoCriteria;
@@ -24,8 +24,8 @@ import com.accesmed.backend.Records.AgendaMedico.Response.ListAgendaMedicoRespon
 import com.accesmed.backend.Records.AgendaMedico.Response.ListHorarioDisponibleResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.UpdateAgendaMedicoResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.UpdateVigenciaAgendaMedicoResponse;
-import com.accesmed.backend.Services.DomainServices.AgendaDiaDomainService;
-import com.accesmed.backend.Services.DomainServices.AgendaHorariosDomainService;
+import com.accesmed.backend.Repositories.AgendaHorariosDiaRepository;
+import com.accesmed.backend.Services.DomainServices.AgendaHorariosDiaDomainService;
 import com.accesmed.backend.Services.DomainServices.AgendaMedicoDomainService;
 import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoPrestacionDomainService;
@@ -36,7 +36,7 @@ import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.Mappers.AgendaMedicoMapper;
-import com.accesmed.backend.Services.QueryServices.AgendaHorariosQueryService;
+import com.accesmed.backend.Services.QueryServices.AgendaHorariosDiaQueryService;
 import com.accesmed.backend.Services.QueryServices.AgendaMedicoQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import com.accesmed.backend.Services.Utils.GeneradorSlotsAgenda;
@@ -51,9 +51,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,11 +60,11 @@ import java.util.stream.Collectors;
 
 /**
  * Caso de uso de Agenda. Orquesta el flujo completo del agregado {@code AgendaMedico} /
- * {@code AgendaDia} / {@code AgendaHorarios}: alta con expansión de patrón, delta de
- * composición sobre los slots, movimiento del período de vigencia y los tres listados con
- * filtrado dinámico. Coordina médico, prestación, su estado vigente, la vigencia de
- * {@code MedicoPrestacion} y los parámetros de la clínica — toda la orquestación
- * multi-entidad vive acá, nunca en un {@code DomainService} (ver {@code ARQUITECTURA.md §5.0}).
+ * {@code AgendaHorariosDia}: alta con expansión de patrón, delta de composición sobre los
+ * slots, movimiento del período de vigencia y los tres listados con filtrado dinámico.
+ * Coordina médico, prestación, su estado vigente, la vigencia de {@code MedicoPrestacion}
+ * y los parámetros de la clínica — toda la orquestación multi-entidad vive acá, nunca en
+ * un {@code DomainService} (ver {@code ARQUITECTURA.md §5.0}).
  */
 @Slf4j
 @Service
@@ -86,8 +84,7 @@ public class AgendaMedicoApp {
     //region ========== Dependencias o inyecciones ==========
 
     private final AgendaMedicoDomainService agendaMedicoDomainService;
-    private final AgendaDiaDomainService agendaDiaDomainService;
-    private final AgendaHorariosDomainService agendaHorariosDomainService;
+    private final AgendaHorariosDiaDomainService agendaHorariosDiaDomainService;
     private final MedicoDomainService medicoDomainService;
     private final PrestacionDomainService prestacionDomainService;
     private final HistoricoEstadoPrestacionDomainService historicoEstadoPrestacionDomainService;
@@ -95,7 +92,7 @@ public class AgendaMedicoApp {
     private final ClinicaDomainService clinicaDomainService;
 
     private final AgendaMedicoQueryService agendaMedicoQueryService;
-    private final AgendaHorariosQueryService agendaHorariosQueryService;
+    private final AgendaHorariosDiaQueryService agendaHorariosDiaQueryService;
 
     private final AgendaMedicoMapper agendaMedicoMapper;
     private final GeneradorSlotsAgenda generadorSlotsAgenda;
@@ -106,8 +103,7 @@ public class AgendaMedicoApp {
 
     /**
      * Crea un período de agenda nuevo, expandiendo el patrón semanal o los días sueltos a
-     * {@code AgendaDia} + {@code AgendaHorarios}. El patrón no se persiste: se descarta
-     * después de expandirlo.
+     * {@code AgendaHorariosDia}. El patrón no se persiste: se descarta después de expandirlo.
      *
      * @param createAgendaMedicoRequest {@code CreateAgendaMedicoRequest} datos del período y del patrón
      * @return {@code CreateAgendaMedicoResponse} la agenda creada, con sus días y horarios expandidos
@@ -130,7 +126,7 @@ public class AgendaMedicoApp {
         Clinica clinica = clinicaDomainService.findClinica();
         ZoneId zonaHorariaClinica = ZoneId.of(clinica.getZonaHoraria());
 
-        List<BloqueConFecha> bloquesConFecha = expandirBloques(createAgendaMedicoRequest);
+        List<BloqueConFecha> bloquesConFecha = expandirBloques(createAgendaMedicoRequest, zonaHorariaClinica);
 
         Set<UUID> prestacionIds = bloquesConFecha.stream()
                 .map(bloqueConFecha -> bloqueConFecha.bloque().prestacionId())
@@ -156,27 +152,13 @@ public class AgendaMedicoApp {
         agendaMedicoNueva.setMedico(medicoExistente);
         AgendaMedico agendaMedicoGuardada = agendaMedicoDomainService.saveAgendaMedico(agendaMedicoNueva);
 
-        Map<LocalDate, List<GeneradorSlotsAgenda.SlotGenerado>> slotsPorFecha = slotsGenerados.stream()
-                .collect(Collectors.groupingBy(GeneradorSlotsAgenda.SlotGenerado::fecha));
+        List<AgendaHorariosDia> horariosAGuardar = slotsGenerados.stream()
+                .map(slot -> construirAgendaHorariosDia(agendaMedicoGuardada, slot))
+                .toList();
 
-        List<AgendaDia> diasCreados = new ArrayList<>();
-        List<AgendaHorarios> horariosAGuardar = new ArrayList<>();
-        for (Map.Entry<LocalDate, List<GeneradorSlotsAgenda.SlotGenerado>> entrada : slotsPorFecha.entrySet()) {
+        List<AgendaHorariosDia> horariosGuardados = agendaHorariosDiaDomainService.saveAllAgendaHorariosDia(horariosAGuardar);
 
-            AgendaDia diaCreado = agendaDiaDomainService.findOrCreateAgendaDia(agendaMedicoGuardada, entrada.getKey());
-            diasCreados.add(diaCreado);
-
-            for (GeneradorSlotsAgenda.SlotGenerado slot : entrada.getValue()) {
-                horariosAGuardar.add(construirAgendaHorarios(diaCreado, slot));
-            }
-
-        }
-
-        List<AgendaHorarios> horariosGuardados = agendaHorariosDomainService.saveAllAgendaHorarios(horariosAGuardar);
-
-        Map<UUID, List<AgendaHorarios>> horariosPorDia = horariosGuardados.stream()
-                .collect(Collectors.groupingBy(horario -> horario.getAgendaDia().getId()));
-        List<DiaAgendaResponse> diasResponse = agendaMedicoMapper.toDiaAgendaResponses(diasCreados, horariosPorDia);
+        List<DiaAgendaResponse> diasResponse = agendaMedicoMapper.toDiaAgendaResponses(horariosGuardados);
 
         CreateAgendaMedicoResponse createAgendaMedicoResponse = agendaMedicoMapper.toCreateResponse(
                 agendaMedicoGuardada, diasResponse, horariosGuardados.size());
@@ -186,10 +168,9 @@ public class AgendaMedicoApp {
 
     /**
      * Aplica un delta de composición sobre los slots de una agenda: altas y bajas de
-     * {@code AgendaDia}/{@code AgendaHorarios}. Orden de la transacción: resolver la unión
-     * de bajas, validar la guarda restrictiva contra slots ocupados, aplicar las bajas,
-     * aplicar las altas (con get-or-create del día) y, por último, dar de baja los días que
-     * quedaron sin horarios activos.
+     * {@code AgendaHorariosDia}. Orden de la transacción: resolver la unión de bajas
+     * (directas por id más las arrastradas por {@code fechasAExcluir}), validar la guarda
+     * restrictiva contra slots ocupados, aplicar las bajas y, por último, aplicar las altas.
      *
      * @param updateAgendaMedicoRequest {@code UpdateAgendaMedicoRequest} delta a aplicar,
      *        incluyendo el id de la agenda (ya validado contra la ruta en el Controller)
@@ -206,55 +187,49 @@ public class AgendaMedicoApp {
 
         log.info("Actualización de agenda médica iniciada: id={}", id);
 
+        //Paso 1
         AgendaMedico agendaMedicoExistente = agendaMedicoDomainService.findAgendaMedicoById(id);
 
-        List<UUID> diasAExcluirIds = nullToEmpty(updateAgendaMedicoRequest.diasAExcluir());
         List<UUID> horariosAExcluirIds = nullToEmpty(updateAgendaMedicoRequest.horariosAExcluir());
+        List<LocalDate> fechasAExcluir = nullToEmpty(updateAgendaMedicoRequest.fechasAExcluir());
         List<HorarioAAgregarRequest> horariosAAgregar = nullToEmpty(updateAgendaMedicoRequest.horariosAAgregar());
 
-        //Paso 2: resolver todo lo que el request daría de baja
-        List<AgendaDia> diasAExcluir = agendaDiaDomainService.findAgendaDiasByIds(diasAExcluirIds);
-        Set<UUID> diasAExcluirIdSet = diasAExcluir.stream().map(AgendaDia::getId).collect(Collectors.toSet());
+        validateSinContradiccion(fechasAExcluir, horariosAAgregar);
 
-        validateSinContradiccion(diasAExcluir, horariosAAgregar);
+        //Paso 2: resolver la unión de horarios a dar de baja (directos + arrastrados por fecha)
+        List<AgendaHorariosDia> horariosDirectosAExcluir = agendaHorariosDiaDomainService.findAgendaHorariosByIds(horariosAExcluirIds);
+        List<AgendaHorariosDia> horariosPorFechasAExcluir = agendaHorariosDiaDomainService
+                .findByAgendaMedicoIdAndFechas(id, fechasAExcluir);
 
-        List<AgendaHorarios> horariosDirectosAExcluir = agendaHorariosDomainService.findAgendaHorariosByIds(horariosAExcluirIds);
-        List<AgendaHorarios> horariosArrastradosPorDias = agendaHorariosDomainService.findByAgendaDiaIds(diasAExcluirIdSet);
-
-        List<AgendaHorarios> horariosAEliminarTotal = unirSinDuplicados(horariosDirectosAExcluir, horariosArrastradosPorDias);
-        Set<UUID> idsAEliminarTotal = horariosAEliminarTotal.stream().map(AgendaHorarios::getId).collect(Collectors.toSet());
+        Map<UUID, AgendaHorariosDia> horariosAEliminarPorId = new LinkedHashMap<>();
+        horariosDirectosAExcluir.forEach(horario -> horariosAEliminarPorId.put(horario.getId(), horario));
+        horariosPorFechasAExcluir.forEach(horario -> horariosAEliminarPorId.put(horario.getId(), horario));
+        List<AgendaHorariosDia> horariosAEliminarTotal = new ArrayList<>(horariosAEliminarPorId.values());
 
         //Paso 3: guarda restrictiva sobre la unión, antes de escribir nada
-        agendaHorariosDomainService.validateSinOcupados(idsAEliminarTotal);
+        agendaHorariosDiaDomainService.validateSinOcupados(horariosAEliminarPorId.keySet());
 
-        //Paso 4: aplicar las bajas
-        agendaHorariosDomainService.softDeleteAll(horariosAEliminarTotal, "Excluido por actualización de agenda");
-        for (AgendaDia diaAExcluir : diasAExcluir) {
-            agendaDiaDomainService.softDeleteAgendaDia(diaAExcluir, "Excluido por actualización de agenda");
-        }
+        //Paso 4: aplicar bajas y altas
+        agendaHorariosDiaDomainService.softDeleteAll(horariosAEliminarTotal, "Excluido por actualización de agenda");
 
-        //Paso 5: aplicar las altas, con get-or-create del día
-        List<AgendaHorarios> horariosGuardados = aplicarHorariosAAgregar(agendaMedicoExistente, horariosAAgregar);
-
-        //Paso 6: dar de baja los días que quedaron sin horarios activos, entre los tocados por horariosAExcluir
-        int cantidadDiasDadosDeBajaAutomaticamente = darDeBajaDiasSinHorariosActivos(horariosDirectosAExcluir, diasAExcluirIdSet);
+        List<AgendaHorariosDia> horariosGuardados = aplicarHorariosAAgregar(agendaMedicoExistente, horariosAAgregar);
 
         UpdateAgendaMedicoResponse updateAgendaMedicoResponse = new UpdateAgendaMedicoResponse(id,
-                horariosGuardados.size(), horariosAEliminarTotal.size(), diasAExcluir.size(), cantidadDiasDadosDeBajaAutomaticamente);
+                horariosGuardados.size(), horariosAEliminarTotal.size(), fechasAExcluir.size());
         return updateAgendaMedicoResponse;
 
     }
 
     /**
      * Actualiza el período de vigencia de una agenda: mover el inicio (solo si no arrancó),
-     * adelantar el fin (restrictivo, con baja en cascada de los días posteriores) o
+     * adelantar el fin (restrictivo, con baja en cascada de los horarios posteriores) o
      * atrasarlo. El no solapamiento con otros períodos del médico lo valida igual que el
      * alta.
      *
      * @param updateVigenciaAgendaMedicoRequest {@code UpdateVigenciaAgendaMedicoRequest} nuevas
      *        fechas, incluyendo el id de la agenda (ya validado contra la ruta en el Controller)
      * @return {@code UpdateVigenciaAgendaMedicoResponse} la vigencia actualizada y la cantidad de
-     *         días dados de baja al adelantar el fin
+     *         horarios dados de baja al adelantar el fin
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la agenda no existe
      * @throws ValidacionException {@code ValidacionException} si se intenta mover un inicio ya
      *         arrancado, o el período resultante es inválido
@@ -291,24 +266,19 @@ public class AgendaMedicoApp {
 
         agendaMedicoDomainService.validateSinSolapamiento(agendaMedicoExistente.getMedico().getId(), nuevoInicio, nuevoFin, id);
 
-        int cantidadDiasDadosDeBaja = 0;
+        int cantidadHorariosDadosDeBaja = 0;
         boolean seAdelantaFin = updateVigenciaAgendaMedicoRequest.fechaHoraFinVigencia() != null
                 && nuevoFin.isBefore(agendaMedicoExistente.getFechaHoraFinVigencia());
 
         if (seAdelantaFin) {
 
-            List<AgendaDia> diasPosteriores = agendaDiaDomainService.findDiasPosteriores(id, nuevoFin.toLocalDate());
-            Set<UUID> diasPosterioresIds = diasPosteriores.stream().map(AgendaDia::getId).collect(Collectors.toSet());
-            List<AgendaHorarios> horariosArrastrados = agendaHorariosDomainService.findByAgendaDiaIds(diasPosterioresIds);
-            Set<UUID> idsHorariosArrastrados = horariosArrastrados.stream().map(AgendaHorarios::getId).collect(Collectors.toSet());
+            List<AgendaHorariosDia> horariosPosteriores = agendaHorariosDiaDomainService.findHorariosPosteriores(id, nuevoFin.toLocalDate());
+            Set<UUID> idsHorariosPosteriores = horariosPosteriores.stream().map(AgendaHorariosDia::getId).collect(Collectors.toSet());
 
-            agendaHorariosDomainService.validateSinOcupados(idsHorariosArrastrados);
+            agendaHorariosDiaDomainService.validateSinOcupados(idsHorariosPosteriores);
 
-            agendaHorariosDomainService.softDeleteAll(horariosArrastrados, "Excluido por adelanto de fin de vigencia de agenda");
-            for (AgendaDia diaPosterior : diasPosteriores) {
-                agendaDiaDomainService.softDeleteAgendaDia(diaPosterior, "Excluido por adelanto de fin de vigencia de agenda");
-            }
-            cantidadDiasDadosDeBaja = diasPosteriores.size();
+            agendaHorariosDiaDomainService.softDeleteAll(horariosPosteriores, "Excluido por adelanto de fin de vigencia de agenda");
+            cantidadHorariosDadosDeBaja = horariosPosteriores.size();
 
         }
 
@@ -318,7 +288,7 @@ public class AgendaMedicoApp {
 
         UpdateVigenciaAgendaMedicoResponse updateVigenciaAgendaMedicoResponse = new UpdateVigenciaAgendaMedicoResponse(
                 agendaMedicoActualizada.getId(), agendaMedicoActualizada.getFechaHoraInicioVigencia(),
-                agendaMedicoActualizada.getFechaHoraFinVigencia(), cantidadDiasDadosDeBaja);
+                agendaMedicoActualizada.getFechaHoraFinVigencia(), cantidadHorariosDadosDeBaja);
         return updateVigenciaAgendaMedicoResponse;
 
     }
@@ -329,7 +299,8 @@ public class AgendaMedicoApp {
 
     /**
      * Lista agendas médicas según el criteria de filtrado dinámico proporcionado, con los
-     * conteos de días y horarios activos de cada una.
+     * conteos de días y horarios activos de cada una, resueltos en una sola consulta
+     * agrupada para toda la página (Fase 3 bis #1: antes eran 2 queries por fila).
      *
      * @param agendaMedicoCriteria {@code AgendaMedicoCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} página solicitada
@@ -342,8 +313,16 @@ public class AgendaMedicoApp {
 
         Page<AgendaMedico> paginaAgendas = agendaMedicoQueryService.findByCriteria(agendaMedicoCriteria, pageable);
 
-        PageResponse<ListAgendaMedicoResponse> pageResponse = PageResponse.from(paginaAgendas, agenda -> agendaMedicoMapper.toListResponse(
-                agenda, agendaDiaDomainService.countDiasActivos(agenda.getId()), agendaHorariosDomainService.countActivosByAgendaMedico(agenda.getId())));
+        List<UUID> agendaMedicoIds = paginaAgendas.getContent().stream().map(AgendaMedico::getId).toList();
+        Map<UUID, AgendaHorariosDiaRepository.ConteoAgendaMedico> conteosPorAgenda =
+                agendaHorariosDiaDomainService.countDiasYHorariosActivosByAgendaMedicoIds(agendaMedicoIds);
+
+        PageResponse<ListAgendaMedicoResponse> pageResponse = PageResponse.from(paginaAgendas, agenda -> {
+            AgendaHorariosDiaRepository.ConteoAgendaMedico conteo = conteosPorAgenda.get(agenda.getId());
+            long cantidadDias = conteo != null ? conteo.getCantidadDias() : 0L;
+            long cantidadHorarios = conteo != null ? conteo.getCantidadHorarios() : 0L;
+            return agendaMedicoMapper.toListResponse(agenda, cantidadDias, cantidadHorarios);
+        });
         return pageResponse;
 
     }
@@ -369,11 +348,8 @@ public class AgendaMedicoApp {
                             "No existe una agenda médica que cumpla el criteria proporcionado.");
                 });
 
-        List<AgendaDia> diasActivos = agendaDiaDomainService.findDiasActivos(agendaMedicoEncontrada.getId());
-        Map<UUID, List<AgendaHorarios>> horariosPorDia = agendaHorariosDomainService
-                .findByAgendaDiaIds(diasActivos.stream().map(AgendaDia::getId).collect(Collectors.toSet())).stream()
-                .collect(Collectors.groupingBy(horario -> horario.getAgendaDia().getId()));
-        List<DiaAgendaResponse> diasResponse = agendaMedicoMapper.toDiaAgendaResponses(diasActivos, horariosPorDia);
+        List<AgendaHorariosDia> horariosActivos = agendaHorariosDiaDomainService.findByAgendaMedicoId(agendaMedicoEncontrada.getId());
+        List<DiaAgendaResponse> diasResponse = agendaMedicoMapper.toDiaAgendaResponses(horariosActivos);
 
         GetAgendaMedicoResponse getAgendaMedicoResponse = agendaMedicoMapper.toGetResponse(agendaMedicoEncontrada, diasResponse);
         return getAgendaMedicoResponse;
@@ -394,7 +370,7 @@ public class AgendaMedicoApp {
 
         log.info("Listado de horarios de agenda iniciado: criteria={}, page={}", agendaHorariosCriteria, pageable);
 
-        Page<AgendaHorarios> paginaHorarios = agendaHorariosQueryService.findByCriteria(agendaHorariosCriteria, pageable);
+        Page<AgendaHorariosDia> paginaHorarios = agendaHorariosDiaQueryService.findByCriteria(agendaHorariosCriteria, pageable);
 
         PageResponse<ListAgendaHorarioResponse> pageResponse = PageResponse.from(paginaHorarios, agendaMedicoMapper::toListHorarioResponse);
         return pageResponse;
@@ -417,7 +393,7 @@ public class AgendaMedicoApp {
         log.info("Listado de horarios disponibles iniciado: criteria={}, page={}", agendaHorariosCriteria, pageable);
 
         Clinica clinica = clinicaDomainService.findClinica();
-        Page<AgendaHorarios> paginaHorarios = agendaHorariosQueryService.findHorariosDisponibles(
+        Page<AgendaHorariosDia> paginaHorarios = agendaHorariosDiaQueryService.findHorariosDisponibles(
                 agendaHorariosCriteria, pageable, clinica.getDiasMaximosAnticipacionReserva());
 
         PageResponse<ListHorarioDisponibleResponse> pageResponse = PageResponse.from(paginaHorarios, agendaMedicoMapper::toListHorarioDisponibleResponse);
@@ -444,10 +420,14 @@ public class AgendaMedicoApp {
 
     }
 
-    private List<BloqueConFecha> expandirBloques(CreateAgendaMedicoRequest createAgendaMedicoRequest) {
+    private List<BloqueConFecha> expandirBloques(CreateAgendaMedicoRequest createAgendaMedicoRequest, ZoneId zonaHorariaClinica) {
 
-        LocalDate fechaInicio = createAgendaMedicoRequest.fechaHoraInicioVigencia().toLocalDate();
-        LocalDate fechaFin = createAgendaMedicoRequest.fechaHoraFinVigencia().toLocalDate();
+        //El inicio/fin de vigencia vienen como instante con el offset del cliente: hay que
+        //resolverlos a fecha de calendario con la zona horaria de la clínica, no con la del
+        //cliente, para que el patrón semanal se expanda sobre los días que la clínica
+        //considera reales.
+        LocalDate fechaInicio = createAgendaMedicoRequest.fechaHoraInicioVigencia().withZoneSameInstant(zonaHorariaClinica).toLocalDate();
+        LocalDate fechaFin = createAgendaMedicoRequest.fechaHoraFinVigencia().withZoneSameInstant(zonaHorariaClinica).toLocalDate();
         List<BloqueConFecha> bloquesConFecha = new ArrayList<>();
         List<String> errores = new ArrayList<>();
 
@@ -502,22 +482,32 @@ public class AgendaMedicoApp {
 
     }
 
+    /**
+     * Resuelve un lote de prestaciones a sus entidades activas y publicadas, en 2 consultas
+     * en total (Fase 3 bis #3): una para las prestaciones activas del lote (batch, en vez de
+     * un {@code find} + {@code try/catch} por prestación) y otra para sus estados vigentes
+     * ({@link HistoricoEstadoPrestacionDomainService#getEstadosVigentes}, que ya existe).
+     * Los ids pedidos que no vuelven entre las activas son los inexistentes o deshabilitados.
+     *
+     * @param prestacionIds {@code Set<UUID>} identificadores de las prestaciones del lote
+     * @return {@code Map<UUID, Prestacion>} las prestaciones activas y publicadas, por id
+     * @throws ValidacionException {@code ValidacionException} si alguna prestación no existe,
+     *         está deshabilitada o no está publicada
+     */
     private Map<UUID, Prestacion> resolvePrestacionesPublicadas(Set<UUID> prestacionIds) {
 
-        Map<UUID, Prestacion> prestacionesPorId = new HashMap<>();
-        List<String> errores = new ArrayList<>();
+        List<Prestacion> prestacionesActivas = prestacionDomainService.findPrestacionesActivasByIds(prestacionIds);
+        Map<UUID, Prestacion> prestacionesActivasPorId = prestacionesActivas.stream()
+                .collect(Collectors.toMap(Prestacion::getId, prestacion -> prestacion));
 
+        Map<UUID, EstadoPrestacion> estadosVigentes = historicoEstadoPrestacionDomainService.getEstadosVigentes(prestacionIds);
+
+        List<String> errores = new ArrayList<>();
         for (UUID prestacionId : prestacionIds) {
-            try {
-                Prestacion prestacionActiva = prestacionDomainService.findPrestacionActivaById(prestacionId);
-                EstadoPrestacion estadoVigente = historicoEstadoPrestacionDomainService.getEstadoVigente(prestacionId);
-                if (estadoVigente != EstadoPrestacion.PUBLICADA) {
-                    errores.add("La prestación " + prestacionId + " no está publicada.");
-                    continue;
-                }
-                prestacionesPorId.put(prestacionId, prestacionActiva);
-            } catch (RecursoNoEncontradoException excepcion) {
+            if (!prestacionesActivasPorId.containsKey(prestacionId)) {
                 errores.add("La prestación " + prestacionId + " no existe o está deshabilitada.");
+            } else if (estadosVigentes.get(prestacionId) != EstadoPrestacion.PUBLICADA) {
+                errores.add("La prestación " + prestacionId + " no está publicada.");
             }
         }
 
@@ -526,19 +516,43 @@ public class AgendaMedicoApp {
             throw new ValidacionException(getClass(), errores);
         }
 
-        return prestacionesPorId;
+        return prestacionesActivasPorId;
 
     }
 
+    /**
+     * Valida que el médico tenga la prestación vigente en cada fecha del lote, en una sola
+     * consulta (Fase 3 bis #2): trae los períodos de {@code MedicoPrestacion} del médico
+     * para las prestaciones del lote una única vez y evalúa cada fecha en memoria, con la
+     * misma semántica que la consulta puntual ({@code inicio <= fecha AND (fin IS NULL OR
+     * fecha < fin)}). Los pares se deduplican antes de validar.
+     *
+     * @param medicoId {@code UUID} identificador del médico
+     * @param fechasPrestacion {@code List<FechaPrestacion>} pares (fecha, prestación) a validar
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, con la que se
+     *        resuelve cada fecha a instante absoluto
+     * @throws ValidacionException {@code ValidacionException} si el médico no tiene alguna
+     *         de las prestaciones vigente en la fecha correspondiente
+     */
     private void validateMedicoPrestacionVigenteEnFechas(UUID medicoId, List<FechaPrestacion> fechasPrestacion,
             ZoneId zonaHorariaClinica) {
 
-        List<String> errores = fechasPrestacion.stream()
-                .filter(fechaPrestacion -> !medicoPrestacionDomainService.existsVigenteEnFecha(
-                        medicoId, fechaPrestacion.prestacionId(), fechaPrestacion.fecha().atStartOfDay(zonaHorariaClinica)))
+        List<FechaPrestacion> paresUnicos = fechasPrestacion.stream().distinct().toList();
+
+        Set<UUID> prestacionIds = paresUnicos.stream().map(FechaPrestacion::prestacionId).collect(Collectors.toSet());
+        Map<UUID, List<MedicoPrestacion>> asignacionesPorPrestacion = medicoPrestacionDomainService
+                .findAsignacionesByMedicoAndPrestaciones(medicoId, prestacionIds).stream()
+                .collect(Collectors.groupingBy(medicoPrestacion -> medicoPrestacion.getPrestacion().getId()));
+
+        List<String> errores = paresUnicos.stream()
+                .filter(fechaPrestacion -> {
+                    ZonedDateTime instanteFecha = fechaPrestacion.fecha().atStartOfDay(zonaHorariaClinica);
+                    List<MedicoPrestacion> asignaciones = asignacionesPorPrestacion.getOrDefault(fechaPrestacion.prestacionId(), List.of());
+                    return asignaciones.stream().noneMatch(asignacion -> !asignacion.getFechaInicioVigencia().isAfter(instanteFecha)
+                            && (asignacion.getFechaFinVigencia() == null || instanteFecha.isBefore(asignacion.getFechaFinVigencia())));
+                })
                 .map(fechaPrestacion -> "El médico no tiene la prestación " + fechaPrestacion.prestacionId()
                         + " vigente en la fecha " + fechaPrestacion.fecha() + ".")
-                .distinct()
                 .toList();
 
         if (!errores.isEmpty()) {
@@ -559,27 +573,28 @@ public class AgendaMedicoApp {
 
     }
 
-    private AgendaHorarios construirAgendaHorarios(AgendaDia agendaDia, GeneradorSlotsAgenda.SlotGenerado slot) {
+    private AgendaHorariosDia construirAgendaHorariosDia(AgendaMedico agendaMedico, GeneradorSlotsAgenda.SlotGenerado slot) {
 
-        AgendaHorarios agendaHorariosNueva = new AgendaHorarios();
-        agendaHorariosNueva.setAgendaDia(agendaDia);
-        agendaHorariosNueva.setPrestacion(slot.prestacion());
-        agendaHorariosNueva.setHoraDesde(slot.horaDesde());
-        agendaHorariosNueva.setHoraHasta(slot.horaHasta());
-        agendaHorariosNueva.setFechaLimiteReserva(slot.fechaLimiteReserva());
-        agendaHorariosNueva.setEstaOcupada(false);
-        return agendaHorariosNueva;
+        AgendaHorariosDia agendaHorariosDiaNueva = new AgendaHorariosDia();
+        agendaHorariosDiaNueva.setAgendaMedico(agendaMedico);
+        agendaHorariosDiaNueva.setFecha(slot.fecha());
+        agendaHorariosDiaNueva.setPrestacion(slot.prestacion());
+        agendaHorariosDiaNueva.setHoraDesde(slot.horaDesde());
+        agendaHorariosDiaNueva.setHoraHasta(slot.horaHasta());
+        agendaHorariosDiaNueva.setFechaLimiteReserva(slot.fechaLimiteReserva());
+        agendaHorariosDiaNueva.setEstaOcupada(false);
+        return agendaHorariosDiaNueva;
 
     }
 
-    private void validateSinContradiccion(List<AgendaDia> diasAExcluir, List<HorarioAAgregarRequest> horariosAAgregar) {
+    private void validateSinContradiccion(List<LocalDate> fechasAExcluir, List<HorarioAAgregarRequest> horariosAAgregar) {
 
-        Set<LocalDate> fechasDiasAExcluir = diasAExcluir.stream().map(AgendaDia::getFecha).collect(Collectors.toSet());
+        Set<LocalDate> fechasAExcluirSet = Set.copyOf(fechasAExcluir);
 
         List<String> errores = horariosAAgregar.stream()
-                .filter(horario -> fechasDiasAExcluir.contains(horario.fecha()))
+                .filter(horario -> fechasAExcluirSet.contains(horario.fecha()))
                 .map(horario -> "No se puede agregar un horario el " + horario.fecha()
-                        + " y excluir ese mismo día en el mismo request.")
+                        + " y excluir esa misma fecha en el mismo request.")
                 .distinct()
                 .toList();
 
@@ -590,16 +605,7 @@ public class AgendaMedicoApp {
 
     }
 
-    private List<AgendaHorarios> unirSinDuplicados(List<AgendaHorarios> primeraLista, List<AgendaHorarios> segundaLista) {
-
-        Map<UUID, AgendaHorarios> horariosPorId = new LinkedHashMap<>();
-        primeraLista.forEach(horario -> horariosPorId.put(horario.getId(), horario));
-        segundaLista.forEach(horario -> horariosPorId.put(horario.getId(), horario));
-        return new ArrayList<>(horariosPorId.values());
-
-    }
-
-    private List<AgendaHorarios> aplicarHorariosAAgregar(AgendaMedico agendaMedico, List<HorarioAAgregarRequest> horariosAAgregar) {
+    private List<AgendaHorariosDia> aplicarHorariosAAgregar(AgendaMedico agendaMedico, List<HorarioAAgregarRequest> horariosAAgregar) {
 
         if (horariosAAgregar.isEmpty()) {
             return List.of();
@@ -627,16 +633,12 @@ public class AgendaMedicoApp {
                 .toList(), zonaHorariaClinica);
 
         Set<LocalDate> fechasAAgregar = horariosAAgregar.stream().map(HorarioAAgregarRequest::fecha).collect(Collectors.toSet());
-        Map<LocalDate, AgendaDia> diasPorFecha = new HashMap<>();
-        Map<LocalDate, List<GeneradorSlotsAgenda.RangoHorario>> rangosExistentesPorDia = new HashMap<>();
-        for (LocalDate fecha : fechasAAgregar) {
-            AgendaDia dia = agendaDiaDomainService.findOrCreateAgendaDia(agendaMedico, fecha);
-            diasPorFecha.put(fecha, dia);
-            List<GeneradorSlotsAgenda.RangoHorario> rangosActivos = agendaHorariosDomainService.findByAgendaDiaId(dia.getId()).stream()
-                    .map(horario -> new GeneradorSlotsAgenda.RangoHorario(horario.getHoraDesde(), horario.getHoraHasta()))
-                    .toList();
-            rangosExistentesPorDia.put(fecha, rangosActivos);
-        }
+        List<AgendaHorariosDia> horariosExistentes = agendaHorariosDiaDomainService
+                .findByAgendaMedicoIdAndFechas(agendaMedico.getId(), fechasAAgregar);
+        Map<LocalDate, List<GeneradorSlotsAgenda.RangoHorario>> rangosExistentesPorDia = horariosExistentes.stream()
+                .collect(Collectors.groupingBy(AgendaHorariosDia::getFecha,
+                        Collectors.mapping(horario -> new GeneradorSlotsAgenda.RangoHorario(horario.getHoraDesde(), horario.getHoraHasta()),
+                                Collectors.toList())));
 
         List<GeneradorSlotsAgenda.BloqueAGenerar> bloquesAGenerar = horariosAAgregar.stream()
                 .map(horario -> new GeneradorSlotsAgenda.BloqueAGenerar(horario.fecha(), horario.horaDesde(), horario.horaHasta(),
@@ -648,31 +650,11 @@ public class AgendaMedicoApp {
 
         validateTopeGeneracion(slotsGenerados.size());
 
-        List<AgendaHorarios> horariosNuevos = slotsGenerados.stream()
-                .map(slot -> construirAgendaHorarios(diasPorFecha.get(slot.fecha()), slot))
+        List<AgendaHorariosDia> horariosNuevos = slotsGenerados.stream()
+                .map(slot -> construirAgendaHorariosDia(agendaMedico, slot))
                 .toList();
 
-        return agendaHorariosDomainService.saveAllAgendaHorarios(horariosNuevos);
-
-    }
-
-    private int darDeBajaDiasSinHorariosActivos(List<AgendaHorarios> horariosDirectosAExcluir, Set<UUID> diasYaExcluidos) {
-
-        Set<UUID> diasAfectados = horariosDirectosAExcluir.stream()
-                .map(horario -> horario.getAgendaDia().getId())
-                .filter(diaId -> !diasYaExcluidos.contains(diaId))
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        int cantidadDiasDadosDeBaja = 0;
-        for (UUID diaId : diasAfectados) {
-            if (agendaHorariosDomainService.findByAgendaDiaId(diaId).isEmpty()) {
-                AgendaDia diaSinHorarios = agendaDiaDomainService.findAgendaDiaActivoById(diaId);
-                agendaDiaDomainService.softDeleteAgendaDia(diaSinHorarios, "Sin horarios activos tras actualización de agenda");
-                cantidadDiasDadosDeBaja++;
-            }
-        }
-
-        return cantidadDiasDadosDeBaja;
+        return agendaHorariosDiaDomainService.saveAllAgendaHorariosDia(horariosNuevos);
 
     }
 

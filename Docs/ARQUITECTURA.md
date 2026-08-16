@@ -744,13 +744,13 @@ tipos planos y la regla simple de `partialUpdate` ("`null` = no tocar").
 
 Ninguno de los tres casos anteriores describe `updateAgendaMedico`: el request no trae
 campos del recurso raíz (`AgendaMedico` no tiene `horariosAAgregar` como columna), trae
-**altas y bajas de sus hijos** (`AgendaDia`/`AgendaHorarios`). Forzarle el nombre
-`partialUpdate` mentiría sobre qué actualiza.
+**altas y bajas de sus hijos** (`AgendaHorariosDia`). Forzarle el nombre `partialUpdate`
+mentiría sobre qué actualiza.
 
 - **`update<Entidad>`** (`PATCH`, ruta propia `/<Recurso>/{id}`): para agregados donde el
   request describe el delta de una composición, no el estado final del recurso. El record
   lleva colecciones con el sufijo **`<algo>AAgregar`**/**`<algo>AExcluir`** (ej.
-  `horariosAAgregar`, `horariosAExcluir`, `diasAExcluir`), nunca el objeto completo. `null`
+  `horariosAAgregar`, `horariosAExcluir`, `fechasAExcluir`), nunca el objeto completo. `null`
   o ausente en una de esas colecciones significa "sin cambios en ese frente" — igual que
   `partialUpdate`, pero aplicado a colecciones de hijos en vez de a campos escalares.
 

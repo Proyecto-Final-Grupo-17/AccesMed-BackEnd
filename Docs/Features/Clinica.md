@@ -38,7 +38,7 @@
 | `telefono` | String | Para mostrar el contacto o prellenar un enlace de llamada/WhatsApp. |
 | `horarioInicioAtencion` | LocalTime | Para mostrar el horario de atención y validar en el front que un horario cargado caiga dentro de la ventana. |
 | `horarioFinAtencion` | LocalTime | Ídem, límite de fin. |
-| `zonaHoraria` | String | Identificador IANA (ej. `America/Argentina/Buenos_Aires`). Es la zona con la que el backend resuelve a instante absoluto las fechas y horas de calendario del dominio, sobre todo `AgendaHorarios.fechaLimiteReserva`. |
+| `zonaHoraria` | String | Identificador IANA (ej. `America/Argentina/Buenos_Aires`). Es la zona con la que el backend resuelve a instante absoluto las fechas y horas de calendario del dominio, sobre todo `AgendaHorariosDia.fechaLimiteReserva`. |
 | `diasMaximosAnticipacionReserva` | Integer | Horizonte de reserva: hasta cuántos días en el futuro se puede pedir un turno. El front lo usa para acotar el rango de fechas que ofrece al elegir turno. |
 
 **Errores posibles:**

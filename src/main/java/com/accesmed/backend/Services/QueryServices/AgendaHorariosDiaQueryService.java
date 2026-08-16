@@ -1,13 +1,12 @@
 package com.accesmed.backend.Services.QueryServices;
 
-import com.accesmed.backend.Domain.AgendaDia_;
-import com.accesmed.backend.Domain.AgendaHorarios;
-import com.accesmed.backend.Domain.AgendaHorarios_;
+import com.accesmed.backend.Domain.AgendaHorariosDia;
+import com.accesmed.backend.Domain.AgendaHorariosDia_;
 import com.accesmed.backend.Domain.AgendaMedico_;
 import com.accesmed.backend.Domain.Medico_;
 import com.accesmed.backend.Domain.Prestacion_;
 import com.accesmed.backend.Records.AgendaMedico.Criteria.AgendaHorariosCriteria;
-import com.accesmed.backend.Repositories.AgendaHorariosRepository;
+import com.accesmed.backend.Repositories.AgendaHorariosDiaRepository;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import jakarta.persistence.criteria.JoinType;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +21,7 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 
 /**
- * Consultas de lectura para la entidad {@code AgendaHorarios}, incluido el filtrado
+ * Consultas de lectura para la entidad {@code AgendaHorariosDia}, incluido el filtrado
  * dinámico por {@link AgendaHorariosCriteria} (ver {@code Docs/ARQUITECTURA.md §7 Filtrado
  * dinámico}). Lo comparten {@code listHorariosAgenda} (panel) y {@code listHorariosDisponibles}
  * (chatbot): {@code createSpecification} aplica la única guarda común a ambos
@@ -33,20 +32,20 @@ import java.time.ZonedDateTime;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AgendaHorariosQueryService extends AbstractFiltroQueryService<AgendaHorarios, AgendaHorariosCriteria> {
+public class AgendaHorariosDiaQueryService extends AbstractFiltroQueryService<AgendaHorariosDia, AgendaHorariosCriteria> {
 
     //region ========== Dependencias o inyecciones ==========
 
-    private final AgendaHorariosRepository agendaHorariosRepository;
+    private final AgendaHorariosDiaRepository agendaHorariosDiaRepository;
 
     //endregion
 
     //region ========== Métodos ==========
 
     @Override
-    protected JpaSpecificationExecutor<AgendaHorarios> getRepository() {
+    protected JpaSpecificationExecutor<AgendaHorariosDia> getRepository() {
 
-        return agendaHorariosRepository;
+        return agendaHorariosDiaRepository;
 
     }
 
@@ -56,46 +55,45 @@ public class AgendaHorariosQueryService extends AbstractFiltroQueryService<Agend
      * común a ambos listados: {@code deletedAt} vacío.
      *
      * @param criteria {@code AgendaHorariosCriteria} filtros a aplicar, o {@code null} para no filtrar
-     * @return {@code Specification<AgendaHorarios>} especificación equivalente al criteria
+     * @return {@code Specification<AgendaHorariosDia>} especificación equivalente al criteria
      */
     @Override
-    protected Specification<AgendaHorarios> createSpecification(AgendaHorariosCriteria criteria) {
+    protected Specification<AgendaHorariosDia> createSpecification(AgendaHorariosCriteria criteria) {
 
         log.debug("Armando specification de horarios de agenda: criteria={}", criteria);
 
-        Specification<AgendaHorarios> specification = Specification
-                .<AgendaHorarios>unrestricted()
-                .and((root, query, cb) -> cb.isNull(root.get(AgendaHorarios_.deletedAt)));
+        Specification<AgendaHorariosDia> specification = Specification
+                .<AgendaHorariosDia>unrestricted()
+                .and((root, query, cb) -> cb.isNull(root.get(AgendaHorariosDia_.deletedAt)));
 
         if (criteria == null) {
             return specification;
         }
 
         if (criteria.getId() != null) {
-            specification = specification.and(buildSpecification(criteria.getId(), AgendaHorarios_.id));
+            specification = specification.and(buildSpecification(criteria.getId(), AgendaHorariosDia_.id));
         }
         if (criteria.getPrestacionId() != null) {
             specification = specification.and(buildSpecification(criteria.getPrestacionId(),
-                    root -> root.join(AgendaHorarios_.prestacion, JoinType.LEFT).get(Prestacion_.id)));
+                    root -> root.join(AgendaHorariosDia_.prestacion, JoinType.LEFT).get(Prestacion_.id)));
         }
         if (criteria.getAgendaMedicoId() != null) {
             specification = specification.and(buildSpecification(criteria.getAgendaMedicoId(),
-                    root -> root.join(AgendaHorarios_.agendaDia, JoinType.LEFT).join(AgendaDia_.agendaMedico, JoinType.LEFT).get(AgendaMedico_.id)));
+                    root -> root.join(AgendaHorariosDia_.agendaMedico, JoinType.LEFT).get(AgendaMedico_.id)));
         }
         if (criteria.getMedicoId() != null) {
             specification = specification.and(buildSpecification(criteria.getMedicoId(),
-                    root -> root.join(AgendaHorarios_.agendaDia, JoinType.LEFT).join(AgendaDia_.agendaMedico, JoinType.LEFT)
+                    root -> root.join(AgendaHorariosDia_.agendaMedico, JoinType.LEFT)
                             .join(AgendaMedico_.medico, JoinType.LEFT).get(Medico_.id)));
         }
         if (criteria.getFecha() != null) {
-            specification = specification.and(buildRangeSpecification(criteria.getFecha(),
-                    root -> root.join(AgendaHorarios_.agendaDia, JoinType.LEFT).get(AgendaDia_.fecha)));
+            specification = specification.and(buildRangeSpecification(criteria.getFecha(), AgendaHorariosDia_.fecha));
         }
         if (criteria.getHoraDesde() != null) {
-            specification = specification.and(buildRangeSpecification(criteria.getHoraDesde(), AgendaHorarios_.horaDesde));
+            specification = specification.and(buildRangeSpecification(criteria.getHoraDesde(), AgendaHorariosDia_.horaDesde));
         }
         if (criteria.getEstaOcupada() != null) {
-            specification = specification.and(buildSpecification(criteria.getEstaOcupada(), AgendaHorarios_.estaOcupada));
+            specification = specification.and(buildSpecification(criteria.getEstaOcupada(), AgendaHorariosDia_.estaOcupada));
         }
 
         return specification;
@@ -112,20 +110,19 @@ public class AgendaHorariosQueryService extends AbstractFiltroQueryService<Agend
      * @param criteria {@code AgendaHorariosCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} página solicitada
      * @param diasMaximosAnticipacionReserva {@code int} horizonte de reserva configurado en la clínica
-     * @return {@code Page<AgendaHorarios>} página de horarios disponibles que cumplen el criteria
+     * @return {@code Page<AgendaHorariosDia>} página de horarios disponibles que cumplen el criteria
      */
-    public Page<AgendaHorarios> findHorariosDisponibles(AgendaHorariosCriteria criteria, Pageable pageable, int diasMaximosAnticipacionReserva) {
+    public Page<AgendaHorariosDia> findHorariosDisponibles(AgendaHorariosCriteria criteria, Pageable pageable, int diasMaximosAnticipacionReserva) {
 
         ZonedDateTime ahora = ZonedDateTime.now();
         LocalDate fechaLimiteHorizonte = LocalDate.now().plusDays(diasMaximosAnticipacionReserva);
 
-        Specification<AgendaHorarios> specification = createSpecification(criteria)
-                .and((root, query, cb) -> cb.isFalse(root.get(AgendaHorarios_.estaOcupada)))
-                .and((root, query, cb) -> cb.greaterThan(root.get(AgendaHorarios_.fechaLimiteReserva), ahora))
-                .and((root, query, cb) -> cb.lessThanOrEqualTo(
-                        root.join(AgendaHorarios_.agendaDia, JoinType.LEFT).get(AgendaDia_.fecha), fechaLimiteHorizonte));
+        Specification<AgendaHorariosDia> specification = createSpecification(criteria)
+                .and((root, query, cb) -> cb.isFalse(root.get(AgendaHorariosDia_.estaOcupada)))
+                .and((root, query, cb) -> cb.greaterThan(root.get(AgendaHorariosDia_.fechaLimiteReserva), ahora))
+                .and((root, query, cb) -> cb.lessThanOrEqualTo(root.get(AgendaHorariosDia_.fecha), fechaLimiteHorizonte));
 
-        return agendaHorariosRepository.findAll(specification, pageable);
+        return agendaHorariosDiaRepository.findAll(specification, pageable);
 
     }
 
