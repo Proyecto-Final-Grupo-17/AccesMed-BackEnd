@@ -38,7 +38,6 @@
 | `telefono` | String | Para mostrar el contacto o prellenar un enlace de llamada/WhatsApp. |
 | `horarioInicioAtencion` | LocalTime | Para mostrar el horario de atención y validar en el front que un horario cargado caiga dentro de la ventana. |
 | `horarioFinAtencion` | LocalTime | Ídem, límite de fin. |
-| `zonaHoraria` | String | Identificador IANA (ej. `America/Argentina/Buenos_Aires`). Es la zona con la que el backend resuelve a instante absoluto las fechas y horas de calendario del dominio, sobre todo `AgendaHorarios.fechaLimiteReserva`. |
 | `diasMaximosAnticipacionReserva` | Integer | Horizonte de reserva: hasta cuántos días en el futuro se puede pedir un turno. El front lo usa para acotar el rango de fechas que ofrece al elegir turno. |
 
 **Errores posibles:**
@@ -51,9 +50,7 @@
 **Flujo simplificado:**
 1. Busca la única fila de configuración de la clínica.
 2. Resuelve los valores efectivos de horario de atención (el que vino en el request, o si
-   no vino, el ya guardado) y valida que el horario de inicio sea anterior al de fin. Si el
-   request trae `zonaHoraria`, valida que sea un identificador IANA reconocido
-   (`CLINICA_ZONA_HORARIA_INVALIDA`).
+   no vino, el ya guardado) y valida que el horario de inicio sea anterior al de fin.
 3. Aplica los campos que vinieron en el request (un campo en `null` deja ese dato sin
    tocar) y guarda.
 4. Devuelve la clínica actualizada.
@@ -71,7 +68,6 @@ No lleva `id`: al ser una instancia única, la ruta ya identifica el recurso.
 | `telefono` | String (máx. 30) | No | `null` deja el teléfono sin tocar. |
 | `horarioInicioAtencion` | LocalTime | No | `null` deja el horario de inicio sin tocar. Debe quedar antes del horario de fin efectivo. |
 | `horarioFinAtencion` | LocalTime | No | `null` deja el horario de fin sin tocar. Debe quedar después del horario de inicio efectivo. |
-| `zonaHoraria` | String (máx. 64) | No | `null` deja la zona sin tocar. Debe ser un identificador IANA válido. |
 | `diasMaximosAnticipacionReserva` | Integer (mín. 1) | No | `null` deja el valor sin tocar. |
 
 **Response para el front — `GetClinicaResponse`**

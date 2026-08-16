@@ -26,10 +26,6 @@
             <column name="telefono" type="varchar(30)">
                 <constraints nullable="false"/>
             </column>
-            <!-- Zona horaria IANA con la que se resuelven a instante las fechas/horas de calendario. -->
-            <column name="zona_horaria" type="varchar(64)">
-                <constraints nullable="false"/>
-            </column>
             <column name="horario_inicio_atencion" type="time">
                 <constraints nullable="false"/>
             </column>
@@ -54,12 +50,10 @@
         </createTable>
 
         <sql>ALTER TABLE clinica ADD CONSTRAINT ck_clinica_horario_atencion CHECK (horario_inicio_atencion &lt; horario_fin_atencion);</sql>
-        <sql>ALTER TABLE clinica ADD CONSTRAINT ck_clinica_zona_horaria CHECK (btrim(zona_horaria) &lt;&gt; '');</sql>
         <sql>ALTER TABLE clinica ADD CONSTRAINT ck_clinica_dias_maximos_anticipacion_reserva CHECK (dias_maximos_anticipacion_reserva &gt;= 1);</sql>
         <sql>ALTER TABLE clinica ADD CONSTRAINT ck_clinica_singleton_guard CHECK (singleton_guard = 1);</sql>
         <rollback>
             <sql>ALTER TABLE clinica DROP CONSTRAINT IF EXISTS ck_clinica_horario_atencion;</sql>
-            <sql>ALTER TABLE clinica DROP CONSTRAINT IF EXISTS ck_clinica_zona_horaria;</sql>
             <sql>ALTER TABLE clinica DROP CONSTRAINT IF EXISTS ck_clinica_dias_maximos_anticipacion_reserva;</sql>
             <sql>ALTER TABLE clinica DROP CONSTRAINT IF EXISTS ck_clinica_singleton_guard;</sql>
         </rollback>
@@ -79,7 +73,6 @@
             <column name="ubicacion" value="Av. Siempre Viva 123, Ciudad Autonoma de Buenos Aires"/>
             <column name="email" value="contacto@accesmed.com.ar"/>
             <column name="telefono" value="+54 11 5555-5555"/>
-            <column name="zona_horaria" value="America/Argentina/Buenos_Aires"/>
             <column name="horario_inicio_atencion" valueDate="08:00:00"/>
             <column name="horario_fin_atencion" valueDate="20:00:00"/>
             <column name="dias_maximos_anticipacion_reserva" valueNumeric="90"/>

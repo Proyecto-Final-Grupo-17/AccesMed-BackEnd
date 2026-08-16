@@ -45,7 +45,7 @@ public class ClinicaApp {
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la fila de
      *         configuración no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el horario de inicio no es
-     *         anterior al de fin, o si la zona horaria no es un identificador IANA válido
+     *         anterior al de fin
      */
     @Transactional
     public GetClinicaResponse updateClinica(UpdateClinicaRequest updateClinicaRequest) {
@@ -61,11 +61,6 @@ public class ClinicaApp {
         LocalTime horarioFinEfectivo = updateClinicaRequest.horarioFinAtencion() != null
                 ? updateClinicaRequest.horarioFinAtencion() : clinicaExistente.getHorarioFinAtencion();
         clinicaDomainService.validateHorarioAtencion(horarioInicioEfectivo, horarioFinEfectivo);
-
-        //Validar la zona horaria solo si el request la trae: si no viene, la guardada ya es válida
-        if (updateClinicaRequest.zonaHoraria() != null) {
-            clinicaDomainService.validateZonaHoraria(updateClinicaRequest.zonaHoraria());
-        }
 
         //Aplicar los cambios y guardar
         clinicaMapper.updateClinica(clinicaExistente, updateClinicaRequest);

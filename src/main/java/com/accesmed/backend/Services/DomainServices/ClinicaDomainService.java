@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalTime;
-import java.time.ZoneId;
 import java.util.List;
 
 /**
@@ -84,37 +83,6 @@ public class ClinicaDomainService {
             throw new ReglaNegocioException(getClass(), "CLINICA_HORARIO_ATENCION_INVALIDO",
                     "El horario de inicio de atención debe ser anterior al horario de fin.");
         }
-
-    }
-
-    /**
-     * Valida que la zona horaria sea un identificador IANA reconocido por la JVM. No es
-     * expresable en el esquema: el {@code CHECK} solo garantiza que no venga vacía.
-     *
-     * @param zonaHoraria {@code String} identificador de zona horaria efectivo
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si no es un identificador
-     *         de zona horaria válido
-     */
-    public void validateZonaHoraria(String zonaHoraria) {
-
-        if (!ZoneId.getAvailableZoneIds().contains(zonaHoraria)) {
-            log.warn("No se pudo actualizar la clínica: zona horaria {} desconocida", zonaHoraria);
-            throw new ReglaNegocioException(getClass(), "CLINICA_ZONA_HORARIA_INVALIDA",
-                    "La zona horaria " + zonaHoraria + " no es un identificador IANA válido.");
-        }
-
-    }
-
-    /**
-     * Resuelve la zona horaria de la clínica como {@code ZoneId}, para convertir a
-     * instante absoluto las fechas y horas de calendario del dominio.
-     *
-     * @return {@code ZoneId} zona horaria configurada en la clínica
-     */
-    public ZoneId findZonaHorariaClinica() {
-
-        ZoneId zonaHorariaClinica = ZoneId.of(findClinica().getZonaHoraria());
-        return zonaHorariaClinica;
 
     }
 
