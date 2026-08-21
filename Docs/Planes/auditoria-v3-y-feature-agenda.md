@@ -1,11 +1,17 @@
 # Plan — Auditoría v3 y feature de Agenda
 
-> **Estado al 2026-08-15.** **Fase A ejecutada** (A2, A3, A1, A4 pasos 1 y 4, A5) y **Fase
-> C ejecutada** (C2, C1). Quedan pendientes, por depender del stack de escritura de Agenda:
-> **A4 paso 2** y **A6**, ambos marcados con `// TODO` en el código. La **Fase B** (Agenda)
-> no se ejecutó: es el próximo tramo. El paso de `ObraSocialPlanPrestacion` de A4 y A5
-> quedó como `// TODO` en `PrestacionApp`, `PlanApp` y `ObraSocialApp` — no existe módulo al
-> que delegarlo.
+> **Estado al 2026-08-15.** **Fase A ejecutada completa** (A2, A3, A1, A4, A5, A6) y **Fase
+> C ejecutada** (C2, C1). **Fase B ejecutada**: feature de Agenda completa (7 endpoints,
+> `AgendaMedicoApp`/`AgendaMedicoController`, `GeneradorSlotsAgenda`, extensión de
+> `AgendaHorariosRepository`/`AgendaHorariosDomainService` con el stack de escritura,
+> filtros derivados nuevos en `MedicoCriteria`). Con el stack de escritura de Agenda ya
+> disponible, se completaron **A4 paso 2** y **A6**, que quedaban pendientes en el código
+> con `// TODO`. El paso de `ObraSocialPlanPrestacion` de A4 y A5 sigue como `// TODO` en
+> `PrestacionApp`, `PlanApp` y `ObraSocialApp` — no existe módulo al que delegarlo, queda
+> fuera de este plan. Pendiente: el front de la feature de Agenda (Fase C de Agenda, no
+> incluida en este plan — va en uno propio) y los tests de integración/App de la Fase B
+> (se dejaron sin escribir por alcance; solo se cubrió con tests unitarios
+> `GeneradorSlotsAgendaTest`).
 
 Documento de ejecución. La **Fase A** corrige los desajustes entre
 `Docs/Dominio/dominio-reglas-validaciones.md` (v3) y el código. La **Fase B** construye la

@@ -50,6 +50,15 @@ public record UpdateClinicaRequest(
         String telefono,
 
         /**
+         * Zona horaria de la clínica, como identificador IANA ({@code String}), ej.
+         * {@code America/Argentina/Buenos_Aires}. Con ella se resuelven a instante
+         * absoluto las fechas y horas de calendario del dominio. {@code null} deja la zona
+         * horaria sin tocar.
+         */
+        @Size(max = 64, message = "La zona horaria no puede exceder 64 caracteres.")
+        String zonaHoraria,
+
+        /**
          * Horario de inicio de atención ({@code LocalTime}). Debe ser anterior al horario
          * de fin de atención (efectivo, considerando el otro campo si no viene en el mismo
          * request). {@code null} deja el horario de inicio sin tocar.

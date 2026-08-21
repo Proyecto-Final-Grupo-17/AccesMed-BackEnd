@@ -2,7 +2,7 @@
 
 Documento de referencia técnica. Describe **qué significa cada clase**, **qué reglas debe hacer cumplir el backend** y **cómo se valida cada campo**, en los dos lados a la vez: anotación Bean Validation y constraint de esquema.
 
-Fuente de verdad estructural: `modelo_acces_med_v3.json` y `modelo_dte_turno_v3.json`. Si algo de este documento contradice esos archivos, mandan los JSON.
+Fuente de verdad estructural: `modelo_acces_med.json` y `modelo_dte_turno.json`. Si algo de este documento contradice esos archivos, mandan los JSON.
 
 ## Qué cambió respecto de la v2
 
@@ -11,7 +11,7 @@ Fuente de verdad estructural: `modelo_acces_med_v3.json` y `modelo_dte_turno_v3.
 3. **`MedicoPrestacion` dejó de ser «bajable»**: pasa a vigencia (`fechaInicioVigencia`, `fechaFinVigencia`), como `AgendaMedico` y `UsuarioRol`.
 4. **Deshabilitar dejó de ser una cascada y pasó a ser restrictivo.** Ni prestaciones ni planes cancelan turnos: si hay turnos vivos, la operación se rechaza. Se eliminó `MotivoCancelacion.BAJA_DE_PRESTACION`.
 5. **`IndicacionPrestacion` pasó al eje de vigencia y se volvió modificable, pero con restricción.** No se puede modificar mientras tenga turnos en estado no final; para cambiarla se programa el relevo con `fechaInicioVigencia` / `fechaFinVigencia`. **`IndicacionPrestacionTurno` sigue leyendo el texto por navegabilidad**, sin copiarlo: la combinación de vigencia y restricción lo vuelve seguro.
-6. **La modificación de `Prestacion` no se restringe por turnos**, pero al cambiar las duraciones o `tiempoToleranciaSolicitud` revalida y recalcula los `AgendaHorarios` futuros libres.
+6. **La modificación de `Prestacion` no se restringe por turnos**, pero al cambiar las duraciones o `tiempoToleranciaSolicitud` revalida y recalcula los `AgendaHorariosDia` futuros libres.
 7. **`Especialidad` tiene baja restrictiva.**
 8. **La baja de `Medico` y la baja de `Usuario` quedan desacopladas**: ninguna arrastra a la otra. La asociación `Usuario`–`Medico`/`Admin` es **unidireccional** (la FK vive en `usuario`; `Medico` y `Admin` no la navegan de vuelta). `Usuario` se crea con dos caminos según el rol: rol médico crea también la instancia de `Medico` con los datos recibidos, rol admin crea la instancia de `Admin`.
 9. **Clase nueva `Archivo`**: N→1 `Paciente` (obligatoria) y N→1 `Turno` (opcional).
@@ -38,7 +38,7 @@ Fuente de verdad estructural: `modelo_acces_med_v3.json` y `modelo_dte_turno_v3.
 
 | Clase | Eje | "Disponible" significa |
 |---|---|---|
-| `Especialidad`, `Medico`, `ObraSocial`, `Paciente`, `Archivo`, `TipoIndicacionPrestacion`, `Usuario`, `Admin`, `Rol`, `ObraSocialPlanPrestacion`, `ObraSocialPaciente`, `AgendaDia`, `AgendaHorarios` | baja lógica | `deletedAt` vacío |
+| `Especialidad`, `Medico`, `ObraSocial`, `Paciente`, `Archivo`, `TipoIndicacionPrestacion`, `Usuario`, `Admin`, `Rol`, `ObraSocialPlanPrestacion`, `ObraSocialPaciente`, `AgendaHorariosDia` | baja lógica | `deletedAt` vacío |
 | `AgendaMedico`, `MedicoPrestacion`, `IndicacionPrestacion`, `UsuarioRol` | vigencia | `fechaInicioVigencia ≤ ahora <` `fechaFinVigencia` |
 | `Prestacion`, `Plan`, `Turno` | estados | el tramo abierto no apunta a un estado terminal |
 
@@ -67,8 +67,7 @@ Fuente de verdad estructural: `modelo_acces_med_v3.json` y `modelo_dte_turno_v3.
 ### Agenda
 
 - **AgendaMedico** — período de vigencia de la agenda de un médico. **No tiene baja lógica**: se gestiona adelantando `fechaHoraFinVigencia`. **Su duración es libre**: puede ser de un día, para un suplente, o de un semestre.
-- **AgendaDia** — un día concreto dentro de ese período. Excluir un día (feriado, licencia) es darlo de baja. **No hace falta cubrir el período completo**: los días sin `AgendaDia` simplemente no tienen atención.
-- **AgendaHorarios** — el slot reservable. Pertenece a un día y a una prestación. Su duración planificada se **deriva** de `horaHasta - horaDesde`; no se persiste.
+- **AgendaHorariosDia** — el slot reservable. Pertenece directamente a una `AgendaMedico` y a una `Prestacion`, y lleva su propia `fecha`: no hay un nivel intermedio de "día" como entidad separada. Excluir una fecha entera (feriado, licencia) es dar de baja todos sus `AgendaHorariosDia` activos. **No hace falta cubrir el período completo**: las fechas sin ningún `AgendaHorariosDia` simplemente no tienen atención. Su duración planificada se **deriva** de `horaHasta - horaDesde`; no se persiste.
 
 ### Pacientes y financiadores
 
@@ -158,7 +157,6 @@ Unicidad entre activos, por clase:
 Especialidad             : codigo · nombre
 Medico                   : matricula · dni
 TipoIndicacionPrestacion : codigo · nombre
-AgendaDia                : (agendaMedico, fecha)
 Paciente                 : dni · numeroTelefono
 ObraSocial               : codigo · nombre
 ObraSocialPlanPrestacion : (plan, prestacion)
@@ -221,8 +219,8 @@ Todos los montos son `BigDecimal` con escala 2. Nunca `double`.
 | `Paciente.fechaNacimiento` | anterior a hoy (`@Past`) |
 | `AgendaMedico.fechaHoraInicioVigencia` | igual o posterior a ahora al darla de alta |
 | `AgendaMedico.fechaHoraFinVigencia` | posterior a `fechaHoraInicioVigencia` |
-| `AgendaDia.fecha` | comprendida en el período de vigencia de su `AgendaMedico` |
-| `AgendaHorarios.horaDesde` / `horaHasta` | `horaDesde < horaHasta`, ambas dentro del horario de atención de la clínica |
+| `AgendaHorariosDia.fecha` | comprendida en el período de vigencia de su `AgendaMedico` |
+| `AgendaHorariosDia.horaDesde` / `horaHasta` | `horaDesde < horaHasta`, ambas dentro del horario de atención de la clínica |
 | `HistoricoEstadoTurno.fechaHoraFin` | vacío, o posterior a `fechaHoraInicio` |
 | `HistoricoEstadoPrestacion.fechaHoraFin` | vacío, o posterior a `fechaHoraInicio` |
 | `HistoricoEstadoPlan.fechaHoraFin` | vacío, o posterior a `fechaHoraInicio` |
@@ -231,9 +229,9 @@ Todos los montos son `BigDecimal` con escala 2. Nunca `double`.
 | `IndicacionPrestacion.fechaInicioVigencia` | admite fecha futura: es cómo se programa el alta |
 | `IndicacionPrestacion.fechaFinVigencia` | vacío, o posterior a `fechaInicioVigencia`. Admite fecha futura: es cómo se programa la baja |
 
-**Tipos.** `ZonedDateTime` para instantes absolutos (todo lo que se compara contra "ahora"), `LocalDate` para fechas de calendario (`AgendaDia.fecha`, `Paciente.fechaNacimiento`), `LocalTime` para horas del día que se repiten (`AgendaHorarios.horaDesde`, el horario de atención). Las tolerancias son `Duration`.
+**Tipos.** `ZonedDateTime` para instantes absolutos (todo lo que se compara contra "ahora"), `LocalDate` para fechas de calendario (`AgendaHorariosDia.fecha`, `Paciente.fechaNacimiento`), `LocalTime` para horas del día que se repiten (`AgendaHorariosDia.horaDesde`, el horario de atención). Las tolerancias son `Duration`.
 
-La distinción importa: `AgendaHorarios` guarda `horaDesde` como `LocalTime` porque el patrón se repite día a día, pero `fechaLimiteReserva` es `ZonedDateTime` porque es un instante único que se compara con el reloj.
+La distinción importa: `AgendaHorariosDia` guarda `horaDesde` como `LocalTime` porque el patrón se repite día a día, pero `fechaLimiteReserva` es `ZonedDateTime` porque es un instante único que se compara con el reloj.
 
 ### 3.5 Enums y relaciones
 
@@ -249,7 +247,7 @@ Las que no se expresan con una anotación de campo van con `@AssertTrue` en el r
 ```
 Prestacion               : duracionMinima <= duracionMaxima
 Prestacion               : cadena de las reglas de tolerancia (sección 4)
-AgendaHorarios           : horaDesde < horaHasta
+AgendaHorariosDia        : horaDesde < horaHasta
 ObraSocialPlanPrestacion : coherencia entre modalidadCobertura, porcentajeCobertura y coseguro
 Usuario                  : exactamente uno de (medico, admin) presente
 Turno                    : tipoCobertura = OBRA_SOCIAL  <->  obraSocialPaciente presente
@@ -271,7 +269,7 @@ Una tolerancia es un `Duration` configurado en la **prestación** que responde a
 
 | Campo | Qué acota |
 |---|---|
-| `tiempoToleranciaSolicitud` | Antelación mínima para **reservar**. Define `AgendaHorarios.fechaLimiteReserva`. |
+| `tiempoToleranciaSolicitud` | Antelación mínima para **reservar**. Define `AgendaHorariosDia.fechaLimiteReserva`. |
 | `tiempoToleranciaValidacion` | Hasta cuándo se pueden **validar** las indicaciones. |
 | `tiempoToleranciaReprogramacion` | Hasta cuándo se puede **reprogramar**. |
 | `tiempoToleranciaConfirmacion` | Hasta cuándo el paciente puede **confirmar** por su cuenta. Pasado ese punto, el scheduler confirma solo. |
@@ -294,7 +292,7 @@ fechaLimiteAnuncioTemprano        = fechaHoraInicio − tiempoToleranciaAnuncio
 fechaLimiteAnuncioTardio          = fechaHoraInicio + tiempoToleranciaAnuncio
 ```
 
-`fechaLimiteReserva` **no vive en el turno**: vive en `AgendaHorarios`, se calcula al generar la agenda y vale `inicio del slot − tiempoToleranciaSolicitud`.
+`fechaLimiteReserva` **no vive en el turno**: vive en `AgendaHorariosDia`, se calcula al generar la agenda y vale `inicio del slot − tiempoToleranciaSolicitud`.
 
 ### 4.3 Las reglas de tolerancia
 
@@ -330,7 +328,7 @@ duracionMinima > 0  y  duracionMinima ≤ duracionMaxima
 
 | Momento | Comparación | Quién |
 |---|---|---|
-| Reservar un slot — borde inferior | `ahora < AgendaHorarios.fechaLimiteReserva` | Alta y reprogramación de turno |
+| Reservar un slot — borde inferior | `ahora < AgendaHorariosDia.fechaLimiteReserva` | Alta y reprogramación de turno |
 | Reservar un slot — borde superior | `fechaHoraInicio ≤ ahora + Clinica.diasMaximosAnticipacionReserva` | Alta y reprogramación de turno |
 | Validar indicaciones | `ahora < fechaLimiteValidacion` | Administrador y scheduler |
 | Reprogramar | `ahora < fechaLimiteReprogramacion` | Paciente, médico y administrador |
@@ -374,14 +372,14 @@ El máximo no se eliminó, se **reinterpretó**. Estaba acotando el largo del pe
 **Queda simétrico con lo que ya existía.** La ventana de reserva tiene dos bordes y ahora los dos se comprueban en el mismo lugar:
 
 ```
-AgendaHorarios.fechaLimiteReserva  ≤  ahora  ...  fechaHoraInicio ≤ ahora + diasMaximosAnticipacionReserva
+AgendaHorariosDia.fechaLimiteReserva  ≤  ahora  ...  fechaHoraInicio ≤ ahora + diasMaximosAnticipacionReserva
         borde inferior                                        borde superior
    (no reservar demasiado cerca)                      (no reservar demasiado lejos)
 ```
 
 **Y habilita generar agenda más allá del horizonte.** Si el patrón del médico es estable, se carga el semestre entero de una vez y los slots lejanos **se vuelven reservables solos** a medida que el horizonte móvil los alcanza. Antes había que regenerar la agenda cada tanto para abrir fechas nuevas.
 
-**Lo que se pierde**: ya no hay un tope estructural a la cantidad de `AgendaDia` y `AgendaHorarios` que un CU puede generar de una vez. Un error de carga puede crear decenas de miles de filas. Eso se cubre con un tope de generación en ECU-AGEN-1, pero como **guardarraíl operativo con advertencia**, no como regla de negocio.
+**Lo que se pierde**: ya no hay un tope estructural a la cantidad de `AgendaHorariosDia` que un CU puede generar de una vez. Un error de carga puede crear decenas de miles de filas. Eso se cubre con un tope de generación en ECU-AGEN-1, pero como **guardarraíl operativo con advertencia**, no como regla de negocio.
 
 **Si alguna vez hace falta granularidad**, el lugar natural es la prestación y no la clínica: un `tiempoMaximoAnticipacionSolicitud` simétrico al `tiempoToleranciaSolicitud` que ya existe, para que una consulta se agende a tres meses y un estudio a un año. No está en el modelo — `Prestacion` ya tiene siete `Duration` y no se justifica un octavo hasta que el caso aparezca.
 
@@ -399,7 +397,7 @@ AgendaHorarios.fechaLimiteReserva  ≤  ahora  ...  fechaHoraInicio ≤ ahora + 
 - La regla ya no es unicidad sino **no solapamiento**: los períodos del mismo par `(medico, prestacion)` no se cruzan. Un médico puede haber atendido una prestación en 2025, haberla dejado, y volver a atenderla en 2026: son dos filas.
 - Se puede asignar una prestación **No Publicada**; no se puede asignar una **Deshabilitada**. Así el médico queda preparado para atenderla desde el día en que se publica, sin depender del orden de carga.
 - **Al desasignar**: los turnos ya reservados **se mantienen** y el médico los atiende, pero la fecha de corte tiene un piso duro — **`fechaFinVigencia` no puede ser anterior al `fechaHoraInicio` de ningún turno vivo** de ese médico para esa prestación. Si el administrador pide una fecha más temprana, el sistema la rechaza y le muestra la fecha del último turno comprometido. La salida es cancelar o reprogramar esos turnos primero.
-- Se dan de baja los `AgendaHorarios` **libres** posteriores a `fechaFinVigencia`. Los ocupados no hace falta tocarlos: la regla anterior garantiza que no existan después del corte.
+- Se dan de baja los `AgendaHorariosDia` **libres** posteriores a `fechaFinVigencia`. Los ocupados no hace falta tocarlos: la regla anterior garantiza que no existan después del corte.
 - `precioParticular` y `atiendeParticular` se modifican sobre la instancia **vigente**. El turno ya congeló su monto, así que el cambio no lo alcanza.
 
 ### PREST — Prestaciones e indicaciones
@@ -408,7 +406,7 @@ AgendaHorarios.fechaLimiteReserva  ≤  ahora  ...  fechaHoraInicio ≤ ahora + 
 
 `Prestacion` **no tiene baja lógica**. Su ciclo de vida es un histórico de tramos sobre tres estados:
 
-| Estado | Se ofrece para pedir turnos | Se puede asignar a un médico | Admite `AgendaHorarios` nuevos |
+| Estado | Se ofrece para pedir turnos | Se puede asignar a un médico | Admite `AgendaHorariosDia` nuevos |
 |---|---|---|---|
 | **No Publicada** | no | sí | no |
 | **Publicada** | sí | sí | sí |
@@ -418,18 +416,18 @@ AgendaHorarios.fechaLimiteReserva  ≤  ahora  ...  fechaHoraInicio ≤ ahora + 
 - *No Publicada* ⇄ *Publicada* es una transición **reversible y sin restricciones**: es la palanca de "por ahora no lo ofrecemos".
 - *Deshabilitada* es **terminal e irreversible**. Es la baja: la prestación deja de mostrarse incluso para asignarla a los médicos.
 - Cada transición cierra el tramo vigente con `fechaHoraFin = ahora` y abre uno nuevo, exactamente igual que `HistoricoEstadoTurno`. `motivo` es un texto libre de auditoría; ninguna guarda lo lee.
-- **Despublicar no toca lo existente.** Los `AgendaHorarios` ya generados siguen ahí y los turnos ya reservados siguen vivos; lo único que cambia es que la prestación deja de listarse y no admite reservas nuevas. Es una pausa, no una cascada.
+- **Despublicar no toca lo existente.** Los `AgendaHorariosDia` ya generados siguen ahí y los turnos ya reservados siguen vivos; lo único que cambia es que la prestación deja de listarse y no admite reservas nuevas. Es una pausa, no una cascada.
 
 #### Deshabilitar es restrictivo, no cascada
 
 Este es el cambio de fondo respecto de la v2, donde la baja de prestación cancelaba turnos en lote.
 
 - **No se puede deshabilitar** una prestación si existe algún `Turno` suyo cuyo **estado vigente no sea final**.
-- **No se puede deshabilitar** si existe algún `AgendaHorarios` futuro con `estaOcupada` en verdadero. Es redundante con la anterior, pero se comprueba igual: es la guarda barata.
+- **No se puede deshabilitar** si existe algún `AgendaHorariosDia` futuro con `estaOcupada` en verdadero. Es redundante con la anterior, pero se comprueba igual: es la guarda barata.
 - El camino correcto para retirar una prestación con turnos vivos es **despublicarla** primero — deja de entrar trabajo nuevo — y deshabilitarla cuando el último turno llegó a un estado final. Si hay urgencia, el administrador cancela los turnos uno por uno con `Cancelar Turno para Paciente` y `motivoCancelacion = DECISION_ADMINISTRATIVA`.
 - **Se eliminó `MotivoCancelacion.BAJA_DE_PRESTACION`**: ya no hay ningún camino que lo produzca.
 
-Una vez que la deshabilitación es admisible, arrastra: cierre de las `MedicoPrestacion` vigentes de esa prestación, baja de sus `AgendaHorarios` futuros libres, cierre de sus `IndicacionPrestacion` vigentes y baja de sus `ObraSocialPlanPrestacion`.
+Una vez que la deshabilitación es admisible, arrastra: cierre de las `MedicoPrestacion` vigentes de esa prestación, baja de sus `AgendaHorariosDia` futuros libres, cierre de sus `IndicacionPrestacion` vigentes y baja de sus `ObraSocialPlanPrestacion`.
 
 #### Modificación de la prestación
 
@@ -438,9 +436,9 @@ Una vez que la deshabilitación es admisible, arrastra: cierre de las `MedicoPre
 
 **Por qué no se restringe por turnos.** El `Turno` ya congela el monto y las siete fechas límite. Después de creado no vuelve a leer de la prestación ni las duraciones ni las tolerancias: las duraciones solo se usan al generar slots, y las tolerancias solo al calcular las fechas límite. Bloquear la edición mientras haya turnos vivos sería, en la práctica, "nunca editable" para las prestaciones con demanda, sin comprar ninguna garantía que el snapshot no dé ya.
 
-**Pero hay dos campos cuyo cambio sí alcanza a algo existente, y no son los turnos: son los slots.** Ninguna de las dos guardas toca `AgendaHorarios` ocupados.
+**Pero hay dos campos cuyo cambio sí alcanza a algo existente, y no son los turnos: son los slots.** Ninguna de las dos guardas toca `AgendaHorariosDia` ocupados.
 
-| Campo modificado | Efecto sobre `AgendaHorarios` futuros **libres** |
+| Campo modificado | Efecto sobre `AgendaHorariosDia` futuros **libres** |
 |---|---|
 | `duracionMinima` / `duracionMaxima` | Se revalida que `horaHasta − horaDesde` siga cayendo en el rango nuevo. Los que queden fuera se informan y se dan de baja |
 | `tiempoToleranciaSolicitud` | Se **recalcula** `fechaLimiteReserva = inicio del slot − tolerancia nueva`. Los que queden con el plazo de reserva ya vencido se dan de baja |
@@ -484,11 +482,11 @@ Los períodos del par `(prestacion, nombre)` no se solapan, así que el relevo e
 - **La duración del período es libre.** Un día para un suplente, un semestre para un médico de planta. La restricción entre `diasMinimosVigenciaAgenda` y `diasMaximosVigenciaAgenda` quedó derogada y esos dos parámetros ya no existen.
 - Los períodos de un mismo médico no se solapan. Con la restricción de duración fuera, **esta es la única regla estructural que le queda al período**, así que pasa a ser la que más importa validar.
 - **El período se puede extender más allá del horizonte de reserva.** Los slots existen desde que se generan, pero solo son reservables cuando el horizonte móvil los alcanza.
-- El **patrón semanal es entrada del CU**: se usa para generar los `AgendaDia` y `AgendaHorarios` y no se persiste. **Es una forma de cargar los días, no la única**: se pueden dar de alta días sueltos, y no hace falta que todos los días del período tengan `AgendaDia`.
-- ECU-AGEN-1 lleva un **tope de generación** — cuántos `AgendaHorarios` produce una sola ejecución — como advertencia operativa antes del `Confirmar`. No es una regla de negocio: es el guardarraíl que reemplaza al tope estructural que daba `diasMaximosVigenciaAgenda`.
+- El **patrón semanal es entrada del CU**: se usa para generar los `AgendaHorariosDia` y no se persiste. **Es una forma de cargar los días, no la única**: se pueden dar de alta días sueltos, y no hace falta que todos los días del período tengan `AgendaHorariosDia` generados.
+- ECU-AGEN-1 lleva un **tope de generación** — cuántos `AgendaHorariosDia` produce una sola ejecución — como advertencia operativa antes del `Confirmar`. No es una regla de negocio: es el guardarraíl que reemplaza al tope estructural que daba `diasMaximosVigenciaAgenda`.
 - Cálculo de slots: `slot(n) = horaDesde + n × duracionTurno`. La duración debe dividir exactamente al bloque.
 - La duración de cada slot debe caer entre `duracionMinima` y `duracionMaxima` de su prestación.
-- Cada slot exige una `MedicoPrestacion` **vigente en la fecha del slot** entre el médico de la agenda y la prestación del slot. No alcanza con que exista: hay que evaluar el período contra `AgendaDia.fecha`.
+- Cada slot exige una `MedicoPrestacion` **vigente en la fecha del slot** entre el médico de la agenda y la prestación del slot. No alcanza con que exista: hay que evaluar el período contra `AgendaHorariosDia.fecha`.
 - Cada slot exige además que la prestación esté **Publicada**. Una prestación *No Publicada* se puede asignar a un médico pero no genera horarios.
 - Los bloques de un mismo día no se superponen.
 - **Un slot ocupado no se puede dar de baja**: primero hay que cancelar o reprogramar el turno.
@@ -543,14 +541,14 @@ Simétrico al de prestación, con las instancias *No Publicado*, *Publicado*, *D
 
 ### TURN — Turnos
 
-- **La ventana de reserva tiene dos bordes y los dos se comprueban al crear el turno**: `ahora < AgendaHorarios.fechaLimiteReserva` por abajo, y `fechaHoraInicio ≤ ahora + Clinica.diasMaximosAnticipacionReserva` por arriba. El segundo es nuevo: reemplaza al tope que antes daba, indirectamente, el largo máximo del período de agenda.
+- **La ventana de reserva tiene dos bordes y los dos se comprueban al crear el turno**: `ahora < AgendaHorariosDia.fechaLimiteReserva` por abajo, y `fechaHoraInicio ≤ ahora + Clinica.diasMaximosAnticipacionReserva` por arriba. El segundo es nuevo: reemplaza al tope que antes daba, indirectamente, el largo máximo del período de agenda.
 - El par `(medico, prestacion)` se valida buscando una `MedicoPrestacion` **vigente en `fechaHoraInicio` del turno**, no simplemente activa. El esquema ya no lo garantiza, porque `Turno` no apunta a `MedicoPrestacion`.
 - La `Prestacion` tiene que estar **Publicada**. Si la cobertura es por obra social, el `Plan` también tiene que estar **Publicado**; si no lo está, el turno se registra como `PARTICULAR`.
 - Al crear el turno se genera una `IndicacionPrestacionTurno` por cada `IndicacionPrestacion` **vigente en `fechaHoraInicio`** de la prestación. **No se copia texto**: el vínculo alcanza, y `nombre`, `descripcion` y `requiereValidacion` se leen por navegabilidad cada vez que se muestran.
 - El turno nace en `Espera de Validación` si alguna de esas indicaciones tiene `requiereValidacion` en verdadero; si no, en `Pendiente`.
 - Sale de `Espera de Validación` cuando ninguna `IndicacionPrestacionTurno` **activa y obligatoria** queda con `fechaHoraValidacion` vacía.
 - Un `Turno` puede tener `Archivo` asociados. No condicionan ninguna transición de estado.
-- `AgendaHorarios.estaOcupada` pasa a verdadero al crear el turno y vuelve a falso al entrar en `Cancelado` o en `Reprogramado`.
+- `AgendaHorariosDia.estaOcupada` pasa a verdadero al crear el turno y vuelve a falso al entrar en `Cancelado` o en `Reprogramado`.
 - Un turno `Confirmado` **no se puede reprogramar**: hay que cancelarlo y dar de alta uno nuevo. Es una decisión de negocio deliberada.
 - Al paciente se le expone el `codigo`, nunca el `id`.
 
@@ -595,14 +593,14 @@ En la v2 la regla de fondo era "toda baja es lógica y casi todas cascadean". En
 **Precondición restrictiva** — se comprueba antes de cualquier escritura:
 
 1. Ningún `Turno` de la prestación con estado vigente no final.
-2. Ningún `AgendaHorarios` futuro con `estaOcupada` en verdadero.
+2. Ningún `AgendaHorariosDia` futuro con `estaOcupada` en verdadero.
 
 Si alguna falla, el CU termina por excepción y le muestra al administrador cuántos turnos lo impiden y hasta qué fecha llegan. **No hay confirmación que lo saltee**: la salida es despublicar y esperar, o cancelar los turnos a mano.
 
 Cumplidas las precondiciones, arrastra en este orden:
 
 1. Cierre de `fechaFinVigencia = ahora` en las `MedicoPrestacion` vigentes de esa prestación.
-2. Baja de los `AgendaHorarios` futuros libres de esa prestación.
+2. Baja de los `AgendaHorariosDia` futuros libres de esa prestación.
 3. Cierre de `fechaFinVigencia = ahora` en sus `IndicacionPrestacion` vigentes.
 4. Baja de sus `ObraSocialPlanPrestacion`.
 5. Cierre del tramo vigente de `HistoricoEstadoPrestacion` y apertura de uno nuevo en *Deshabilitada*.
@@ -629,7 +627,7 @@ Restrictiva. No se da de baja si existe alguna `Prestacion` no deshabilitada o a
 No se opera sobre el médico: se opera sobre la agenda.
 
 - Si la salida coincide con el fin de vigencia actual: no hacer nada, dejar vencer.
-- Si se va antes: adelantar `fechaHoraFinVigencia`, dar de baja los `AgendaDia` posteriores con sus `AgendaHorarios` en cascada, y resolver los turnos que caigan después del nuevo corte.
+- Si se va antes: adelantar `fechaHoraFinVigencia`, dar de baja los `AgendaHorariosDia` posteriores a la fecha de corte, y resolver los turnos que caigan después del nuevo corte.
 - El día siguiente al último turno, ya sin turnos vivos pendientes, se ejecuta la baja del `Medico` (ver más abajo), que solo arrastra `MedicoPrestacion`.
 
 **No existe fecha de baja futura como atributo.** `deletedAt` distinto de vacío significa siempre "ya está de baja".
@@ -644,7 +642,7 @@ No se opera sobre el médico: se opera sobre la agenda.
 
 Si falla, el CU termina por excepción y le muestra al administrador cuántos turnos lo impiden. **No hay confirmación que lo saltee.**
 
-Cumplida la precondición, baja atómica en una sola transacción: `Medico` + `AgendaMedico` vigente (con `AgendaDia` y `AgendaHorarios` en cascada) + cierre de `fechaFinVigencia` de sus `MedicoPrestacion` vigentes.
+Cumplida la precondición, baja atómica en una sola transacción: `Medico` + `AgendaMedico` vigente (con sus `AgendaHorariosDia` en cascada) + cierre de `fechaFinVigencia` de sus `MedicoPrestacion` vigentes.
 
 **Cómo se llega a cumplir la precondición cuando hay turnos vivos: `Cancelar Turnos de Médico`, un CU aparte.** Cancela en lote todos los turnos no finales del médico (`motivoCancelacion = BAJA_DE_MEDICO`), sin dar de baja nada más. Es una operación independiente que el administrador invoca explícitamente antes de reintentar la baja — no un paso implícito de ella. (Pendiente de implementar; queda anotado como CU futuro.)
 
@@ -667,7 +665,7 @@ El detalle está en `modelo_dte_turno_v3.json` y en `dte_turno.svg`. Lo que el b
 - **Cada transición** cierra el `HistoricoEstadoTurno` vigente con `fechaHoraFin = ahora` y crea uno nuevo con `fechaHoraInicio = ahora`. Los tramos son contiguos y no se solapan.
 - Un turno tiene **a lo sumo un** `HistoricoEstadoTurno` con `fechaHoraFin` vacío.
 - Un estado es final porque ese tramo queda abierto para siempre. No hay atributo que lo declare.
-- La duración **real** del turno es la duración del tramo `En Curso`. La **planificada** sale del `AgendaHorarios`.
+- La duración **real** del turno es la duración del tramo `En Curso`. La **planificada** sale del `AgendaHorariosDia`.
 - Las transiciones automáticas se registran con identidad de sistema en `Auditable.createdBy`, lo que permite distinguir en reportes la confirmación manual de la automática.
 
 ### Reprogramación
@@ -808,9 +806,9 @@ cascada (ver §5 USER y AUTZ), así que ya no es un caso que dependa de navegabi
 
 | Función | Efecto |
 |---|---|
-| `configurarAgendaMedico` | Crea `AgendaMedico` + N `AgendaDia` + M `AgendaHorarios`. Admite patrón semanal o días sueltos |
-| `modificarAgendaVigente` | Da de baja `AgendaHorarios` libres y genera nuevos en un `AgendaDia`. Permite agregar días |
-| `excluirDiaAgenda` | Baja de `AgendaDia` + sus `AgendaHorarios` + cancelación de turnos del día |
+| `configurarAgendaMedico` | Crea `AgendaMedico` + N `AgendaHorariosDia`. Admite patrón semanal o días sueltos |
+| `modificarAgendaVigente` | Da de baja `AgendaHorariosDia` libres y genera nuevos. Permite agregar fechas nuevas directamente, sin entidad de día intermedia |
+| `excluirDiaAgenda` | Baja de los `AgendaHorariosDia` de la fecha + cancelación de turnos del día |
 | `adelantarFinVigenciaAgenda` | Corta `fechaHoraFinVigencia` + baja de días posteriores + cancelaciones |
 | `consultarAgendaMedico` | Consulta de días, horarios y turnos en un rango |
 | `consultarTurnosDisponibles` | Slots libres para prestación / médico / franja / rango, **dentro del horizonte de reserva** |
@@ -826,7 +824,7 @@ cascada (ver §5 USER y AUTZ), así que ya no es un caso que dependa de navegabi
 
 Todo en una sola transacción:
 
-1. Validar disponibilidad del `AgendaHorarios` (regla de disponibilidad de AGEN), incluidos **los dos
+1. Validar disponibilidad del `AgendaHorariosDia` (regla de disponibilidad de AGEN), incluidos **los dos
    bordes** de la ventana de reserva.
 2. Validar que la `Prestacion` esté **Publicada**.
 3. Validar el par (médico, prestación) → `MedicoPrestacion` **vigente en `fechaHoraInicio`**.
@@ -836,7 +834,7 @@ Todo en una sola transacción:
 6. Crear `Turno`.
 7. Crear una `IndicacionPrestacionTurno` por cada `IndicacionPrestacion` **vigente en
    `Turno.fechaHoraInicio`**, con `fechaHoraValidacion = null`. **No se copia texto.**
-8. `AgendaHorarios.estaOcupada = true`.
+8. `AgendaHorariosDia.estaOcupada = true`.
 9. Crear `HistoricoEstadoTurno` en `Espera de Validación` o en `Pendiente`.
 10. Notificar (NOTIF-1).
 

@@ -220,10 +220,10 @@
   "reglas": [
     "Un turno Confirmado no se puede reprogramar: hay que cancelarlo y dar de alta uno nuevo. Es una decisión de negocio deliberada.",
     "Cancelar Turno es un solo evento con dos guardas según quién lo dispara. Las bajas de médico y de prestación entran por acá vía Ir a CU.",
-    "AgendaHorarios.estaOcupada pasa a verdadero al crear el turno y vuelve a falso al entrar en Cancelado o en Reprogramado.",
+    "AgendaHorariosDia.estaOcupada pasa a verdadero al crear el turno y vuelve a falso al entrar en Cancelado o en Reprogramado.",
     "Cada transición cierra el HistoricoEstadoTurno vigente con fechaHoraFin igual a la fecha y hora actual y crea uno nuevo con fechaHoraInicio igual a ese instante.",
     "Las transiciones del scheduler se registran con identidad de sistema en Auditable.createdBy, lo que distingue en reportes la confirmación automática de la manual.",
-    "La duración real del turno es la duración del tramo En Curso; la planificada sale del AgendaHorarios.",
+    "La duración real del turno es la duración del tramo En Curso; la planificada sale del AgendaHorariosDia.",
     "El estado que en la v2 se llamaba En Transcurso pasa a llamarse En Curso."
   ],
   "scheduler": [

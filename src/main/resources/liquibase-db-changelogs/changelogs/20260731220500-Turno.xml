@@ -55,8 +55,8 @@
             <column name="prestacion_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_turno_prestacion" references="prestacion(id)"/>
             </column>
-            <column name="agenda_horarios_id" type="uuid">
-                <constraints nullable="false" foreignKeyName="fk_turno_agenda_horarios" references="agenda_horarios(id)"/>
+            <column name="agenda_horarios_dia_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_turno_agenda_horarios_dia" references="agenda_horarios_dia(id)"/>
             </column>
             <column name="obra_social_paciente_id" type="uuid">
                 <constraints nullable="true" foreignKeyName="fk_turno_obra_social_paciente" references="obra_social_paciente(id)"/>

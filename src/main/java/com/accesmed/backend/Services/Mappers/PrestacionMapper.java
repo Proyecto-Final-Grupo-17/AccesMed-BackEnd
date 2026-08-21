@@ -117,6 +117,8 @@ public interface PrestacionMapper {
      *
      * @param prestacion {@code Prestacion} entidad
      * @param estadoVigente {@code EstadoPrestacion} estado vigente calculado del histórico
+     * @param cantidadHorariosRecalculados {@code int} horarios futuros libres recalculados por la cascada AGEN (A6)
+     * @param cantidadHorariosDadosDeBaja {@code int} horarios futuros libres dados de baja por la cascada AGEN (A6)
      * @return {@code UpdatePrestacionResponse} respuesta de actualización
      */
     @Mapping(target = "id", source = "prestacion.id")
@@ -134,7 +136,10 @@ public interface PrestacionMapper {
     @Mapping(target = "especialidadId", source = "prestacion.especialidad.id")
     @Mapping(target = "especialidadNombre", source = "prestacion.especialidad.nombre")
     @Mapping(target = "estadoActual", source = "estadoVigente")
-    UpdatePrestacionResponse toUpdateResponse(Prestacion prestacion, EstadoPrestacion estadoVigente);
+    @Mapping(target = "cantidadHorariosRecalculados", source = "cantidadHorariosRecalculados")
+    @Mapping(target = "cantidadHorariosDadosDeBaja", source = "cantidadHorariosDadosDeBaja")
+    UpdatePrestacionResponse toUpdateResponse(Prestacion prestacion, EstadoPrestacion estadoVigente,
+            int cantidadHorariosRecalculados, int cantidadHorariosDadosDeBaja);
 
     /**
      * Convierte una entidad {@code Prestacion} a {@code CambioEstadoPrestacionResponse}.

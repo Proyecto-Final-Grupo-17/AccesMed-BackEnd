@@ -323,12 +323,12 @@ prestación está en uso vigente.
 1. Valida que la prestación exista.
 2. Valida que no esté ya deshabilitada.
 3. **Precondición restrictiva real**: rechaza si hay algún `Turno` de la prestación con
-   estado no final, o algún `AgendaHorarios` futuro ocupado de la prestación.
+   estado no final, o algún `AgendaHorariosDia` futuro ocupado de la prestación.
 4. Cierra el tramo vigente del histórico y abre uno nuevo en `DESHABILITADA` (con el
    `motivo`, si vino); el estado vigente se deriva del histórico, no se cachea.
 5. Devuelve la prestación deshabilitada.
 
-**Pendiente (TODO)**: cerrar `MedicoPrestacion` vigentes, bajar `AgendaHorarios` libres,
+**Pendiente (TODO)**: cerrar `MedicoPrestacion` vigentes, bajar `AgendaHorariosDia` libres,
 cerrar `IndicacionPrestacion` vigentes y bajar `ObraSocialPlanPrestacion` asociadas — se
 implementa cuando esos módulos existan.
 
@@ -579,7 +579,7 @@ Las reglas de tolerancia se **validan al guardar la prestación** (no en el alta
 6. **Deshabilitar eventualmente** (terminal, restrictiva): `PATCH /Prestacion/{id}/Deshabilitar`
    - Rechaza si hay turnos vivos o agenda futura ocupada de la prestación.
    - Es irreversible: "revivir" significa crear la prestación de nuevo (el `codigo` queda libre).
-   - **Pendiente**: cascada de escritura sobre `MedicoPrestacion`, `AgendaHorarios`, `IndicacionPrestacion` y `ObraSocialPlanPrestacion` (en implementación).
+   - **Pendiente**: cascada de escritura sobre `MedicoPrestacion`, `AgendaHorariosDia`, `IndicacionPrestacion` y `ObraSocialPlanPrestacion` (en implementación).
 
 ---
 

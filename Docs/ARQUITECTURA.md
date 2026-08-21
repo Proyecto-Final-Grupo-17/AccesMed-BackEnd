@@ -740,6 +740,56 @@ No se generaliza `JsonNullable` a todos los records: se paga ese costo de tipado
 endpoint puntual que de verdad necesita vaciar un campo. El resto del proyecto sigue con
 tipos planos y la regla simple de `partialUpdate` ("`null` = no tocar").
 
+### 5.2.1 Cuarto caso: actualización por delta de composición
+
+Ninguno de los tres casos anteriores describe `updateAgendaMedico`: el request no trae
+campos del recurso raíz (`AgendaMedico` no tiene `horariosAAgregar` como columna), trae
+**altas y bajas de sus hijos** (`AgendaHorariosDia`). Forzarle el nombre `partialUpdate`
+mentiría sobre qué actualiza.
+
+- **`update<Entidad>`** (`PATCH`, ruta propia `/<Recurso>/{id}`): para agregados donde el
+  request describe el delta de una composición, no el estado final del recurso. El record
+  lleva colecciones con el sufijo **`<algo>AAgregar`**/**`<algo>AExcluir`** (ej.
+  `horariosAAgregar`, `horariosAExcluir`, `fechasAExcluir`), nunca el objeto completo. `null`
+  o ausente en una de esas colecciones significa "sin cambios en ese frente" — igual que
+  `partialUpdate`, pero aplicado a colecciones de hijos en vez de a campos escalares.
+
+```java
+// Records/AgendaMedico/Request/UpdateAgendaMedicoRequest.java
+public record UpdateAgendaMedicoRequest(
+        @NotNull UUID id,
+        List<@Valid HorarioAAgregarRequest> horariosAAgregar,
+        List<UUID> horariosAExcluir,
+        List<UUID> diasAExcluir
+) {}
+
+// Controllers/AgendaMedicoController.java
+@PatchMapping("/Agenda/{id}")
+public ResponseEntity<UpdateAgendaMedicoResponse> updateAgendaMedico(
+        @PathVariable UUID id,
+        @Valid @RequestBody UpdateAgendaMedicoRequest updateAgendaMedicoRequest) {
+
+    if (!id.equals(updateAgendaMedicoRequest.id())) {
+        throw new ValidacionException(getClass(),
+                List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+    }
+
+    return ResponseEntity.ok(agendaMedicoApp.updateAgendaMedico(updateAgendaMedicoRequest));
+
+}
+```
+
+El `App` resuelve primero **toda** la unión de lo que el delta daría de baja (bajas
+directas más las arrastradas por una baja en cascada, ej. excluir un día arrastra sus
+horarios), valida las guardas restrictivas contra esa unión **antes de escribir nada**, y
+recién después aplica bajas y altas en el mismo orden que documenta la feature (ver
+`Docs/Features/Agenda.md`). El response no devuelve el recurso completo: devuelve los
+conteos de cada efecto aplicado (`cantidadHorariosAgregados`, `cantidadHorariosExcluidos`,
+...), porque el cliente ya conoce el delta que mandó.
+
+Este cuarto caso va a reaparecer en `Turno` (altas/bajas de `HistoricoEstadoTurno` o de
+adjuntos, cuando exista `Archivo`).
+
 ---
 
 ## 6. Perfiles y configuración

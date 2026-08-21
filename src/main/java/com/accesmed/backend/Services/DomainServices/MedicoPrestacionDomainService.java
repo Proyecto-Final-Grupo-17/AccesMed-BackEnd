@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -155,6 +156,46 @@ public class MedicoPrestacionDomainService {
         medicoPrestacion.setFechaFinVigencia(fechaFinVigencia);
 
         saveMedicoPrestacion(medicoPrestacion);
+
+    }
+
+    /**
+     * Verifica si existe una asignación médico-prestación vigente en una fecha dada,
+     * entre el médico y la prestación indicados. Regla de Agenda (§5 AGEN, habilitada por
+     * A1): cada slot exige una {@code MedicoPrestacion} vigente en la fecha del slot, no
+     * en "ahora".
+     *
+     * @param medicoId {@code UUID} identificador del médico
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @param fecha {@code ZonedDateTime} instante contra el cual evaluar la vigencia
+     * @return {@code boolean} {@code true} si existe una asignación vigente entre ambos en ese instante
+     */
+    public boolean existsVigenteEnFecha(UUID medicoId, UUID prestacionId, ZonedDateTime fecha) {
+
+        log.debug("Verificando vigencia médico-prestación: médico={}, prestación={}, fecha={}", medicoId, prestacionId, fecha);
+
+        return medicoPrestacionRepository.existsVigenteEnFecha(medicoId, prestacionId, fecha);
+
+    }
+
+    /**
+     * Lista todas las asignaciones (vigentes o no) de un médico para un lote de
+     * prestaciones, en una sola consulta. Pensado para evaluar la vigencia de varios pares
+     * (fecha, prestación) en memoria sin incurrir en N+1 (Fase 3 bis #2 de Agenda).
+     *
+     * @param medicoId {@code UUID} identificador del médico
+     * @param prestacionIds {@code Collection<UUID>} identificadores de las prestaciones
+     * @return {@code List<MedicoPrestacion>} las asignaciones del médico para esas prestaciones
+     */
+    public List<MedicoPrestacion> findAsignacionesByMedicoAndPrestaciones(UUID medicoId, Collection<UUID> prestacionIds) {
+
+        if (prestacionIds.isEmpty()) {
+            return List.of();
+        }
+
+        log.debug("Buscando asignaciones del médico {} para {} prestación(es)", medicoId, prestacionIds.size());
+
+        return medicoPrestacionRepository.findByMedico_IdAndPrestacion_IdIn(medicoId, prestacionIds);
 
     }
 

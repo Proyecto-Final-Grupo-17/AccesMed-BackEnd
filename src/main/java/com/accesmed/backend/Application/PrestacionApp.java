@@ -30,6 +30,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,8 +58,9 @@ public class PrestacionApp {
     private final TipoIndicacionPrestacionDomainService tipoIndicacionPrestacionDomainService;
     private final HistoricoEstadoPrestacionDomainService historicoEstadoPrestacionDomainService;
     private final TurnoDomainService turnoDomainService;
-    private final AgendaHorariosDomainService agendaHorariosDomainService;
+    private final AgendaHorariosDiaDomainService agendaHorariosDiaDomainService;
     private final MedicoPrestacionDomainService medicoPrestacionDomainService;
+    private final ClinicaDomainService clinicaDomainService;
 
     //Mappers
     private final PrestacionMapper prestacionMapper;
@@ -183,7 +186,33 @@ public class PrestacionApp {
                 orElseActual(updatePrestacionRequest.tiempoRecordatorioConfirmacionMinutos(), prestacionExistente.getTiempoRecordatorioConfirmacion())
         );
 
-        //TODO cascada AGEN: recalcular/dar de baja AgendaHorarios futuros libres afectados por el cambio de duraciones.
+        //Cascada AGEN (A6): revalidar/recalcular los AgendaHorariosDia futuros libres afectados
+        //por el cambio de duraciones o de tolerancia de solicitud. Solo sobre slots futuros
+        //libres: los ocupados no se tocan nunca.
+        int cantidadHorariosDadosDeBaja = 0;
+        int cantidadHorariosRecalculados = 0;
+        LocalDate hoy = LocalDate.now();
+
+        boolean cambianDuraciones = updatePrestacionRequest.duracionMinimaMinutos() != null
+                || updatePrestacionRequest.duracionMaximaMinutos() != null;
+        if (cambianDuraciones) {
+            Duration duracionMinimaNueva = Duration.ofMinutes(
+                    orElseActual(updatePrestacionRequest.duracionMinimaMinutos(), prestacionExistente.getDuracionMinima()));
+            Duration duracionMaximaNueva = Duration.ofMinutes(
+                    orElseActual(updatePrestacionRequest.duracionMaximaMinutos(), prestacionExistente.getDuracionMaxima()));
+            cantidadHorariosDadosDeBaja += agendaHorariosDiaDomainService.darDeBajaFueraDeRangoDuracion(
+                    id, duracionMinimaNueva, duracionMaximaNueva, hoy);
+        }
+
+        if (updatePrestacionRequest.tiempoToleranciaSolicitudMinutos() != null) {
+            Duration toleranciaSolicitudNueva = Duration.ofMinutes(updatePrestacionRequest.tiempoToleranciaSolicitudMinutos());
+            //El inicio del slot es fecha + hora de calendario: se resuelve a instante con la zona de la clínica
+            AgendaHorariosDiaDomainService.ResultadoRecalculoTolerancia resultadoRecalculo =
+                    agendaHorariosDiaDomainService.recalcularFechaLimiteReserva(id, toleranciaSolicitudNueva, hoy,
+                            clinicaDomainService.findZonaHorariaClinica());
+            cantidadHorariosRecalculados += resultadoRecalculo.cantidadRecalculados();
+            cantidadHorariosDadosDeBaja += resultadoRecalculo.cantidadDadosDeBaja();
+        }
 
         //Aplicar los cambios del request sobre la entidad existente
         prestacionMapper.updatePrestacion(prestacionExistente, updatePrestacionRequest);
@@ -195,7 +224,8 @@ public class PrestacionApp {
         EstadoPrestacion estadoVigente = historicoEstadoPrestacionDomainService.getEstadoVigente(id);
 
         //Devolver response mapeado
-        UpdatePrestacionResponse updatePrestacionResponse = prestacionMapper.toUpdateResponse(prestacionActualizada, estadoVigente);
+        UpdatePrestacionResponse updatePrestacionResponse = prestacionMapper.toUpdateResponse(
+                prestacionActualizada, estadoVigente, cantidadHorariosRecalculados, cantidadHorariosDadosDeBaja);
         return updatePrestacionResponse;
 
     }
@@ -270,7 +300,7 @@ public class PrestacionApp {
         turnoDomainService.validateSinTurnosVivos(id);
 
         //Validar que no tenga agenda futura ocupada
-        agendaHorariosDomainService.validateSinAgendaFuturaOcupada(id);
+        agendaHorariosDiaDomainService.validateSinAgendaFuturaOcupada(id);
 
         //Cerrar la vigencia de las indicaciones vigentes: sin turnos vivos (ya validado arriba),
         //"ahora" nunca puede caer antes de un turno que necesite protección.
@@ -280,9 +310,9 @@ public class PrestacionApp {
         //Cerrar la vigencia de las MedicoPrestacion vigentes de la prestación (A4, paso 1)
         medicoPrestacionDomainService.cerrarVigenciasByPrestacion(id, ahora);
 
-        //TODO (A4, paso 2, tras Fase B): dar de baja los AgendaHorarios futuros libres de la
-        // prestación. Requiere el stack de escritura de Agenda que todavía no existe. Ver
-        // Docs/Planes/auditoria-v3-y-feature-agenda.md.
+        //Dar de baja los AgendaHorariosDia futuros libres de la prestación (A4, paso 2). Los
+        //ocupados no se tocan: ya se validó arriba que no hay agenda futura ocupada.
+        agendaHorariosDiaDomainService.darDeBajaFuturosLibres(id, LocalDate.now(), "Prestación deshabilitada");
 
         //TODO (A4, paso 4): dar de baja las ObraSocialPlanPrestacion de la prestación. Sin
         // módulo (repo/service/App/controller) al que delegarlo todavía. Ver

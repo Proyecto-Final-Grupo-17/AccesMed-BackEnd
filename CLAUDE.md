@@ -20,7 +20,7 @@ construye con criterio profesional, pensado para sostenerse en el tiempo.
 
 `Medico`, `Paciente`, `Prestacion`, `MedicoPrestacion` (clase asociación:
 `atiendeParticular`, `precioParticular`), `Turno`, `AgendaMedico`,
-`AgendaMedicoHorariosDia`, `AgendaMedicoHorariosRango`, `HistoricoEstadoTurno`,
+`AgendaHorariosDia`, `HistoricoEstadoTurno`,
 `ProcesoAgente`, `MensajeClave`, `TipoMensajeClave`, `ObraSocial`, `Plan`, `Clinica`.
 Seguridad: `Admin`/`Usuario`, `Rol`, `Permiso`.
 
@@ -32,7 +32,7 @@ Reglas de dominio que hay que respetar (son verdad de terreno, salen del diagram
   en UTC como `Instant`).
 - **Nomenclatura en BD**: `snake_case` para todas las columnas (ej. `created_at`, `updated_by`,
   `deleted_at`). En Java: `camelCase` (ej. `createdAt`, `updatedBy`, `deletedAt`).
-- `Turno N→1 AgendaMedicoHorariosRango` y `Turno N→1 MedicoPrestacion`.
+- `Turno N→1 AgendaHorariosDia` y `Turno N→1 MedicoPrestacion`.
   A `Medico` y `Prestacion` desde `Turno` **solo se llega vía `MedicoPrestacion`**
   (asociaciones derivadas de solo lectura, sin FK redundante).
 - Estados del `Turno` (DTE): `Pendiente → EsperaValidacion → Confirmado →

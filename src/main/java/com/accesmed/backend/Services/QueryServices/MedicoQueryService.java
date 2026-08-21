@@ -1,5 +1,7 @@
 package com.accesmed.backend.Services.QueryServices;
 
+import com.accesmed.backend.Domain.AgendaMedico;
+import com.accesmed.backend.Domain.AgendaMedico_;
 import com.accesmed.backend.Domain.Auditable_;
 import com.accesmed.backend.Domain.Especialidad_;
 import com.accesmed.backend.Domain.Medico;
@@ -8,12 +10,21 @@ import com.accesmed.backend.Records.Medico.Criteria.MedicoCriteria;
 import com.accesmed.backend.Repositories.MedicoRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
+import com.accesmed.backend.Services.QueryServices.Filtering.BooleanFilter;
 import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
+
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Consultas de lectura para la entidad {@code Medico}, incluido el filtrado dinámico por
@@ -112,8 +123,45 @@ public class MedicoQueryService extends AbstractFiltroQueryService<Medico, Medic
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
         }
+        if (criteria.getTieneAgendaVigente() != null) {
+            ZonedDateTime fechaReferencia = criteria.getAgendaVigenteAl() != null ? criteria.getAgendaVigenteAl() : ZonedDateTime.now();
+            specification = specification.and(buildTieneAgendaVigenteSpecification(criteria.getTieneAgendaVigente(), fechaReferencia));
+        }
 
         return specification;
+
+    }
+
+    /**
+     * Arma el fragmento de {@link Specification} que filtra médicos según si tienen (o no)
+     * una {@code AgendaMedico} vigente en una fecha de referencia, con una subconsulta
+     * correlacionada {@code EXISTS}/{@code NOT EXISTS} (precedente:
+     * {@code PrestacionQueryService.buildEstadoVigenteSpecification}). Resuelve la
+     * consulta "médicos activos sin agenda vigente" de §5 AGEN sin necesidad de un
+     * endpoint propio.
+     *
+     * @param filter {@code BooleanFilter} si se pide {@code true} (tiene agenda vigente) o
+     *        {@code false} (no tiene)
+     * @param fechaReferencia {@code ZonedDateTime} fecha contra la cual evaluar la vigencia de la agenda
+     * @return {@code Specification<Medico>} fragmento que filtra por tenencia de agenda vigente
+     */
+    private Specification<Medico> buildTieneAgendaVigenteSpecification(BooleanFilter filter, ZonedDateTime fechaReferencia) {
+
+        return (root, query, cb) -> {
+            Subquery<UUID> subquery = query.subquery(UUID.class);
+            Root<AgendaMedico> agenda = subquery.from(AgendaMedico.class);
+            subquery.select(agenda.get(AgendaMedico_.id));
+
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(agenda.get(AgendaMedico_.medico), root));
+            predicates.add(cb.lessThanOrEqualTo(agenda.get(AgendaMedico_.fechaHoraInicioVigencia), fechaReferencia));
+            predicates.add(cb.greaterThan(agenda.get(AgendaMedico_.fechaHoraFinVigencia), fechaReferencia));
+
+            subquery.where(predicates.toArray(new Predicate[0]));
+
+            boolean debeTenerAgendaVigente = filter.getEquals() == null || filter.getEquals();
+            return debeTenerAgendaVigente ? cb.exists(subquery) : cb.not(cb.exists(subquery));
+        };
 
     }
 

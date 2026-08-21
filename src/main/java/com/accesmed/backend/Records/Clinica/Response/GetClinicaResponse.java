@@ -43,6 +43,11 @@ public record GetClinicaResponse(
         LocalTime horarioFinAtencion,
 
         /**
+         * Zona horaria de la clínica, como identificador IANA ({@code String}).
+         */
+        String zonaHoraria,
+
+        /**
          * Días máximos de anticipación con los que se puede reservar un turno
          * ({@code Integer}).
          */
