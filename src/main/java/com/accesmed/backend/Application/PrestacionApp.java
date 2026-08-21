@@ -32,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -303,16 +302,16 @@ public class PrestacionApp {
         agendaHorariosDiaDomainService.validateSinAgendaFuturaOcupada(id);
 
         //Cerrar la vigencia de las indicaciones vigentes: sin turnos vivos (ya validado arriba),
-        //"ahora" nunca puede caer antes de un turno que necesite protección.
-        ZonedDateTime ahora = ZonedDateTime.now();
-        indicacionPrestacionDomainService.cerrarVigenciaIndicacionesPrestacionByPrestacion(id, ahora);
+        //"hoy" nunca puede caer antes de un turno que necesite protección.
+        LocalDate hoy = clinicaDomainService.findHoyClinica();
+        indicacionPrestacionDomainService.cerrarVigenciaIndicacionesPrestacionByPrestacion(id, hoy);
 
         //Cerrar la vigencia de las MedicoPrestacion vigentes de la prestación (A4, paso 1)
-        medicoPrestacionDomainService.cerrarVigenciasByPrestacion(id, ahora);
+        medicoPrestacionDomainService.cerrarVigenciasByPrestacion(id, hoy);
 
         //Dar de baja los AgendaHorariosDia futuros libres de la prestación (A4, paso 2). Los
         //ocupados no se tocan: ya se validó arriba que no hay agenda futura ocupada.
-        agendaHorariosDiaDomainService.darDeBajaFuturosLibres(id, LocalDate.now(), "Prestación deshabilitada");
+        agendaHorariosDiaDomainService.darDeBajaFuturosLibres(id, hoy, "Prestación deshabilitada");
 
         //TODO (A4, paso 4): dar de baja las ObraSocialPlanPrestacion de la prestación. Sin
         // módulo (repo/service/App/controller) al que delegarlo todavía. Ver

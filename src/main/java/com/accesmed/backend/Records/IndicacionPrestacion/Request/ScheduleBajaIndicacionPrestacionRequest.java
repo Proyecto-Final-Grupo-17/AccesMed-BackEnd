@@ -2,7 +2,7 @@ package com.accesmed.backend.Records.IndicacionPrestacion.Request;
 
 import jakarta.validation.constraints.NotNull;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -19,11 +19,11 @@ public record ScheduleBajaIndicacionPrestacionRequest(
         UUID id,
 
         /**
-         * Fecha en la que la indicación deja de estar vigente ({@code ZonedDateTime}).
+         * Fecha en la que la indicación deja de estar vigente ({@code LocalDate}).
          * Admite una fecha futura para programar el retiro. Si no se envía, se cierra la
-         * vigencia en el momento de la solicitud.
+         * vigencia el día de la solicitud.
          */
-        ZonedDateTime fechaFinVigencia
+        LocalDate fechaFinVigencia
 
 ) {
 }

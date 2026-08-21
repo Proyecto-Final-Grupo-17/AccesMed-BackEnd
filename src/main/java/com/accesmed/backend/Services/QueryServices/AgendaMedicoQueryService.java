@@ -70,16 +70,16 @@ public class AgendaMedicoQueryService extends AbstractFiltroQueryService<AgendaM
             specification = specification.and(buildSpecification(criteria.getEspecialidadId(),
                     root -> root.join(AgendaMedico_.medico, JoinType.LEFT).join(Medico_.especialidad, JoinType.LEFT).get(Especialidad_.id)));
         }
-        if (criteria.getFechaHoraInicioVigencia() != null) {
-            specification = specification.and(buildRangeSpecification(criteria.getFechaHoraInicioVigencia(), AgendaMedico_.fechaHoraInicioVigencia));
+        if (criteria.getFechaInicioVigencia() != null) {
+            specification = specification.and(buildRangeSpecification(criteria.getFechaInicioVigencia(), AgendaMedico_.fechaInicioVigencia));
         }
-        if (criteria.getFechaHoraFinVigencia() != null) {
-            specification = specification.and(buildRangeSpecification(criteria.getFechaHoraFinVigencia(), AgendaMedico_.fechaHoraFinVigencia));
+        if (criteria.getFechaFinVigencia() != null) {
+            specification = specification.and(buildRangeSpecification(criteria.getFechaFinVigencia(), AgendaMedico_.fechaFinVigencia));
         }
         if (criteria.getVigenteAl() != null) {
             specification = specification.and((root, query, cb) -> cb.and(
-                    cb.lessThanOrEqualTo(root.get(AgendaMedico_.fechaHoraInicioVigencia), criteria.getVigenteAl()),
-                    cb.greaterThan(root.get(AgendaMedico_.fechaHoraFinVigencia), criteria.getVigenteAl())));
+                    cb.lessThanOrEqualTo(root.get(AgendaMedico_.fechaInicioVigencia), criteria.getVigenteAl()),
+                    cb.greaterThanOrEqualTo(root.get(AgendaMedico_.fechaFinVigencia), criteria.getVigenteAl())));
         }
 
         return specification;

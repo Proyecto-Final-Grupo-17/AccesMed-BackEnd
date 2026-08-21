@@ -49,7 +49,7 @@
 | `prestacionId` | UUID | Sí | Debe ser una prestación existente y no deshabilitada, con la misma especialidad que el médico. |
 | `atiendeParticular` | Boolean | Sí | Para mostrar el ícono/badge de atención particular. |
 | `precioParticular` | BigDecimal (> 0) | Sí | Para mostrar el precio particular de esa prestación con este médico. |
-| `fechaInicioVigencia` | ZonedDateTime | No | Desde cuándo rige la asignación. Ausente = el instante del alta. |
+| `fechaInicioVigencia` | LocalDate | No | Desde cuándo rige la asignación. Ausente = el día del alta. |
 
 **Response para el front — `CreateMedicoResponse`**
 
@@ -150,7 +150,7 @@ médico ya creado, fuera del alta atómica.
 | `prestacionId` | UUID | Sí | Prestación existente y no deshabilitada, con la misma especialidad que el médico. |
 | `atiendeParticular` | Boolean | Sí | |
 | `precioParticular` | BigDecimal (> 0) | Sí | |
-| `fechaInicioVigencia` | ZonedDateTime | No | Desde cuándo rige la asignación. Ausente = ahora. Admite fecha futura: así se programa un alta. |
+| `fechaInicioVigencia` | LocalDate | No | Desde cuándo rige la asignación. Ausente = hoy. Admite fecha futura: así se programa un alta. |
 
 **Response para el front — `GetMedicoPrestacionResponse`**
 
@@ -160,8 +160,8 @@ médico ya creado, fuera del alta atómica.
 | `medicoId`, `prestacionId` | UUID | Para relacionar la asignación con médico y prestación. |
 | `prestacionCodigo`, `prestacionNombre` | String | Para mostrar sin otra consulta. |
 | `atiendeParticular`, `precioParticular` | Boolean / BigDecimal | Para mostrar las condiciones particulares. |
-| `fechaInicioVigencia` | ZonedDateTime | Desde cuándo rige. |
-| `fechaFinVigencia` | ZonedDateTime \| null | Hasta cuándo. `null` = vigente sin corte. |
+| `fechaInicioVigencia` | LocalDate | Desde cuándo rige. |
+| `fechaFinVigencia` | LocalDate \| null | Hasta cuándo. `null` = vigente sin corte. |
 
 **Errores posibles:**
 - `MEDICO_PRESTACION_ESPECIALIDAD_DISTINTA` (422): la especialidad de la prestación no coincide con la del médico.
@@ -178,15 +178,15 @@ Médico). **No borra nada**: la fila queda con su `fechaFinVigencia` puesta.
 | Campo | Tipo | Obligatorio | Notas |
 |-------|------|-------------|-------|
 | `id` | UUID | Sí | Debe coincidir con el `id` de la ruta. |
-| `fechaFinVigencia` | ZonedDateTime | No | Fecha de corte. Ausente = ahora. Admite fecha futura: así se programa la baja. |
+| `fechaFinVigencia` | LocalDate | No | Fecha de corte. Ausente = hoy. Admite fecha futura: así se programa la baja. |
 
 Responde con `UnassignMedicoPrestacionResponse` (`id`, `fechaFinVigencia`).
 
 **Errores posibles:**
 - `MEDICO_PRESTACION_NO_ENCONTRADA` (404): no hay una asignación vigente con ese id.
-- `MEDICO_PRESTACION_CORTE_ANTERIOR_A_TURNO` (422): la fecha de corte es anterior al
-  `fechaHoraInicio` de algún turno vivo de ese par. El mensaje trae la fecha del turno más
-  lejano; la salida es cancelar o reprogramar esos turnos primero.
+- `MEDICO_PRESTACION_CORTE_ANTERIOR_A_TURNO` (422): la fecha de corte es anterior al día
+  del `fechaHoraInicio` de algún turno vivo de ese par. El mensaje trae la fecha del turno
+  más lejano; la salida es cancelar o reprogramar esos turnos primero.
 
 ---
 

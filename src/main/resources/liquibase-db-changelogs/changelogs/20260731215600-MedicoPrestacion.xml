@@ -24,10 +24,10 @@
                 <constraints nullable="false"/>
             </column>
             <!-- ====== Columnas de vigencia ====== -->
-            <column name="fecha_inicio_vigencia" type="timestamptz">
+            <column name="fecha_inicio_vigencia" type="date">
                 <constraints nullable="false"/>
             </column>
-            <column name="fecha_fin_vigencia" type="timestamptz"/>
+            <column name="fecha_fin_vigencia" type="date"/>
             <!-- ====== Relaciones ====== -->
             <column name="medico_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_medico_prestacion_medico" references="medico(id)"/>
@@ -45,15 +45,16 @@
         </createTable>
 
         <sql>ALTER TABLE medico_prestacion ADD CONSTRAINT ck_medico_prestacion_precio_particular CHECK (precio_particular > 0);</sql>
-        <sql>ALTER TABLE medico_prestacion ADD CONSTRAINT ck_medico_prestacion_vigencia CHECK (fecha_fin_vigencia IS NULL OR fecha_inicio_vigencia &lt; fecha_fin_vigencia);</sql>
+        <sql>ALTER TABLE medico_prestacion ADD CONSTRAINT ck_medico_prestacion_vigencia CHECK (fecha_fin_vigencia IS NULL OR fecha_inicio_vigencia &lt;= fecha_fin_vigencia);</sql>
 
-        <!-- No solapamiento de periodos del mismo par medico-prestacion. Requiere btree_gist (Infraestructura). -->
+        <!-- No solapamiento de periodos del mismo par medico-prestacion. Bordes inclusive: fecha_fin_vigencia
+             es el ultimo dia vigente. Requiere btree_gist (Infraestructura). -->
         <sql>
             ALTER TABLE medico_prestacion ADD CONSTRAINT ex_medico_prestacion_no_solapamiento
             EXCLUDE USING gist (
                 medico_id WITH =,
                 prestacion_id WITH =,
-                tstzrange(fecha_inicio_vigencia, fecha_fin_vigencia) WITH &amp;&amp;
+                daterange(fecha_inicio_vigencia, fecha_fin_vigencia, '[]') WITH &amp;&amp;
             );
         </sql>
 

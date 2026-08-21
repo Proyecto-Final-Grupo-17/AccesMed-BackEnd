@@ -31,7 +31,7 @@ Fuente de verdad estructural: `modelo_acces_med.json` y `modelo_dte_turno.json`.
 | «auditable» | `createdAt`, `updatedAt`, `createdBy`, `updatedBy`. En implementación es la `MappedSuperclass Auditable`. |
 | «bajable» | `deletedAt`, `deletedBy`, `deletedReason`, **declarados en cada clase**. No existe una superclase `Bajable`. |
 | Activo | `deletedAt` vacío. Es el filtro por defecto de toda consulta de catálogo. |
-| «vigencia» | `fechaInicioVigencia`, `fechaFinVigencia`. Vigente = `fechaInicioVigencia ≤ ahora` y (`fechaFinVigencia` vacía o `ahora < fechaFinVigencia`). Lo usan `AgendaMedico`, **`MedicoPrestacion`**, **`IndicacionPrestacion`** y `UsuarioRol`. |
+| «vigencia» | `fechaInicioVigencia`, `fechaFinVigencia`. En `AgendaMedico`, **`MedicoPrestacion`** e **`IndicacionPrestacion`** es a granularidad de **día de calendario** (`LocalDate`): vigente = `fechaInicioVigencia ≤ hoy` y (`fechaFinVigencia` vacía o `hoy ≤ fechaFinVigencia`, ambos bordes inclusive). En `UsuarioRol` es a granularidad de **instante** (`ZonedDateTime`): vigente = `fechaInicioVigencia ≤ ahora` y (`fechaFinVigencia` vacía o `ahora < fechaFinVigencia`) — el control de acceso necesita poder cortar de inmediato, no recién al final del día. |
 | «con estados» | La clase no tiene baja lógica ni vigencia: su ciclo de vida es un histórico de tramos. El vigente es el que tiene `fechaHoraFin` vacía. Lo usan `Turno`, **`Prestacion`** y **`Plan`**. |
 
 **Tres ejes distintos de "ya no se usa", y ninguna clase usa más de uno.** Es la regla que más ordena el modelo v3: si una clase es «bajable», no tiene estados ni vigencia; si tiene estados, no tiene `deletedAt`. Cuando un CU pregunta "¿está disponible?", el predicado depende del eje de esa clase y de ninguno más.
@@ -39,7 +39,8 @@ Fuente de verdad estructural: `modelo_acces_med.json` y `modelo_dte_turno.json`.
 | Clase | Eje | "Disponible" significa |
 |---|---|---|
 | `Especialidad`, `Medico`, `ObraSocial`, `Paciente`, `Archivo`, `TipoIndicacionPrestacion`, `Usuario`, `Admin`, `Rol`, `ObraSocialPlanPrestacion`, `ObraSocialPaciente`, `AgendaHorariosDia` | baja lógica | `deletedAt` vacío |
-| `AgendaMedico`, `MedicoPrestacion`, `IndicacionPrestacion`, `UsuarioRol` | vigencia | `fechaInicioVigencia ≤ ahora <` `fechaFinVigencia` |
+| `AgendaMedico`, `MedicoPrestacion`, `IndicacionPrestacion` | vigencia (día) | `fechaInicioVigencia ≤ hoy ≤ fechaFinVigencia` |
+| `UsuarioRol` | vigencia (instante) | `fechaInicioVigencia ≤ ahora <` `fechaFinVigencia` |
 | `Prestacion`, `Plan`, `Turno` | estados | el tramo abierto no apunta a un estado terminal |
 
 **El eje vigencia es el único que se puede programar.** `fechaInicioVigencia` y `fechaFinVigencia` admiten fechas futuras, así que un alta o una baja se pueden dejar agendadas. `deletedAt` no: distinto de vacío significa siempre "ya está de baja". Las transiciones de estado tampoco: se registran en el instante en que ocurren. Es la razón por la que `IndicacionPrestacion` pasó a este eje.
@@ -66,7 +67,7 @@ Fuente de verdad estructural: `modelo_acces_med.json` y `modelo_dte_turno.json`.
 
 ### Agenda
 
-- **AgendaMedico** — período de vigencia de la agenda de un médico. **No tiene baja lógica**: se gestiona adelantando `fechaHoraFinVigencia`. **Su duración es libre**: puede ser de un día, para un suplente, o de un semestre.
+- **AgendaMedico** — período de vigencia de la agenda de un médico, a granularidad de día. **No tiene baja lógica**: se gestiona adelantando `fechaFinVigencia`. **Su duración es libre**: puede ser de un día, para un suplente, o de un semestre.
 - **AgendaHorariosDia** — el slot reservable. Pertenece directamente a una `AgendaMedico` y a una `Prestacion`, y lleva su propia `fecha`: no hay un nivel intermedio de "día" como entidad separada. Excluir una fecha entera (feriado, licencia) es dar de baja todos sus `AgendaHorariosDia` activos. **No hace falta cubrir el período completo**: las fechas sin ningún `AgendaHorariosDia` simplemente no tienen atención. Su duración planificada se **deriva** de `horaHasta - horaDesde`; no se persiste.
 
 ### Pacientes y financiadores
@@ -217,19 +218,19 @@ Todos los montos son `BigDecimal` con escala 2. Nunca `double`.
 | Campo | Regla |
 |---|---|
 | `Paciente.fechaNacimiento` | anterior a hoy (`@Past`) |
-| `AgendaMedico.fechaHoraInicioVigencia` | igual o posterior a ahora al darla de alta |
-| `AgendaMedico.fechaHoraFinVigencia` | posterior a `fechaHoraInicioVigencia` |
+| `AgendaMedico.fechaInicioVigencia` | igual o posterior a hoy al darla de alta |
+| `AgendaMedico.fechaFinVigencia` | igual o posterior a `fechaInicioVigencia` |
 | `AgendaHorariosDia.fecha` | comprendida en el período de vigencia de su `AgendaMedico` |
 | `AgendaHorariosDia.horaDesde` / `horaHasta` | `horaDesde < horaHasta`, ambas dentro del horario de atención de la clínica |
 | `HistoricoEstadoTurno.fechaHoraFin` | vacío, o posterior a `fechaHoraInicio` |
 | `HistoricoEstadoPrestacion.fechaHoraFin` | vacío, o posterior a `fechaHoraInicio` |
 | `HistoricoEstadoPlan.fechaHoraFin` | vacío, o posterior a `fechaHoraInicio` |
 | `UsuarioRol.fechaFinVigencia` | vacío, o posterior a `fechaInicioVigencia` |
-| `MedicoPrestacion.fechaFinVigencia` | vacío, o posterior a `fechaInicioVigencia`, **y no anterior al `fechaHoraInicio` del último turno vivo de ese par** |
+| `MedicoPrestacion.fechaFinVigencia` | vacío, o igual o posterior a `fechaInicioVigencia`, **y no anterior al día del `fechaHoraInicio` del último turno vivo de ese par** |
 | `IndicacionPrestacion.fechaInicioVigencia` | admite fecha futura: es cómo se programa el alta |
-| `IndicacionPrestacion.fechaFinVigencia` | vacío, o posterior a `fechaInicioVigencia`. Admite fecha futura: es cómo se programa la baja |
+| `IndicacionPrestacion.fechaFinVigencia` | vacío, o igual o posterior a `fechaInicioVigencia`. Admite fecha futura: es cómo se programa la baja |
 
-**Tipos.** `ZonedDateTime` para instantes absolutos (todo lo que se compara contra "ahora"), `LocalDate` para fechas de calendario (`AgendaHorariosDia.fecha`, `Paciente.fechaNacimiento`), `LocalTime` para horas del día que se repiten (`AgendaHorariosDia.horaDesde`, el horario de atención). Las tolerancias son `Duration`.
+**Tipos.** `ZonedDateTime` para instantes absolutos (todo lo que se compara contra "ahora": `Turno.fechaHoraInicio`, `UsuarioRol.fechaInicioVigencia`/`fechaFinVigencia`), `LocalDate` para fechas de calendario (`AgendaHorariosDia.fecha`, `Paciente.fechaNacimiento`, y la vigencia de `AgendaMedico`/`MedicoPrestacion`/`IndicacionPrestacion`, que se gobierna por día, no por instante), `LocalTime` para horas del día que se repiten (`AgendaHorariosDia.horaDesde`, el horario de atención). Las tolerancias son `Duration`.
 
 La distinción importa: `AgendaHorariosDia` guarda `horaDesde` como `LocalTime` porque el patrón se repite día a día, pero `fechaLimiteReserva` es `ZonedDateTime` porque es un instante único que se compara con el reloj.
 
@@ -396,7 +397,7 @@ AgendaHorariosDia.fechaLimiteReserva  ≤  ahora  ...  fechaHoraInicio ≤ ahora
 - `MedicoPrestacion` **no tiene baja lógica**. Se asigna creando una instancia con `fechaInicioVigencia`, y se desasigna cerrando `fechaFinVigencia`. Reasignar es siempre **crear una instancia nueva**, nunca reabrir la vieja.
 - La regla ya no es unicidad sino **no solapamiento**: los períodos del mismo par `(medico, prestacion)` no se cruzan. Un médico puede haber atendido una prestación en 2025, haberla dejado, y volver a atenderla en 2026: son dos filas.
 - Se puede asignar una prestación **No Publicada**; no se puede asignar una **Deshabilitada**. Así el médico queda preparado para atenderla desde el día en que se publica, sin depender del orden de carga.
-- **Al desasignar**: los turnos ya reservados **se mantienen** y el médico los atiende, pero la fecha de corte tiene un piso duro — **`fechaFinVigencia` no puede ser anterior al `fechaHoraInicio` de ningún turno vivo** de ese médico para esa prestación. Si el administrador pide una fecha más temprana, el sistema la rechaza y le muestra la fecha del último turno comprometido. La salida es cancelar o reprogramar esos turnos primero.
+- **Al desasignar**: los turnos ya reservados **se mantienen** y el médico los atiende, pero la fecha de corte tiene un piso duro — **`fechaFinVigencia` no puede ser anterior al día del `fechaHoraInicio` de ningún turno vivo** de ese médico para esa prestación. Si el administrador pide una fecha más temprana, el sistema la rechaza y le muestra la fecha del último turno comprometido. La salida es cancelar o reprogramar esos turnos primero.
 - Se dan de baja los `AgendaHorariosDia` **libres** posteriores a `fechaFinVigencia`. Los ocupados no hace falta tocarlos: la regla anterior garantiza que no existan después del corte.
 - `precioParticular` y `atiendeParticular` se modifican sobre la instancia **vigente**. El turno ya congeló su monto, así que el cambio no lo alcanza.
 
@@ -478,7 +479,7 @@ Los períodos del par `(prestacion, nombre)` no se solapan, así que el relevo e
 
 ### AGEN — Agenda
 
-- Una agenda está **vigente** cuando hoy cae entre `fechaHoraInicioVigencia` y `fechaHoraFinVigencia`. Queda derogada la regla anterior de "agenda activa = `fechaHoraFinVigencia` vacía".
+- Una agenda está **vigente** cuando hoy cae entre `fechaInicioVigencia` y `fechaFinVigencia` (ambos bordes inclusive). Queda derogada la regla anterior de "agenda activa = `fechaFinVigencia` vacía".
 - **La duración del período es libre.** Un día para un suplente, un semestre para un médico de planta. La restricción entre `diasMinimosVigenciaAgenda` y `diasMaximosVigenciaAgenda` quedó derogada y esos dos parámetros ya no existen.
 - Los períodos de un mismo médico no se solapan. Con la restricción de duración fuera, **esta es la única regla estructural que le queda al período**, así que pasa a ser la que más importa validar.
 - **El período se puede extender más allá del horizonte de reserva.** Los slots existen desde que se generan, pero solo son reservables cuando el horizonte móvil los alcanza.
@@ -627,7 +628,7 @@ Restrictiva. No se da de baja si existe alguna `Prestacion` no deshabilitada o a
 No se opera sobre el médico: se opera sobre la agenda.
 
 - Si la salida coincide con el fin de vigencia actual: no hacer nada, dejar vencer.
-- Si se va antes: adelantar `fechaHoraFinVigencia`, dar de baja los `AgendaHorariosDia` posteriores a la fecha de corte, y resolver los turnos que caigan después del nuevo corte.
+- Si se va antes: adelantar `fechaFinVigencia`, dar de baja los `AgendaHorariosDia` posteriores a la fecha de corte, y resolver los turnos que caigan después del nuevo corte.
 - El día siguiente al último turno, ya sin turnos vivos pendientes, se ejecuta la baja del `Medico` (ver más abajo), que solo arrastra `MedicoPrestacion`.
 
 **No existe fecha de baja futura como atributo.** `deletedAt` distinto de vacío significa siempre "ya está de baja".
@@ -809,7 +810,7 @@ cascada (ver §5 USER y AUTZ), así que ya no es un caso que dependa de navegabi
 | `configurarAgendaMedico` | Crea `AgendaMedico` + N `AgendaHorariosDia`. Admite patrón semanal o días sueltos |
 | `modificarAgendaVigente` | Da de baja `AgendaHorariosDia` libres y genera nuevos. Permite agregar fechas nuevas directamente, sin entidad de día intermedia |
 | `excluirDiaAgenda` | Baja de los `AgendaHorariosDia` de la fecha + cancelación de turnos del día |
-| `adelantarFinVigenciaAgenda` | Corta `fechaHoraFinVigencia` + baja de días posteriores + cancelaciones |
+| `adelantarFinVigenciaAgenda` | Corta `fechaFinVigencia` + baja de días posteriores + cancelaciones |
 | `consultarAgendaMedico` | Consulta de días, horarios y turnos en un rango |
 | `consultarTurnosDisponibles` | Slots libres para prestación / médico / franja / rango, **dentro del horizonte de reserva** |
 | `consultarMedicosSinAgendaVigente` | Médicos activos sin agenda o con agenda por vencer |

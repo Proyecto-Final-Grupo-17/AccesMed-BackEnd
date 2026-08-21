@@ -2,7 +2,7 @@ package com.accesmed.backend.Records.MedicoPrestacion.Request;
 
 import jakarta.validation.constraints.NotNull;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -19,10 +19,10 @@ public record UnassignMedicoPrestacionRequest(
         UUID id,
 
         /**
-         * Fecha de fin de vigencia de la asignación ({@code ZonedDateTime}).
-         * {@code null} u ausente equivale a "ahora".
+         * Fecha de fin de vigencia de la asignación ({@code LocalDate}).
+         * {@code null} u ausente equivale a "hoy".
          */
-        ZonedDateTime fechaFinVigencia
+        LocalDate fechaFinVigencia
 
 ) {
 }

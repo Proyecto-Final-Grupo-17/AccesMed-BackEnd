@@ -1063,9 +1063,10 @@ la misma manera:
   `HistoricoEstadoPlan`) con `fecha_hora_fin IS NULL`, no a un `root.get(...)` directo (la
   relación es unidireccional, no hay `join` desde la entidad al histórico).
 - `IndicacionPrestacion` no tiene baja lógica ni estados: se retira cerrando
-  `fechaFinVigencia` (admite fecha futura para programar el retiro). Su
-  `createSpecification` agrega siempre la condición de vigencia al momento de la consulta
-  (`fechaInicioVigencia <= ahora AND (fechaFinVigencia IS NULL OR fechaFinVigencia > ahora)`),
+  `fechaFinVigencia` (admite fecha futura para programar el retiro), a granularidad de día
+  de calendario (`LocalDate`). Su `createSpecification` agrega siempre la condición de
+  vigencia al día de la consulta
+  (`fechaInicioVigencia <= hoy AND (fechaFinVigencia IS NULL OR fechaFinVigencia >= hoy)`),
   el equivalente funcional a `deletedAt IS NULL` para este eje, tampoco expuesto en el Criteria.
 
 Cada entidad nueva que sume filtrado dinámico decide a cuál de estos tres grupos pertenece

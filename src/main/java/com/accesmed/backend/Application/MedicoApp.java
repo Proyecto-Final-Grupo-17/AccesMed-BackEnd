@@ -13,6 +13,7 @@ import com.accesmed.backend.Records.Medico.Response.GetMedicoResponse;
 import com.accesmed.backend.Records.Medico.Response.GetPrestacionAnidadaResponse;
 import com.accesmed.backend.Records.Medico.Response.ListMedicoResponse;
 import com.accesmed.backend.Records.Medico.Response.SoftDeleteMedicoResponse;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.EspecialidadDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoPrestacionDomainService;
@@ -31,7 +32,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -55,6 +56,7 @@ public class MedicoApp {
     private final EspecialidadDomainService especialidadDomainService;
     private final PrestacionDomainService prestacionDomainService;
     private final TurnoDomainService turnoDomainService;
+    private final ClinicaDomainService clinicaDomainService;
 
     //Mappers
     private final MedicoMapper medicoMapper;
@@ -102,9 +104,9 @@ public class MedicoApp {
                 Prestacion prestacionExistente = prestacionDomainService.findPrestacionActivaById(prestacionAnidada.prestacionId());
                 medicoPrestacionDomainService.validateEspecialidadCoincide(medicoGuardado, prestacionExistente);
 
-                //Resolver la fecha de inicio de vigencia efectiva (ausente = ahora)
-                ZonedDateTime fechaInicioVigenciaEfectiva = prestacionAnidada.fechaInicioVigencia() != null
-                        ? prestacionAnidada.fechaInicioVigencia() : ZonedDateTime.now();
+                //Resolver la fecha de inicio de vigencia efectiva (ausente = hoy)
+                LocalDate fechaInicioVigenciaEfectiva = prestacionAnidada.fechaInicioVigencia() != null
+                        ? prestacionAnidada.fechaInicioVigencia() : clinicaDomainService.findHoyClinica();
 
                 MedicoPrestacion medicoPrestacionNueva = medicoPrestacionMapper.toEntity(prestacionAnidada);
                 medicoPrestacionNueva.setMedico(medicoGuardado);
@@ -163,7 +165,7 @@ public class MedicoApp {
 
         //Devolver response mapeado, con las prestaciones vigentes del médico
         List<GetPrestacionAnidadaResponse> prestacionesResponse = medicoPrestacionMapper
-                .toGetPrestacionAnidadaResponses(medicoPrestacionDomainService.findAsignacionesVigentesByMedico(id, ZonedDateTime.now()));
+                .toGetPrestacionAnidadaResponses(medicoPrestacionDomainService.findAsignacionesVigentesByMedico(id, clinicaDomainService.findHoyClinica()));
         GetMedicoResponse getMedicoResponse = medicoMapper.toGetResponse(medicoActualizado, prestacionesResponse);
         return getMedicoResponse;
 
@@ -215,7 +217,7 @@ public class MedicoApp {
         //Buscar el médico y sus prestaciones vigentes
         Medico medicoExistente = medicoQueryService.findMedicoByCriteria(medicoCriteria);
         List<GetPrestacionAnidadaResponse> prestacionesResponse = medicoPrestacionMapper.toGetPrestacionAnidadaResponses(
-                medicoPrestacionDomainService.findAsignacionesVigentesByMedico(medicoExistente.getId(), ZonedDateTime.now()));
+                medicoPrestacionDomainService.findAsignacionesVigentesByMedico(medicoExistente.getId(), clinicaDomainService.findHoyClinica()));
 
         //Devolver response mapeado
         GetMedicoResponse getMedicoResponse = medicoMapper.toGetResponse(medicoExistente, prestacionesResponse);

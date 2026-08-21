@@ -47,7 +47,7 @@ public interface IndicacionPrestacionMapper {
     @Mapping(target = "nombre", source = "createIndicacionPrestacionAnidadaRequest.nombre")
     @Mapping(target = "descripcion", source = "createIndicacionPrestacionAnidadaRequest.descripcion")
     @Mapping(target = "requiereValidacion", source = "createIndicacionPrestacionAnidadaRequest.requiereValidacion")
-    @Mapping(target = "fechaInicioVigencia", expression = "java(java.time.ZonedDateTime.now())")
+    @Mapping(target = "fechaInicioVigencia", expression = "java(java.time.LocalDate.now())")
     @Mapping(target = "fechaFinVigencia", ignore = true)
     @Mapping(target = "prestacion", expression = "java(prestacion)")
     @Mapping(target = "tipoIndicacionPrestacion",

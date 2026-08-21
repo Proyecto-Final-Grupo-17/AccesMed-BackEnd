@@ -49,19 +49,7 @@
     "navegabilidad": "La flecha va del lado que conoce al lado conocido. Sin flecha = navegable en ambos sentidos.",
     "alcance": "El subsistema del agente conversacional (ProcesoAgente, MensajeClave, TipoMensajeClave, EstadoProcesoAgente) queda fuera de este modelo.",
     "vigencia": {
-      "descripcion": "Marcador «vigencia». La clase no tiene baja lógica: se gobierna por un par de fechas. Vigente = fechaInicioVigencia <= ahora y (fechaFinVigencia vacía o ahora < fechaFinVigencia). Lo usan AgendaMedico, MedicoPrestacion, IndicacionPrestacion y UsuarioRol. Las tres últimas admiten alta y baja programadas: fechaInicioVigencia y fechaFinVigencia pueden ser futuras.",
-      "campos": [
-        {
-          "nombre": "fechaInicioVigencia",
-          "tipo": "ZonedDateTime",
-          "obligatorio": true
-        },
-        {
-          "nombre": "fechaFinVigencia",
-          "tipo": "ZonedDateTime",
-          "obligatorio": false
-        }
-      ]
+      "descripcion": "Marcador «vigencia». La clase no tiene baja lógica: se gobierna por un par de fechas. El tipo de fechaInicioVigencia/fechaFinVigencia varía según si el corte necesita granularidad de día o de instante (ver el atributo declarado en cada clase). En AgendaMedico, MedicoPrestacion e IndicacionPrestacion es LocalDate (vigencia por día de calendario): vigente = fechaInicioVigencia <= hoy y (fechaFinVigencia vacía o hoy <= fechaFinVigencia, ambos bordes inclusive). En UsuarioRol es ZonedDateTime (vigencia por instante, para poder revocar de inmediato): vigente = fechaInicioVigencia <= ahora y (fechaFinVigencia vacía o ahora < fechaFinVigencia). Las tres primeras además admiten alta y baja programadas: fechaInicioVigencia y fechaFinVigencia pueden ser futuras."
     },
     "estados": {
       "descripcion": "Marcador «con estados». La clase no tiene baja lógica: su ciclo de vida se gobierna por un histórico de tramos. El tramo vigente es el que tiene fechaHoraFin vacía. Un estado es terminal porque su tramo queda abierto para siempre; no hay atributo que lo declare. Lo usan Turno, Prestacion y Plan."
@@ -444,12 +432,12 @@
       "atributos": [
         {
           "nombre": "fechaInicioVigencia",
-          "tipo": "ZonedDateTime",
+          "tipo": "LocalDate",
           "obligatorio": true
         },
         {
           "nombre": "fechaFinVigencia",
-          "tipo": "ZonedDateTime",
+          "tipo": "LocalDate",
           "obligatorio": false,
           "nota": "Vacío = asignación indefinida hasta que se desasigne."
         },
@@ -468,10 +456,10 @@
       "reglasValidacion": [
         "precioParticular > 0",
         "prestacion.especialidad == medico.especialidad",
-        "fechaFinVigencia vacio o fechaFinVigencia > fechaInicioVigencia",
+        "fechaFinVigencia vacio o fechaFinVigencia >= fechaInicioVigencia",
         "Los periodos del mismo par (medico, prestacion) no se solapan",
         "La prestacion no puede estar Deshabilitada al crear la asignacion",
-        "No se puede cerrar fechaFinVigencia en un instante anterior al fechaHoraInicio de algun Turno de ese medico y esa prestacion cuyo estado vigente no sea final",
+        "No se puede cerrar fechaFinVigencia en una fecha anterior al dia del fechaHoraInicio de algun Turno de ese medico y esa prestacion cuyo estado vigente no sea final",
         "Un AgendaHorariosDia exige una MedicoPrestacion vigente en la fecha del slot"
       ],
       "vigencia": true,
@@ -479,7 +467,7 @@
         {
           "nombre": "/estaVigente",
           "tipo": "Boolean",
-          "formula": "fechaInicioVigencia <= ahora y (fechaFinVigencia vacío o ahora < fechaFinVigencia)"
+          "formula": "fechaInicioVigencia <= hoy y (fechaFinVigencia vacío o hoy <= fechaFinVigencia)"
         }
       ]
     },
@@ -527,13 +515,13 @@
       "atributos": [
         {
           "nombre": "fechaInicioVigencia",
-          "tipo": "ZonedDateTime",
+          "tipo": "LocalDate",
           "obligatorio": true,
           "nota": "Puede ser futura: permite programar el alta de la indicación."
         },
         {
           "nombre": "fechaFinVigencia",
-          "tipo": "ZonedDateTime",
+          "tipo": "LocalDate",
           "obligatorio": false,
           "nota": "Vacío = vigente por tiempo indefinido. Puede ser futura: permite programar la baja."
         },
@@ -557,7 +545,7 @@
         }
       ],
       "reglasValidacion": [
-        "fechaFinVigencia vacio o fechaFinVigencia > fechaInicioVigencia",
+        "fechaFinVigencia vacio o fechaFinVigencia >= fechaInicioVigencia",
         "Los periodos del mismo par (prestacion, nombre) no se solapan",
         "Modificacion restrictiva: no se puede modificar si existe alguna IndicacionPrestacionTurno de esta indicacion cuyo Turno tenga estado vigente no final",
         "El camino para cambiar una indicacion con turnos vivos es programar: cerrar fechaFinVigencia en una fecha futura y dar de alta otra con fechaInicioVigencia en esa misma fecha",
@@ -570,7 +558,7 @@
         {
           "nombre": "/estaVigente",
           "tipo": "Boolean",
-          "formula": "fechaInicioVigencia <= ahora y (fechaFinVigencia vacío o ahora < fechaFinVigencia)"
+          "formula": "fechaInicioVigencia <= hoy y (fechaFinVigencia vacío o hoy <= fechaFinVigencia)"
         }
       ]
     },
@@ -579,16 +567,16 @@
       "modulo": "AGEN",
       "auditable": true,
       "bajable": false,
-      "descripcion": "Período de vigencia de la agenda de un médico. No tiene baja lógica: se gestiona por vigencia. Su duración es libre: puede ser de un día, para un suplente, o de un semestre.",
+      "descripcion": "Período de vigencia de la agenda de un médico, a granularidad de día. No tiene baja lógica: se gestiona por vigencia. Su duración es libre: puede ser de un día, para un suplente, o de un semestre.",
       "atributos": [
         {
-          "nombre": "fechaHoraInicioVigencia",
-          "tipo": "ZonedDateTime",
+          "nombre": "fechaInicioVigencia",
+          "tipo": "LocalDate",
           "obligatorio": true
         },
         {
-          "nombre": "fechaHoraFinVigencia",
-          "tipo": "ZonedDateTime",
+          "nombre": "fechaFinVigencia",
+          "tipo": "LocalDate",
           "obligatorio": true
         }
       ],
@@ -596,11 +584,11 @@
         {
           "nombre": "/estaVigente",
           "tipo": "Boolean",
-          "formula": "fechaHoraInicioVigencia <= ahora <= fechaHoraFinVigencia"
+          "formula": "fechaInicioVigencia <= hoy <= fechaFinVigencia"
         }
       ],
       "reglasValidacion": [
-        "fechaHoraInicioVigencia < fechaHoraFinVigencia",
+        "fechaInicioVigencia <= fechaFinVigencia",
         "El periodo no se solapa con otra AgendaMedico del mismo medico",
         "La duracion del periodo es libre. Se derogo la regla que la acotaba entre Clinica.diasMinimosVigenciaAgenda y Clinica.diasMaximosVigenciaAgenda",
         "No hace falta que todos los dias del periodo tengan AgendaHorariosDia generados: el patron semanal es una forma de cargarlos, no la unica"

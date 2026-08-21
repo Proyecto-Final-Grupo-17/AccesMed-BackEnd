@@ -179,11 +179,11 @@ GET /accesmed-api/Prestacion/Prestacion?estadoActual.equals=PUBLICADA&page=0&siz
 | `TipoIndicacionPrestacion` | `/accesmed-api/TipoIndicacionPrestacion/TipoIndicacionPrestacion` | `id`, `codigo`, `nombre`, `createdDate`, `lastModifiedDate` |
 | `IndicacionPrestacion` | `/accesmed-api/IndicacionPrestacion/IndicacionPrestacion` | `id`, `nombre`, `requiereValidacion`, `prestacionId`, `tipoIndicacionPrestacionId`, `createdDate`, `lastModifiedDate` |
 | `Medico` | `/accesmed-api/Medico/Medico` | `id`, `matricula`, `dni`, `nombre`, `apellido`, `email`, `especialidadId`, `tieneAgendaVigente`, `agendaVigenteAl`, `createdDate`, `lastModifiedDate` |
-| `AgendaMedico` | `/accesmed-api/AgendaMedico/Agenda` | `id`, `medicoId`, `especialidadId`, `fechaHoraInicioVigencia`, `fechaHoraFinVigencia`, `vigenteAl` |
+| `AgendaMedico` | `/accesmed-api/AgendaMedico/Agenda` | `id`, `medicoId`, `especialidadId`, `fechaInicioVigencia`, `fechaFinVigencia`, `vigenteAl` |
 | `AgendaHorariosDia` | `/accesmed-api/AgendaMedico/Horarios` (panel) y `/accesmed-api/AgendaMedico/HorariosDisponibles` (chatbot) | `id`, `agendaMedicoId`, `medicoId`, `prestacionId`, `fecha`, `horaDesde`, `estaOcupada` |
 
 `Medico.tieneAgendaVigente` (`BooleanFilter`) y `agendaVigenteAl` (fecha de referencia,
-default "ahora" si no se envía) son un filtro **derivado**: no son columnas de `Medico`,
+default "hoy" si no se envía) son un filtro **derivado**: no son columnas de `Medico`,
 se resuelven con un `EXISTS`/`NOT EXISTS` contra `agenda_medico`. Reemplazan al endpoint
 "médicos sin agenda vigente" de §5 AGEN — se resuelve con
 `GET /accesmed-api/Medico/Medico?tieneAgendaVigente.equals=false`. Combinando

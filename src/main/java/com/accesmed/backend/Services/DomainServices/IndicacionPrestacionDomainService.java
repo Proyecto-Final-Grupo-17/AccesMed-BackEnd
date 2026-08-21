@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -61,15 +61,16 @@ public class IndicacionPrestacionDomainService {
      * Busca una indicación de prestación vigente por su identificador.
      *
      * @param id {@code UUID} identificador de la indicación
+     * @param hoy {@code LocalDate} fecha contra la cual evaluar la vigencia
      * @return {@code IndicacionPrestacion} la indicación vigente correspondiente al id
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe una
      *         indicación vigente con ese id
      */
-    public IndicacionPrestacion findIndicacionPrestacionVigenteById(UUID id) {
+    public IndicacionPrestacion findIndicacionPrestacionVigenteById(UUID id, LocalDate hoy) {
 
         log.debug("Buscando indicación de prestación vigente por id: {}", id);
 
-        return indicacionPrestacionRepository.findVigenteById(id, ZonedDateTime.now())
+        return indicacionPrestacionRepository.findVigenteById(id, hoy)
                 .orElseThrow(() -> {
                     log.warn("No se encontró la indicación de prestación: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "INDICACION_PRESTACION_NO_ENCONTRADA",
@@ -83,11 +84,12 @@ public class IndicacionPrestacionDomainService {
      * indicación. Usada por la baja restrictiva de {@code TipoIndicacionPrestacion}.
      *
      * @param tipoIndicacionPrestacionId {@code UUID} identificador del tipo de indicación
+     * @param hoy {@code LocalDate} fecha contra la cual evaluar la vigencia
      * @return {@code boolean} {@code true} si existe al menos una indicación vigente de ese tipo
      */
-    public boolean existsIndicacionesVigentesByTipo(UUID tipoIndicacionPrestacionId) {
+    public boolean existsIndicacionesVigentesByTipo(UUID tipoIndicacionPrestacionId, LocalDate hoy) {
 
-        return indicacionPrestacionRepository.existsVigenteByTipoIndicacionPrestacionId(tipoIndicacionPrestacionId, ZonedDateTime.now());
+        return indicacionPrestacionRepository.existsVigenteByTipoIndicacionPrestacionId(tipoIndicacionPrestacionId, hoy);
 
     }
 
@@ -95,13 +97,14 @@ public class IndicacionPrestacionDomainService {
      * Busca todas las indicaciones de prestación vigentes asociadas a una prestación.
      *
      * @param prestacionId {@code UUID} identificador de la prestación
+     * @param hoy {@code LocalDate} fecha contra la cual evaluar la vigencia
      * @return {@code List<IndicacionPrestacion>} lista de indicaciones vigentes de esa prestación
      */
-    public List<IndicacionPrestacion> findIndicacionesPrestacionVigentesByPrestacionId(UUID prestacionId) {
+    public List<IndicacionPrestacion> findIndicacionesPrestacionVigentesByPrestacionId(UUID prestacionId, LocalDate hoy) {
 
         log.debug("Buscando indicaciones de prestación vigentes para prestación: {}", prestacionId);
 
-        return indicacionPrestacionRepository.findAllVigentesByPrestacionId(prestacionId, ZonedDateTime.now());
+        return indicacionPrestacionRepository.findAllVigentesByPrestacionId(prestacionId, hoy);
 
     }
 
@@ -110,17 +113,17 @@ public class IndicacionPrestacionDomainService {
      * {@code fechaFinVigencia}. Admite una fecha futura para programar el retiro.
      *
      * @param indicacionPrestacion {@code IndicacionPrestacion} indicación a retirar
-     * @param fechaFinVigencia {@code ZonedDateTime} fecha en la que deja de estar vigente
-     * @throws ValidacionException {@code ValidacionException} si {@code fechaFinVigencia} no es
-     *         posterior a {@code fechaInicioVigencia}
+     * @param fechaFinVigencia {@code LocalDate} fecha en la que deja de estar vigente
+     * @throws ValidacionException {@code ValidacionException} si {@code fechaFinVigencia} es
+     *         anterior a {@code fechaInicioVigencia}
      */
-    public void cerrarVigenciaIndicacionPrestacion(IndicacionPrestacion indicacionPrestacion, ZonedDateTime fechaFinVigencia) {
+    public void cerrarVigenciaIndicacionPrestacion(IndicacionPrestacion indicacionPrestacion, LocalDate fechaFinVigencia) {
 
-        if (!fechaFinVigencia.isAfter(indicacionPrestacion.getFechaInicioVigencia())) {
-            log.warn("No se pudo cerrar la vigencia de la indicación: fechaFinVigencia {} no es posterior a fechaInicioVigencia {}",
+        if (fechaFinVigencia.isBefore(indicacionPrestacion.getFechaInicioVigencia())) {
+            log.warn("No se pudo cerrar la vigencia de la indicación: fechaFinVigencia {} es anterior a fechaInicioVigencia {}",
                     fechaFinVigencia, indicacionPrestacion.getFechaInicioVigencia());
             throw new ValidacionException(getClass(),
-                    List.of("La fecha de fin de vigencia debe ser posterior a la fecha de inicio de vigencia."));
+                    List.of("La fecha de fin de vigencia debe ser igual o posterior a la fecha de inicio de vigencia."));
         }
 
         log.debug("Cerrando vigencia de indicación de prestación: id={}, fechaFinVigencia={}",
@@ -137,13 +140,14 @@ public class IndicacionPrestacionDomainService {
      * cuando se deshabilita la prestación.
      *
      * @param prestacionId {@code UUID} identificador de la prestación
-     * @param fechaFinVigencia {@code ZonedDateTime} fecha en la que dejan de estar vigentes
+     * @param fechaFinVigencia {@code LocalDate} fecha en la que dejan de estar vigentes; también
+     *        se usa como referencia para encontrar las indicaciones vigentes a esa fecha
      */
-    public void cerrarVigenciaIndicacionesPrestacionByPrestacion(UUID prestacionId, ZonedDateTime fechaFinVigencia) {
+    public void cerrarVigenciaIndicacionesPrestacionByPrestacion(UUID prestacionId, LocalDate fechaFinVigencia) {
 
         log.debug("Cerrando vigencia de todas las indicaciones de la prestación: {}", prestacionId);
 
-        List<IndicacionPrestacion> indicacionesVigentes = findIndicacionesPrestacionVigentesByPrestacionId(prestacionId);
+        List<IndicacionPrestacion> indicacionesVigentes = findIndicacionesPrestacionVigentesByPrestacionId(prestacionId, fechaFinVigencia);
 
         for (IndicacionPrestacion indicacion : indicacionesVigentes) {
             cerrarVigenciaIndicacionPrestacion(indicacion, fechaFinVigencia);

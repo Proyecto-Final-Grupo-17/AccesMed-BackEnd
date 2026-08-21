@@ -7,6 +7,7 @@ import com.accesmed.backend.Domain.Prestacion_;
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion_;
 import com.accesmed.backend.Records.IndicacionPrestacion.Criteria.IndicacionPrestacionCriteria;
 import com.accesmed.backend.Repositories.IndicacionPrestacionRepository;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import jakarta.persistence.criteria.JoinType;
@@ -16,15 +17,15 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 
 /**
  * Consultas de lectura para la entidad {@code IndicacionPrestacion}, incluido el filtrado
  * dinámico por {@link IndicacionPrestacionCriteria} (ver {@code Docs/ARQUITECTURA.md §7
  * Filtrado dinámico}). {@code IndicacionPrestacion} no tiene baja lógica: se retira
  * cerrando {@code fechaFinVigencia}, así que {@code createSpecification} excluye siempre
- * las no vigentes al momento de la consulta ({@code fechaInicioVigencia <= ahora AND
- * (fechaFinVigencia IS NULL OR fechaFinVigencia > ahora)}), equivalente al {@code deletedAt
+ * las no vigentes al día de la consulta ({@code fechaInicioVigencia <= hoy AND
+ * (fechaFinVigencia IS NULL OR fechaFinVigencia >= hoy)}), equivalente al {@code deletedAt
  * IS NULL} de las entidades con baja lógica, sin exponer la vigencia como filtro.
  */
 @Slf4j
@@ -35,6 +36,7 @@ public class IndicacionPrestacionQueryService extends AbstractFiltroQueryService
     //region ========== Dependencias o inyecciones ==========
 
     private final IndicacionPrestacionRepository indicacionPrestacionRepository;
+    private final ClinicaDomainService clinicaDomainService;
 
     //endregion
 
@@ -82,14 +84,14 @@ public class IndicacionPrestacionQueryService extends AbstractFiltroQueryService
 
         log.debug("Armando specification de indicaciones de prestación: criteria={}", criteria);
 
-        ZonedDateTime ahora = ZonedDateTime.now();
+        LocalDate hoy = clinicaDomainService.findHoyClinica();
         Specification<IndicacionPrestacion> specification = Specification
                 .<IndicacionPrestacion>unrestricted()
                 .and((root, query, cb) -> cb.and(
-                        cb.lessThanOrEqualTo(root.get(IndicacionPrestacion_.fechaInicioVigencia), ahora),
+                        cb.lessThanOrEqualTo(root.get(IndicacionPrestacion_.fechaInicioVigencia), hoy),
                         cb.or(
                                 cb.isNull(root.get(IndicacionPrestacion_.fechaFinVigencia)),
-                                cb.greaterThan(root.get(IndicacionPrestacion_.fechaFinVigencia), ahora)
+                                cb.greaterThanOrEqualTo(root.get(IndicacionPrestacion_.fechaFinVigencia), hoy)
                         )
                 ));
 

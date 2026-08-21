@@ -9,6 +9,7 @@ import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.CreateTipo
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.ListTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.GetTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.SoftDeleteTipoIndicacionPrestacionResponse;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.TipoIndicacionPrestacionDomainService;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
@@ -39,6 +40,7 @@ public class TipoIndicacionPrestacionApp {
     //Domain Services
     private final TipoIndicacionPrestacionDomainService tipoIndicacionPrestacionDomainService;
     private final IndicacionPrestacionDomainService indicacionPrestacionDomainService;
+    private final ClinicaDomainService clinicaDomainService;
 
     //Query Services
     private final TipoIndicacionPrestacionQueryService tipoIndicacionPrestacionQueryService;
@@ -153,7 +155,7 @@ public class TipoIndicacionPrestacionApp {
                 .findTipoIndicacionPrestacionActivoById(id);
 
         //Validar que no esté en uso (esta es la ÚNICA validación restrictiva del sistema)
-        if (indicacionPrestacionDomainService.existsIndicacionesVigentesByTipo(id)) {
+        if (indicacionPrestacionDomainService.existsIndicacionesVigentesByTipo(id, clinicaDomainService.findHoyClinica())) {
             log.warn("No se puede dar de baja el tipo de indicación: hay indicaciones vigentes que lo referencian. id={}", id);
             throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_EN_USO",
                     "No se puede dar de baja el tipo de indicación porque hay indicaciones vigentes que lo referencian.");

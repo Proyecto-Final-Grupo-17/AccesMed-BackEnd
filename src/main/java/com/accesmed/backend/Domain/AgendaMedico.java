@@ -14,12 +14,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
  * Período de vigencia de la agenda de un {@link Medico}. No tiene baja lógica: se
- * gestiona por vigencia, adelantando {@code fechaHoraFinVigencia}.
+ * gestiona por vigencia, adelantando {@code fechaFinVigencia}. Vigencia a granularidad de
+ * día de calendario: {@code fechaFinVigencia} es el último día vigente, inclusive.
  *
  * <p>El no solapamiento de períodos del mismo médico se refuerza en el esquema con una
  * constraint {@code EXCLUDE USING gist} (ver changelog), además de validarse en el
@@ -40,12 +41,12 @@ public class AgendaMedico extends Auditable {
     private UUID id;
 
     @NotNull
-    @Column(name = "fecha_hora_inicio_vigencia", nullable = false)
-    private ZonedDateTime fechaHoraInicioVigencia;
+    @Column(name = "fecha_inicio_vigencia", nullable = false)
+    private LocalDate fechaInicioVigencia;
 
     @NotNull
-    @Column(name = "fecha_hora_fin_vigencia", nullable = false)
-    private ZonedDateTime fechaHoraFinVigencia;
+    @Column(name = "fecha_fin_vigencia", nullable = false)
+    private LocalDate fechaFinVigencia;
 
     //endregion
 

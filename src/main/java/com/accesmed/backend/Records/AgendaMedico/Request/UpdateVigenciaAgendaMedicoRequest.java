@@ -3,7 +3,7 @@ package com.accesmed.backend.Records.AgendaMedico.Request;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -13,15 +13,15 @@ import java.util.UUID;
  * uno de los dos campos debe venir con valor.
  *
  * @param id {@code UUID} identificador de la agenda (validado contra la ruta en el Controller)
- * @param fechaHoraInicioVigencia {@code ZonedDateTime} nuevo inicio de vigencia, o {@code null}
+ * @param fechaInicioVigencia {@code LocalDate} nuevo inicio de vigencia, o {@code null}
  *        para no tocarlo
- * @param fechaHoraFinVigencia {@code ZonedDateTime} nuevo fin de vigencia, o {@code null} para
+ * @param fechaFinVigencia {@code LocalDate} nuevo fin de vigencia, o {@code null} para
  *        no tocarlo
  */
 public record UpdateVigenciaAgendaMedicoRequest(
         @NotNull UUID id,
-        ZonedDateTime fechaHoraInicioVigencia,
-        ZonedDateTime fechaHoraFinVigencia
+        LocalDate fechaInicioVigencia,
+        LocalDate fechaFinVigencia
 ) {
 
     /**
@@ -29,10 +29,10 @@ public record UpdateVigenciaAgendaMedicoRequest(
      *
      * @return {@code boolean} {@code true} si al menos una de las dos fechas no es {@code null}
      */
-    @AssertTrue(message = "Debe indicarse al menos una de fechaHoraInicioVigencia o fechaHoraFinVigencia.")
+    @AssertTrue(message = "Debe indicarse al menos una de fechaInicioVigencia o fechaFinVigencia.")
     public boolean isAlgunaFechaPresente() {
 
-        return fechaHoraInicioVigencia != null || fechaHoraFinVigencia != null;
+        return fechaInicioVigencia != null || fechaFinVigencia != null;
 
     }
 

@@ -8,6 +8,7 @@ import com.accesmed.backend.Domain.Medico;
 import com.accesmed.backend.Domain.Medico_;
 import com.accesmed.backend.Records.Medico.Criteria.MedicoCriteria;
 import com.accesmed.backend.Repositories.MedicoRepository;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.BooleanFilter;
@@ -21,7 +22,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -40,6 +41,7 @@ public class MedicoQueryService extends AbstractFiltroQueryService<Medico, Medic
     //region ========== Dependencias o inyecciones ==========
 
     private final MedicoRepository medicoRepository;
+    private final ClinicaDomainService clinicaDomainService;
 
     //endregion
 
@@ -124,7 +126,7 @@ public class MedicoQueryService extends AbstractFiltroQueryService<Medico, Medic
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
         }
         if (criteria.getTieneAgendaVigente() != null) {
-            ZonedDateTime fechaReferencia = criteria.getAgendaVigenteAl() != null ? criteria.getAgendaVigenteAl() : ZonedDateTime.now();
+            LocalDate fechaReferencia = criteria.getAgendaVigenteAl() != null ? criteria.getAgendaVigenteAl() : clinicaDomainService.findHoyClinica();
             specification = specification.and(buildTieneAgendaVigenteSpecification(criteria.getTieneAgendaVigente(), fechaReferencia));
         }
 
@@ -142,10 +144,10 @@ public class MedicoQueryService extends AbstractFiltroQueryService<Medico, Medic
      *
      * @param filter {@code BooleanFilter} si se pide {@code true} (tiene agenda vigente) o
      *        {@code false} (no tiene)
-     * @param fechaReferencia {@code ZonedDateTime} fecha contra la cual evaluar la vigencia de la agenda
+     * @param fechaReferencia {@code LocalDate} fecha contra la cual evaluar la vigencia de la agenda
      * @return {@code Specification<Medico>} fragmento que filtra por tenencia de agenda vigente
      */
-    private Specification<Medico> buildTieneAgendaVigenteSpecification(BooleanFilter filter, ZonedDateTime fechaReferencia) {
+    private Specification<Medico> buildTieneAgendaVigenteSpecification(BooleanFilter filter, LocalDate fechaReferencia) {
 
         return (root, query, cb) -> {
             Subquery<UUID> subquery = query.subquery(UUID.class);
@@ -154,8 +156,8 @@ public class MedicoQueryService extends AbstractFiltroQueryService<Medico, Medic
 
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(agenda.get(AgendaMedico_.medico), root));
-            predicates.add(cb.lessThanOrEqualTo(agenda.get(AgendaMedico_.fechaHoraInicioVigencia), fechaReferencia));
-            predicates.add(cb.greaterThan(agenda.get(AgendaMedico_.fechaHoraFinVigencia), fechaReferencia));
+            predicates.add(cb.lessThanOrEqualTo(agenda.get(AgendaMedico_.fechaInicioVigencia), fechaReferencia));
+            predicates.add(cb.greaterThanOrEqualTo(agenda.get(AgendaMedico_.fechaFinVigencia), fechaReferencia));
 
             subquery.where(predicates.toArray(new Predicate[0]));
 

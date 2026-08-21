@@ -14,6 +14,7 @@ import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacion
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ScheduleBajaIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Request.CreateIndicacionPrestacionAnidadaRequest;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.TipoIndicacionPrestacionDomainService;
@@ -27,7 +28,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -47,6 +48,7 @@ public class IndicacionPrestacionApp {
     private final IndicacionPrestacionDomainService indicacionPrestacionDomainService;
     private final PrestacionDomainService prestacionDomainService;
     private final TipoIndicacionPrestacionDomainService tipoIndicacionPrestacionDomainService;
+    private final ClinicaDomainService clinicaDomainService;
     private final IndicacionPrestacionQueryService indicacionPrestacionQueryService;
     private final IndicacionPrestacionMapper indicacionPrestacionMapper;
 
@@ -115,7 +117,7 @@ public class IndicacionPrestacionApp {
 
         //Buscar la indicación
         IndicacionPrestacion indicacionExistente = indicacionPrestacionDomainService
-                .findIndicacionPrestacionVigenteById(id);
+                .findIndicacionPrestacionVigenteById(id, clinicaDomainService.findHoyClinica());
 
         //Actualizar
         indicacionPrestacionMapper.updateIndicacionPrestacion(indicacionExistente, updateIndicacionPrestacionRequest);
@@ -153,13 +155,14 @@ public class IndicacionPrestacionApp {
         log.info("Baja de indicación de prestación iniciada: id={}", id);
 
         //Buscar la indicación vigente
+        LocalDate hoy = clinicaDomainService.findHoyClinica();
         IndicacionPrestacion indicacionExistente = indicacionPrestacionDomainService
-                .findIndicacionPrestacionVigenteById(id);
+                .findIndicacionPrestacionVigenteById(id, hoy);
 
         //Si no vino fecha de fin de vigencia, la baja es inmediata
-        ZonedDateTime fechaFinVigencia = scheduleBajaIndicacionPrestacionRequest.fechaFinVigencia() != null
+        LocalDate fechaFinVigencia = scheduleBajaIndicacionPrestacionRequest.fechaFinVigencia() != null
                 ? scheduleBajaIndicacionPrestacionRequest.fechaFinVigencia()
-                : ZonedDateTime.now();
+                : hoy;
 
         //Cerrar la vigencia
         indicacionPrestacionDomainService.cerrarVigenciaIndicacionPrestacion(indicacionExistente, fechaFinVigencia);

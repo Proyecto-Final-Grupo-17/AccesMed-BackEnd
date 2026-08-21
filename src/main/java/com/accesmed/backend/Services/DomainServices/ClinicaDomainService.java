@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -115,6 +116,19 @@ public class ClinicaDomainService {
 
         ZoneId zonaHorariaClinica = ZoneId.of(findClinica().getZonaHoraria());
         return zonaHorariaClinica;
+
+    }
+
+    /**
+     * Resuelve la fecha de hoy en la zona horaria de la clínica, para los ejes de
+     * vigencia que se gobiernan por día de calendario (no por instante).
+     *
+     * @return {@code LocalDate} fecha de hoy en la zona horaria de la clínica
+     */
+    public LocalDate findHoyClinica() {
+
+        LocalDate hoyClinica = LocalDate.now(findZonaHorariaClinica());
+        return hoyClinica;
 
     }
 

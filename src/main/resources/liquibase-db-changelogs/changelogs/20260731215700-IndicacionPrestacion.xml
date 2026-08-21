@@ -22,10 +22,10 @@
                 <constraints nullable="false"/>
             </column>
             <!-- ====== Vigencia ====== -->
-            <column name="fecha_inicio_vigencia" type="timestamptz">
+            <column name="fecha_inicio_vigencia" type="date">
                 <constraints nullable="false"/>
             </column>
-            <column name="fecha_fin_vigencia" type="timestamptz"/>
+            <column name="fecha_fin_vigencia" type="date"/>
             <!-- ====== Relaciones ====== -->
             <column name="prestacion_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_indicacion_prestacion_prestacion" references="prestacion(id)"/>
@@ -42,15 +42,15 @@
             <column name="updated_by" type="varchar(255)"/>
         </createTable>
 
-        <sql>ALTER TABLE indicacion_prestacion ADD CONSTRAINT ck_indicacion_prestacion_vigencia CHECK (fecha_fin_vigencia IS NULL OR fecha_fin_vigencia > fecha_inicio_vigencia);</sql>
+        <sql>ALTER TABLE indicacion_prestacion ADD CONSTRAINT ck_indicacion_prestacion_vigencia CHECK (fecha_fin_vigencia IS NULL OR fecha_fin_vigencia >= fecha_inicio_vigencia);</sql>
 
-        <!-- No solapamiento de vigencias del mismo (prestacion, nombre): permite el relevo (cerrar una, abrir otra en el mismo corte) sin ambigüedad. -->
+        <!-- No solapamiento de vigencias del mismo (prestacion, nombre): permite el relevo (cerrar una, abrir otra en el mismo corte) sin ambigüedad. Bordes inclusive: fecha_fin_vigencia es el ultimo dia vigente. -->
         <sql>
             ALTER TABLE indicacion_prestacion ADD CONSTRAINT ex_indicacion_prestacion_no_solapamiento
             EXCLUDE USING gist (
                 prestacion_id WITH =,
                 nombre WITH =,
-                tstzrange(fecha_inicio_vigencia, fecha_fin_vigencia) WITH &amp;&amp;
+                daterange(fecha_inicio_vigencia, fecha_fin_vigencia, '[]') WITH &amp;&amp;
             );
         </sql>
 

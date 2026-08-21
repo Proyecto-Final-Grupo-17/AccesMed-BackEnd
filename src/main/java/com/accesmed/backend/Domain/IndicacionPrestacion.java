@@ -17,7 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -79,11 +79,11 @@ public class IndicacionPrestacion extends Auditable {
     @NotNull
     @Setter
     @Column(name = "fecha_inicio_vigencia", nullable = false)
-    private ZonedDateTime fechaInicioVigencia;
+    private LocalDate fechaInicioVigencia;
 
     @Setter
     @Column(name = "fecha_fin_vigencia")
-    private ZonedDateTime fechaFinVigencia;
+    private LocalDate fechaFinVigencia;
 
     //endregion
 

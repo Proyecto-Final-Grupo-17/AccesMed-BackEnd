@@ -9,7 +9,7 @@ import lombok.Setter;
 import lombok.ToString;
 import org.springdoc.core.annotations.ParameterObject;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 
 /**
  * Filtros disponibles para el listado dinámico de {@code Medico} (ver
@@ -44,11 +44,11 @@ public class MedicoCriteria {
 
     /**
      * Fecha de referencia para {@link #tieneAgendaVigente}. Si no viene con valor y
-     * {@code tieneAgendaVigente} sí, el {@code QueryService} usa "ahora" por defecto (a
+     * {@code tieneAgendaVigente} sí, el {@code QueryService} usa "hoy" por defecto (a
      * diferencia de {@code AgendaMedicoCriteria.vigenteAl}, que no tiene default: acá el
      * default habilita además el caso "por vencer" combinando
      * {@code tieneAgendaVigente.equals=false&agendaVigenteAl=<hoy+30>}).
      */
-    private ZonedDateTime agendaVigenteAl;
+    private LocalDate agendaVigenteAl;
 
 }

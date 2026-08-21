@@ -1,6 +1,6 @@
 package com.accesmed.backend.Records.AgendaMedico.Response;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -11,8 +11,8 @@ import java.util.UUID;
  * @param medicoId {@code UUID} identificador del médico dueño de la agenda
  * @param medicoNombre {@code String} nombre del médico dueño de la agenda
  * @param medicoApellido {@code String} apellido del médico dueño de la agenda
- * @param fechaHoraInicioVigencia {@code ZonedDateTime} inicio del período de vigencia
- * @param fechaHoraFinVigencia {@code ZonedDateTime} fin del período de vigencia
+ * @param fechaInicioVigencia {@code LocalDate} inicio del período de vigencia
+ * @param fechaFinVigencia {@code LocalDate} fin del período de vigencia
  * @param cantidadDias {@code long} cantidad de días activos de la agenda
  * @param cantidadHorarios {@code long} cantidad de horarios activos de la agenda
  */
@@ -21,8 +21,8 @@ public record ListAgendaMedicoResponse(
         UUID medicoId,
         String medicoNombre,
         String medicoApellido,
-        ZonedDateTime fechaHoraInicioVigencia,
-        ZonedDateTime fechaHoraFinVigencia,
+        LocalDate fechaInicioVigencia,
+        LocalDate fechaFinVigencia,
         long cantidadDias,
         long cantidadHorarios
 ) {

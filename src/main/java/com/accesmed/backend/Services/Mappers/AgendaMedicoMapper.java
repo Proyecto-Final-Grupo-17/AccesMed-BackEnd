@@ -134,7 +134,7 @@ public interface AgendaMedicoMapper {
     default CreateAgendaMedicoResponse toCreateResponse(AgendaMedico agendaMedico, List<DiaAgendaResponse> dias, int cantidadHorariosGenerados) {
 
         return new CreateAgendaMedicoResponse(agendaMedico.getId(), agendaMedico.getMedico().getId(),
-                agendaMedico.getFechaHoraInicioVigencia(), agendaMedico.getFechaHoraFinVigencia(), dias, cantidadHorariosGenerados);
+                agendaMedico.getFechaInicioVigencia(), agendaMedico.getFechaFinVigencia(), dias, cantidadHorariosGenerados);
 
     }
 
@@ -150,7 +150,7 @@ public interface AgendaMedicoMapper {
 
         return new GetAgendaMedicoResponse(agendaMedico.getId(), agendaMedico.getMedico().getId(),
                 agendaMedico.getMedico().getNombre(), agendaMedico.getMedico().getApellido(),
-                agendaMedico.getFechaHoraInicioVigencia(), agendaMedico.getFechaHoraFinVigencia(), dias);
+                agendaMedico.getFechaInicioVigencia(), agendaMedico.getFechaFinVigencia(), dias);
 
     }
 
@@ -167,7 +167,7 @@ public interface AgendaMedicoMapper {
 
         return new ListAgendaMedicoResponse(agendaMedico.getId(), agendaMedico.getMedico().getId(),
                 agendaMedico.getMedico().getNombre(), agendaMedico.getMedico().getApellido(),
-                agendaMedico.getFechaHoraInicioVigencia(), agendaMedico.getFechaHoraFinVigencia(),
+                agendaMedico.getFechaInicioVigencia(), agendaMedico.getFechaFinVigencia(),
                 cantidadDias, cantidadHorarios);
 
     }

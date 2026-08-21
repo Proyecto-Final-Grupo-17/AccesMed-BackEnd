@@ -1,6 +1,6 @@
 package com.accesmed.backend.Records.IndicacionPrestacion.Response;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -14,9 +14,9 @@ public record ScheduleBajaIndicacionPrestacionResponse(
         UUID id,
 
         /**
-         * Fecha en la que la indicación deja de estar vigente ({@code ZonedDateTime}).
+         * Fecha en la que la indicación deja de estar vigente ({@code LocalDate}).
          */
-        ZonedDateTime fechaFinVigencia
+        LocalDate fechaFinVigencia
 
 ) {
 }

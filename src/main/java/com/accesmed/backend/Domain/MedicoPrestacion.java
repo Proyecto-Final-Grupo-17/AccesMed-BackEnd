@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -71,10 +71,10 @@ public class MedicoPrestacion extends Auditable {
 
     @NotNull
     @Column(name = "fecha_inicio_vigencia", nullable = false)
-    private ZonedDateTime fechaInicioVigencia;
+    private LocalDate fechaInicioVigencia;
 
     @Column(name = "fecha_fin_vigencia")
-    private ZonedDateTime fechaFinVigencia;
+    private LocalDate fechaFinVigencia;
 
     //endregion
 
