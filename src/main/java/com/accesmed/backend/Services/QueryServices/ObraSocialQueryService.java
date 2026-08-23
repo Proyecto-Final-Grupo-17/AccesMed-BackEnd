@@ -1,17 +1,36 @@
 package com.accesmed.backend.Services.QueryServices;
 
 import com.accesmed.backend.Domain.Auditable_;
+import com.accesmed.backend.Domain.EstadoPlan;
+import com.accesmed.backend.Domain.HistoricoEstadoPlan;
 import com.accesmed.backend.Domain.ObraSocial;
 import com.accesmed.backend.Domain.ObraSocial_;
+import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Records.ObraSocial.Criteria.ObraSocialCriteria;
+import com.accesmed.backend.Records.ObraSocial.Response.GetObraSocialResponse;
+import com.accesmed.backend.Records.ObraSocial.Response.GetPlanAnidadoResponse;
+import com.accesmed.backend.Records.ObraSocial.Response.ListObraSocialResponse;
+import com.accesmed.backend.Repositories.HistoricoEstadoPlanRepository;
 import com.accesmed.backend.Repositories.ObraSocialRepository;
+import com.accesmed.backend.Repositories.PlanRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
+import com.accesmed.backend.Services.Mappers.ObraSocialMapper;
+import com.accesmed.backend.Services.Mappers.PlanMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Consultas de lectura para la entidad {@code ObraSocial}, incluido el filtrado dinámico
@@ -22,11 +41,16 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class ObraSocialQueryService extends AbstractFiltroQueryService<ObraSocial, ObraSocialCriteria> {
 
     //region ========== Dependencias o inyecciones ==========
 
     private final ObraSocialRepository obraSocialRepository;
+    private final ObraSocialMapper obraSocialMapper;
+    private final PlanRepository planRepository;
+    private final PlanMapper planMapper;
+    private final HistoricoEstadoPlanRepository historicoEstadoPlanRepository;
 
     //endregion
 
@@ -40,18 +64,50 @@ public class ObraSocialQueryService extends AbstractFiltroQueryService<ObraSocia
     }
 
     /**
-     * Busca la obra social activa que cumple el criteria proporcionado (típicamente un
-     * criteria armado con igualdad por {@code id}). A diferencia de {@link #findByCriteria},
-     * devuelve una única obra social en vez de una página.
+     * Busca la obra social activa que cumple el criteria proporcionado, mapeando al DTO Response
+     * incluyendo sus planes asociados.
+     *
+     * @param criteria {@code ObraSocialCriteria} filtros a aplicar
+     * @return {@code GetObraSocialResponse} la obra social encontrada con sus planes
+     * @throws RecursoNoEncontradoException si ninguna obra social activa cumple el criteria
+     */
+    public GetObraSocialResponse findObraSocialByCriteria(ObraSocialCriteria criteria) {
+
+        log.debug("Buscando obra social por criteria: {}", criteria);
+
+        ObraSocial obraSocialEncontrada = getObraSocialActiva(criteria);
+        List<GetPlanAnidadoResponse> planesResponse = mapPlanesAnidados(
+                planRepository.findAllByObraSocialId(obraSocialEncontrada.getId()));
+        return obraSocialMapper.toGetResponse(obraSocialEncontrada, planesResponse);
+
+    }
+
+    /**
+     * Busca obras sociales activas según el criteria, devolviendo una página mapeada a DTOs.
+     *
+     * @param criteria {@code ObraSocialCriteria} filtros a aplicar, o {@code null} para no filtrar
+     * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @return {@code PageResponse<ListObraSocialResponse>} página de DTOs mapeados
+     */
+    public PageResponse<ListObraSocialResponse> findObrasSociales(ObraSocialCriteria criteria, Pageable pageable) {
+
+        log.debug("Buscando obras sociales por criteria: {}, pageable: {}", criteria, pageable);
+
+        Page<ObraSocial> obrasSocialesPaginadas = findByCriteria(criteria, pageable);
+        return PageResponse.from(obrasSocialesPaginadas, obraSocialMapper::toListResponse);
+
+    }
+
+    /**
+     * Busca la obra social activa que cumple el criteria proporcionado (método interno).
      *
      * @param criteria {@code ObraSocialCriteria} filtros a aplicar
      * @return {@code ObraSocial} la obra social activa que cumple el criteria
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ninguna
-     *         obra social activa cumple el criteria
+     * @throws RecursoNoEncontradoException si ninguna obra social activa cumple el criteria
      */
-    public ObraSocial findObraSocialByCriteria(ObraSocialCriteria criteria) {
+    private ObraSocial getObraSocialActiva(ObraSocialCriteria criteria) {
 
-        log.debug("Buscando obra social por criteria: {}", criteria);
+        log.debug("Buscando obra social activa por criteria: {}", criteria);
 
         return findOneByCriteria(criteria)
                 .orElseThrow(() -> {
@@ -102,6 +158,27 @@ public class ObraSocialQueryService extends AbstractFiltroQueryService<ObraSocia
         }
 
         return specification;
+
+    }
+
+    /**
+     * Mapea una lista de planes a sus responses anidados, resolviendo el estado vigente de
+     * todos en una única consulta (evita N+1) y alimentándolo a cada response.
+     *
+     * @param planes {@code List<Plan>} planes a mapear
+     * @return {@code List<GetPlanAnidadoResponse>} responses anidados con su estado vigente
+     */
+    private List<GetPlanAnidadoResponse> mapPlanesAnidados(List<Plan> planes) {
+
+        List<UUID> planIds = planes.stream().map(Plan::getId).toList();
+        Map<UUID, EstadoPlan> estadosVigentes = planIds.isEmpty()
+                ? Map.of()
+                : historicoEstadoPlanRepository.findByPlanIdInAndFechaHoraFinIsNull(planIds).stream()
+                        .collect(Collectors.toMap(historico -> historico.getPlan().getId(), HistoricoEstadoPlan::getEstado));
+
+        return planes.stream()
+                .map(plan -> planMapper.toGetPlanAnidadoResponse(plan, estadosVigentes.get(plan.getId())))
+                .toList();
 
     }
 

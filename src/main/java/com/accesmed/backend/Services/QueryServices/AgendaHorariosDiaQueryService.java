@@ -6,8 +6,14 @@ import com.accesmed.backend.Domain.AgendaMedico_;
 import com.accesmed.backend.Domain.Medico_;
 import com.accesmed.backend.Domain.Prestacion_;
 import com.accesmed.backend.Records.AgendaMedico.Criteria.AgendaHorariosCriteria;
+import com.accesmed.backend.Records.AgendaMedico.Response.ListAgendaHorarioResponse;
+import com.accesmed.backend.Records.AgendaMedico.Response.ListHorarioDisponibleResponse;
 import com.accesmed.backend.Repositories.AgendaHorariosDiaRepository;
+import com.accesmed.backend.Repositories.ClinicaRepository;
+import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
+import com.accesmed.backend.Services.Mappers.AgendaMedicoMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import jakarta.persistence.criteria.JoinType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -32,11 +39,14 @@ import java.time.ZonedDateTime;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class AgendaHorariosDiaQueryService extends AbstractFiltroQueryService<AgendaHorariosDia, AgendaHorariosCriteria> {
 
     //region ========== Dependencias o inyecciones ==========
 
     private final AgendaHorariosDiaRepository agendaHorariosDiaRepository;
+    private final AgendaMedicoMapper agendaMedicoMapper;
+    private final ClinicaRepository clinicaRepository;
 
     //endregion
 
@@ -101,19 +111,45 @@ public class AgendaHorariosDiaQueryService extends AbstractFiltroQueryService<Ag
     }
 
     /**
+     * Busca horarios de agenda del panel según el criteria, devolviendo una página mapeada a DTOs.
+     *
+     * @param criteria {@code AgendaHorariosCriteria} filtros a aplicar, o {@code null} para no filtrar
+     * @param pageable {@code Pageable} página solicitada
+     * @return {@code PageResponse<ListAgendaHorarioResponse>} página de horarios mapeados
+     */
+    public PageResponse<ListAgendaHorarioResponse> findHorariosByCriteria(AgendaHorariosCriteria criteria, Pageable pageable) {
+
+        log.debug("Buscando horarios de agenda por criteria: {}, pageable: {}", criteria, pageable);
+
+        Page<AgendaHorariosDia> horariosPaginados = findByCriteria(criteria, pageable);
+        return PageResponse.from(horariosPaginados, agendaMedicoMapper::toListHorarioResponse);
+
+    }
+
+    /**
      * Busca horarios disponibles para el chatbot: sobre el criteria del cliente, aplica
      * además las guardas fijas propias de este listado ({@code estaOcupada = false},
      * {@code ahora < fechaLimiteReserva}, {@code fecha <= hoy + diasMaximosAnticipacionReserva}).
      * No son filtros opcionales: el front no puede pedir un slot ocupado ni uno fuera del
-     * horizonte de reserva de la clínica.
+     * horizonte de reserva de la clínica. El horizonte se obtiene de la configuración de la clínica.
      *
      * @param criteria {@code AgendaHorariosCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} página solicitada
-     * @param diasMaximosAnticipacionReserva {@code int} horizonte de reserva configurado en la clínica
-     * @return {@code Page<AgendaHorariosDia>} página de horarios disponibles que cumplen el criteria
+     * @return {@code PageResponse<ListHorarioDisponibleResponse>} página de horarios disponibles mapeados
      */
-    public Page<AgendaHorariosDia> findHorariosDisponibles(AgendaHorariosCriteria criteria, Pageable pageable, int diasMaximosAnticipacionReserva) {
+    public PageResponse<ListHorarioDisponibleResponse> findHorariosDisponibles(AgendaHorariosCriteria criteria, Pageable pageable) {
 
+        log.debug("Buscando horarios disponibles por criteria: {}, pageable: {}", criteria, pageable);
+
+        //Resolver el horizonte de reserva configurado en la única fila de Clinica (garantizada por el esquema)
+        int diasMaximosAnticipacionReserva = clinicaRepository.findAll().stream()
+                .findFirst()
+                .orElseThrow(() -> {
+                    log.warn("No se encontró la fila de configuración de la clínica");
+                    return new RecursoNoEncontradoException(getClass(), "CLINICA_NO_ENCONTRADA",
+                            "No existe la fila de configuración de la clínica.");
+                })
+                .getDiasMaximosAnticipacionReserva();
         ZonedDateTime ahora = ZonedDateTime.now();
         LocalDate fechaLimiteHorizonte = LocalDate.now().plusDays(diasMaximosAnticipacionReserva);
 
@@ -122,7 +158,8 @@ public class AgendaHorariosDiaQueryService extends AbstractFiltroQueryService<Ag
                 .and((root, query, cb) -> cb.greaterThan(root.get(AgendaHorariosDia_.fechaLimiteReserva), ahora))
                 .and((root, query, cb) -> cb.lessThanOrEqualTo(root.get(AgendaHorariosDia_.fecha), fechaLimiteHorizonte));
 
-        return agendaHorariosDiaRepository.findAll(specification, pageable);
+        Page<AgendaHorariosDia> horariosPaginados = agendaHorariosDiaRepository.findAll(specification, pageable);
+        return PageResponse.from(horariosPaginados, agendaMedicoMapper::toListHorarioDisponibleResponse);
 
     }
 

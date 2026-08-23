@@ -7,19 +7,29 @@ import com.accesmed.backend.Domain.Especialidad_;
 import com.accesmed.backend.Domain.Medico;
 import com.accesmed.backend.Domain.Medico_;
 import com.accesmed.backend.Records.Medico.Criteria.MedicoCriteria;
+import com.accesmed.backend.Records.Medico.Response.GetMedicoResponse;
+import com.accesmed.backend.Records.Medico.Response.GetPrestacionAnidadaResponse;
+import com.accesmed.backend.Records.Medico.Response.ListMedicoResponse;
+import com.accesmed.backend.Repositories.MedicoPrestacionRepository;
 import com.accesmed.backend.Repositories.MedicoRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
+import com.accesmed.backend.Services.Mappers.MedicoMapper;
+import com.accesmed.backend.Services.Mappers.MedicoPrestacionMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.BooleanFilter;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -35,11 +45,15 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class MedicoQueryService extends AbstractFiltroQueryService<Medico, MedicoCriteria> {
 
     //region ========== Dependencias o inyecciones ==========
 
     private final MedicoRepository medicoRepository;
+    private final MedicoMapper medicoMapper;
+    private final MedicoPrestacionRepository medicoPrestacionRepository;
+    private final MedicoPrestacionMapper medicoPrestacionMapper;
 
     //endregion
 
@@ -53,18 +67,53 @@ public class MedicoQueryService extends AbstractFiltroQueryService<Medico, Medic
     }
 
     /**
-     * Busca el médico activo que cumple el criteria proporcionado (típicamente un
-     * criteria armado con igualdad por {@code id}). A diferencia de {@link #findByCriteria},
-     * devuelve un único médico en vez de una página.
+     * Busca el médico activo que cumple el criteria proporcionado, mapeando al DTO
+     * {@code GetMedicoResponse} que incluye sus {@code prestaciones} asociadas vía
+     * {@code MedicoPrestacion}.
+     *
+     * @param criteria {@code MedicoCriteria} filtros a aplicar (típicamente por {@code id})
+     * @return {@code GetMedicoResponse} el médico activo con sus prestaciones
+     * @throws RecursoNoEncontradoException si ningún médico activo cumple el criteria
+     */
+    public GetMedicoResponse findMedicoByCriteria(MedicoCriteria criteria) {
+
+        log.debug("Buscando médico por criteria: {}", criteria);
+
+        Medico medicoActivo = getMedicoActivo(criteria);
+        List<GetPrestacionAnidadaResponse> prestacionesResponse = medicoPrestacionMapper
+                .toGetPrestacionAnidadaResponses(medicoPrestacionRepository.findByMedico_IdAndVigenteAt(medicoActivo.getId(), ZonedDateTime.now()));
+        return medicoMapper.toGetResponse(medicoActivo, prestacionesResponse);
+
+    }
+
+    /**
+     * Busca médicos activos según el criteria, devolviendo una página mapeada a DTOs.
+     *
+     * @param criteria {@code MedicoCriteria} filtros a aplicar
+     * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @return {@code PageResponse<ListMedicoResponse>} página de DTOs mapeados
+     */
+    public PageResponse<ListMedicoResponse> findMedicos(MedicoCriteria criteria, Pageable pageable) {
+
+        log.debug("Buscando médicos por criteria: {}, pageable: {}", criteria, pageable);
+
+        Page<Medico> medicosPaginados = findByCriteria(criteria, pageable);
+        return PageResponse.from(medicosPaginados, medicoMapper::toListResponse);
+
+    }
+
+    /**
+     * Busca el médico activo que cumple el criteria proporcionado (método interno).
+     * A diferencia de {@link #findByCriteria}, devuelve un único médico en vez de una página.
      *
      * @param criteria {@code MedicoCriteria} filtros a aplicar
      * @return {@code Medico} el médico activo que cumple el criteria
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ningún
      *         médico activo cumple el criteria
      */
-    public Medico findMedicoByCriteria(MedicoCriteria criteria) {
+    private Medico getMedicoActivo(MedicoCriteria criteria) {
 
-        log.debug("Buscando médico por criteria: {}", criteria);
+        log.debug("Buscando médico activo por criteria: {}", criteria);
 
         return findOneByCriteria(criteria)
                 .orElseThrow(() -> {

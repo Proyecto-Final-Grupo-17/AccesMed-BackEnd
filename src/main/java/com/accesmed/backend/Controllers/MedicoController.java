@@ -2,6 +2,7 @@ package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.MedicoApp;
 import com.accesmed.backend.Records.Medico.Criteria.MedicoCriteria;
+import com.accesmed.backend.Services.QueryServices.MedicoQueryService;
 import com.accesmed.backend.Records.Medico.Request.CreateMedicoRequest;
 import com.accesmed.backend.Records.Medico.Request.UpdateMedicoRequest;
 import com.accesmed.backend.Records.Medico.Response.CreateMedicoResponse;
@@ -44,6 +45,7 @@ public class MedicoController {
     //region ========== Dependencias o inyecciones ==========
 
     private final MedicoApp medicoApp;
+    private final MedicoQueryService medicoQueryService;
 
     //endregion
 
@@ -111,7 +113,7 @@ public class MedicoController {
 
         log.info("Solicitud recibida: buscar médico criteria={}", medicoCriteria);
 
-        GetMedicoResponse getMedicoResponse = medicoApp.findMedicoByCriteria(medicoCriteria);
+        GetMedicoResponse getMedicoResponse = medicoQueryService.findMedicoByCriteria(medicoCriteria);
 
         return ResponseEntity.ok(getMedicoResponse);
 
@@ -131,7 +133,7 @@ public class MedicoController {
 
         log.info("Solicitud recibida: listar médicos criteria={} page={}", medicoCriteria, pageable);
 
-        PageResponse<ListMedicoResponse> pageResponse = medicoApp.findMedicos(medicoCriteria, pageable);
+        PageResponse<ListMedicoResponse> pageResponse = medicoQueryService.findMedicos(medicoCriteria, pageable);
 
         return ResponseEntity.ok(pageResponse);
 

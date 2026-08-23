@@ -4,29 +4,46 @@ import com.accesmed.backend.Domain.Auditable_;
 import com.accesmed.backend.Domain.Paciente;
 import com.accesmed.backend.Domain.Paciente_;
 import com.accesmed.backend.Records.Paciente.Criteria.PacienteCriteria;
+import com.accesmed.backend.Records.Paciente.Response.GetObraSocialAnidadaResponse;
+import com.accesmed.backend.Records.Paciente.Response.GetPacienteResponse;
+import com.accesmed.backend.Records.Paciente.Response.ListPacienteResponse;
+import com.accesmed.backend.Repositories.ObraSocialPacienteRepository;
 import com.accesmed.backend.Repositories.PacienteRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
+import com.accesmed.backend.Services.Mappers.ObraSocialPacienteMapper;
+import com.accesmed.backend.Services.Mappers.PacienteMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 /**
  * Consultas de lectura para la entidad {@code Paciente}, incluido el filtrado dinámico
  * por {@link PacienteCriteria} (ver {@code Docs/ARQUITECTURA.md §7 Filtrado dinámico}).
  * {@code createSpecification} excluye siempre las bajas lógicas ({@code deletedAt IS NULL}),
- * sin exponer ese campo como filtro.
+ * sin exponer ese campo como filtro. Los métodos públicos devuelven records de response
+ * mapeados, con coberturas de obra social anidadas.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, PacienteCriteria> {
 
     //region ========== Dependencias o inyecciones ==========
 
     private final PacienteRepository pacienteRepository;
+    private final PacienteMapper pacienteMapper;
+    private final ObraSocialPacienteRepository obraSocialPacienteRepository;
+    private final ObraSocialPacienteMapper obraSocialPacienteMapper;
 
     //endregion
 
@@ -40,25 +57,58 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
     }
 
     /**
-     * Busca el paciente activo que cumple el criteria proporcionado (típicamente un
-     * criteria armado con igualdad por {@code id}). A diferencia de {@link #findByCriteria},
-     * devuelve un único paciente en vez de una página.
+     * Busca el paciente activo que cumple el criteria de filtrado dinámico
+     * proporcionado (típicamente un criteria armado con igualdad por {@code id}),
+     * junto con sus coberturas de obra social anidadas. A diferencia de
+     * {@link #findPacientes}, devuelve un único paciente mapeado (no paginado).
      *
      * @param criteria {@code PacienteCriteria} filtros a aplicar
-     * @return {@code Paciente} el paciente activo que cumple el criteria
+     * @return {@code GetPacienteResponse} el paciente encontrado, mapeado y con coberturas
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ningún
      *         paciente activo cumple el criteria
      */
-    public Paciente findPacienteByCriteria(PacienteCriteria criteria) {
+    public GetPacienteResponse findPacienteByCriteria(PacienteCriteria criteria) {
 
         log.debug("Buscando paciente por criteria: {}", criteria);
 
-        return findOneByCriteria(criteria)
+        //Buscar el paciente por el criteria proporcionado
+        Paciente pacienteExistente = findOneByCriteria(criteria)
                 .orElseThrow(() -> {
                     log.warn("No se encontró ningún paciente activo que cumpla el criteria: {}", criteria);
                     return new RecursoNoEncontradoException(getClass(), "PACIENTE_NO_ENCONTRADO",
                             "No existe un paciente activo que cumpla el criteria proporcionado.");
                 });
+
+        //Traer las coberturas de obra social anidadas
+        List<GetObraSocialAnidadaResponse> obrasSocialesResponse = obraSocialPacienteMapper
+                .toGetObraSocialAnidadaResponses(obraSocialPacienteRepository.findByPaciente_IdAndDeletedAtIsNull(pacienteExistente.getId()));
+
+        //Mapear y devolver la respuesta
+        GetPacienteResponse getPacienteResponse = pacienteMapper.toGetResponse(pacienteExistente, obrasSocialesResponse);
+        return getPacienteResponse;
+
+    }
+
+    /**
+     * Lista pacientes activos según el criteria de filtrado dinámico proporcionado,
+     * sin incluir coberturas anidadas en el listado (se obtienen bajo demanda para un
+     * paciente puntual con {@link #findPacienteByCriteria}).
+     *
+     * @param criteria {@code PacienteCriteria} filtros a aplicar, o {@code null} para no filtrar
+     * @param pageable {@code Pageable} página solicitada
+     * @return {@code PageResponse<ListPacienteResponse>} página de pacientes que cumplen el criteria,
+     *         mapeados sin coberturas anidadas
+     */
+    public PageResponse<ListPacienteResponse> findPacientes(PacienteCriteria criteria, Pageable pageable) {
+
+        log.debug("Listado de pacientes iniciado: criteria={}, page={}", criteria, pageable);
+
+        //Buscar pacientes que cumplen el criteria, paginados
+        Page<Paciente> pacientesPagina = findByCriteria(criteria, pageable);
+
+        //Mapear y devolver response
+        PageResponse<ListPacienteResponse> pageResponse = PageResponse.from(pacientesPagina, pacienteMapper::toListResponse);
+        return pageResponse;
 
     }
 

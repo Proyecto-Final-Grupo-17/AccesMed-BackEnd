@@ -9,6 +9,7 @@ import com.accesmed.backend.Records.Paciente.Response.GetPacienteResponse;
 import com.accesmed.backend.Records.Paciente.Response.ListPacienteResponse;
 import com.accesmed.backend.Records.Paciente.Response.SoftDeletePacienteResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.PacienteQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +34,8 @@ import java.util.UUID;
 /**
  * Controlador REST para los endpoints de Paciente.
  * Recibe requests, valida que el id de la ruta coincida con el del body cuando
- * corresponde, delega en el caso de uso {@code PacienteApp} y devuelve responses.
+ * corresponde, delega en el caso de uso {@code PacienteApp} (escritura) o
+ * {@code PacienteQueryService} (lectura), y devuelve responses.
  */
 @Slf4j
 @RestController
@@ -44,6 +46,7 @@ public class PacienteController {
     //region ========== Dependencias o inyecciones ==========
 
     private final PacienteApp pacienteApp;
+    private final PacienteQueryService pacienteQueryService;
 
     //endregion
 
@@ -112,7 +115,7 @@ public class PacienteController {
 
         log.info("Solicitud recibida: buscar paciente criteria={}", pacienteCriteria);
 
-        GetPacienteResponse getPacienteResponse = pacienteApp.findPacienteByCriteria(pacienteCriteria);
+        GetPacienteResponse getPacienteResponse = pacienteQueryService.findPacienteByCriteria(pacienteCriteria);
 
         return ResponseEntity.ok(getPacienteResponse);
 
@@ -132,7 +135,7 @@ public class PacienteController {
 
         log.info("Solicitud recibida: listar pacientes criteria={} page={}", pacienteCriteria, pageable);
 
-        PageResponse<ListPacienteResponse> pageResponse = pacienteApp.findPacientes(pacienteCriteria, pageable);
+        PageResponse<ListPacienteResponse> pageResponse = pacienteQueryService.findPacientes(pacienteCriteria, pageable);
 
         return ResponseEntity.ok(pageResponse);
 

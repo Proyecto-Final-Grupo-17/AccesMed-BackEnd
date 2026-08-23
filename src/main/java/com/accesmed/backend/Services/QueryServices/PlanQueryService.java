@@ -78,37 +78,6 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
     }
 
     /**
-     * Lista todos los planes de una obra social determinada. Usada por {@code ObraSocialApp}
-     * para anidar los planes en sus responses de creación/actualización/obtención — no es
-     * el listado público de {@code Plan} (ver {@link #findByCriteria}).
-     *
-     * @param obraSocialId {@code UUID} identificador de la obra social
-     * @return {@code List<Plan>} lista de planes de esa obra social
-     */
-    public List<Plan> findPlanesByObraSocial(UUID obraSocialId) {
-
-        log.debug("Listando planes de obra social: {}", obraSocialId);
-
-        return planRepository.findAllByObraSocialId(obraSocialId);
-
-    }
-
-    /**
-     * Lista los planes no deshabilitados de una obra social determinada. Usada por la baja
-     * restrictiva/cascada de {@code ObraSocial}.
-     *
-     * @param obraSocialId {@code UUID} identificador de la obra social
-     * @return {@code List<Plan>} lista de planes no deshabilitados de esa obra social
-     */
-    public List<Plan> findPlanesNoDeshabilitadosByObraSocial(UUID obraSocialId) {
-
-        log.debug("Listando planes no deshabilitados de obra social: {}", obraSocialId);
-
-        return planRepository.findAllByObraSocialIdAndEstadoVigenteNot(obraSocialId, EstadoPlan.DESHABILITADO);
-
-    }
-
-    /**
      * Traduce un {@link PlanCriteria} a la {@link Specification} equivalente, combinando
      * un fragmento por cada campo filtrable que vino con valor.
      *

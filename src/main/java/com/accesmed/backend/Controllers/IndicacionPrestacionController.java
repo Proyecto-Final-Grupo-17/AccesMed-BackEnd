@@ -11,6 +11,7 @@ import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacion
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ScheduleBajaIndicacionPrestacionResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.IndicacionPrestacionQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +35,8 @@ import java.util.UUID;
 
 /**
  * Controlador REST para los endpoints de Indicación de Prestación.
- * Recibe requests, delega en el caso de uso {@code IndicacionPrestacionApp} y devuelve responses.
+ * Recibe requests, delega en el caso de uso {@code IndicacionPrestacionApp} (escritura) o
+ * {@code IndicacionPrestacionQueryService} (lectura), y devuelve responses.
  */
 @Slf4j
 @RestController
@@ -45,6 +47,7 @@ public class IndicacionPrestacionController {
     //region ========== Dependencias o inyecciones ==========
 
     private final IndicacionPrestacionApp indicacionPrestacionApp;
+    private final IndicacionPrestacionQueryService indicacionPrestacionQueryService;
 
     //endregion
 
@@ -145,7 +148,7 @@ public class IndicacionPrestacionController {
 
         log.info("Solicitud recibida: buscar indicación de prestación criteria={}", indicacionPrestacionCriteria);
 
-        GetIndicacionPrestacionResponse getIndicacionPrestacionResponse = indicacionPrestacionApp
+        GetIndicacionPrestacionResponse getIndicacionPrestacionResponse = indicacionPrestacionQueryService
                 .findIndicacionPrestacionByCriteria(indicacionPrestacionCriteria);
 
         return ResponseEntity.ok(getIndicacionPrestacionResponse);
@@ -168,7 +171,7 @@ public class IndicacionPrestacionController {
 
         log.info("Solicitud recibida: listar indicaciones de prestación criteria={} page={}", indicacionPrestacionCriteria, pageable);
 
-        PageResponse<ListIndicacionPrestacionResponse> pageResponse = indicacionPrestacionApp
+        PageResponse<ListIndicacionPrestacionResponse> pageResponse = indicacionPrestacionQueryService
                 .findIndicacionesPrestacion(indicacionPrestacionCriteria, pageable);
 
         return ResponseEntity.ok(pageResponse);

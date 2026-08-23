@@ -25,6 +25,11 @@ Crea una feature entera y coherente, de la capa de controller a la de repositori
 generes nada hasta haber preguntado y confirmado el flujo.** Aplicá siempre las skills
 `java-springboot-code-style`, `java-springboot-javadoc` y `java-springboot-logging`.
 
+**Nota sobre el patrón de arquitectura** (vigente desde `queryservice-jhipster-puro.md`):
+- Lectura (`GET`): `Controller → QueryService (con Mapper adentro) → Repository`
+- Escritura (`POST`/`PATCH`/`DELETE`): `Controller → App (con orquestación) → DomainService → Repository`
+El `Controller` inyecta tanto el `App` (para escritura) como el `QueryService` (para lectura).
+
 ## Fase 1 — Preguntar el contexto y el flujo (obligatorio antes de generar)
 
 Preguntá y esperá respuesta. Si algo se puede inferir del diagrama de clases / `../../../CLAUDE.md`,
@@ -118,23 +123,29 @@ que siempre está subdividido en `Services/DomainServices/`, `Services/QueryServ
      **no** crear una excepción nueva por entidad) según corresponda, pasando `getClass()`
      como `origen`. **Loguear con `log.warn` justo antes de cada `throw`** (ver skill
      `java-springboot-logging`); `log.debug` para detalle interno no crítico.
-   - (Si hay lecturas: `<Entidad>QueryService` en `Services/QueryServices/`. Se llama
-     **siempre desde el App**, nunca directo desde el Controller — ni un `getById` simple.)
+   - Si hay lecturas con filtrado dinámico: `<Entidad>QueryService` en `Services/QueryServices/`
+     (inyecta el `Mapper`, devuelve `Response` mapeado, se llama **directo desde el Controller**,
+     no desde el App — ver punto 7 para el Controller).
 6. **App** — `Application/<Entidad>App.java`
    - `@Service`, `@Slf4j`, `@Transactional` — **este es el límite real de atomicidad del
      caso de uso** (1 operación = 1 transacción), por eso vive acá y no en el DomainService.
-     `log.info` al iniciar cada método (orquestación del caso de uso). Un método por
-     endpoint (incluidos los de solo lectura: el App delega en el `QueryService` y mapea
-     con el `Mapper` antes de devolver el response). Orquesta: valida negocio (acumulando
-     en `ValidacionException` cuando aplique, con `getClass()` como `origen` y `log.warn`
-     antes del throw), mapea, delega en el domain service o query service.
-   - En `update<Entidad>(Long id, <Accion><Entidad>Request ...)`: **primer paso, validar que
-     el `id` de la ruta coincida con el del record** (`ValidacionException` + `log.warn` si no).
+     `log.info` al iniciar cada método (orquestación del caso de uso).
+   - **Un método por endpoint de escritura** (crear, actualizar, baja). Los endpoints de lectura
+     (`GET`) se sirven directo desde el `QueryService` en el Controller (no pasan por el App).
+     El App solo orquesta mutaciones: valida negocio (acumulando en `ValidacionException`
+     cuando aplique, con `getClass()` como `origen` y `log.warn` antes del throw), mapea,
+     delega en el domain service.
+   - En `update<Entidad>(<Accion><Entidad>Request ...)`: **primer paso, validar que el `id`
+     de la ruta coincida con el del record** (`ValidacionException` + `log.warn` si no).
 7. **Controller** — `Controllers/<Entidad>Controller.java`
    - `@RestController`, `@Slf4j`, `@RequestMapping("/accesmed-api/<Entidad>")` (PascalCase
-     singular), y cada método con **su recurso**: `@PostMapping("/<Recurso>")`,
+     singular), inyecta tanto `<Entidad>App` (para escritura) como `<Entidad>QueryService`
+     (para lectura, si existe). Cada método con **su recurso**: `@PostMapping("/<Recurso>")`,
      `@PutMapping("/<Recurso>/{id}")`. `log.info` al recibir cada request (sin datos
      sensibles si la entidad los tiene, ej. `Paciente`). `@Valid` en el body. Solo delega.
+   - `GET` sin filtrado dinámico: delega en `App.get<Entidad>...`.
+   - `GET` con filtrado dinámico (listado `GET /<Recurso>`, búsqueda `GET /<Recurso>/Buscar`):
+     delega directo en `QueryService.find<Entidad>...` — **no pasa por el App**.
    - `PUT`/`PATCH` con body: `@PathVariable Long id` **además** del record (la comparación
      de ids la hace el App). `PATCH` de un campo puntual: solo `@PathVariable Long id`, sin body.
    - Baja lógica = `@DeleteMapping("/<Recurso>/{id}")`.

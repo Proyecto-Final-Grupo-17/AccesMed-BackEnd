@@ -3,14 +3,12 @@ package com.accesmed.backend.Application;
 import com.accesmed.backend.Domain.ObraSocialPaciente;
 import com.accesmed.backend.Domain.Paciente;
 import com.accesmed.backend.Domain.Plan;
-import com.accesmed.backend.Records.Paciente.Criteria.PacienteCriteria;
 import com.accesmed.backend.Records.Paciente.Request.AsignarObraSocialAnidadaRequest;
 import com.accesmed.backend.Records.Paciente.Request.CreatePacienteRequest;
 import com.accesmed.backend.Records.Paciente.Request.UpdatePacienteRequest;
 import com.accesmed.backend.Records.Paciente.Response.CreatePacienteResponse;
 import com.accesmed.backend.Records.Paciente.Response.GetObraSocialAnidadaResponse;
 import com.accesmed.backend.Records.Paciente.Response.GetPacienteResponse;
-import com.accesmed.backend.Records.Paciente.Response.ListPacienteResponse;
 import com.accesmed.backend.Records.Paciente.Response.SoftDeletePacienteResponse;
 import com.accesmed.backend.Services.DomainServices.ObraSocialDomainService;
 import com.accesmed.backend.Services.DomainServices.ObraSocialPacienteDomainService;
@@ -21,12 +19,8 @@ import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.ObraSocialPacienteMapper;
 import com.accesmed.backend.Services.Mappers.PacienteMapper;
-import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
-import com.accesmed.backend.Services.QueryServices.PacienteQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,10 +29,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Caso de uso de Paciente. Orquesta el flujo completo de los endpoints (creación atómica
- * con sus coberturas de obra social, actualización, baja restrictiva) validando reglas de
- * negocio y coordinando los services de {@code Paciente}, {@code ObraSocialPaciente},
- * {@code ObraSocial}, {@code Plan} y {@code Turno}.
+ * Caso de uso de Paciente. Orquesta el flujo completo de los endpoints de
+ * escritura (creación atómica con sus coberturas de obra social, actualización, baja restrictiva)
+ * validando reglas de negocio y coordinando los services de {@code Paciente},
+ * {@code ObraSocialPaciente}, {@code ObraSocial}, {@code Plan} y {@code Turno}.
+ * Los endpoints de lectura se sirven directamente desde {@link com.accesmed.backend.Services.QueryServices.PacienteQueryService}.
  */
 @Slf4j
 @Service
@@ -57,9 +52,6 @@ public class PacienteApp {
     //Mappers
     private final PacienteMapper pacienteMapper;
     private final ObraSocialPacienteMapper obraSocialPacienteMapper;
-
-    //Query Services
-    private final PacienteQueryService pacienteQueryService;
 
     //endregion
 
@@ -181,53 +173,6 @@ public class PacienteApp {
         //Devolver response mapeado
         SoftDeletePacienteResponse softDeletePacienteResponse = pacienteMapper.toSoftDeleteResponse(pacienteExistente);
         return softDeletePacienteResponse;
-
-    }
-
-    /**
-     * Busca el paciente activo que cumple el criteria de filtrado dinámico proporcionado,
-     * con sus coberturas de obra social. A diferencia de {@link #findPacientes}, devuelve
-     * un único paciente (no paginado) — pensado para criterios que identifican un paciente
-     * puntual (ej. {@code id.equals}).
-     *
-     * @param pacienteCriteria {@code PacienteCriteria} filtros a aplicar
-     * @return {@code GetPacienteResponse} el paciente encontrado, con sus coberturas
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ningún paciente cumple el criteria
-     */
-    @Transactional(readOnly = true)
-    public GetPacienteResponse findPacienteByCriteria(PacienteCriteria pacienteCriteria) {
-
-        log.info("Búsqueda de paciente iniciada: criteria={}", pacienteCriteria);
-
-        //Buscar el paciente y sus coberturas
-        Paciente pacienteExistente = pacienteQueryService.findPacienteByCriteria(pacienteCriteria);
-        List<GetObraSocialAnidadaResponse> obrasSocialesResponse = obraSocialPacienteMapper
-                .toGetObraSocialAnidadaResponses(obraSocialPacienteDomainService.findCoberturasActivasByPaciente(pacienteExistente.getId()));
-
-        //Devolver response mapeado
-        GetPacienteResponse getPacienteResponse = pacienteMapper.toGetResponse(pacienteExistente, obrasSocialesResponse);
-        return getPacienteResponse;
-
-    }
-
-    /**
-     * Lista pacientes activos según el criteria de filtrado dinámico proporcionado.
-     *
-     * @param pacienteCriteria {@code PacienteCriteria} filtros a aplicar, o {@code null} para no filtrar
-     * @param pageable {@code Pageable} página solicitada
-     * @return {@code PageResponse<ListPacienteResponse>} página de pacientes que cumplen el criteria
-     */
-    @Transactional(readOnly = true)
-    public PageResponse<ListPacienteResponse> findPacientes(PacienteCriteria pacienteCriteria, Pageable pageable) {
-
-        log.info("Listado de pacientes iniciado: criteria={}, page={}", pacienteCriteria, pageable);
-
-        //Buscar pacientes que cumplen el criteria, paginados
-        Page<Paciente> pacientesPagina = pacienteQueryService.findByCriteria(pacienteCriteria, pageable);
-
-        //Devolver response mapeado
-        PageResponse<ListPacienteResponse> pageResponse = PageResponse.from(pacientesPagina, pacienteMapper::toListResponse);
-        return pageResponse;
 
     }
 
