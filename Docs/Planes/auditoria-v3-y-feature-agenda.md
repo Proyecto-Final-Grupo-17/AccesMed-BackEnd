@@ -10,7 +10,7 @@
 > `App`/`ObraSocialPrestacionController`, records) se construyó fuera de este plan, cerrando
 > los `// TODO` de A4 paso 4 (`PrestacionApp.disablePrestacion`) y A5 paso 1
 > (`PlanApp.disablePlan`, `ObraSocialApp.softDeleteObraSocial`); ver
-> `Docs/Features/ObraSocialPrestacion.md`. Pendiente: el front de la feature de Agenda (Fase
+> `Docs/Features/ObrasSociales.md`. Pendiente: el front de la feature de Agenda (Fase
 > C de Agenda, no incluida en este plan — va en uno propio) y los tests de
 > integración/App de la Fase B y del módulo `ObraSocialPlanPrestacion` (se dejaron sin
 > escribir por alcance; solo se cubrió con tests unitarios `GeneradorSlotsAgendaTest`).
@@ -75,7 +75,7 @@ plan, incluida la asignación anidada al crear obra social/plan y el listado din
 `ObraSocialPrestacionCriteria`. Cierra el paso "baja de coberturas" de A4 y A5. La
 desasignación es restrictiva por turnos vivos del par plan-prestación, mismo criterio que
 el resto de las bajas restrictivas del dominio (piso duro nuevo en `TurnoRepository`/
-`TurnoDomainService`). Ver `Docs/Features/ObraSocialPrestacion.md`.
+`TurnoDomainService`). Ver `Docs/Features/ObrasSociales.md`.
 
 ---
 

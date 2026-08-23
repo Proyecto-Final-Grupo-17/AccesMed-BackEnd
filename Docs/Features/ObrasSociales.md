@@ -1,8 +1,8 @@
 # Feature: Obras Sociales y Planes
 
 ## Contexto
-- **Para qué es**: el módulo de financiadores. Una `ObraSocial` agrupa uno o más `Plan` (ej. "OSDE" con planes "210", "310", "410"). Los planes son lo que efectivamente cubre un paciente y lo que se asocia a una cobertura de turno.
-- **Para qué sirve**: el administrador da de alta obras sociales junto con sus planes iniciales (alta atómica), y gestiona el ciclo de vida de cada plan (publicar/despublicar/deshabilitar) de forma independiente. `ObraSocial` conserva baja lógica; `Plan` se retira por estados, igual que `Prestacion`.
+- **Para qué es**: el módulo de financiadores. Una `ObraSocial` agrupa uno o más `Plan` (ej. "OSDE" con planes "210", "310", "410"). Los planes son lo que efectivamente cubre un paciente y lo que se asocia a una cobertura de turno. Cada plan, a su vez, declara qué `Prestacion` cubre y en qué condiciones (`ObraSocialPlanPrestacion`: modalidad de cobertura, porcentaje y coseguro) — es el catálogo de coberturas que más adelante va a usar el módulo Turno para calcular `montoAPagar` según la obra social del paciente.
+- **Para qué sirve**: el administrador da de alta obras sociales junto con sus planes iniciales (alta atómica), y gestiona el ciclo de vida de cada plan (publicar/despublicar/deshabilitar) de forma independiente. También asigna o desasigna las prestaciones que cubre cada plan, ya sea en el mismo alta (anidado) o después (endpoint dedicado). `ObraSocial` conserva baja lógica; `Plan` se retira por estados, igual que `Prestacion`; `ObraSocialPlanPrestacion` conserva baja lógica, igual que `ObraSocialPaciente`.
 - **Quiénes la usan**: exclusivamente el personal de la clínica (rol administrador) desde el panel web interno.
 
 ---
@@ -22,7 +22,11 @@ con el alta individual (`POST /accesmed-api/Plan/Plan`). Cada plan nace en estad
 3. Si vino el array de planes: para cada uno valida que su `codigo`/`nombre` sean únicos
    dentro de la obra social (entre no deshabilitados), lo crea en `NO_PUBLICADO` y abre su
    primer tramo de histórico de estados.
-4. Devuelve la obra social creada con sus planes (si se enviaron).
+4. Si algún plan trajo `coberturas`: para cada una valida que la prestación exista activa
+   y que la modalidad/porcentaje/coseguro sean coherentes, y crea la cobertura
+   (`ObraSocialPlanPrestacion`). Si algo falla acá, se rechaza toda el alta — no queda una
+   obra social ni un plan a medio crear.
+5. Devuelve la obra social creada con sus planes y las coberturas de cada uno (si se enviaron).
 
 **Request para el front — `CreateObraSocialRequest`**
 
@@ -31,7 +35,8 @@ con el alta individual (`POST /accesmed-api/Plan/Plan`). Cada plan nace en estad
 | `codigo` | String (máx. 20) | Sí | Código único entre obras sociales activas. |
 | `nombre` | String (máx. 150) | Sí | Nombre comercial, único entre activas. |
 | `razonSocial` | String (máx. 200) | Sí | Razón social. |
-| `planes` | Array | No | Planes iniciales, opcionales. Si se omite o va vacío, la obra social se crea sin planes. Cada elemento: `codigo` (máx. 20) y `nombre` (máx. 150), únicos dentro de esta obra social. |
+| `planes` | Array | No | Planes iniciales, opcionales. Si se omite o va vacío, la obra social se crea sin planes. Cada elemento: `codigo` (máx. 20), `nombre` (máx. 150), únicos dentro de esta obra social, y opcionalmente `coberturas` (ver abajo). |
+| `planes[].coberturas` | Array | No | Prestaciones que cubre ese plan desde el alta. Cada elemento: `prestacionId` (UUID de una prestación existente y activa), `modalidadCobertura` (`TOTAL`\|`CARGO_FIJO`\|`PORCENTUAL`), `porcentajeCobertura` (0-100; si la modalidad es `TOTAL` debe ser 100), `coseguro` (>= 0; si la modalidad es `TOTAL` debe ser 0). |
 
 **Response para el front — `CreateObraSocialResponse`**
 
@@ -41,12 +46,14 @@ con el alta individual (`POST /accesmed-api/Plan/Plan`). Cada plan nace en estad
 | `codigo` | String | Confirmación del código. |
 | `nombre` | String | Confirmación del nombre. |
 | `razonSocial` | String | Confirmación de la razón social. |
-| `planes` | Array de `{id, codigo, nombre, estadoActual}` | Planes creados (vacío si no se enviaron), cada uno en `NO_PUBLICADO`. Para navegar a la gestión de cada plan. |
+| `planes` | Array de `{id, codigo, nombre, estadoActual, coberturas}` | Planes creados (vacío si no se enviaron), cada uno en `NO_PUBLICADO`. Para navegar a la gestión de cada plan. |
+| `planes[].coberturas` | Array de `{id, prestacionId, prestacionCodigo, prestacionNombre, modalidadCobertura, porcentajeCobertura, coseguro}` | Coberturas creadas para ese plan (vacío si no se enviaron). `id` sirve para desasignar la cobertura después. |
 
 **Errores posibles:**
 - `OBRA_SOCIAL_CODIGO_DUPLICADO` / `OBRA_SOCIAL_NOMBRE_DUPLICADO` (409).
 - `PLAN_CODIGO_DUPLICADO` / `PLAN_NOMBRE_DUPLICADO` (409): algún plan del array repite código o nombre dentro de la obra social.
-- Validación Bean (422): campos vacíos o exceso de longitud (código, nombre, razón social, o algún plan del array).
+- `PRESTACION_NO_ENCONTRADA` (404): alguna cobertura anidada referencia una prestación inexistente o no activa.
+- Validación Bean (422): campos vacíos o exceso de longitud (código, nombre, razón social, o algún plan/cobertura del array).
 
 ---
 
@@ -84,7 +91,7 @@ Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
 
 **Flujo simplificado:**
 1. Busca la única obra social activa que cumple el criteria (típico: `id.equals=<uuid>`).
-2. Carga todos sus planes (cualquier estado).
+2. Carga todos sus planes (cualquier estado) con las coberturas activas de cada uno.
 3. Devuelve los datos completos, o 404 si ninguna matchea.
 
 **Query params** — `ObraSocialCriteria`: `id`, `codigo`, `nombre`, `razonSocial`,
@@ -98,7 +105,8 @@ Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
 | `codigo` | String | Código. |
 | `nombre` | String | Nombre. |
 | `razonSocial` | String | Razón social. |
-| `planes` | Array de `{id, codigo, nombre, estadoActual}` | Para listar los planes de la obra social y su estado (publicar/despublicar/deshabilitar). |
+| `planes` | Array de `{id, codigo, nombre, estadoActual, coberturas}` | Para listar los planes de la obra social y su estado (publicar/despublicar/deshabilitar). |
+| `planes[].coberturas` | Array de `{id, prestacionId, prestacionCodigo, prestacionNombre, modalidadCobertura, porcentajeCobertura, coseguro}` | Prestaciones activas que cubre cada plan, sin otra consulta. |
 
 **Errores posibles:**
 - `OBRA_SOCIAL_NO_ENCONTRADA` (404): ninguna obra social activa cumple el criteria.
@@ -139,8 +147,9 @@ tocar nada.
 1. Valida que la obra social exista.
 2. Para cada plan no deshabilitado de la obra social: valida que no tenga turnos vivos
    cubiertos por él. Si alguno falla, rechaza toda la operación.
-3. Si todos pasan: deshabilita en cascada esos planes (motivo "Baja de obra social") y
-   da de baja lógica la obra social.
+3. Si todos pasan: para cada plan no deshabilitado, da de baja lógica sus coberturas
+   (`ObraSocialPlanPrestacion`) y sus `ObraSocialPaciente`, y lo deshabilita (motivo "Baja
+   de obra social"). Por último da de baja lógica la obra social.
 4. Devuelve la confirmación de la baja.
 
 **Response para el front — `SoftDeleteObraSocialResponse`**
@@ -165,7 +174,9 @@ Agrega un plan nuevo a una obra social **activa** ya existente. Nace en `NO_PUBL
 1. Valida que la obra social exista y esté activa.
 2. Valida que el `codigo`/`nombre` del plan sean únicos dentro de la obra social (entre no deshabilitados).
 3. Crea el plan en `NO_PUBLICADO` y abre su primer tramo de histórico de estados.
-4. Devuelve el plan creado.
+4. Si vino `coberturas`: para cada una valida que la prestación exista activa y que la
+   modalidad/porcentaje/coseguro sean coherentes, y crea la cobertura.
+5. Devuelve el plan creado, con sus coberturas (si se enviaron).
 
 **Request para el front — `AddPlanRequest`**
 
@@ -174,6 +185,7 @@ Agrega un plan nuevo a una obra social **activa** ya existente. Nace en `NO_PUBL
 | `obraSocialId` | UUID | Sí | Obra social a la que se agrega el plan. |
 | `codigo` | String (máx. 20) | Sí | Único dentro de la obra social entre planes no deshabilitados. |
 | `nombre` | String (máx. 150) | Sí | Único dentro de la obra social entre planes no deshabilitados. |
+| `coberturas` | Array | No | Prestaciones que cubre el plan desde el alta. Cada elemento: `prestacionId` (UUID de una prestación existente y activa), `modalidadCobertura` (`TOTAL`\|`CARGO_FIJO`\|`PORCENTUAL`), `porcentajeCobertura` (0-100; si la modalidad es `TOTAL` debe ser 100), `coseguro` (>= 0; si la modalidad es `TOTAL` debe ser 0). |
 
 **Response para el front — `GetPlanResponse`**
 
@@ -185,10 +197,12 @@ Agrega un plan nuevo a una obra social **activa** ya existente. Nace en `NO_PUBL
 | `obraSocialId` | UUID | Confirmación de la obra social. |
 | `obraSocialNombre` | String | Nombre de la obra social (para mostrar). |
 | `estadoActual` | String (`NO_PUBLICADO`\|`PUBLICADO`\|`DESHABILITADO`) | Nace en `NO_PUBLICADO`. |
+| `coberturas` | Array de `{id, prestacionId, prestacionCodigo, prestacionNombre, modalidadCobertura, porcentajeCobertura, coseguro}` | Coberturas creadas para el plan (vacío si no se enviaron). `id` sirve para desasignar la cobertura después. |
 
 **Errores posibles:**
 - `OBRA_SOCIAL_NO_ENCONTRADA` (404).
 - `PLAN_CODIGO_DUPLICADO` / `PLAN_NOMBRE_DUPLICADO` (409).
+- `PRESTACION_NO_ENCONTRADA` (404): alguna cobertura anidada referencia una prestación inexistente o no activa.
 
 ---
 
@@ -201,7 +215,7 @@ cambios (mismo criterio que `Prestacion`).
 **Flujo simplificado:**
 1. Valida que el plan exista y no esté deshabilitado.
 2. Si vino `codigo`/`nombre`, valida unicidad dentro de la obra social (excluyendo este plan) y actualiza.
-3. Devuelve el plan actualizado.
+3. Devuelve el plan actualizado, con sus coberturas activas actuales.
 
 **Request para el front — `UpdatePlanRequest`**
 
@@ -213,7 +227,9 @@ cambios (mismo criterio que `Prestacion`).
 
 **Response para el front — `GetPlanResponse`**
 
-Mismo formato que en "Agregar plan a obra social".
+Mismo formato que en "Agregar plan a obra social" — incluye `coberturas` con el estado
+activo actual, así que no hace falta un `GET` aparte después de actualizar para refrescar
+la lista de prestaciones cubiertas.
 
 **Errores posibles:**
 - `PLAN_NO_ENCONTRADO` (404): el plan no existe o está deshabilitado.
@@ -270,12 +286,11 @@ planes deshabilitados sin que eso la afecte.
 2. Valida que no esté ya deshabilitado.
 3. **Precondición restrictiva real**: rechaza si hay algún `Turno` con
    `obraSocialPaciente.plan` apuntando a este plan y estado no final.
-4. Cierra el tramo vigente del histórico, abre uno nuevo en `DESHABILITADO` (con el
+4. Da de baja lógica las `ObraSocialPaciente` y las coberturas `ObraSocialPlanPrestacion`
+   que referencian el plan.
+5. Cierra el tramo vigente del histórico, abre uno nuevo en `DESHABILITADO` (con el
    `motivo`, si vino); el estado vigente se deriva del histórico, no se cachea.
-5. Devuelve el plan deshabilitado.
-
-**Pendiente (TODO)**: bajar `ObraSocialPlanPrestacion` y `ObraSocialPaciente` asociados —
-se implementa cuando esos módulos estén en alcance.
+6. Devuelve el plan deshabilitado.
 
 **Request para el front — `DeshabilitarPlanRequest`**
 
@@ -338,6 +353,98 @@ GET /accesmed-api/Plan/Plan?obraSocialId.equals=3fa85f64-5717-4562-b3fc-2c963f66
 | `content[].obraSocialNombre` | String | Nombre de la obra social. |
 | `content[].estadoActual` | String | Para marcar visualmente o filtrar por estado. |
 | `page`, `size`, `totalElements`, `totalPages` | number | Metadatos de paginación. |
+
+---
+
+### Asignar prestación a un plan — `POST /accesmed-api/ObraSocialPrestacion/Asignar`
+
+Asigna, fuera del alta, una prestación existente a un plan existente ya creado (la
+alternativa al `coberturas` anidado de "Crear obra social" / "Agregar plan a obra social").
+
+**Flujo simplificado:**
+1. Valida que el plan y la prestación existan y estén activos.
+2. Valida que el plan no tenga ya una cobertura activa de esa misma prestación.
+3. Valida que la combinación modalidad/porcentaje/coseguro sea coherente (`TOTAL` exige
+   100% de cobertura y coseguro cero).
+4. Crea la cobertura y la devuelve.
+
+**Request para el front — `AssignObraSocialPrestacionRequest`**
+
+| Campo | Tipo | Obligatorio | Notas |
+|-------|------|-------------|-------|
+| `planId` | UUID | Sí | Plan existente al que se le asigna la prestación. |
+| `prestacionId` | UUID | Sí | Prestación existente a cubrir. |
+| `modalidadCobertura` | `TOTAL`\|`CARGO_FIJO`\|`PORCENTUAL` | Sí | Determina qué combinación de `porcentajeCobertura`/`coseguro` es válida. |
+| `porcentajeCobertura` | number (0-100) | Sí | Si la modalidad es `TOTAL`, debe ser 100. |
+| `coseguro` | number (>= 0) | Sí | Si la modalidad es `TOTAL`, debe ser 0. |
+
+**Response para el front — `GetObraSocialPrestacionResponse`**
+
+| Campo | Tipo | Para qué lo usa el front |
+|-------|------|--------------------------|
+| `id` | UUID | Identificador de la cobertura, para desasignarla después. |
+| `planId`, `planCodigo`, `planNombre` | — | Mostrar el plan sin otra consulta. |
+| `obraSocialId` | UUID | Navegar a la obra social dueña del plan. |
+| `prestacionId`, `prestacionCodigo`, `prestacionNombre` | — | Mostrar la prestación sin otra consulta. |
+| `modalidadCobertura`, `porcentajeCobertura`, `coseguro` | — | Mostrar las condiciones de la cobertura recién creada. |
+
+**Errores posibles:**
+- `PLAN_NO_ENCONTRADO` / `PRESTACION_NO_ENCONTRADA` (404).
+- `OBRA_SOCIAL_PLAN_PRESTACION_YA_ASIGNADA` (409): el plan ya tiene una cobertura activa de esa prestación.
+- Validación Bean (422): combinación modalidad/porcentaje/coseguro incoherente, o campos faltantes.
+
+---
+
+### Desasignar prestación de un plan — `PATCH /accesmed-api/ObraSocialPrestacion/Desasignar/{id}`
+
+Baja lógica de una cobertura. **Este endpoint no lleva body en el request** — alcanza con
+el `id` de la cobertura en la ruta.
+
+**Flujo simplificado:**
+1. Busca la cobertura activa por `id`.
+2. Verifica que no haya turnos vivos (no finalizados/cancelados) del par plan-prestación
+   de esa cobertura. Si los hay, rechaza la baja.
+3. Da de baja lógica la cobertura y devuelve la confirmación.
+
+**Response para el front — `UnassignObraSocialPrestacionResponse`**
+
+| Campo | Tipo | Para qué lo usa el front |
+|-------|------|--------------------------|
+| `id` | UUID | Confirmar qué cobertura se dio de baja. |
+| `deletedAt` | Instant | Momento de la baja. |
+| `deletedReason` | String | Motivo de la baja. |
+
+**Errores posibles:**
+- `OBRA_SOCIAL_PLAN_PRESTACION_NO_ENCONTRADA` (404).
+- `OBRA_SOCIAL_PLAN_PRESTACION_CON_TURNOS_VIVOS` (409): hay turnos vivos del par plan-prestación; el mensaje incluye la fecha más lejana.
+
+---
+
+### Listar coberturas plan-prestación — `GET /accesmed-api/ObraSocialPrestacion/ObraSocialPrestacion`
+
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md). Sin
+endpoint `/Buscar` — para traer una cobertura puntual, filtrar por `id.equals=<uuid>` en
+este mismo listado.
+
+**Flujo simplificado:**
+1. Recupera las coberturas activas que cumplen el criteria (sin filtros = todas).
+2. Devuelve una página de resultados.
+
+**Query params** — `ObraSocialPrestacionCriteria`: `id`, `planId`, `prestacionId`,
+`obraSocialId` (derivado, vía `plan.obraSocial`), `modalidadCobertura`.
+
+```
+GET /accesmed-api/ObraSocialPrestacion/ObraSocialPrestacion?planId.equals=3fa85f64-5717-4562-b3fc-2c963f66afa6
+```
+
+La forma más común: `planId.equals=<uuid>` trae las prestaciones cubiertas por un plan
+puntual (alternativa al `coberturas` que ya viene anidado al traer el plan).
+
+**Response para el front — `PageResponse<ListObraSocialPrestacionResponse>`**
+
+Mismo formato que `GetObraSocialPrestacionResponse` (ver "Asignar prestación a un plan")
+por cada elemento de `content[]`, más los metadatos de paginación (`page`, `size`,
+`totalElements`, `totalPages`).
 
 ---
 
