@@ -11,6 +11,7 @@ import com.accesmed.backend.Records.Prestacion.Response.ListPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.UpdatePrestacionResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
+import com.accesmed.backend.Services.QueryServices.PrestacionQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springdoc.core.annotations.ParameterObject;
@@ -44,6 +45,7 @@ public class PrestacionController {
     //region ========== Dependencias o inyecciones ==========
 
     private final PrestacionApp prestacionApp;
+    private final PrestacionQueryService prestacionQueryService;
 
     //endregion
 
@@ -179,7 +181,7 @@ public class PrestacionController {
 
         log.info("Solicitud recibida: listar prestaciones criteria={} page={}", prestacionCriteria, pageable);
 
-        PageResponse<ListPrestacionResponse> pageResponse = prestacionApp.findPrestaciones(prestacionCriteria, pageable);
+        PageResponse<ListPrestacionResponse> pageResponse = prestacionQueryService.findPrestaciones(prestacionCriteria, pageable);
 
         return ResponseEntity.ok(pageResponse);
 

@@ -6,14 +6,12 @@ import com.accesmed.backend.Domain.IndicacionPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
-import com.accesmed.backend.Records.Prestacion.Criteria.PrestacionCriteria;
 import com.accesmed.backend.Records.Prestacion.Request.CreateIndicacionPrestacionAnidadaRequest;
 import com.accesmed.backend.Records.Prestacion.Request.CreatePrestacionRequest;
 import com.accesmed.backend.Records.Prestacion.Request.DeshabilitarPrestacionRequest;
 import com.accesmed.backend.Records.Prestacion.Request.UpdatePrestacionRequest;
 import com.accesmed.backend.Records.Prestacion.Response.CambioEstadoPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.CreatePrestacionResponse;
-import com.accesmed.backend.Records.Prestacion.Response.ListPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.UpdatePrestacionResponse;
 import com.accesmed.backend.Services.DomainServices.*;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
@@ -21,12 +19,8 @@ import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.Mappers.IndicacionPrestacionMapper;
 import com.accesmed.backend.Services.Mappers.PrestacionMapper;
-import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
-import com.accesmed.backend.Services.QueryServices.PrestacionQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,8 +60,6 @@ public class PrestacionApp {
     private final PrestacionMapper prestacionMapper;
     private final IndicacionPrestacionMapper indicacionPrestacionMapper;
 
-    //Query Services
-    private final PrestacionQueryService prestacionQueryService;
     //endregion
 
     //region ========== Métodos ==========
@@ -328,33 +320,6 @@ public class PrestacionApp {
         return cambioEstadoPrestacionResponse;
 
     }
-
-    /**
-     * Lista prestaciones según el criteria de filtrado dinámico proporcionado.
-     *
-     * @param prestacionCriteria {@code PrestacionCriteria} filtros a aplicar, o {@code null} para no filtrar
-     * @param pageable {@code Pageable} página solicitada
-     * @return {@code PageResponse<ListPrestacionResponse>} página de prestaciones que cumplen el criteria
-     */
-    @Transactional(readOnly = true)
-    public PageResponse<ListPrestacionResponse> findPrestaciones(PrestacionCriteria prestacionCriteria, Pageable pageable) {
-
-        log.info("Listado de prestaciones iniciado: criteria={}, page={}", prestacionCriteria, pageable);
-
-        //Buscar prestaciones que cumplen el criteria, paginadas
-        Page<Prestacion> prestacionesPagina = prestacionQueryService.findByCriteria(prestacionCriteria, pageable);
-
-        //Cargar el estado vigente de toda la página en una sola consulta (evita N+1)
-        Map<UUID, EstadoPrestacion> estadosVigentes = historicoEstadoPrestacionDomainService.getEstadosVigentes(
-                prestacionesPagina.getContent().stream().map(Prestacion::getId).toList());
-
-        //Devolver response mapeado, alimentando el estado de cada fila desde el mapa
-        PageResponse<ListPrestacionResponse> pageResponse = PageResponse.from(prestacionesPagina,
-                prestacion -> prestacionMapper.toListResponse(prestacion, estadosVigentes.get(prestacion.getId())));
-        return pageResponse;
-
-    }
-
 
     /**
      * Resuelve el valor en minutos a usar para revalidar la cadena de tolerancias:

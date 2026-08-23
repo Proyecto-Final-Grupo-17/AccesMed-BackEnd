@@ -3,13 +3,11 @@ package com.accesmed.backend.Application;
 import com.accesmed.backend.Domain.EstadoPlan;
 import com.accesmed.backend.Domain.ObraSocial;
 import com.accesmed.backend.Domain.Plan;
-import com.accesmed.backend.Records.Plan.Criteria.PlanCriteria;
 import com.accesmed.backend.Records.Plan.Request.AddPlanRequest;
 import com.accesmed.backend.Records.Plan.Request.DeshabilitarPlanRequest;
 import com.accesmed.backend.Records.Plan.Request.UpdatePlanRequest;
 import com.accesmed.backend.Records.Plan.Response.CambioEstadoPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.GetPlanResponse;
-import com.accesmed.backend.Records.Plan.Response.ListPlanResponse;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoPlanDomainService;
 import com.accesmed.backend.Services.DomainServices.ObraSocialDomainService;
 import com.accesmed.backend.Services.DomainServices.ObraSocialPacienteDomainService;
@@ -18,16 +16,11 @@ import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.PlanMapper;
-import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
-import com.accesmed.backend.Services.QueryServices.PlanQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -52,8 +45,6 @@ public class PlanApp {
     //Mappers
     private final PlanMapper planMapper;
 
-    //Query Services
-    private final PlanQueryService planQueryService;
     //endregion
 
     //region ========== Métodos ==========
@@ -215,56 +206,6 @@ public class PlanApp {
         //Devolver response mapeado (el estado vigente tras la transición es DESHABILITADO)
         CambioEstadoPlanResponse cambioEstadoPlanResponse = planMapper.toCambioEstadoResponse(planDeshabilitado, EstadoPlan.DESHABILITADO);
         return cambioEstadoPlanResponse;
-
-    }
-
-    /**
-     * Busca el plan que cumple el criteria de filtrado dinámico proporcionado. A
-     * diferencia de {@link #findPlanes}, devuelve un único plan (no paginado) — pensado
-     * para criterios que identifican un plan puntual (ej. {@code id.equals}).
-     *
-     * @param planCriteria {@code PlanCriteria} filtros a aplicar
-     * @return {@code GetPlanResponse} el plan encontrado
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ningún plan cumple el criteria
-     */
-    @Transactional(readOnly = true)
-    public GetPlanResponse findPlanByCriteria(PlanCriteria planCriteria) {
-
-        log.info("Búsqueda de plan iniciada: criteria={}", planCriteria);
-
-        Plan planExistente = planQueryService.findPlanByCriteria(planCriteria);
-
-        //Calcular el estado vigente del histórico para el response
-        EstadoPlan estadoVigente = historicoEstadoPlanDomainService.getEstadoVigente(planExistente.getId());
-
-        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planExistente, estadoVigente);
-        return getPlanResponse;
-
-    }
-
-    /**
-     * Lista planes según el criteria de filtrado dinámico proporcionado.
-     *
-     * @param planCriteria {@code PlanCriteria} filtros a aplicar, o {@code null} para no filtrar
-     * @param pageable {@code Pageable} página solicitada
-     * @return {@code PageResponse<ListPlanResponse>} página de planes que cumplen el criteria
-     */
-    @Transactional(readOnly = true)
-    public PageResponse<ListPlanResponse> findPlanes(PlanCriteria planCriteria, Pageable pageable) {
-
-        log.info("Listado de planes iniciado: criteria={}, page={}", planCriteria, pageable);
-
-        //Buscar planes que cumplen el criteria, paginados
-        Page<Plan> planesPagina = planQueryService.findByCriteria(planCriteria, pageable);
-
-        //Cargar el estado vigente de toda la página en una sola consulta (evita N+1)
-        Map<UUID, EstadoPlan> estadosVigentes = historicoEstadoPlanDomainService.getEstadosVigentes(
-                planesPagina.getContent().stream().map(Plan::getId).toList());
-
-        //Devolver response mapeado, alimentando el estado de cada fila desde el mapa
-        PageResponse<ListPlanResponse> pageResponse = PageResponse.from(planesPagina,
-                plan -> planMapper.toListResponse(plan, estadosVigentes.get(plan.getId())));
-        return pageResponse;
 
     }
 

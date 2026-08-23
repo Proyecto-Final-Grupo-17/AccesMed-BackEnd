@@ -10,6 +10,7 @@ import com.accesmed.backend.Records.Plan.Response.GetPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.ListPlanResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
+import com.accesmed.backend.Services.QueryServices.PlanQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springdoc.core.annotations.ParameterObject;
@@ -43,6 +44,7 @@ public class PlanController {
     //region ========== Dependencias o inyecciones ==========
 
     private final PlanApp planApp;
+    private final PlanQueryService planQueryService;
 
     //endregion
 
@@ -172,7 +174,7 @@ public class PlanController {
 
         log.info("Solicitud recibida: buscar plan criteria={}", planCriteria);
 
-        GetPlanResponse getPlanResponse = planApp.findPlanByCriteria(planCriteria);
+        GetPlanResponse getPlanResponse = planQueryService.findPlanByCriteria(planCriteria);
 
         return ResponseEntity.ok(getPlanResponse);
 
@@ -192,7 +194,7 @@ public class PlanController {
 
         log.info("Solicitud recibida: listar planes criteria={} page={}", planCriteria, pageable);
 
-        PageResponse<ListPlanResponse> pageResponse = planApp.findPlanes(planCriteria, pageable);
+        PageResponse<ListPlanResponse> pageResponse = planQueryService.findPlanes(planCriteria, pageable);
 
         return ResponseEntity.ok(pageResponse);
 

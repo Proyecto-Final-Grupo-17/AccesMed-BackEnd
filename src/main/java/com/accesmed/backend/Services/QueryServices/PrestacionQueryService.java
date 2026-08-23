@@ -8,9 +8,13 @@ import com.accesmed.backend.Domain.HistoricoEstadoPrestacion_;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Domain.Prestacion_;
 import com.accesmed.backend.Records.Prestacion.Criteria.PrestacionCriteria;
+import com.accesmed.backend.Records.Prestacion.Response.ListPrestacionResponse;
+import com.accesmed.backend.Repositories.HistoricoEstadoPrestacionRepository;
 import com.accesmed.backend.Repositories.PrestacionRepository;
+import com.accesmed.backend.Services.Mappers.PrestacionMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.EstadoPrestacionFilter;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
@@ -18,13 +22,18 @@ import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Consultas de lectura para la entidad {@code Prestacion}, incluido el filtrado dinámico
@@ -37,11 +46,14 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class PrestacionQueryService extends AbstractFiltroQueryService<Prestacion, PrestacionCriteria> {
 
     //region ========== Dependencias o inyecciones ==========
 
     private final PrestacionRepository prestacionRepository;
+    private final PrestacionMapper prestacionMapper;
+    private final HistoricoEstadoPrestacionRepository historicoEstadoPrestacionRepository;
 
     //endregion
 
@@ -51,6 +63,29 @@ public class PrestacionQueryService extends AbstractFiltroQueryService<Prestacio
     protected JpaSpecificationExecutor<Prestacion> getRepository() {
 
         return prestacionRepository;
+
+    }
+
+    /**
+     * Lista prestaciones según el criteria de filtrado dinámico proporcionado, devolviendo
+     * una página mapeada a responses con su estado vigente.
+     *
+     * @param criteria {@code PrestacionCriteria} filtros a aplicar, o {@code null} para no filtrar
+     * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @return {@code PageResponse<ListPrestacionResponse>} página de DTOs mapeados con su estado vigente
+     */
+    public PageResponse<ListPrestacionResponse> findPrestaciones(PrestacionCriteria criteria, Pageable pageable) {
+
+        log.debug("Buscando prestaciones por criteria: {}, pageable: {}", criteria, pageable);
+
+        Page<Prestacion> prestacionesPaginada = findByCriteria(criteria, pageable);
+
+        Map<UUID, EstadoPrestacion> estadosVigentes = resolverEstadosVigentes(
+                prestacionesPaginada.getContent().stream().map(Prestacion::getId).toList());
+
+        PageResponse<ListPrestacionResponse> pageResponse = PageResponse.from(prestacionesPaginada,
+                prestacion -> prestacionMapper.toListResponse(prestacion, estadosVigentes.get(prestacion.getId())));
+        return pageResponse;
 
     }
 
@@ -96,6 +131,22 @@ public class PrestacionQueryService extends AbstractFiltroQueryService<Prestacio
         }
 
         return specification;
+
+    }
+
+    /**
+     * Resuelve el estado vigente de un conjunto de prestaciones con una única consulta
+     * batch, armando un {@code Map<UUID, EstadoPrestacion>} indexado por prestación ID.
+     *
+     * @param prestacionIds {@code List<UUID>} identificadores de las prestaciones
+     * @return {@code Map<UUID, EstadoPrestacion>} mapa prestación ID → estado vigente
+     */
+    private Map<UUID, EstadoPrestacion> resolverEstadosVigentes(List<UUID> prestacionIds) {
+
+        return prestacionIds.isEmpty()
+                ? Map.of()
+                : historicoEstadoPrestacionRepository.findByPrestacionIdInAndFechaHoraFinIsNull(prestacionIds).stream()
+                        .collect(Collectors.toMap(historico -> historico.getPrestacion().getId(), HistoricoEstadoPrestacion::getEstado));
 
     }
 

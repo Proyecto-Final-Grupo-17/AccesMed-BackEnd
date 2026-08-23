@@ -8,10 +8,15 @@ import com.accesmed.backend.Domain.ObraSocial_;
 import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Domain.Plan_;
 import com.accesmed.backend.Records.Plan.Criteria.PlanCriteria;
+import com.accesmed.backend.Records.Plan.Response.GetPlanResponse;
+import com.accesmed.backend.Records.Plan.Response.ListPlanResponse;
+import com.accesmed.backend.Repositories.HistoricoEstadoPlanRepository;
 import com.accesmed.backend.Repositories.PlanRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
+import com.accesmed.backend.Services.Mappers.PlanMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.EstadoPlanFilter;
+import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
@@ -19,13 +24,18 @@ import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Consultas de lectura para la entidad {@code Plan}, incluido el filtrado dinámico por
@@ -37,11 +47,14 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCriteria> {
 
     //region ========== Dependencias o inyecciones ==========
 
     private final PlanRepository planRepository;
+    private final PlanMapper planMapper;
+    private final HistoricoEstadoPlanRepository historicoEstadoPlanRepository;
 
     //endregion
 
@@ -55,25 +68,52 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
     }
 
     /**
-     * Busca el plan que cumple el criteria proporcionado (típicamente un criteria armado
-     * con igualdad por {@code id}). A diferencia de {@link #findByCriteria}, devuelve un
-     * único plan en vez de una página.
+     * Busca el plan que cumple el criteria proporcionado, devolviendo su response mapeado
+     * incluyendo su estado vigente. A diferencia de {@link #findPlanes}, devuelve un
+     * único plan en vez de una página — pensado para criterios que identifican un plan
+     * puntual (ej. {@code id.equals}).
      *
      * @param criteria {@code PlanCriteria} filtros a aplicar
-     * @return {@code Plan} el plan que cumple el criteria
+     * @return {@code GetPlanResponse} el plan encontrado con su estado vigente
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ningún
      *         plan cumple el criteria
      */
-    public Plan findPlanByCriteria(PlanCriteria criteria) {
+    public GetPlanResponse findPlanByCriteria(PlanCriteria criteria) {
 
         log.debug("Buscando plan por criteria: {}", criteria);
 
-        return findOneByCriteria(criteria)
+        Plan planEncontrado = findOneByCriteria(criteria)
                 .orElseThrow(() -> {
                     log.warn("No se encontró ningún plan que cumpla el criteria: {}", criteria);
                     return new RecursoNoEncontradoException(getClass(), "PLAN_NO_ENCONTRADO",
                             "No existe un plan que cumpla el criteria proporcionado.");
                 });
+
+        List<GetPlanResponse> planesMapeados = mapPlanesConEstado(List.of(planEncontrado));
+        return planesMapeados.get(0);
+
+    }
+
+    /**
+     * Lista planes según el criteria de filtrado dinámico proporcionado, devolviendo una
+     * página mapeada a responses con su estado vigente.
+     *
+     * @param criteria {@code PlanCriteria} filtros a aplicar, o {@code null} para no filtrar
+     * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @return {@code PageResponse<ListPlanResponse>} página de DTOs mapeados con su estado vigente
+     */
+    public PageResponse<ListPlanResponse> findPlanes(PlanCriteria criteria, Pageable pageable) {
+
+        log.debug("Buscando planes por criteria: {}, pageable: {}", criteria, pageable);
+
+        Page<Plan> planesPaginada = findByCriteria(criteria, pageable);
+
+        Map<UUID, EstadoPlan> estadosVigentes = resolverEstadosVigentes(
+                planesPaginada.getContent().stream().map(Plan::getId).toList());
+
+        PageResponse<ListPlanResponse> pageResponse = PageResponse.from(planesPaginada,
+                plan -> planMapper.toListResponse(plan, estadosVigentes.get(plan.getId())));
+        return pageResponse;
 
     }
 
@@ -119,6 +159,40 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
         }
 
         return specification;
+
+    }
+
+    /**
+     * Mapea una lista de planes a sus responses de lectura detallada, resolviendo el estado
+     * vigente de todos en una única consulta (evita N+1) y alimentándolo a cada response.
+     *
+     * @param planes {@code List<Plan>} planes a mapear
+     * @return {@code List<GetPlanResponse>} responses detalladas con su estado vigente
+     */
+    private List<GetPlanResponse> mapPlanesConEstado(List<Plan> planes) {
+
+        Map<UUID, EstadoPlan> estadosVigentes = resolverEstadosVigentes(
+                planes.stream().map(Plan::getId).toList());
+
+        return planes.stream()
+                .map(plan -> planMapper.toGetResponse(plan, estadosVigentes.get(plan.getId())))
+                .toList();
+
+    }
+
+    /**
+     * Resuelve el estado vigente de un conjunto de planes con una única consulta batch,
+     * armando un {@code Map<UUID, EstadoPlan>} indexado por plan ID.
+     *
+     * @param planIds {@code List<UUID>} identificadores de los planes
+     * @return {@code Map<UUID, EstadoPlan>} mapa plan ID → estado vigente
+     */
+    private Map<UUID, EstadoPlan> resolverEstadosVigentes(List<UUID> planIds) {
+
+        return planIds.isEmpty()
+                ? Map.of()
+                : historicoEstadoPlanRepository.findByPlanIdInAndFechaHoraFinIsNull(planIds).stream()
+                        .collect(Collectors.toMap(historico -> historico.getPlan().getId(), HistoricoEstadoPlan::getEstado));
 
     }
 
