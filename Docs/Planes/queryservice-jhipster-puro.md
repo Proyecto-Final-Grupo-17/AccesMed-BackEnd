@@ -15,9 +15,18 @@
 > `AgendaMedicoApp`) y una regresión funcional real (`AgendaHorariosDiaQueryService
 > .findHorariosDisponibles` swalleaba en silencio la ausencia de la fila de configuración
 > de `Clinica` con `.orElse(0)` en vez de lanzar `RecursoNoEncontradoException` como el
-> `ClinicaDomainService.findClinica()` original). **Fase 4** (`Plan`/`Prestacion`, left
-> join ad-hoc para estado vigente por lote) **no iniciada** — queda para otra sesión, con
-> más control, dado el patrón de degradación observado en el agente.
+> `ClinicaDomainService.findClinica()` original). Fases 1-3 mergeadas a `develop`
+> (commits `ca13ec8`, `a160582`, `71a2f92`).
+>
+> **Fase 4 ejecutada y revisada** (`Plan`, `Prestacion`), directo sobre `develop`
+> (commit `338b0ae`): no hizo falta el left join ad-hoc mencionado más abajo — se
+> resolvió con el mismo patrón ya probado en `ObraSocialQueryService` (`Repository` del
+> histórico inyectado directo + `Map<UUID, Estado>` armado en memoria con una sola
+> consulta batch), sin necesidad de mecanismo nuevo. Un solo error real en la revisión
+> (import duplicado en `PrestacionApp`), corregido a mano; sin violaciones de la regla
+> "QueryService nunca inyecta DomainService" esta vez. **Plan completo: las 10 entidades
+> migradas al patrón `Controller → QueryService (con Mapper) → Repository` para
+> lecturas.**
 
 Cambia el punto de entrada de todas las lecturas del backend: hoy es
 `Controller → App → QueryService → Mapper (en el App)`; pasa a ser
