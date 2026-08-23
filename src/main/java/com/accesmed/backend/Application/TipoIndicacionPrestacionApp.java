@@ -1,24 +1,17 @@
 package com.accesmed.backend.Application;
 
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion;
-import com.accesmed.backend.Records.TipoIndicacionPrestacion.Criteria.TipoIndicacionPrestacionCriteria;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Request.UpdateTipoIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Request.CreateTipoIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.UpdateTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.CreateTipoIndicacionPrestacionResponse;
-import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.ListTipoIndicacionPrestacionResponse;
-import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.GetTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.SoftDeleteTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.TipoIndicacionPrestacionDomainService;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.TipoIndicacionPrestacionMapper;
-import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
-import com.accesmed.backend.Services.QueryServices.TipoIndicacionPrestacionQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,8 +19,9 @@ import java.util.UUID;
 
 /**
  * Caso de uso de Tipo de Indicación de Prestación. Orquesta el flujo completo de los
- * endpoints (creación, actualización, baja) validando reglas de negocio y coordinando
- * los services.
+ * endpoints de escritura (creación, actualización, baja) validando reglas de negocio
+ * y coordinando los services. Los endpoints de lectura se sirven directamente desde
+ * {@link com.accesmed.backend.Services.QueryServices.TipoIndicacionPrestacionQueryService}.
  */
 @Slf4j
 @Service
@@ -39,9 +33,6 @@ public class TipoIndicacionPrestacionApp {
     //Domain Services
     private final TipoIndicacionPrestacionDomainService tipoIndicacionPrestacionDomainService;
     private final IndicacionPrestacionDomainService indicacionPrestacionDomainService;
-
-    //Query Services
-    private final TipoIndicacionPrestacionQueryService tipoIndicacionPrestacionQueryService;
 
     //Mappers
     private final TipoIndicacionPrestacionMapper tipoIndicacionPrestacionMapper;
@@ -166,61 +157,6 @@ public class TipoIndicacionPrestacionApp {
         SoftDeleteTipoIndicacionPrestacionResponse softDeleteTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionMapper
                 .toSoftDeleteResponse(tipoExistente);
         return softDeleteTipoIndicacionPrestacionResponse;
-
-    }
-
-    /**
-     * Busca el tipo de indicación de prestación activo que cumple el criteria de filtrado
-     * dinámico proporcionado. A diferencia de {@link #findTiposIndicacionPrestacion},
-     * devuelve un único tipo (no paginado) — pensado para criterios que identifican un tipo
-     * puntual (ej. {@code id.equals}).
-     *
-     * @param tipoIndicacionPrestacionCriteria {@code TipoIndicacionPrestacionCriteria} filtros a aplicar
-     * @return {@code GetTipoIndicacionPrestacionResponse} el tipo encontrado
-     * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException
-     *         {@code RecursoNoEncontradoException} si ningún tipo cumple el criteria
-     */
-    @Transactional(readOnly = true)
-    public GetTipoIndicacionPrestacionResponse findTipoIndicacionPrestacionByCriteria(
-            TipoIndicacionPrestacionCriteria tipoIndicacionPrestacionCriteria) {
-
-        log.info("Búsqueda de tipo de indicación iniciada: criteria={}", tipoIndicacionPrestacionCriteria);
-
-        //Buscar el tipo
-        TipoIndicacionPrestacion tipoExistente = tipoIndicacionPrestacionQueryService
-                .findTipoIndicacionPrestacionByCriteria(tipoIndicacionPrestacionCriteria);
-
-        //Devolver response mapeado
-        GetTipoIndicacionPrestacionResponse getTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionMapper
-                .toGetResponse(tipoExistente);
-
-        return getTipoIndicacionPrestacionResponse;
-
-    }
-
-    /**
-     * Lista tipos de indicación de prestación activos según el criteria de filtrado
-     * dinámico proporcionado.
-     *
-     * @param tipoIndicacionPrestacionCriteria {@code TipoIndicacionPrestacionCriteria} filtros a aplicar,
-     *        o {@code null} para no filtrar
-     * @param pageable {@code Pageable} página solicitada
-     * @return {@code PageResponse<ListTipoIndicacionPrestacionResponse>} página de tipos que cumplen el criteria
-     */
-    @Transactional(readOnly = true)
-    public PageResponse<ListTipoIndicacionPrestacionResponse> findTiposIndicacionPrestacion(
-            TipoIndicacionPrestacionCriteria tipoIndicacionPrestacionCriteria, Pageable pageable) {
-
-        log.info("Listado de tipos de indicación iniciado: criteria={}, page={}", tipoIndicacionPrestacionCriteria, pageable);
-
-        //Buscar tipos de indicación que cumplen el criteria, paginados
-        Page<TipoIndicacionPrestacion> tiposPagina = tipoIndicacionPrestacionQueryService
-                .findByCriteria(tipoIndicacionPrestacionCriteria, pageable);
-
-        //Devolver response mapeado
-        PageResponse<ListTipoIndicacionPrestacionResponse> pageResponse = PageResponse.from(
-                tiposPagina, tipoIndicacionPrestacionMapper::toListResponse);
-        return pageResponse;
 
     }
 

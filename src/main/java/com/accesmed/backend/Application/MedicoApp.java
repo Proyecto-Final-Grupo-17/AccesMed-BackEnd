@@ -4,14 +4,12 @@ import com.accesmed.backend.Domain.Especialidad;
 import com.accesmed.backend.Domain.Medico;
 import com.accesmed.backend.Domain.MedicoPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
-import com.accesmed.backend.Records.Medico.Criteria.MedicoCriteria;
 import com.accesmed.backend.Records.Medico.Request.AsignarPrestacionAnidadaRequest;
 import com.accesmed.backend.Records.Medico.Request.CreateMedicoRequest;
 import com.accesmed.backend.Records.Medico.Request.UpdateMedicoRequest;
 import com.accesmed.backend.Records.Medico.Response.CreateMedicoResponse;
 import com.accesmed.backend.Records.Medico.Response.GetMedicoResponse;
 import com.accesmed.backend.Records.Medico.Response.GetPrestacionAnidadaResponse;
-import com.accesmed.backend.Records.Medico.Response.ListMedicoResponse;
 import com.accesmed.backend.Records.Medico.Response.SoftDeleteMedicoResponse;
 import com.accesmed.backend.Services.DomainServices.EspecialidadDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoDomainService;
@@ -22,12 +20,8 @@ import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.MedicoMapper;
 import com.accesmed.backend.Services.Mappers.MedicoPrestacionMapper;
-import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
-import com.accesmed.backend.Services.QueryServices.MedicoQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,9 +53,6 @@ public class MedicoApp {
     //Mappers
     private final MedicoMapper medicoMapper;
     private final MedicoPrestacionMapper medicoPrestacionMapper;
-
-    //Query Services
-    private final MedicoQueryService medicoQueryService;
 
     //endregion
 
@@ -194,53 +185,6 @@ public class MedicoApp {
         //Devolver response mapeado
         SoftDeleteMedicoResponse softDeleteMedicoResponse = medicoMapper.toSoftDeleteResponse(medicoExistente);
         return softDeleteMedicoResponse;
-
-    }
-
-    /**
-     * Busca el médico activo que cumple el criteria de filtrado dinámico proporcionado,
-     * con sus prestaciones. A diferencia de {@link #findMedicos}, devuelve un único médico
-     * (no paginado) — pensado para criterios que identifican un médico puntual (ej.
-     * {@code id.equals}).
-     *
-     * @param medicoCriteria {@code MedicoCriteria} filtros a aplicar
-     * @return {@code GetMedicoResponse} el médico encontrado, con sus prestaciones
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ningún médico cumple el criteria
-     */
-    @Transactional(readOnly = true)
-    public GetMedicoResponse findMedicoByCriteria(MedicoCriteria medicoCriteria) {
-
-        log.info("Búsqueda de médico iniciada: criteria={}", medicoCriteria);
-
-        //Buscar el médico y sus prestaciones vigentes
-        Medico medicoExistente = medicoQueryService.findMedicoByCriteria(medicoCriteria);
-        List<GetPrestacionAnidadaResponse> prestacionesResponse = medicoPrestacionMapper.toGetPrestacionAnidadaResponses(
-                medicoPrestacionDomainService.findAsignacionesVigentesByMedico(medicoExistente.getId(), ZonedDateTime.now()));
-
-        //Devolver response mapeado
-        GetMedicoResponse getMedicoResponse = medicoMapper.toGetResponse(medicoExistente, prestacionesResponse);
-        return getMedicoResponse;
-
-    }
-
-    /**
-     * Lista médicos activos según el criteria de filtrado dinámico proporcionado.
-     *
-     * @param medicoCriteria {@code MedicoCriteria} filtros a aplicar, o {@code null} para no filtrar
-     * @param pageable {@code Pageable} página solicitada
-     * @return {@code PageResponse<ListMedicoResponse>} página de médicos que cumplen el criteria
-     */
-    @Transactional(readOnly = true)
-    public PageResponse<ListMedicoResponse> findMedicos(MedicoCriteria medicoCriteria, Pageable pageable) {
-
-        log.info("Listado de médicos iniciado: criteria={}, page={}", medicoCriteria, pageable);
-
-        //Buscar médicos que cumplen el criteria, paginados
-        Page<Medico> medicosPagina = medicoQueryService.findByCriteria(medicoCriteria, pageable);
-
-        //Devolver response mapeado
-        PageResponse<ListMedicoResponse> pageResponse = PageResponse.from(medicosPagina, medicoMapper::toListResponse);
-        return pageResponse;
 
     }
 

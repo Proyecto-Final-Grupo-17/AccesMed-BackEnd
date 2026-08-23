@@ -7,8 +7,6 @@ import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.Medico;
 import com.accesmed.backend.Domain.MedicoPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
-import com.accesmed.backend.Records.AgendaMedico.Criteria.AgendaHorariosCriteria;
-import com.accesmed.backend.Records.AgendaMedico.Criteria.AgendaMedicoCriteria;
 import com.accesmed.backend.Records.AgendaMedico.Request.BloqueHorarioRequest;
 import com.accesmed.backend.Records.AgendaMedico.Request.CreateAgendaMedicoRequest;
 import com.accesmed.backend.Records.AgendaMedico.Request.DiaPatronRequest;
@@ -18,13 +16,8 @@ import com.accesmed.backend.Records.AgendaMedico.Request.UpdateAgendaMedicoReque
 import com.accesmed.backend.Records.AgendaMedico.Request.UpdateVigenciaAgendaMedicoRequest;
 import com.accesmed.backend.Records.AgendaMedico.Response.CreateAgendaMedicoResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.DiaAgendaResponse;
-import com.accesmed.backend.Records.AgendaMedico.Response.GetAgendaMedicoResponse;
-import com.accesmed.backend.Records.AgendaMedico.Response.ListAgendaHorarioResponse;
-import com.accesmed.backend.Records.AgendaMedico.Response.ListAgendaMedicoResponse;
-import com.accesmed.backend.Records.AgendaMedico.Response.ListHorarioDisponibleResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.UpdateAgendaMedicoResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.UpdateVigenciaAgendaMedicoResponse;
-import com.accesmed.backend.Repositories.AgendaHorariosDiaRepository;
 import com.accesmed.backend.Services.DomainServices.AgendaHorariosDiaDomainService;
 import com.accesmed.backend.Services.DomainServices.AgendaMedicoDomainService;
 import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
@@ -36,14 +29,9 @@ import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.Mappers.AgendaMedicoMapper;
-import com.accesmed.backend.Services.QueryServices.AgendaHorariosDiaQueryService;
-import com.accesmed.backend.Services.QueryServices.AgendaMedicoQueryService;
-import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import com.accesmed.backend.Services.Utils.GeneradorSlotsAgenda;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -90,9 +78,6 @@ public class AgendaMedicoApp {
     private final HistoricoEstadoPrestacionDomainService historicoEstadoPrestacionDomainService;
     private final MedicoPrestacionDomainService medicoPrestacionDomainService;
     private final ClinicaDomainService clinicaDomainService;
-
-    private final AgendaMedicoQueryService agendaMedicoQueryService;
-    private final AgendaHorariosDiaQueryService agendaHorariosDiaQueryService;
 
     private final AgendaMedicoMapper agendaMedicoMapper;
     private final GeneradorSlotsAgenda generadorSlotsAgenda;
@@ -290,114 +275,6 @@ public class AgendaMedicoApp {
                 agendaMedicoActualizada.getId(), agendaMedicoActualizada.getFechaHoraInicioVigencia(),
                 agendaMedicoActualizada.getFechaHoraFinVigencia(), cantidadHorariosDadosDeBaja);
         return updateVigenciaAgendaMedicoResponse;
-
-    }
-
-    //endregion
-
-    //region ========== Métodos de lectura ==========
-
-    /**
-     * Lista agendas médicas según el criteria de filtrado dinámico proporcionado, con los
-     * conteos de días y horarios activos de cada una, resueltos en una sola consulta
-     * agrupada para toda la página (Fase 3 bis #1: antes eran 2 queries por fila).
-     *
-     * @param agendaMedicoCriteria {@code AgendaMedicoCriteria} filtros a aplicar, o {@code null} para no filtrar
-     * @param pageable {@code Pageable} página solicitada
-     * @return {@code PageResponse<ListAgendaMedicoResponse>} página de agendas que cumplen el criteria
-     */
-    @Transactional(readOnly = true)
-    public PageResponse<ListAgendaMedicoResponse> findAgendas(AgendaMedicoCriteria agendaMedicoCriteria, Pageable pageable) {
-
-        log.info("Listado de agendas médicas iniciado: criteria={}, page={}", agendaMedicoCriteria, pageable);
-
-        Page<AgendaMedico> paginaAgendas = agendaMedicoQueryService.findByCriteria(agendaMedicoCriteria, pageable);
-
-        List<UUID> agendaMedicoIds = paginaAgendas.getContent().stream().map(AgendaMedico::getId).toList();
-        Map<UUID, AgendaHorariosDiaRepository.ConteoAgendaMedico> conteosPorAgenda =
-                agendaHorariosDiaDomainService.countDiasYHorariosActivosByAgendaMedicoIds(agendaMedicoIds);
-
-        PageResponse<ListAgendaMedicoResponse> pageResponse = PageResponse.from(paginaAgendas, agenda -> {
-            AgendaHorariosDiaRepository.ConteoAgendaMedico conteo = conteosPorAgenda.get(agenda.getId());
-            long cantidadDias = conteo != null ? conteo.getCantidadDias() : 0L;
-            long cantidadHorarios = conteo != null ? conteo.getCantidadHorarios() : 0L;
-            return agendaMedicoMapper.toListResponse(agenda, cantidadDias, cantidadHorarios);
-        });
-        return pageResponse;
-
-    }
-
-    /**
-     * Busca la única agenda médica que cumple el criteria proporcionado, con sus días y
-     * horarios activos expandidos.
-     *
-     * @param agendaMedicoCriteria {@code AgendaMedicoCriteria} filtros a aplicar
-     * @return {@code GetAgendaMedicoResponse} la agenda encontrada
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ninguna agenda
-     *         cumple el criteria
-     */
-    @Transactional(readOnly = true)
-    public GetAgendaMedicoResponse getAgendaMedico(AgendaMedicoCriteria agendaMedicoCriteria) {
-
-        log.info("Búsqueda puntual de agenda médica iniciada: criteria={}", agendaMedicoCriteria);
-
-        AgendaMedico agendaMedicoEncontrada = agendaMedicoQueryService.findOneByCriteria(agendaMedicoCriteria)
-                .orElseThrow(() -> {
-                    log.warn("No se encontró ninguna agenda médica que cumpla el criteria: {}", agendaMedicoCriteria);
-                    return new RecursoNoEncontradoException(getClass(), "AGENDA_MEDICO_NO_ENCONTRADA",
-                            "No existe una agenda médica que cumpla el criteria proporcionado.");
-                });
-
-        List<AgendaHorariosDia> horariosActivos = agendaHorariosDiaDomainService.findByAgendaMedicoId(agendaMedicoEncontrada.getId());
-        List<DiaAgendaResponse> diasResponse = agendaMedicoMapper.toDiaAgendaResponses(horariosActivos);
-
-        GetAgendaMedicoResponse getAgendaMedicoResponse = agendaMedicoMapper.toGetResponse(agendaMedicoEncontrada, diasResponse);
-        return getAgendaMedicoResponse;
-
-    }
-
-    /**
-     * Lista los horarios de agenda del panel según el criteria proporcionado. Guarda fija:
-     * solo horarios activos.
-     *
-     * @param agendaHorariosCriteria {@code AgendaHorariosCriteria} filtros a aplicar, o {@code null}
-     *        para no filtrar
-     * @param pageable {@code Pageable} página solicitada
-     * @return {@code PageResponse<ListAgendaHorarioResponse>} página de horarios que cumplen el criteria
-     */
-    @Transactional(readOnly = true)
-    public PageResponse<ListAgendaHorarioResponse> findHorariosAgenda(AgendaHorariosCriteria agendaHorariosCriteria, Pageable pageable) {
-
-        log.info("Listado de horarios de agenda iniciado: criteria={}, page={}", agendaHorariosCriteria, pageable);
-
-        Page<AgendaHorariosDia> paginaHorarios = agendaHorariosDiaQueryService.findByCriteria(agendaHorariosCriteria, pageable);
-
-        PageResponse<ListAgendaHorarioResponse> pageResponse = PageResponse.from(paginaHorarios, agendaMedicoMapper::toListHorarioResponse);
-        return pageResponse;
-
-    }
-
-    /**
-     * Lista los horarios disponibles para reservar, el único listado que consume el
-     * chatbot. Guardas fijas: sin ocupar, dentro del plazo de reserva y dentro del
-     * horizonte de anticipación configurado en la clínica.
-     *
-     * @param agendaHorariosCriteria {@code AgendaHorariosCriteria} filtros a aplicar, o {@code null}
-     *        para no filtrar
-     * @param pageable {@code Pageable} página solicitada
-     * @return {@code PageResponse<ListHorarioDisponibleResponse>} página de horarios disponibles
-     */
-    @Transactional(readOnly = true)
-    public PageResponse<ListHorarioDisponibleResponse> findHorariosDisponibles(AgendaHorariosCriteria agendaHorariosCriteria, Pageable pageable) {
-
-        log.info("Listado de horarios disponibles iniciado: criteria={}, page={}", agendaHorariosCriteria, pageable);
-
-        Clinica clinica = clinicaDomainService.findClinica();
-        Page<AgendaHorariosDia> paginaHorarios = agendaHorariosDiaQueryService.findHorariosDisponibles(
-                agendaHorariosCriteria, pageable, clinica.getDiasMaximosAnticipacionReserva());
-
-        PageResponse<ListHorarioDisponibleResponse> pageResponse = PageResponse.from(paginaHorarios, agendaMedicoMapper::toListHorarioDisponibleResponse);
-        return pageResponse;
 
     }
 

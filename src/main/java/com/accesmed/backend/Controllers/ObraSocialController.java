@@ -9,6 +9,7 @@ import com.accesmed.backend.Records.ObraSocial.Response.GetObraSocialResponse;
 import com.accesmed.backend.Records.ObraSocial.Response.ListObraSocialResponse;
 import com.accesmed.backend.Records.ObraSocial.Response.SoftDeleteObraSocialResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.ObraSocialQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ public class ObraSocialController {
     //region ========== Dependencias o inyecciones ==========
 
     private final ObraSocialApp obraSocialApp;
+    private final ObraSocialQueryService obraSocialQueryService;
 
     //endregion
 
@@ -111,7 +113,7 @@ public class ObraSocialController {
 
         log.info("Solicitud recibida: buscar obra social criteria={}", obraSocialCriteria);
 
-        GetObraSocialResponse getObraSocialResponse = obraSocialApp.findObraSocialByCriteria(obraSocialCriteria);
+        GetObraSocialResponse getObraSocialResponse = obraSocialQueryService.findObraSocialByCriteria(obraSocialCriteria);
 
         return ResponseEntity.ok(getObraSocialResponse);
 
@@ -131,7 +133,7 @@ public class ObraSocialController {
 
         log.info("Solicitud recibida: listar obras sociales criteria={} page={}", obraSocialCriteria, pageable);
 
-        PageResponse<ListObraSocialResponse> pageResponse = obraSocialApp.findObrasSociales(obraSocialCriteria, pageable);
+        PageResponse<ListObraSocialResponse> pageResponse = obraSocialQueryService.findObrasSociales(obraSocialCriteria, pageable);
 
         return ResponseEntity.ok(pageResponse);
 

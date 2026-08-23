@@ -53,8 +53,6 @@ public class ObraSocialApp {
     private final HistoricoEstadoPlanDomainService historicoEstadoPlanDomainService;
     private final TurnoDomainService turnoDomainService;
     private final ObraSocialPacienteDomainService obraSocialPacienteDomainService;
-    private final ObraSocialQueryService obraSocialQueryService;
-    private final PlanQueryService planQueryService;
     private final ObraSocialMapper obraSocialMapper;
     private final PlanMapper planMapper;
 
@@ -147,7 +145,7 @@ public class ObraSocialApp {
         ObraSocial obraSocialActualizada = obraSocialDomainService.saveObraSocial(obraSocialExistente);
 
         //Devolver response mapeado, con los planes de la obra social (estado vigente por lote)
-        List<GetPlanAnidadoResponse> planesResponse = mapPlanesAnidados(planQueryService.findPlanesByObraSocial(id));
+        List<GetPlanAnidadoResponse> planesResponse = mapPlanesAnidados(planDomainService.findPlanesByObraSocial(id));
         GetObraSocialResponse getObraSocialResponse = obraSocialMapper.toGetResponse(obraSocialActualizada, planesResponse);
         return getObraSocialResponse;
 
@@ -173,7 +171,7 @@ public class ObraSocialApp {
         ObraSocial obraSocialExistente = obraSocialDomainService.findObraSocialById(id);
 
         //Validar que cada plan no deshabilitado pueda deshabilitarse (sin turnos vivos); si alguno falla, rechazar toda la operación
-        List<Plan> planesNoDeshabilitados = planQueryService.findPlanesNoDeshabilitadosByObraSocial(id);
+        List<Plan> planesNoDeshabilitados = planDomainService.findPlanesNoDeshabilitadosByObraSocial(id);
         for (Plan plan : planesNoDeshabilitados) {
             turnoDomainService.validateSinTurnosVivosDePlan(plan.getId());
         }
@@ -194,53 +192,6 @@ public class ObraSocialApp {
         //Devolver response mapeado
         SoftDeleteObraSocialResponse softDeleteObraSocialResponse = obraSocialMapper.toSoftDeleteResponse(obraSocialExistente);
         return softDeleteObraSocialResponse;
-
-    }
-
-    /**
-     * Busca la obra social activa que cumple el criteria de filtrado dinámico
-     * proporcionado, con sus planes. A diferencia de {@link #findObrasSociales}, devuelve
-     * una única obra social (no paginada) — pensado para criterios que identifican una obra
-     * social puntual (ej. {@code id.equals}).
-     *
-     * @param obraSocialCriteria {@code ObraSocialCriteria} filtros a aplicar
-     * @return {@code GetObraSocialResponse} la obra social encontrada, con sus planes
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ninguna obra social cumple el criteria
-     */
-    @Transactional(readOnly = true)
-    public GetObraSocialResponse findObraSocialByCriteria(ObraSocialCriteria obraSocialCriteria) {
-
-        log.info("Búsqueda de obra social iniciada: criteria={}", obraSocialCriteria);
-
-        //Buscar la obra social y sus planes (estado vigente por lote)
-        ObraSocial obraSocialExistente = obraSocialQueryService.findObraSocialByCriteria(obraSocialCriteria);
-        List<GetPlanAnidadoResponse> planesResponse = mapPlanesAnidados(
-                planQueryService.findPlanesByObraSocial(obraSocialExistente.getId()));
-
-        //Devolver response mapeado
-        GetObraSocialResponse getObraSocialResponse = obraSocialMapper.toGetResponse(obraSocialExistente, planesResponse);
-        return getObraSocialResponse;
-
-    }
-
-    /**
-     * Lista obras sociales activas según el criteria de filtrado dinámico proporcionado.
-     *
-     * @param obraSocialCriteria {@code ObraSocialCriteria} filtros a aplicar, o {@code null} para no filtrar
-     * @param pageable {@code Pageable} página solicitada
-     * @return {@code PageResponse<ListObraSocialResponse>} página de obras sociales que cumplen el criteria
-     */
-    @Transactional(readOnly = true)
-    public PageResponse<ListObraSocialResponse> findObrasSociales(ObraSocialCriteria obraSocialCriteria, Pageable pageable) {
-
-        log.info("Listado de obras sociales iniciado: criteria={}, page={}", obraSocialCriteria, pageable);
-
-        //Buscar obras sociales que cumplen el criteria, paginadas
-        Page<ObraSocial> obrasSocialesPagina = obraSocialQueryService.findByCriteria(obraSocialCriteria, pageable);
-
-        //Devolver response mapeado
-        PageResponse<ListObraSocialResponse> pageResponse = PageResponse.from(obrasSocialesPagina, obraSocialMapper::toListResponse);
-        return pageResponse;
 
     }
 

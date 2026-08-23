@@ -1,12 +1,10 @@
 package com.accesmed.backend.Application;
 
 import com.accesmed.backend.Domain.Especialidad;
-import com.accesmed.backend.Records.Especialidad.Criteria.EspecialidadCriteria;
 import com.accesmed.backend.Records.Especialidad.Request.CreateEspecialidadRequest;
 import com.accesmed.backend.Records.Especialidad.Request.UpdateEspecialidadRequest;
 import com.accesmed.backend.Records.Especialidad.Response.CreateEspecialidadResponse;
 import com.accesmed.backend.Records.Especialidad.Response.GetEspecialidadResponse;
-import com.accesmed.backend.Records.Especialidad.Response.ListEspecialidadResponse;
 import com.accesmed.backend.Records.Especialidad.Response.SoftDeleteEspecialidadResponse;
 import com.accesmed.backend.Services.DomainServices.EspecialidadDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoDomainService;
@@ -14,20 +12,18 @@ import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.EspecialidadMapper;
-import com.accesmed.backend.Services.QueryServices.EspecialidadQueryService;
-import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
 /**
- * Caso de uso de Especialidad. Orquesta el flujo completo de los endpoints
- * (creación, actualización, baja) validando reglas de negocio y coordinando los services.
+ * Caso de uso de Especialidad. Orquesta el flujo completo de los endpoints de
+ * escritura (creación, actualización, baja) validando reglas de negocio y coordinando
+ * los services. Los endpoints de lectura se sirven directamente desde
+ * {@link com.accesmed.backend.Services.QueryServices.EspecialidadQueryService}.
  */
 @Slf4j
 @Service
@@ -44,8 +40,6 @@ public class EspecialidadApp {
     //Mappers
     private final EspecialidadMapper especialidadMapper;
 
-    //Query Services
-    private final EspecialidadQueryService especialidadQueryService;
     //endregion
 
     //region ========== Métodos ==========
@@ -140,49 +134,6 @@ public class EspecialidadApp {
         //Devolver response mapeado
         SoftDeleteEspecialidadResponse softDeleteEspecialidadResponse = especialidadMapper.toSoftDeleteResponse(especialidadExistente);
         return softDeleteEspecialidadResponse;
-
-    }
-
-    /**
-     * Busca la especialidad activa que cumple el criteria de filtrado dinámico
-     * proporcionado. A diferencia de {@link #findEspecialidades}, devuelve una única
-     * especialidad (no paginada) — pensado para criterios que identifican una especialidad
-     * puntual (ej. {@code id.equals}).
-     *
-     * @param especialidadCriteria {@code EspecialidadCriteria} filtros a aplicar
-     * @return {@code GetEspecialidadResponse} la especialidad encontrada
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ninguna especialidad cumple el criteria
-     */
-    @Transactional(readOnly = true)
-    public GetEspecialidadResponse findEspecialidadByCriteria(EspecialidadCriteria especialidadCriteria) {
-
-        log.info("Búsqueda de especialidad iniciada: criteria={}", especialidadCriteria);
-
-        Especialidad especialidadExistente = especialidadQueryService.findEspecialidadByCriteria(especialidadCriteria);
-
-        GetEspecialidadResponse getEspecialidadResponse = especialidadMapper.toGetResponse(especialidadExistente);
-        return getEspecialidadResponse;
-
-    }
-
-    /**
-     * Lista especialidades activas según el criteria de filtrado dinámico proporcionado.
-     *
-     * @param especialidadCriteria {@code EspecialidadCriteria} filtros a aplicar, o {@code null} para no filtrar
-     * @param pageable {@code Pageable} página solicitada
-     * @return {@code PageResponse<ListEspecialidadResponse>} página de especialidades que cumplen el criteria
-     */
-    @Transactional(readOnly = true)
-    public PageResponse<ListEspecialidadResponse> findEspecialidades(EspecialidadCriteria especialidadCriteria, Pageable pageable) {
-
-        log.info("Listado de especialidades iniciado: criteria={}, page={}", especialidadCriteria, pageable);
-
-        //Buscar especialidades que cumplen el criteria, paginadas
-        Page<Especialidad> especialidadesPagina = especialidadQueryService.findByCriteria(especialidadCriteria, pageable);
-
-        //Devolver response mapeado
-        PageResponse<ListEspecialidadResponse> pageResponse = PageResponse.from(especialidadesPagina, especialidadMapper::toListResponse);
-        return pageResponse;
 
     }
 

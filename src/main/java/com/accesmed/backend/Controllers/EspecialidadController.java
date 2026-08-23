@@ -9,6 +9,7 @@ import com.accesmed.backend.Records.Especialidad.Response.GetEspecialidadRespons
 import com.accesmed.backend.Records.Especialidad.Response.ListEspecialidadResponse;
 import com.accesmed.backend.Records.Especialidad.Response.SoftDeleteEspecialidadResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.EspecialidadQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +34,8 @@ import java.util.UUID;
 /**
  * Controlador REST para los endpoints de Especialidad.
  * Recibe requests, valida que el id de la ruta coincida con el del body cuando
- * corresponde, delega en el caso de uso {@code EspecialidadApp} y devuelve responses.
+ * corresponde, delega en el caso de uso {@code EspecialidadApp} (escritura) o
+ * {@code EspecialidadQueryService} (lectura), y devuelve responses.
  */
 @Slf4j
 @RestController
@@ -44,6 +46,7 @@ public class EspecialidadController {
     //region ========== Dependencias o inyecciones ==========
 
     private final EspecialidadApp especialidadApp;
+    private final EspecialidadQueryService especialidadQueryService;
 
     //endregion
 
@@ -111,7 +114,7 @@ public class EspecialidadController {
 
         log.info("Solicitud recibida: buscar especialidad criteria={}", especialidadCriteria);
 
-        GetEspecialidadResponse getEspecialidadResponse = especialidadApp.findEspecialidadByCriteria(especialidadCriteria);
+        GetEspecialidadResponse getEspecialidadResponse = especialidadQueryService.findEspecialidadByCriteria(especialidadCriteria);
 
         return ResponseEntity.ok(getEspecialidadResponse);
 
@@ -131,7 +134,7 @@ public class EspecialidadController {
 
         log.info("Solicitud recibida: listar especialidades criteria={} page={}", especialidadCriteria, pageable);
 
-        PageResponse<ListEspecialidadResponse> pageResponse = especialidadApp.findEspecialidades(especialidadCriteria, pageable);
+        PageResponse<ListEspecialidadResponse> pageResponse = especialidadQueryService.findEspecialidades(especialidadCriteria, pageable);
 
         return ResponseEntity.ok(pageResponse);
 

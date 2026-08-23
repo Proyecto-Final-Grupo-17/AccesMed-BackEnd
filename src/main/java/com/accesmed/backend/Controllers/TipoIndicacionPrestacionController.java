@@ -10,6 +10,7 @@ import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.ListTipoIn
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.GetTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.SoftDeleteTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.TipoIndicacionPrestacionQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +34,8 @@ import java.util.UUID;
 
 /**
  * Controlador REST para los endpoints de Tipo de Indicación de Prestación.
- * Recibe requests, delega en el caso de uso {@code TipoIndicacionPrestacionApp} y devuelve responses.
+ * Recibe requests, delega en el caso de uso {@code TipoIndicacionPrestacionApp} (escritura) o
+ * {@code TipoIndicacionPrestacionQueryService} (lectura), y devuelve responses.
  */
 @Slf4j
 @RestController
@@ -44,6 +46,7 @@ public class TipoIndicacionPrestacionController {
     //region ========== Dependencias o inyecciones ==========
 
     private final TipoIndicacionPrestacionApp tipoIndicacionPrestacionApp;
+    private final TipoIndicacionPrestacionQueryService tipoIndicacionPrestacionQueryService;
 
     //endregion
 
@@ -131,7 +134,7 @@ public class TipoIndicacionPrestacionController {
 
         log.info("Solicitud recibida: buscar tipo de indicación criteria={}", tipoIndicacionPrestacionCriteria);
 
-        GetTipoIndicacionPrestacionResponse getTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionApp
+        GetTipoIndicacionPrestacionResponse getTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionQueryService
                 .findTipoIndicacionPrestacionByCriteria(tipoIndicacionPrestacionCriteria);
 
         return ResponseEntity.ok(getTipoIndicacionPrestacionResponse);
@@ -154,7 +157,7 @@ public class TipoIndicacionPrestacionController {
 
         log.info("Solicitud recibida: listar tipos de indicación criteria={} page={}", tipoIndicacionPrestacionCriteria, pageable);
 
-        PageResponse<ListTipoIndicacionPrestacionResponse> pageResponse = tipoIndicacionPrestacionApp
+        PageResponse<ListTipoIndicacionPrestacionResponse> pageResponse = tipoIndicacionPrestacionQueryService
                 .findTiposIndicacionPrestacion(tipoIndicacionPrestacionCriteria, pageable);
 
         return ResponseEntity.ok(pageResponse);

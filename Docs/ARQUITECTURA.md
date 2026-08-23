@@ -52,7 +52,7 @@ preguntas abiertas: cualquier código nuevo debe seguirlas.
 | Nombres de package en mayúsculas: `Domain`, `Services`, `Controllers`, `Application`, `Repositories`, `Records`, `Config`, `Security`, `Agente` | Convención de proyecto. **Nota técnica breve**: la convención estándar de Java es minúsculas para packages (el JLS solo lo recomienda, no lo exige); en mayúsculas compila y funciona igual, pero algunas herramientas/linters de estilo Java pueden marcarlo como advertencia. No es un problema funcional. |
 | Subpaquete por entidad dentro de un paquete de tipo, recién cuando supere ~8-10 archivos (ej. `Services/DomainServices/Medico/`) | No crear carpetas de un solo archivo por adelantado. |
 | Plural en `Controllers`, `Services`, `Repositories` (y sus subcarpetas `DomainServices`/`QueryServices`/`Mappers`/`Errors`/`Utils`) | Son colecciones de clases del mismo rol (todos los controllers, todos los services, todos los repositories). `Domain`, `Application`, `Records`, `Config`, `Security`, `Agente` quedan como estaban. |
-| El `QueryService` se inyecta y se llama **desde el App, nunca desde el Controller** — ni siquiera para lecturas simples | Mantiene un único punto de entrada a la lógica (el App) para toda la capa web, sin una excepción "para lecturas" que la rompa. El Controller sigue sin conocer `Services` en absoluto; el App resuelve el mapeo con el `Mapper` antes de devolver el response. |
+| El `QueryService` se inyecta y se llama **desde el Controller para lecturas (`GET`)**; el `App` no participa en el camino de lectura | Los endpoints de lectura (`GET /list`, `GET /Buscar`) inyectan el `QueryService` directo; es un passthrough puro (no hay validación, orquestación, ni cambio de estado). El `App` queda solo para mutaciones (`POST`, `PATCH`, `DELETE`), donde sí hay orquestación. El `QueryService` devuelve `Response` mapeado (el `Mapper` vive adentro). Mantiene la separación de responsabilidades: lecturas ≠ mutaciones. |
 | Nombres de método de actualización: **`fullUpdate<Entidad>`** (PUT), **`partialUpdate<Entidad>`** (PATCH genérico) y **`update<Concepto><Entidad>`** (PATCH de un grupo de campos específico, ej. `updateToleranciasPrestacion`) | El nombre distingue de entrada tres casos distintos: reemplazo completo, actualización de un subconjunto arbitrario de campos, y un caso de uso acotado que ya sabe de antemano qué campos toca (no es "parcial genérico" con dos campos, es una operación de negocio propia). |
 | `partialUpdate<Entidad>` (PATCH genérico): un campo en `null` significa **"no lo toques"**, nunca "vacíalo" | Evita la ambigüedad JSON entre "campo ausente" y "campo enviado en `null`" sin necesitar un wrapper (`JsonNullable`) en todos los campos nullable del record. Si un campo necesita poder vaciarse de verdad, no se fuerza acá: se resuelve con la fila siguiente. |
 | `update<Concepto><Entidad>` (PATCH de campos específicos) puede declarar, campo por campo, que `null` signifique **"vaciar"** — usando `JsonNullable<T>` (`org.openapitools:jackson-databind-nullable`) solo en esos campos del record, y solo cuando el requisito de negocio lo pide | Es un endpoint acotado y conocido de antemano (ej. tolerancias de una prestación), así que se puede documentar explícitamente en el Javadoc qué significa `null` para cada campo. No se generaliza `JsonNullable` a todo el proyecto: se paga ese costo únicamente donde hay un requisito real de vaciar el campo. |
@@ -969,13 +969,13 @@ línea Spring Boot 4). Acá va el qué y el porqué de cada dependencia.
 
 ### Filtrado dinámico: JPA Specifications + metamodelo estático (modelo JHipster)
 
-Para listados con múltiples filtros opcionales (`find<Entidad>` en el `App`, que delega en
-`findByCriteria` del `QueryService`), se usa **Spring Data JPA Specifications**
-(`Specification<T>` + `JpaSpecificationExecutor<T>` en el repository), combinadas con el
-**metamodelo estático de JPA** generado por `hibernate-processor` para no usar nombres de
-campo como string literal. El diseño sigue el mecanismo de JHipster (Criteria +
-`QueryService`), vendorizado a mano en `Services/QueryServices/Filtering/` en vez de sumar
-la dependencia `tech.jhipster:jhipster-framework` completa.
+Para listados con múltiples filtros opcionales (`findEspecialidades` en el `QueryService`), se usa
+**Spring Data JPA Specifications** (`Specification<T>` + `JpaSpecificationExecutor<T>` en el
+repository), combinadas con el **metamodelo estático de JPA** generado por
+`hibernate-processor` para no usar nombres de campo como string literal. El diseño sigue el
+mecanismo de JHipster (Criteria + `QueryService`), vendorizado a mano en
+`Services/QueryServices/Filtering/` en vez de sumar la dependencia
+`tech.jhipster:jhipster-framework` completa.
 
 - **`Filter<T>`** (`Services/QueryServices/Filtering/Filter.java`): filtro genérico de un
   campo, con los operadores `equals`/`notEquals`/`in`/`notIn`/`specified` (presencia/
@@ -997,12 +997,18 @@ la dependencia `tech.jhipster:jhipster-framework` completa.
   `@org.springdoc.core.annotations.ParameterObject` para que Swagger la aplane como
   parámetros de query individuales en vez de mostrarla como un objeto anidado.
 - **`<Entidad>QueryService extends AbstractFiltroQueryService<Entidad, Criteria>`**
-  (`Services/QueryServices/Filtering/AbstractFiltroQueryService.java`): la base implementa
-  `findByCriteria(criteria, pageable)` (devuelve `Page<Entidad>`) y expone los helpers
-  `buildSpecification`/`buildRangeSpecification`/`buildStringSpecification`, que traducen
-  cada `Filter` a un fragmento de `Specification` usando el metamodelo (`Prestacion_.nombre`)
-  o, para relaciones, un `root.join(...)` (ej. `especialidadId` sobre `Prestacion_.especialidad`).
-  Cada subclase solo implementa `getRepository()` y `createSpecification(criteria)`.
+  (`Services/QueryServices/<Entidad>QueryService.java`): inyecta el `Mapper` de la entidad,
+  decorada con `@Transactional(readOnly = true)`. La base (`AbstractFiltroQueryService`)
+  implementa `findByCriteria(criteria, pageable)` (devuelve `Page<Entidad>`) y expone los
+  helpers `buildSpecification`/`buildRangeSpecification`/`buildStringSpecification`, que
+  traducen cada `Filter` a un fragmento de `Specification` usando el metamodelo
+  (`Prestacion_.nombre`) o, para relaciones, un `root.join(...)` (ej. `especialidadId` sobre
+  `Prestacion_.especialidad`). Cada subclase implementa `getRepository()`, `createSpecification(criteria)`,
+  y además expone dos métodos públicos que devuelven **Response mapeados**:
+  - **`find<Entidad>ByCriteria(criteria)`**: devuelve `Get<Entidad>Response` (singular).
+  - **`find<Entidad>s(criteria, pageable)`**: devuelve `PageResponse<List<Entidad>Response>` (paginado).
+  El mapeo a Response vive en el `QueryService`, no en el `App` — el `Controller` inyecta
+  el `QueryService` directo (no el `App`) para `GET`.
 - **Metamodelo** (`hibernate-processor`, se declara junto a Lombok en
   `annotationProcessorPaths` del `maven-compiler-plugin` para evitar conflicto entre
   procesadores de anotaciones): usar `Prestacion_.codigo` en vez de
@@ -1019,30 +1025,29 @@ la dependencia `tech.jhipster:jhipster-framework` completa.
   una entidad puntual — el proyecto no tiene carpeta `Shared` (§5), así que esto vive en el
   rol que lo produce (`QueryServices`), no en uno aparte.
 
-### `find<Entidad>ById` se retira: se resuelve con el mismo Criteria, en singular
+### `find<Entidad>ById` se retira: se resuelve con el mismo Criteria, en singular (sin paso por el App)
 
 Las entidades con filtrado dinámico **no tienen un `GET /<Entidad>/{id}` aparte**. Traer un
 único registro (por id o por cualquier otro campo que lo identifique, ej. `codigo`) usa el
 mismo `<Entidad>Criteria` que el listado, con una ruta y una capa de servicio propias que
-devuelven un único objeto en vez de una página:
+devuelven un único objeto en vez de una página. El flujo es `Controller → QueryService → Repository` (sin App):
 
 - **`AbstractFiltroQueryService.findOneByCriteria(criteria)`**: genérico, devuelve
   `Optional<ENTIDAD>` — arma la `Specification` igual que `findByCriteria` y delega en
   `JpaSpecificationExecutor.findOne(Specification)`.
-- **`<Entidad>QueryService.find<Entidad>ByCriteria(criteria)`**: por entidad, porque necesita
-  el código/mensaje de error específico — envuelve `findOneByCriteria` con
-  `.orElseThrow(...)` y el `log.warn` correspondiente (regla de siempre: el Service loguea y
-  lanza, no el App). Ej. `PlanQueryService.findPlanByCriteria`.
-- **`<Entidad>App.find<Entidad>ByCriteria(criteria)`**: delega en el `QueryService` y mapea
-  al response de siempre (`Get<Entidad>Response`) — sin envelope de paginación.
-- **`Controller`**: `@GetMapping("/<Entidad>/Buscar")`, recibe `@ParameterObject
-  <Entidad>Criteria` (mismo tipo que el `GetMapping("/<Entidad>")` de listado), devuelve
-  `ResponseEntity<Get<Entidad>Response>`.
+- **`<Entidad>QueryService.find<Entidad>ByCriteria(criteria)`**: por entidad, inyecta el
+  `Mapper`. Envuelve `findOneByCriteria` con `.orElseThrow(...)` y el `log.warn` correspondiente
+  (regla de siempre: el Service loguea y lanza, no el App). Devuelve `Get<Entidad>Response`
+  mapeado. Ej. `EspecialidadQueryService.findEspecialidadByCriteria`.
+- **`Controller`**: inyecta el `QueryService` directo (no el `App`), sin ir por un paso
+  intermedio en el App. `@GetMapping("/<Entidad>/Buscar")`, recibe `@ParameterObject
+  <Entidad>Criteria` (mismo tipo que el `GetMapping("/<Entidad>")` de listado), delega a
+  `queryService.find<Entidad>ByCriteria(criteria)`, devuelve `ResponseEntity<Get<Entidad>Response>`.
 
-Aplicado en `Plan`, `Especialidad`, `ObraSocial`, `TipoIndicacionPrestacion` e
+Aplicado en `Especialidad`, `Plan`, `ObraSocial`, `TipoIndicacionPrestacion` e
 `IndicacionPrestacion`. `Prestacion` no tenía un `GET /{id}` previo — queda pendiente sumar
 su `/Buscar` si hace falta (requiere resolver también las indicaciones anidadas del
-response, como hace `ObraSocialApp.findObraSocialByCriteria` con sus planes).
+response, como hace `ObraSocialQueryService.findObraSocialByCriteria` con sus planes).
 
 Contrato para el front: ver `Docs/FILTRADO-DINAMICO.md`.
 

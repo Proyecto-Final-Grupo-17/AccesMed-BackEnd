@@ -14,6 +14,8 @@ import com.accesmed.backend.Records.AgendaMedico.Response.ListHorarioDisponibleR
 import com.accesmed.backend.Records.AgendaMedico.Response.UpdateAgendaMedicoResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.UpdateVigenciaAgendaMedicoResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.QueryServices.AgendaHorariosDiaQueryService;
+import com.accesmed.backend.Services.QueryServices.AgendaMedicoQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +49,8 @@ public class AgendaMedicoController {
     //region ========== Dependencias o inyecciones ==========
 
     private final AgendaMedicoApp agendaMedicoApp;
+    private final AgendaMedicoQueryService agendaMedicoQueryService;
+    private final AgendaHorariosDiaQueryService agendaHorariosDiaQueryService;
 
     //endregion
 
@@ -139,7 +143,7 @@ public class AgendaMedicoController {
 
         log.info("Solicitud recibida: listar agendas médicas, criteria={}, page={}", agendaMedicoCriteria, pageable);
 
-        PageResponse<ListAgendaMedicoResponse> pageResponse = agendaMedicoApp.findAgendas(agendaMedicoCriteria, pageable);
+        PageResponse<ListAgendaMedicoResponse> pageResponse = agendaMedicoQueryService.findAgendasMedicas(agendaMedicoCriteria, pageable);
 
         return ResponseEntity.ok(pageResponse);
 
@@ -158,7 +162,7 @@ public class AgendaMedicoController {
 
         log.info("Solicitud recibida: buscar agenda médica, criteria={}", agendaMedicoCriteria);
 
-        GetAgendaMedicoResponse getAgendaMedicoResponse = agendaMedicoApp.getAgendaMedico(agendaMedicoCriteria);
+        GetAgendaMedicoResponse getAgendaMedicoResponse = agendaMedicoQueryService.findAgendaMedicoByCriteria(agendaMedicoCriteria);
 
         return ResponseEntity.ok(getAgendaMedicoResponse);
 
@@ -178,7 +182,7 @@ public class AgendaMedicoController {
 
         log.info("Solicitud recibida: listar horarios de agenda, criteria={}, page={}", agendaHorariosCriteria, pageable);
 
-        PageResponse<ListAgendaHorarioResponse> pageResponse = agendaMedicoApp.findHorariosAgenda(agendaHorariosCriteria, pageable);
+        PageResponse<ListAgendaHorarioResponse> pageResponse = agendaHorariosDiaQueryService.findHorariosByCriteria(agendaHorariosCriteria, pageable);
 
         return ResponseEntity.ok(pageResponse);
 
@@ -199,7 +203,7 @@ public class AgendaMedicoController {
 
         log.info("Solicitud recibida: listar horarios disponibles, criteria={}, page={}", agendaHorariosCriteria, pageable);
 
-        PageResponse<ListHorarioDisponibleResponse> pageResponse = agendaMedicoApp.findHorariosDisponibles(agendaHorariosCriteria, pageable);
+        PageResponse<ListHorarioDisponibleResponse> pageResponse = agendaHorariosDiaQueryService.findHorariosDisponibles(agendaHorariosCriteria, pageable);
 
         return ResponseEntity.ok(pageResponse);
 
