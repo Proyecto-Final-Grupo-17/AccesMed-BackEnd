@@ -10,11 +10,14 @@ import com.accesmed.backend.Records.ObraSocial.Criteria.ObraSocialCriteria;
 import com.accesmed.backend.Records.ObraSocial.Response.GetObraSocialResponse;
 import com.accesmed.backend.Records.ObraSocial.Response.GetPlanAnidadoResponse;
 import com.accesmed.backend.Records.ObraSocial.Response.ListObraSocialResponse;
+import com.accesmed.backend.Records.Plan.Response.GetCoberturaAnidadaResponse;
 import com.accesmed.backend.Repositories.HistoricoEstadoPlanRepository;
+import com.accesmed.backend.Repositories.ObraSocialPlanPrestacionRepository;
 import com.accesmed.backend.Repositories.ObraSocialRepository;
 import com.accesmed.backend.Repositories.PlanRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.ObraSocialMapper;
+import com.accesmed.backend.Services.Mappers.ObraSocialPlanPrestacionMapper;
 import com.accesmed.backend.Services.Mappers.PlanMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
@@ -51,6 +54,8 @@ public class ObraSocialQueryService extends AbstractFiltroQueryService<ObraSocia
     private final PlanRepository planRepository;
     private final PlanMapper planMapper;
     private final HistoricoEstadoPlanRepository historicoEstadoPlanRepository;
+    private final ObraSocialPlanPrestacionRepository obraSocialPlanPrestacionRepository;
+    private final ObraSocialPlanPrestacionMapper obraSocialPlanPrestacionMapper;
 
     //endregion
 
@@ -176,8 +181,16 @@ public class ObraSocialQueryService extends AbstractFiltroQueryService<ObraSocia
                 : historicoEstadoPlanRepository.findByPlanIdInAndFechaHoraFinIsNull(planIds).stream()
                         .collect(Collectors.toMap(historico -> historico.getPlan().getId(), HistoricoEstadoPlan::getEstado));
 
+        Map<UUID, List<GetCoberturaAnidadaResponse>> coberturasPorPlan = planIds.isEmpty()
+                ? Map.of()
+                : obraSocialPlanPrestacionRepository.findByPlan_IdInAndDeletedAtIsNull(planIds).stream()
+                        .collect(Collectors.groupingBy(
+                                cobertura -> cobertura.getPlan().getId(),
+                                Collectors.mapping(obraSocialPlanPrestacionMapper::toGetCoberturaAnidadaResponse, Collectors.toList())));
+
         return planes.stream()
-                .map(plan -> planMapper.toGetPlanAnidadoResponse(plan, estadosVigentes.get(plan.getId())))
+                .map(plan -> planMapper.toGetPlanAnidadoResponse(plan, estadosVigentes.get(plan.getId()),
+                        coberturasPorPlan.getOrDefault(plan.getId(), List.of())))
                 .toList();
 
     }

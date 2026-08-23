@@ -8,6 +8,7 @@ import com.accesmed.backend.Records.ObraSocial.Response.GetPlanAnidadoResponse;
 import com.accesmed.backend.Records.Plan.Request.AddPlanRequest;
 import com.accesmed.backend.Records.Plan.Request.UpdatePlanRequest;
 import com.accesmed.backend.Records.Plan.Response.CambioEstadoPlanResponse;
+import com.accesmed.backend.Records.Plan.Response.GetCoberturaAnidadaResponse;
 import com.accesmed.backend.Records.Plan.Response.GetPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.ListPlanResponse;
 import org.mapstruct.BeanMapping;
@@ -102,6 +103,7 @@ public interface PlanMapper {
      *
      * @param plan {@code Plan} entidad
      * @param estadoVigente {@code EstadoPlan} estado vigente calculado del histórico
+     * @param coberturas {@code List<GetCoberturaAnidadaResponse>} coberturas ya mapeadas del plan
      * @return {@code GetPlanResponse} respuesta de obtención (también usada al agregar y actualizar)
      */
     @Mapping(target = "id", source = "plan.id")
@@ -110,7 +112,8 @@ public interface PlanMapper {
     @Mapping(target = "obraSocialId", source = "plan.obraSocial.id")
     @Mapping(target = "obraSocialNombre", source = "plan.obraSocial.nombre")
     @Mapping(target = "estadoActual", source = "estadoVigente")
-    GetPlanResponse toGetResponse(Plan plan, EstadoPlan estadoVigente);
+    @Mapping(target = "coberturas", source = "coberturas")
+    GetPlanResponse toGetResponse(Plan plan, EstadoPlan estadoVigente, List<GetCoberturaAnidadaResponse> coberturas);
 
     /**
      * Convierte una entidad {@code Plan} a {@code ListPlanResponse}.
@@ -146,12 +149,14 @@ public interface PlanMapper {
      *
      * @param plan {@code Plan} entidad
      * @param estadoVigente {@code EstadoPlan} estado vigente calculado del histórico
+     * @param coberturas {@code List<GetCoberturaAnidadaResponse>} coberturas ya mapeadas del plan
      * @return {@code GetPlanAnidadoResponse} respuesta anidada
      */
     @Mapping(target = "id", source = "plan.id")
     @Mapping(target = "codigo", source = "plan.codigo")
     @Mapping(target = "nombre", source = "plan.nombre")
     @Mapping(target = "estadoActual", source = "estadoVigente")
-    GetPlanAnidadoResponse toGetPlanAnidadoResponse(Plan plan, EstadoPlan estadoVigente);
+    @Mapping(target = "coberturas", source = "coberturas")
+    GetPlanAnidadoResponse toGetPlanAnidadoResponse(Plan plan, EstadoPlan estadoVigente, List<GetCoberturaAnidadaResponse> coberturas);
 
 }

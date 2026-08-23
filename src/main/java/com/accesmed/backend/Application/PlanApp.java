@@ -2,25 +2,34 @@ package com.accesmed.backend.Application;
 
 import com.accesmed.backend.Domain.EstadoPlan;
 import com.accesmed.backend.Domain.ObraSocial;
+import com.accesmed.backend.Domain.ObraSocialPlanPrestacion;
 import com.accesmed.backend.Domain.Plan;
+import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Records.Plan.Request.AddPlanRequest;
+import com.accesmed.backend.Records.Plan.Request.AsignarCoberturaAnidadaRequest;
 import com.accesmed.backend.Records.Plan.Request.DeshabilitarPlanRequest;
 import com.accesmed.backend.Records.Plan.Request.UpdatePlanRequest;
 import com.accesmed.backend.Records.Plan.Response.CambioEstadoPlanResponse;
+import com.accesmed.backend.Records.Plan.Response.GetCoberturaAnidadaResponse;
 import com.accesmed.backend.Records.Plan.Response.GetPlanResponse;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoPlanDomainService;
 import com.accesmed.backend.Services.DomainServices.ObraSocialDomainService;
 import com.accesmed.backend.Services.DomainServices.ObraSocialPacienteDomainService;
+import com.accesmed.backend.Services.DomainServices.ObraSocialPlanPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.PlanDomainService;
+import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import com.accesmed.backend.Services.Mappers.ObraSocialPlanPrestacionMapper;
 import com.accesmed.backend.Services.Mappers.PlanMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -41,21 +50,27 @@ public class PlanApp {
     private final HistoricoEstadoPlanDomainService historicoEstadoPlanDomainService;
     private final TurnoDomainService turnoDomainService;
     private final ObraSocialPacienteDomainService obraSocialPacienteDomainService;
+    private final ObraSocialPlanPrestacionDomainService obraSocialPlanPrestacionDomainService;
+    private final PrestacionDomainService prestacionDomainService;
 
     //Mappers
     private final PlanMapper planMapper;
+    private final ObraSocialPlanPrestacionMapper obraSocialPlanPrestacionMapper;
 
     //endregion
 
     //region ========== Métodos ==========
 
     /**
-     * Agrega un plan nuevo a una obra social activa existente. Nace en estado
-     * {@code NO_PUBLICADO}.
+     * Agrega un plan nuevo a una obra social activa existente, opcionalmente junto con
+     * las coberturas de prestaciones iniciales, en una única transacción atómica. Nace en
+     * estado {@code NO_PUBLICADO}.
      *
-     * @param addPlanRequest {@code AddPlanRequest} datos del plan a agregar
-     * @return {@code GetPlanResponse} el plan agregado
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la obra social no existe
+     * @param addPlanRequest {@code AddPlanRequest} datos del plan a agregar y, opcionalmente,
+     *        sus coberturas
+     * @return {@code GetPlanResponse} el plan agregado, con sus coberturas (si se enviaron)
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la obra social o
+     *         alguna prestación no existen (activas)
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el código o nombre ya existen en la obra social
      */
     @Transactional
@@ -80,8 +95,11 @@ public class PlanApp {
         //Abrir tramo inicial de histórico de estado (nace en NO_PUBLICADO)
         historicoEstadoPlanDomainService.openHistoricoInicialPlan(planGuardado);
 
+        //Asignar cada cobertura anidada
+        List<GetCoberturaAnidadaResponse> coberturasResponse = asignarCoberturasAnidadas(planGuardado, addPlanRequest.coberturas());
+
         //Devolver response mapeado. Recién abierto el tramo inicial, el estado vigente es NO_PUBLICADO.
-        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planGuardado, EstadoPlan.NO_PUBLICADO);
+        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planGuardado, EstadoPlan.NO_PUBLICADO, coberturasResponse);
         return getPlanResponse;
 
     }
@@ -121,8 +139,12 @@ public class PlanApp {
         //Calcular el estado vigente del histórico para el response
         EstadoPlan estadoVigente = historicoEstadoPlanDomainService.getEstadoVigente(id);
 
+        //Mapear las coberturas activas del plan para el response
+        List<GetCoberturaAnidadaResponse> coberturasResponse = obraSocialPlanPrestacionMapper.toGetCoberturaAnidadaResponses(
+                obraSocialPlanPrestacionDomainService.findCoberturasActivasByPlan(id));
+
         //Devolver response mapeado
-        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planActualizado, estadoVigente);
+        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planActualizado, estadoVigente, coberturasResponse);
         return getPlanResponse;
 
     }
@@ -195,9 +217,8 @@ public class PlanApp {
         //Dar de baja las ObraSocialPaciente que referencian el plan (A5, paso 2)
         obraSocialPacienteDomainService.softDeleteByPlan(id, "Baja de plan");
 
-        //TODO (A5, paso 1): dar de baja las ObraSocialPlanPrestacion del plan. Sin módulo
-        // (repo/service/App/controller) al que delegarlo todavía. Ver
-        // Docs/Planes/auditoria-v3-y-feature-agenda.md.
+        //Dar de baja las coberturas de prestaciones del plan (A5, paso 1)
+        obraSocialPlanPrestacionDomainService.softDeleteByPlan(id, "Baja de plan");
 
         //Transicionar el estado a DESHABILITADO
         Plan planDeshabilitado = historicoEstadoPlanDomainService.changeEstadoPlan(
@@ -206,6 +227,43 @@ public class PlanApp {
         //Devolver response mapeado (el estado vigente tras la transición es DESHABILITADO)
         CambioEstadoPlanResponse cambioEstadoPlanResponse = planMapper.toCambioEstadoResponse(planDeshabilitado, EstadoPlan.DESHABILITADO);
         return cambioEstadoPlanResponse;
+
+    }
+
+    /**
+     * Asigna al plan cada cobertura anidada del request, si se enviaron. Validando la
+     * existencia de la prestación y la coherencia de la cobertura, en el mismo orden que
+     * {@code ObraSocialPrestacionApp.assignPrestacion}.
+     *
+     * @param plan {@code Plan} plan ya guardado al que se le asignan las coberturas
+     * @param coberturasRequest {@code List<AsignarCoberturaAnidadaRequest>} coberturas a asignar,
+     *        o {@code null} si no se enviaron
+     * @return {@code List<GetCoberturaAnidadaResponse>} las coberturas asignadas, mapeadas
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si alguna prestación
+     *         no existe (activa)
+     */
+    private List<GetCoberturaAnidadaResponse> asignarCoberturasAnidadas(Plan plan, List<AsignarCoberturaAnidadaRequest> coberturasRequest) {
+
+        List<GetCoberturaAnidadaResponse> coberturasResponse = new ArrayList<>();
+
+        if (coberturasRequest == null) {
+            return coberturasResponse;
+        }
+
+        for (AsignarCoberturaAnidadaRequest coberturaAnidada : coberturasRequest) {
+            Prestacion prestacionExistente = prestacionDomainService.findPrestacionActivaById(coberturaAnidada.prestacionId());
+            obraSocialPlanPrestacionDomainService.validateCoherenciaCobertura(coberturaAnidada.modalidadCobertura(),
+                    coberturaAnidada.porcentajeCobertura(), coberturaAnidada.coseguro());
+
+            ObraSocialPlanPrestacion coberturaNueva = obraSocialPlanPrestacionMapper.toEntity(coberturaAnidada);
+            coberturaNueva.setPlan(plan);
+            coberturaNueva.setPrestacion(prestacionExistente);
+
+            ObraSocialPlanPrestacion coberturaGuardada = obraSocialPlanPrestacionDomainService.saveObraSocialPlanPrestacion(coberturaNueva);
+            coberturasResponse.add(obraSocialPlanPrestacionMapper.toGetCoberturaAnidadaResponse(coberturaGuardada));
+        }
+
+        return coberturasResponse;
 
     }
 

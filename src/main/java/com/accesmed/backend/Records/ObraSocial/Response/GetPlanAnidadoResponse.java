@@ -1,7 +1,9 @@
 package com.accesmed.backend.Records.ObraSocial.Response;
 
 import com.accesmed.backend.Domain.EstadoPlan;
+import com.accesmed.backend.Records.Plan.Response.GetCoberturaAnidadaResponse;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -27,7 +29,12 @@ public record GetPlanAnidadoResponse(
         /**
          * Estado actual del plan ({@code EstadoPlan}).
          */
-        EstadoPlan estadoActual
+        EstadoPlan estadoActual,
+
+        /**
+         * Prestaciones cubiertas por el plan ({@code List<GetCoberturaAnidadaResponse>}).
+         */
+        List<GetCoberturaAnidadaResponse> coberturas
 
 ) {
 }

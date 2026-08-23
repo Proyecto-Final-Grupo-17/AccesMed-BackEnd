@@ -93,6 +93,23 @@ public interface TurnoRepository extends JpaRepository<Turno, UUID> {
     Optional<ZonedDateTime> findMaxFechaHoraInicioByPlanIdAndEstadoVigenteNotIn(UUID planId, Collection<EstadoTurno> estadosFinales);
 
     /**
+     * Busca la fecha/hora de inicio más lejana entre los turnos vivos del par
+     * plan-prestación indicado (el plan, vía {@code obraSocialPaciente.plan}). Piso duro
+     * de la desasignación de {@code ObraSocialPlanPrestacion}: la baja no puede realizarse
+     * si hay turnos vivos de ese par.
+     *
+     * @param planId {@code UUID} identificador del plan
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @param estadosFinales {@code Collection<EstadoTurno>} estados finales a excluir
+     * @return {@code Optional<ZonedDateTime>} la fecha máxima, vacío si no hay turnos vivos
+     */
+    @Query("SELECT MAX(h.turno.fechaHoraInicio) FROM HistoricoEstadoTurno h "
+            + "WHERE h.turno.obraSocialPaciente.plan.id = :planId AND h.turno.prestacion.id = :prestacionId "
+            + "AND h.fechaHoraFin IS NULL AND h.estado NOT IN :estadosFinales")
+    Optional<ZonedDateTime> findMaxFechaHoraInicioByPlanIdAndPrestacionIdAndEstadoVigenteNotIn(
+            UUID planId, UUID prestacionId, Collection<EstadoTurno> estadosFinales);
+
+    /**
      * Cuenta los turnos del médico cuyo estado vigente no sea final.
      *
      * @param medicoId {@code UUID} identificador del médico

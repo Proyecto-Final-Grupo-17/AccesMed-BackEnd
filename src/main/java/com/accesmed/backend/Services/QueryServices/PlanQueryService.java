@@ -8,11 +8,14 @@ import com.accesmed.backend.Domain.ObraSocial_;
 import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Domain.Plan_;
 import com.accesmed.backend.Records.Plan.Criteria.PlanCriteria;
+import com.accesmed.backend.Records.Plan.Response.GetCoberturaAnidadaResponse;
 import com.accesmed.backend.Records.Plan.Response.GetPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.ListPlanResponse;
 import com.accesmed.backend.Repositories.HistoricoEstadoPlanRepository;
+import com.accesmed.backend.Repositories.ObraSocialPlanPrestacionRepository;
 import com.accesmed.backend.Repositories.PlanRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
+import com.accesmed.backend.Services.Mappers.ObraSocialPlanPrestacionMapper;
 import com.accesmed.backend.Services.Mappers.PlanMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.EstadoPlanFilter;
@@ -55,6 +58,8 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
     private final PlanRepository planRepository;
     private final PlanMapper planMapper;
     private final HistoricoEstadoPlanRepository historicoEstadoPlanRepository;
+    private final ObraSocialPlanPrestacionRepository obraSocialPlanPrestacionRepository;
+    private final ObraSocialPlanPrestacionMapper obraSocialPlanPrestacionMapper;
 
     //endregion
 
@@ -171,11 +176,19 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
      */
     private List<GetPlanResponse> mapPlanesConEstado(List<Plan> planes) {
 
-        Map<UUID, EstadoPlan> estadosVigentes = resolverEstadosVigentes(
-                planes.stream().map(Plan::getId).toList());
+        List<UUID> planIds = planes.stream().map(Plan::getId).toList();
+
+        Map<UUID, EstadoPlan> estadosVigentes = resolverEstadosVigentes(planIds);
+
+        Map<UUID, List<GetCoberturaAnidadaResponse>> coberturasPorPlan = obraSocialPlanPrestacionRepository
+                .findByPlan_IdInAndDeletedAtIsNull(planIds).stream()
+                .collect(Collectors.groupingBy(
+                        cobertura -> cobertura.getPlan().getId(),
+                        Collectors.mapping(obraSocialPlanPrestacionMapper::toGetCoberturaAnidadaResponse, Collectors.toList())));
 
         return planes.stream()
-                .map(plan -> planMapper.toGetResponse(plan, estadosVigentes.get(plan.getId())))
+                .map(plan -> planMapper.toGetResponse(plan, estadosVigentes.get(plan.getId()),
+                        coberturasPorPlan.getOrDefault(plan.getId(), List.of())))
                 .toList();
 
     }

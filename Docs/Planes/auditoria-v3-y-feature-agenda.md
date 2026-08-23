@@ -1,17 +1,19 @@
 # Plan — Auditoría v3 y feature de Agenda
 
-> **Estado al 2026-08-15.** **Fase A ejecutada completa** (A2, A3, A1, A4, A5, A6) y **Fase
+> **Estado al 2026-08-23.** **Fase A ejecutada completa** (A2, A3, A1, A4, A5, A6) y **Fase
 > C ejecutada** (C2, C1). **Fase B ejecutada**: feature de Agenda completa (7 endpoints,
 > `AgendaMedicoApp`/`AgendaMedicoController`, `GeneradorSlotsAgenda`, extensión de
 > `AgendaHorariosRepository`/`AgendaHorariosDomainService` con el stack de escritura,
 > filtros derivados nuevos en `MedicoCriteria`). Con el stack de escritura de Agenda ya
 > disponible, se completaron **A4 paso 2** y **A6**, que quedaban pendientes en el código
-> con `// TODO`. El paso de `ObraSocialPlanPrestacion` de A4 y A5 sigue como `// TODO` en
-> `PrestacionApp`, `PlanApp` y `ObraSocialApp` — no existe módulo al que delegarlo, queda
-> fuera de este plan. Pendiente: el front de la feature de Agenda (Fase C de Agenda, no
-> incluida en este plan — va en uno propio) y los tests de integración/App de la Fase B
-> (se dejaron sin escribir por alcance; solo se cubrió con tests unitarios
-> `GeneradorSlotsAgendaTest`).
+> con `// TODO`. El módulo `ObraSocialPlanPrestacion` (repo, `DomainService`, `QueryService`,
+> `App`/`ObraSocialPrestacionController`, records) se construyó fuera de este plan, cerrando
+> los `// TODO` de A4 paso 4 (`PrestacionApp.disablePrestacion`) y A5 paso 1
+> (`PlanApp.disablePlan`, `ObraSocialApp.softDeleteObraSocial`); ver
+> `Docs/Features/ObraSocialPrestacion.md`. Pendiente: el front de la feature de Agenda (Fase
+> C de Agenda, no incluida en este plan — va en uno propio) y los tests de
+> integración/App de la Fase B y del módulo `ObraSocialPlanPrestacion` (se dejaron sin
+> escribir por alcance; solo se cubrió con tests unitarios `GeneradorSlotsAgendaTest`).
 
 Documento de ejecución. La **Fase A** corrige los desajustes entre
 `Docs/Dominio/dominio-reglas-validaciones.md` (v3) y el código. La **Fase B** construye la
@@ -58,20 +60,22 @@ No hace falta tocar nada de esto — se verificó, está bien:
 
 ### No construido todavía (backlog, fuera de este plan)
 
-No son contradicciones: son módulos que aún no existen. Se dejan anotados porque tres de
-ellos bloquean partes de las cascadas de A4/A5.
+No son contradicciones: son módulos que aún no existen.
 
 | Módulo | Estado | Qué bloquea |
 |---|---|---|
 | `Archivo` | Entidad inexistente (v3 punto 9) | Adjuntos de paciente y turno |
-| `ObraSocialPlanPrestacion` | Entidad y tabla existen; sin repo, service, App ni controller | El paso "baja de coberturas" de A4 y A5 |
 | `Turno` | Solo lectura (`TurnoRepository`/`TurnoDomainService` para precondiciones ajenas) | Todo el canal del chatbot; la cascada de cancelación en Agenda |
 | Seguridad (`Usuario`, `Rol`, `UsuarioRol`, `Permiso`) | Entidades y tablas; sin stack | Login y autorización |
 
-**Consecuencia sobre A4 y A5**: las cascadas se completan hasta donde el código lo permite
-hoy. El paso de `ObraSocialPlanPrestacion` queda como `// TODO` con referencia a este
-documento, porque no hay servicio al que delegarlo. No se inventa un repositorio suelto
-solo para eso.
+**`ObraSocialPlanPrestacion` ya no está en esta lista**: el módulo completo (repo,
+`ObraSocialPlanPrestacionDomainService`, `ObraSocialPlanPrestacionQueryService`,
+`ObraSocialPrestacionApp`/`ObraSocialPrestacionController`) se construyó fuera de este
+plan, incluida la asignación anidada al crear obra social/plan y el listado dinámico con
+`ObraSocialPrestacionCriteria`. Cierra el paso "baja de coberturas" de A4 y A5. La
+desasignación es restrictiva por turnos vivos del par plan-prestación, mismo criterio que
+el resto de las bajas restrictivas del dominio (piso duro nuevo en `TurnoRepository`/
+`TurnoDomainService`). Ver `Docs/Features/ObraSocialPrestacion.md`.
 
 ---
 
@@ -186,8 +190,8 @@ Hoy hace 4 de los 5 pasos de §6. Orden correcto, con lo que se agrega marcado:
 2. **(agregar, tras Fase B)** Baja de los `AgendaHorarios` futuros libres. Requiere el
    stack de escritura de Agenda: se completa al final de la Fase B.
 3. Cerrar `IndicacionPrestacion` vigentes — ya está.
-4. **(TODO)** Baja de `ObraSocialPlanPrestacion` — sin módulo. Comentario `// TODO` con
-   referencia a este documento.
+4. **(hecho)** Baja de las coberturas `ObraSocialPlanPrestacion` de la prestación, vía
+   `ObraSocialPlanPrestacionDomainService.softDeleteByPrestacion`.
 5. Cerrar el tramo del histórico y abrir `DESHABILITADA` — ya está.
 
 Las dos precondiciones restrictivas ya están (`validateSinTurnosVivos`,
@@ -197,7 +201,8 @@ Las dos precondiciones restrictivas ya están (`validateSinTurnosVivos`,
 
 Hoy solo valida turnos vivos y cambia el estado. Faltan, según §6:
 
-1. **(TODO)** Baja de sus `ObraSocialPlanPrestacion` — sin módulo.
+1. **(hecho)** Baja de sus `ObraSocialPlanPrestacion`, vía
+   `ObraSocialPlanPrestacionDomainService.softDeleteByPlan`.
 2. **(agregar)** Baja de las `ObraSocialPaciente` que lo referencian. `ObraSocialPacienteRepository`
    y su DomainService ya existen: agregar `findByPlan_IdAndDeletedAtIsNull` y
    `softDeleteByPlan`, y llamarlo desde `PlanApp.disablePlan`.

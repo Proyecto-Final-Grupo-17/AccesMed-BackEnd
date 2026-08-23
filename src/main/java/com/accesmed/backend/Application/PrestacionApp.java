@@ -55,6 +55,7 @@ public class PrestacionApp {
     private final AgendaHorariosDiaDomainService agendaHorariosDiaDomainService;
     private final MedicoPrestacionDomainService medicoPrestacionDomainService;
     private final ClinicaDomainService clinicaDomainService;
+    private final ObraSocialPlanPrestacionDomainService obraSocialPlanPrestacionDomainService;
 
     //Mappers
     private final PrestacionMapper prestacionMapper;
@@ -306,9 +307,8 @@ public class PrestacionApp {
         //ocupados no se tocan: ya se validó arriba que no hay agenda futura ocupada.
         agendaHorariosDiaDomainService.darDeBajaFuturosLibres(id, LocalDate.now(), "Prestación deshabilitada");
 
-        //TODO (A4, paso 4): dar de baja las ObraSocialPlanPrestacion de la prestación. Sin
-        // módulo (repo/service/App/controller) al que delegarlo todavía. Ver
-        // Docs/Planes/auditoria-v3-y-feature-agenda.md.
+        //Dar de baja las coberturas de planes que incluyen la prestación (A4, paso 4)
+        obraSocialPlanPrestacionDomainService.softDeleteByPrestacion(id, "Prestación deshabilitada");
 
         //Transicionar el estado a DESHABILITADA
         Prestacion prestacionDeshabilitada = historicoEstadoPrestacionDomainService.changeEstadoPrestacion(

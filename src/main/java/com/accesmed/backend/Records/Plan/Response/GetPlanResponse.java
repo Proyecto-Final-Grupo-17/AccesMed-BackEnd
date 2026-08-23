@@ -2,6 +2,7 @@ package com.accesmed.backend.Records.Plan.Response;
 
 import com.accesmed.backend.Domain.EstadoPlan;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -38,7 +39,12 @@ public record GetPlanResponse(
         /**
          * Estado actual del plan ({@code EstadoPlan}).
          */
-        EstadoPlan estadoActual
+        EstadoPlan estadoActual,
+
+        /**
+         * Prestaciones cubiertas por el plan ({@code List<GetCoberturaAnidadaResponse>}).
+         */
+        List<GetCoberturaAnidadaResponse> coberturas
 
 ) {
 }

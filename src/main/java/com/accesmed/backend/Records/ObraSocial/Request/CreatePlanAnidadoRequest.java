@@ -1,7 +1,11 @@
 package com.accesmed.backend.Records.ObraSocial.Request;
 
+import com.accesmed.backend.Records.Plan.Request.AsignarCoberturaAnidadaRequest;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+
+import java.util.List;
 
 /**
  * Record de plan anidado dentro de la creación de una obra social nueva.
@@ -20,7 +24,14 @@ public record CreatePlanAnidadoRequest(
          */
         @NotBlank(message = "El nombre del plan es obligatorio.")
         @Size(max = 150, message = "El nombre del plan no puede exceder 150 caracteres.")
-        String nombre
+        String nombre,
+
+        /**
+         * Coberturas de prestaciones iniciales del plan ({@code List<AsignarCoberturaAnidadaRequest>}),
+         * opcionales. Si se proporciona, cada elemento se valida con {@link Valid}.
+         */
+        @Valid
+        List<AsignarCoberturaAnidadaRequest> coberturas
 
 ) {
 }

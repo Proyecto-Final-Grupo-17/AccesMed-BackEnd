@@ -149,6 +149,25 @@ public class TurnoDomainService {
 
     }
 
+    /**
+     * Busca la fecha/hora de inicio más lejana entre los turnos vivos del par
+     * plan-prestación indicado. Piso duro de la desasignación de
+     * {@code ObraSocialPlanPrestacion}: la orquestación (comparar contra la baja
+     * propuesta) vive en {@code ObraSocialPrestacionApp}, no acá.
+     *
+     * @param planId {@code UUID} identificador del plan
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @return {@code Optional<ZonedDateTime>} la fecha máxima, vacío si no hay turnos vivos de ese par
+     */
+    public Optional<ZonedDateTime> findMaxFechaHoraInicioTurnoVivoDePlanYPrestacion(UUID planId, UUID prestacionId) {
+
+        log.debug("Buscando fecha máxima de turno vivo para el par plan={}, prestación={}", planId, prestacionId);
+
+        return turnoRepository.findMaxFechaHoraInicioByPlanIdAndPrestacionIdAndEstadoVigenteNotIn(
+                planId, prestacionId, EstadoTurno.FINALES);
+
+    }
+
     //endregion
 
 }

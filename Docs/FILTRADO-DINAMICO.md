@@ -181,6 +181,7 @@ GET /accesmed-api/Prestacion/Prestacion?estadoActual.equals=PUBLICADA&page=0&siz
 | `Medico` | `/accesmed-api/Medico/Medico` | `id`, `matricula`, `dni`, `nombre`, `apellido`, `email`, `especialidadId`, `tieneAgendaVigente`, `agendaVigenteAl`, `createdDate`, `lastModifiedDate` |
 | `AgendaMedico` | `/accesmed-api/AgendaMedico/Agenda` | `id`, `medicoId`, `especialidadId`, `fechaHoraInicioVigencia`, `fechaHoraFinVigencia`, `vigenteAl` |
 | `AgendaHorariosDia` | `/accesmed-api/AgendaMedico/Horarios` (panel) y `/accesmed-api/AgendaMedico/HorariosDisponibles` (chatbot) | `id`, `agendaMedicoId`, `medicoId`, `prestacionId`, `fecha`, `horaDesde`, `estaOcupada` |
+| `ObraSocialPlanPrestacion` | `/accesmed-api/ObraSocialPrestacion/ObraSocialPrestacion` (solo listado, sin `/Buscar`) | `id`, `planId`, `prestacionId`, `obraSocialId` (derivado, vía `plan.obraSocial`), `modalidadCobertura` |
 
 `Medico.tieneAgendaVigente` (`BooleanFilter`) y `agendaVigenteAl` (fecha de referencia,
 default "ahora" si no se envía) son un filtro **derivado**: no son columnas de `Medico`,
