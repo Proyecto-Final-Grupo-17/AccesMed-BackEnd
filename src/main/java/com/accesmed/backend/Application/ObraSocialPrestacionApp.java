@@ -4,8 +4,10 @@ import com.accesmed.backend.Domain.ObraSocialPlanPrestacion;
 import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Request.AssignObraSocialPrestacionRequest;
+import com.accesmed.backend.Records.ObraSocialPrestacion.Request.UpdateObraSocialPrestacionRequest;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.GetObraSocialPrestacionResponse;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.UnassignObraSocialPrestacionResponse;
+import com.accesmed.backend.Records.ObraSocialPrestacion.Response.UpdateObraSocialPrestacionResponse;
 import com.accesmed.backend.Services.DomainServices.ObraSocialPlanPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.PlanDomainService;
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
@@ -66,10 +68,9 @@ public class ObraSocialPrestacionApp {
         Plan planExistente = planDomainService.findPlanActivoById(assignObraSocialPrestacionRequest.planId());
         Prestacion prestacionExistente = prestacionDomainService.findPrestacionActivaById(assignObraSocialPrestacionRequest.prestacionId());
 
-        //Validar que no exista ya una cobertura activa entre ambos, y la coherencia de la modalidad
+        //Validar que no exista ya una cobertura activa entre ambos (la coherencia de la
+        //modalidad ya la valida @CoherenciaCobertura en el Controller)
         obraSocialPlanPrestacionDomainService.validateSinCoberturaActiva(planExistente.getId(), prestacionExistente.getId());
-        obraSocialPlanPrestacionDomainService.validateCoherenciaCobertura(assignObraSocialPrestacionRequest.modalidadCobertura(),
-                assignObraSocialPrestacionRequest.porcentajeCobertura(), assignObraSocialPrestacionRequest.coseguro());
 
         //Mapear, completar relaciones y guardar
         ObraSocialPlanPrestacion coberturaNueva = obraSocialPlanPrestacionMapper.toEntity(assignObraSocialPrestacionRequest);
@@ -80,6 +81,33 @@ public class ObraSocialPrestacionApp {
         //Devolver response mapeado
         GetObraSocialPrestacionResponse getObraSocialPrestacionResponse = obraSocialPlanPrestacionMapper.toGetResponse(coberturaGuardada);
         return getObraSocialPrestacionResponse;
+
+    }
+
+    /**
+     * Actualiza la modalidad y los montos de cobertura de una asignación plan-prestación
+     * existente.
+     *
+     * @param id {@code UUID} identificador de la cobertura
+     * @param updateObraSocialPrestacionRequest {@code UpdateObraSocialPrestacionRequest} datos nuevos de la cobertura
+     * @return {@code UpdateObraSocialPrestacionResponse} la cobertura actualizada
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la cobertura no existe (activa)
+     */
+    @Transactional
+    public UpdateObraSocialPrestacionResponse updateCobertura(UUID id, UpdateObraSocialPrestacionRequest updateObraSocialPrestacionRequest) {
+
+        log.info("Actualización de cobertura plan-prestación iniciada: id={}", id);
+
+        //Buscar la cobertura activa
+        ObraSocialPlanPrestacion coberturaExistente = obraSocialPlanPrestacionDomainService.findObraSocialPlanPrestacionActivaById(id);
+
+        //Aplicar los datos nuevos y guardar (la coherencia de la modalidad ya la validó @CoherenciaCobertura en el Controller)
+        obraSocialPlanPrestacionMapper.updateEntityFromRequest(updateObraSocialPrestacionRequest, coberturaExistente);
+        ObraSocialPlanPrestacion coberturaActualizada = obraSocialPlanPrestacionDomainService.saveObraSocialPlanPrestacion(coberturaExistente);
+
+        //Devolver response mapeado
+        UpdateObraSocialPrestacionResponse updateObraSocialPrestacionResponse = obraSocialPlanPrestacionMapper.toUpdateResponse(coberturaActualizada);
+        return updateObraSocialPrestacionResponse;
 
     }
 

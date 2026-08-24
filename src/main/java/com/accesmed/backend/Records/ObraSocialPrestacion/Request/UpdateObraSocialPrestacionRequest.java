@@ -1,4 +1,4 @@
-package com.accesmed.backend.Records.Plan.Request;
+package com.accesmed.backend.Records.ObraSocialPrestacion.Request;
 
 import com.accesmed.backend.Controllers.Validators.CoherenciaCobertura;
 import com.accesmed.backend.Controllers.Validators.TieneCobertura;
@@ -12,17 +12,19 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
- * Record de cobertura de prestación anidada dentro de la creación de un plan (nuevo o
- * anidado en el alta de una obra social).
+ * Record para actualizar la modalidad y los montos de cobertura de una asignación
+ * plan-prestación existente. No lleva {@code planId}/{@code prestacionId}: esos no
+ * cambian, solo la modalidad y sus montos.
  */
 @CoherenciaCobertura
-public record AsignarCoberturaAnidadaRequest(
+public record UpdateObraSocialPrestacionRequest(
 
         /**
-         * Identificador de la prestación existente a cubrir ({@code UUID}).
+         * Identificador de la cobertura a actualizar ({@code UUID}).
+         * Debe coincidir con el id de la ruta.
          */
-        @NotNull(message = "La prestación es obligatoria.")
-        UUID prestacionId,
+        @NotNull(message = "El identificador es obligatorio.")
+        UUID id,
 
         /**
          * Modalidad de cobertura ({@code ModalidadCobertura}).
