@@ -3,9 +3,12 @@ package com.accesmed.backend.Controllers;
 import com.accesmed.backend.Application.ObraSocialPrestacionApp;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Criteria.ObraSocialPrestacionCriteria;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Request.AssignObraSocialPrestacionRequest;
+import com.accesmed.backend.Records.ObraSocialPrestacion.Request.UpdateObraSocialPrestacionRequest;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.GetObraSocialPrestacionResponse;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.ListObraSocialPrestacionResponse;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.UnassignObraSocialPrestacionResponse;
+import com.accesmed.backend.Records.ObraSocialPrestacion.Response.UpdateObraSocialPrestacionResponse;
+import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import com.accesmed.backend.Services.QueryServices.ObraSocialPlanPrestacionQueryService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -64,6 +68,33 @@ public class ObraSocialPrestacionController {
         GetObraSocialPrestacionResponse getObraSocialPrestacionResponse = obraSocialPrestacionApp.assignPrestacion(assignObraSocialPrestacionRequest);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(getObraSocialPrestacionResponse);
+
+    }
+
+    /**
+     * Actualiza la modalidad y los montos de cobertura de una asignación existente.
+     *
+     * @param id {@code UUID} identificador de la cobertura (validado contra el request)
+     * @param updateObraSocialPrestacionRequest {@code UpdateObraSocialPrestacionRequest} datos nuevos de la cobertura
+     * @return {@code ResponseEntity<UpdateObraSocialPrestacionResponse>} la cobertura actualizada (HTTP 200)
+     */
+    @PatchMapping("/{id}")
+    public ResponseEntity<UpdateObraSocialPrestacionResponse> updateCobertura(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateObraSocialPrestacionRequest updateObraSocialPrestacionRequest) {
+
+        log.info("Solicitud recibida: actualizar cobertura plan-prestación, id={}", id);
+
+        if (!id.equals(updateObraSocialPrestacionRequest.id())) {
+            log.warn("Id de ruta ({}) distinto al del body ({})", id, updateObraSocialPrestacionRequest.id());
+            throw new ValidacionException(getClass(),
+                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+        }
+
+        UpdateObraSocialPrestacionResponse updateObraSocialPrestacionResponse =
+                obraSocialPrestacionApp.updateCobertura(id, updateObraSocialPrestacionRequest);
+
+        return ResponseEntity.ok(updateObraSocialPrestacionResponse);
 
     }
 

@@ -251,9 +251,8 @@ public class PlanApp {
         }
 
         for (AsignarCoberturaAnidadaRequest coberturaAnidada : coberturasRequest) {
+            //La coherencia de la modalidad ya la valida @CoherenciaCobertura en el Controller
             Prestacion prestacionExistente = prestacionDomainService.findPrestacionActivaById(coberturaAnidada.prestacionId());
-            obraSocialPlanPrestacionDomainService.validateCoherenciaCobertura(coberturaAnidada.modalidadCobertura(),
-                    coberturaAnidada.porcentajeCobertura(), coberturaAnidada.coseguro());
 
             ObraSocialPlanPrestacion coberturaNueva = obraSocialPlanPrestacionMapper.toEntity(coberturaAnidada);
             coberturaNueva.setPlan(plan);

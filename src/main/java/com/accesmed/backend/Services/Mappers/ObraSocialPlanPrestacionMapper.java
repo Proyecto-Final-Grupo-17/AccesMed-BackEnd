@@ -4,11 +4,14 @@ import com.accesmed.backend.Domain.ObraSocialPlanPrestacion;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Request.AssignObraSocialPrestacionRequest;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.GetObraSocialPrestacionResponse;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.ListObraSocialPrestacionResponse;
+import com.accesmed.backend.Records.ObraSocialPrestacion.Request.UpdateObraSocialPrestacionRequest;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.UnassignObraSocialPrestacionResponse;
+import com.accesmed.backend.Records.ObraSocialPrestacion.Response.UpdateObraSocialPrestacionResponse;
 import com.accesmed.backend.Records.Plan.Request.AsignarCoberturaAnidadaRequest;
 import com.accesmed.backend.Records.Plan.Response.GetCoberturaAnidadaResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
 
 import java.util.List;
 
@@ -89,6 +92,29 @@ public interface ObraSocialPlanPrestacionMapper {
     @Mapping(target = "prestacionCodigo", source = "prestacion.codigo")
     @Mapping(target = "prestacionNombre", source = "prestacion.nombre")
     ListObraSocialPrestacionResponse toListResponse(ObraSocialPlanPrestacion obraSocialPlanPrestacion);
+
+    /**
+     * Aplica los datos de un {@code UpdateObraSocialPrestacionRequest} sobre una cobertura
+     * existente, pisando modalidad, porcentaje y coseguro.
+     *
+     * @param updateObraSocialPrestacionRequest {@code UpdateObraSocialPrestacionRequest} datos nuevos de la cobertura
+     * @param obraSocialPlanPrestacion {@code ObraSocialPlanPrestacion} cobertura a actualizar (se modifica in place)
+     */
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "plan", ignore = true)
+    @Mapping(target = "prestacion", ignore = true)
+    void updateEntityFromRequest(UpdateObraSocialPrestacionRequest updateObraSocialPrestacionRequest,
+            @MappingTarget ObraSocialPlanPrestacion obraSocialPlanPrestacion);
+
+    /**
+     * Convierte una entidad {@code ObraSocialPlanPrestacion} a {@code UpdateObraSocialPrestacionResponse}.
+     *
+     * @param obraSocialPlanPrestacion {@code ObraSocialPlanPrestacion} entidad actualizada
+     * @return {@code UpdateObraSocialPrestacionResponse} respuesta de actualización
+     */
+    @Mapping(target = "planId", source = "plan.id")
+    @Mapping(target = "prestacionId", source = "prestacion.id")
+    UpdateObraSocialPrestacionResponse toUpdateResponse(ObraSocialPlanPrestacion obraSocialPlanPrestacion);
 
     /**
      * Convierte una entidad {@code ObraSocialPlanPrestacion} a {@code UnassignObraSocialPrestacionResponse}.

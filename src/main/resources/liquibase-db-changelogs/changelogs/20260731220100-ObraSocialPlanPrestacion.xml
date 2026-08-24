@@ -14,12 +14,8 @@
             <column name="modalidad_cobertura" type="varchar(20)">
                 <constraints nullable="false"/>
             </column>
-            <column name="porcentaje_cobertura" type="numeric(5,2)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="coseguro" type="numeric(12,2)">
-                <constraints nullable="false"/>
-            </column>
+            <column name="porcentaje_cobertura" type="numeric(5,2)"/>
+            <column name="coseguro" type="numeric(12,2)"/>
             <!-- ====== Relaciones ====== -->
             <column name="plan_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_obra_social_plan_prestacion_plan" references="plan(id)"/>
@@ -42,9 +38,9 @@
         <sql>ALTER TABLE obra_social_plan_prestacion ADD CONSTRAINT ck_obra_social_plan_prestacion_modalidad CHECK (modalidad_cobertura IN ('TOTAL','CARGO_FIJO','PORCENTUAL'));</sql>
         <sql>
             ALTER TABLE obra_social_plan_prestacion ADD CONSTRAINT ck_obra_social_plan_prestacion_coherencia CHECK (
-                (modalidad_cobertura = 'TOTAL' AND porcentaje_cobertura = 100 AND coseguro = 0) OR
-                (modalidad_cobertura = 'CARGO_FIJO' AND coseguro >= 0) OR
-                (modalidad_cobertura = 'PORCENTUAL' AND porcentaje_cobertura >= 0 AND porcentaje_cobertura &lt;= 100)
+                (modalidad_cobertura = 'TOTAL' AND porcentaje_cobertura IS NULL AND coseguro IS NULL) OR
+                (modalidad_cobertura = 'CARGO_FIJO' AND coseguro IS NOT NULL AND coseguro >= 0 AND porcentaje_cobertura IS NULL) OR
+                (modalidad_cobertura = 'PORCENTUAL' AND porcentaje_cobertura IS NOT NULL AND porcentaje_cobertura >= 0 AND porcentaje_cobertura &lt;= 100 AND coseguro IS NULL)
             );
         </sql>
         <sql>CREATE UNIQUE INDEX uq_obra_social_plan_prestacion_plan_prestacion ON obra_social_plan_prestacion (plan_id, prestacion_id) WHERE deleted_at IS NULL;</sql>
