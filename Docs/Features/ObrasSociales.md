@@ -36,7 +36,7 @@ con el alta individual (`POST /accesmed-api/Plan/Plan`). Cada plan nace en estad
 | `nombre` | String (máx. 150) | Sí | Nombre comercial, único entre activas. |
 | `razonSocial` | String (máx. 200) | Sí | Razón social. |
 | `planes` | Array | No | Planes iniciales, opcionales. Si se omite o va vacío, la obra social se crea sin planes. Cada elemento: `codigo` (máx. 20), `nombre` (máx. 150), únicos dentro de esta obra social, y opcionalmente `coberturas` (ver abajo). |
-| `planes[].coberturas` | Array | No | Prestaciones que cubre ese plan desde el alta. Cada elemento: `prestacionId` (UUID de una prestación existente y activa), `modalidadCobertura` (`TOTAL`\|`CARGO_FIJO`\|`PORCENTUAL`), `porcentajeCobertura` (0-100; si la modalidad es `TOTAL` debe ser 100), `coseguro` (>= 0; si la modalidad es `TOTAL` debe ser 0). |
+| `planes[].coberturas` | Array | No | Prestaciones que cubre ese plan desde el alta. Cada elemento: `prestacionId` (UUID de una prestación existente y activa), `modalidadCobertura` (`TOTAL`\|`CARGO_FIJO`\|`PORCENTUAL`), `porcentajeCobertura` (0-100, obligatorio **solo** si la modalidad es `PORCENTUAL`, debe venir vacío/`null` en las otras dos), `coseguro` (>= 0, obligatorio **solo** si la modalidad es `CARGO_FIJO`, debe venir vacío/`null` en las otras dos). |
 
 **Response para el front — `CreateObraSocialResponse`**
 
@@ -185,7 +185,7 @@ Agrega un plan nuevo a una obra social **activa** ya existente. Nace en `NO_PUBL
 | `obraSocialId` | UUID | Sí | Obra social a la que se agrega el plan. |
 | `codigo` | String (máx. 20) | Sí | Único dentro de la obra social entre planes no deshabilitados. |
 | `nombre` | String (máx. 150) | Sí | Único dentro de la obra social entre planes no deshabilitados. |
-| `coberturas` | Array | No | Prestaciones que cubre el plan desde el alta. Cada elemento: `prestacionId` (UUID de una prestación existente y activa), `modalidadCobertura` (`TOTAL`\|`CARGO_FIJO`\|`PORCENTUAL`), `porcentajeCobertura` (0-100; si la modalidad es `TOTAL` debe ser 100), `coseguro` (>= 0; si la modalidad es `TOTAL` debe ser 0). |
+| `coberturas` | Array | No | Prestaciones que cubre el plan desde el alta. Cada elemento: `prestacionId` (UUID de una prestación existente y activa), `modalidadCobertura` (`TOTAL`\|`CARGO_FIJO`\|`PORCENTUAL`), `porcentajeCobertura` (0-100, obligatorio **solo** si la modalidad es `PORCENTUAL`, debe venir vacío/`null` en las otras dos), `coseguro` (>= 0, obligatorio **solo** si la modalidad es `CARGO_FIJO`, debe venir vacío/`null` en las otras dos). |
 
 **Response para el front — `GetPlanResponse`**
 
@@ -364,8 +364,8 @@ alternativa al `coberturas` anidado de "Crear obra social" / "Agregar plan a obr
 **Flujo simplificado:**
 1. Valida que el plan y la prestación existan y estén activos.
 2. Valida que el plan no tenga ya una cobertura activa de esa misma prestación.
-3. Valida que la combinación modalidad/porcentaje/coseguro sea coherente (`TOTAL` exige
-   100% de cobertura y coseguro cero).
+3. La combinación modalidad/porcentaje/coseguro se valida como Bean Validation a nivel
+   de request (ver notas del campo, abajo), antes de llegar a esta validación de negocio.
 4. Crea la cobertura y la devuelve.
 
 **Request para el front — `AssignObraSocialPrestacionRequest`**
@@ -374,15 +374,18 @@ alternativa al `coberturas` anidado de "Crear obra social" / "Agregar plan a obr
 |-------|------|-------------|-------|
 | `planId` | UUID | Sí | Plan existente al que se le asigna la prestación. |
 | `prestacionId` | UUID | Sí | Prestación existente a cubrir. |
-| `modalidadCobertura` | `TOTAL`\|`CARGO_FIJO`\|`PORCENTUAL` | Sí | Determina qué combinación de `porcentajeCobertura`/`coseguro` es válida. |
-| `porcentajeCobertura` | number (0-100) | Sí | Si la modalidad es `TOTAL`, debe ser 100. |
-| `coseguro` | number (>= 0) | Sí | Si la modalidad es `TOTAL`, debe ser 0. |
+| `modalidadCobertura` | `TOTAL`\|`CARGO_FIJO`\|`PORCENTUAL` | Sí | Determina qué campo de monto es obligatorio. |
+| `porcentajeCobertura` | number (0-100) | Solo si `modalidadCobertura=PORCENTUAL` | Debe venir vacío/`null` con `TOTAL` o `CARGO_FIJO`. |
+| `coseguro` | number (>= 0) | Solo si `modalidadCobertura=CARGO_FIJO` | Debe venir vacío/`null` con `TOTAL` o `PORCENTUAL`. |
+
+Con `TOTAL`, ni `porcentajeCobertura` ni `coseguro` se envían (o van `null`): la cobertura
+es completa, no hay nada que calcular.
 
 **Response para el front — `GetObraSocialPrestacionResponse`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
-| `id` | UUID | Identificador de la cobertura, para desasignarla después. |
+| `id` | UUID | Identificador de la cobertura, para actualizarla o desasignarla después. |
 | `planId`, `planCodigo`, `planNombre` | — | Mostrar el plan sin otra consulta. |
 | `obraSocialId` | UUID | Navegar a la obra social dueña del plan. |
 | `prestacionId`, `prestacionCodigo`, `prestacionNombre` | — | Mostrar la prestación sin otra consulta. |
@@ -391,7 +394,42 @@ alternativa al `coberturas` anidado de "Crear obra social" / "Agregar plan a obr
 **Errores posibles:**
 - `PLAN_NO_ENCONTRADO` / `PRESTACION_NO_ENCONTRADA` (404).
 - `OBRA_SOCIAL_PLAN_PRESTACION_YA_ASIGNADA` (409): el plan ya tiene una cobertura activa de esa prestación.
-- Validación Bean (422): combinación modalidad/porcentaje/coseguro incoherente, o campos faltantes.
+- Validación Bean (422): combinación modalidad/porcentaje/coseguro incoherente (ej. `PORCENTUAL` sin `porcentajeCobertura`, o `TOTAL` con algún monto seteado), o campos faltantes.
+
+---
+
+### Actualizar cobertura plan-prestación — `PATCH /accesmed-api/ObraSocialPrestacion/{id}`
+
+Cambia la modalidad y/o los montos de una cobertura ya asignada, sin tener que
+desasignarla y volver a asignarla. `planId`/`prestacionId` no se pueden cambiar acá (son
+fijos desde la asignación); para cubrir otra prestación, se desasigna esta y se asigna una
+nueva.
+
+**Flujo simplificado:**
+1. Busca la cobertura activa por `id`.
+2. Aplica la modalidad y los montos nuevos (misma coherencia Bean Validation que al
+   asignar) y guarda.
+3. Devuelve la cobertura actualizada.
+
+**Request para el front — `UpdateObraSocialPrestacionRequest`**
+
+| Campo | Tipo | Obligatorio | Notas |
+|-------|------|-------------|-------|
+| `id` | UUID | Sí | Debe coincidir con el `id` de la ruta (422 si difieren). |
+| `modalidadCobertura` | `TOTAL`\|`CARGO_FIJO`\|`PORCENTUAL` | Sí | Determina qué campo de monto es obligatorio. |
+| `porcentajeCobertura` | number (0-100) | Solo si `modalidadCobertura=PORCENTUAL` | Debe venir vacío/`null` con `TOTAL` o `CARGO_FIJO`. |
+| `coseguro` | number (>= 0) | Solo si `modalidadCobertura=CARGO_FIJO` | Debe venir vacío/`null` con `TOTAL` o `PORCENTUAL`. |
+
+**Response para el front — `UpdateObraSocialPrestacionResponse`**
+
+| Campo | Tipo | Para qué lo usa el front |
+|-------|------|--------------------------|
+| `id`, `planId`, `prestacionId` | — | Confirmar qué cobertura se actualizó. |
+| `modalidadCobertura`, `porcentajeCobertura`, `coseguro` | — | Mostrar las condiciones nuevas de la cobertura. |
+
+**Errores posibles:**
+- `OBRA_SOCIAL_PLAN_PRESTACION_NO_ENCONTRADA` (404).
+- Validación Bean (422): combinación modalidad/porcentaje/coseguro incoherente, o `id` de ruta y body distintos.
 
 ---
 
