@@ -63,4 +63,13 @@ public interface ObraSocialPlanPrestacionRepository
      */
     List<ObraSocialPlanPrestacion> findByPrestacion_IdAndDeletedAtIsNull(UUID prestacionId);
 
+    /**
+     * Busca una cobertura activa entre un plan y una prestación concretos.
+     *
+     * @param planId {@code UUID} identificador del plan
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @return {@code Optional<ObraSocialPlanPrestacion>} la cobertura activa, si existe
+     */
+    Optional<ObraSocialPlanPrestacion> findByPlan_IdAndPrestacion_IdAndDeletedAtIsNull(UUID planId, UUID prestacionId);
+
 }

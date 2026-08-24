@@ -3,6 +3,7 @@ package com.accesmed.backend.Repositories;
 import com.accesmed.backend.Domain.EstadoTurno;
 import com.accesmed.backend.Domain.Turno;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
@@ -12,18 +13,16 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Repositorio de solo lectura para la entidad {@code Turno}. No construye el módulo
- * Turno (sin stack de escritura): existe para el enforcement real de las precondiciones
- * restrictivas de otros módulos (bajas de Prestación, Plan) contra turnos vivos.
- *
- * <p>El estado del turno no se cachea en la entidad: cada consulta de "turnos vivos" se
- * escribe desde {@code HistoricoEstadoTurno} (relación unidireccional), tomando el tramo
- * vigente ({@code h.fechaHoraFin IS NULL}) y filtrando {@code h.estado} contra los estados
+ * Repositorio de acceso a datos para la entidad {@code Turno}. Incluye soporte para
+ * filtrado dinámico via {@link JpaSpecificationExecutor}. El estado del turno no se
+ * cachea en la entidad: cada consulta de "turnos vivos" se escribe desde
+ * {@code HistoricoEstadoTurno} (relación unidireccional), tomando el tramo vigente
+ * ({@code h.fechaHoraFin IS NULL}) y filtrando {@code h.estado} contra los estados
  * finales, navegando al turno por el {@code @ManyToOne} {@code h.turno}. El índice único
- * parcial de vigencia garantiza como máximo un tramo vigente por turno.</p>
+ * parcial de vigencia garantiza como máximo un tramo vigente por turno.
  */
 @Repository
-public interface TurnoRepository extends JpaRepository<Turno, UUID> {
+public interface TurnoRepository extends JpaRepository<Turno, UUID>, JpaSpecificationExecutor<Turno> {
 
     /**
      * Verifica si existe algún turno de la prestación cuyo estado vigente no sea final.

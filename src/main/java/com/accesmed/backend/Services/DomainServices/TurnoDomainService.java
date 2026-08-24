@@ -168,6 +168,43 @@ public class TurnoDomainService {
 
     }
 
+    /**
+     * Guarda un turno nuevo en la base de datos.
+     *
+     * @param turno {@code Turno} turno a persistir
+     * @return {@code Turno} el turno guardado
+     */
+    public com.accesmed.backend.Domain.Turno saveTurno(com.accesmed.backend.Domain.Turno turno) {
+
+        log.debug("Guardando turno: código={}, paciente={}", turno.getCodigo(), turno.getPaciente().getId());
+
+        return turnoRepository.save(turno);
+
+    }
+
+    /**
+     * Busca un turno por su identificador. No filtra por estado: devuelve el turno
+     * en cualquier estado de su ciclo de vida.
+     *
+     * @param turnoId {@code java.util.UUID} identificador del turno
+     * @return {@code Turno} el turno correspondiente al id
+     * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si no existe
+     *         un turno con ese id
+     */
+    public com.accesmed.backend.Domain.Turno findTurnoById(java.util.UUID turnoId) {
+
+        log.debug("Buscando turno por id: {}", turnoId);
+
+        return turnoRepository.findById(turnoId)
+                .orElseThrow(() -> {
+                    log.warn("Turno no encontrado: id={}", turnoId);
+                    return new com.accesmed.backend.Services.Errors.RecursoNoEncontradoException(getClass(),
+                            "TURNO_NO_ENCONTRADO",
+                            "No existe un turno con el identificador " + turnoId);
+                });
+
+    }
+
     //endregion
 
 }
