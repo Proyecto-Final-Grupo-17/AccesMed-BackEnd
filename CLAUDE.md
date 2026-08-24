@@ -65,10 +65,12 @@ Estas convenciones se aplican SIEMPRE. El detalle y ejemplos están en `Docs/ARQ
   no lógica. Los `Mapper` (MapStruct) viven en `Services/Mappers`.
 - Un **record por endpoint**, en `Records/<Entidad>/Request` y `Records/<Entidad>/Response`.
   Los campos inmutables no viajan en el request.
-- `Controllers` tiene dos subpaquetes fijos: **`Controllers/Errors`** (`GlobalExceptionHandler`,
-  `AccesMedError`) y **`Controllers/ControllersConfig`** (config propia de la capa web:
-  `OpenApiConfig`, CORS, interceptores). `Config/` queda para lo transversal de
-  infraestructura (`SecurityConfig`, `JpaAuditingConfig`).
+- `Controllers` tiene tres subpaquetes fijos: **`Controllers/Errors`** (`GlobalExceptionHandler`,
+  `AccesMedError`), **`Controllers/ControllersConfig`** (config propia de la capa web:
+  `OpenApiConfig`, CORS, interceptores) y **`Controllers/Validators`** (constraints custom
+  de Bean Validation —anotación + `ConstraintValidator`— aplicadas a nivel de record;
+  vive ahí porque Bean Validation es responsabilidad del Controller, no del Service).
+  `Config/` queda para lo transversal de infraestructura (`SecurityConfig`, `JpaAuditingConfig`).
 
 **Nomenclatura:**
 

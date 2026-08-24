@@ -46,15 +46,13 @@ public class ObraSocialPlanPrestacion extends Auditable {
     @Column(name = "modalidad_cobertura", nullable = false, length = 20)
     private ModalidadCobertura modalidadCobertura;
 
-    @NotNull
     @DecimalMin("0")
     @DecimalMax("100")
-    @Column(name = "porcentaje_cobertura", nullable = false, precision = 5, scale = 2)
+    @Column(name = "porcentaje_cobertura", precision = 5, scale = 2)
     private BigDecimal porcentajeCobertura;
 
-    @NotNull
     @PositiveOrZero
-    @Column(name = "coseguro", nullable = false, precision = 12, scale = 2)
+    @Column(name = "coseguro", precision = 12, scale = 2)
     private BigDecimal coseguro;
 
     //endregion

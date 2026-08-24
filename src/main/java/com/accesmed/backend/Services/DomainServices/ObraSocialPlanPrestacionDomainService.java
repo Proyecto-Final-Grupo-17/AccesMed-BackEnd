@@ -1,18 +1,14 @@
 package com.accesmed.backend.Services.DomainServices;
 
-import com.accesmed.backend.Domain.ModalidadCobertura;
 import com.accesmed.backend.Domain.ObraSocialPlanPrestacion;
 import com.accesmed.backend.Repositories.ObraSocialPlanPrestacionRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
-import com.accesmed.backend.Services.Errors.ValidacionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -117,38 +113,6 @@ public class ObraSocialPlanPrestacionDomainService {
             log.warn("No se pudo asignar la prestación {} al plan {}: ya existe una cobertura activa", prestacionId, planId);
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_PLAN_PRESTACION_YA_ASIGNADA",
                     "El plan " + planId + " ya tiene asignada la prestación " + prestacionId + ".");
-        }
-
-    }
-
-    /**
-     * Valida la coherencia entre la modalidad de cobertura y sus montos asociados, espejo
-     * del {@code CHECK} de la migración: {@code TOTAL} exige 100% de cobertura y coseguro
-     * cero, {@code CARGO_FIJO} solo exige coseguro no negativo, {@code PORCENTUAL} exige el
-     * porcentaje entre 0 y 100. Acumula todos los errores y los devuelve de una sola vez.
-     *
-     * @param modalidadCobertura {@code ModalidadCobertura} modalidad a validar
-     * @param porcentajeCobertura {@code BigDecimal} porcentaje de cobertura
-     * @param coseguro {@code BigDecimal} coseguro fijo
-     * @throws ValidacionException {@code ValidacionException} si la combinación no es coherente
-     */
-    public void validateCoherenciaCobertura(ModalidadCobertura modalidadCobertura, BigDecimal porcentajeCobertura, BigDecimal coseguro) {
-
-        List<String> errores = new ArrayList<>();
-
-        if (modalidadCobertura == ModalidadCobertura.TOTAL) {
-            if (porcentajeCobertura.compareTo(BigDecimal.valueOf(100)) != 0) {
-                errores.add("La modalidad TOTAL exige un porcentaje de cobertura del 100%.");
-            }
-            if (coseguro.compareTo(BigDecimal.ZERO) != 0) {
-                errores.add("La modalidad TOTAL exige un coseguro igual a cero.");
-            }
-        }
-
-        if (!errores.isEmpty()) {
-            log.warn("Validación de coherencia de cobertura fallida: modalidad={}, porcentaje={}, coseguro={}, errores={}",
-                    modalidadCobertura, porcentajeCobertura, coseguro, errores);
-            throw new ValidacionException(getClass(), errores);
         }
 
     }
