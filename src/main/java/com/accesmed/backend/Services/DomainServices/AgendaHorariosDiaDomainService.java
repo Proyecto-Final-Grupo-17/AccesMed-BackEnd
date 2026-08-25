@@ -364,6 +364,62 @@ public class AgendaHorariosDiaDomainService {
 
     }
 
+    /**
+     * Busca un horario de agenda disponible por su identificador, validando que exista,
+     * que no esté ocupado y que no esté dado de baja. Se verifica implícitamente que
+     * pertenece al médico y la prestación indicados.
+     *
+     * @param slotId {@code UUID} identificador del horario
+     * @param medicoId {@code UUID} identificador del médico propietario del horario
+     * @param prestacionId {@code UUID} identificador de la prestación del horario
+     * @return {@code AgendaHorariosDia} el horario disponible
+     * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el
+     *         horario no existe, está ocupado, está dado de baja, o no pertenece al médico/prestación
+     */
+    public AgendaHorariosDia findAgendaHorarioDisponible(UUID slotId, UUID medicoId, UUID prestacionId) {
+
+        log.debug("Buscando horario disponible: id={}, médico={}, prestación={}", slotId, medicoId, prestacionId);
+
+        return agendaHorariosDiaRepository
+                .findByIdAndAgendaMedico_Medico_IdAndPrestacion_IdAndEstaOcupadaFalseAndDeletedAtIsNull(
+                        slotId, medicoId, prestacionId)
+                .orElseThrow(() -> {
+                    log.warn("Horario no disponible: id={}, médico={}, prestación={}", slotId, medicoId, prestacionId);
+                    return new com.accesmed.backend.Services.Errors.RecursoNoEncontradoException(getClass(),
+                            "AGENDA_HORARIO_NO_DISPONIBLE",
+                            "El horario indicado no está disponible (no existe, está ocupado o está dado de baja)");
+                });
+
+    }
+
+    /**
+     * Marca un horario como ocupado. Guarda el cambio inmediatamente.
+     *
+     * @param slot {@code AgendaHorariosDia} horario a marcar como ocupado
+     */
+    public void occupyAgendaHorario(AgendaHorariosDia slot) {
+
+        log.debug("Marcando horario como ocupado: id={}", slot.getId());
+
+        slot.setEstaOcupada(true);
+        saveAgendaHorariosDia(slot);
+
+    }
+
+    /**
+     * Marca un horario como libre. Guarda el cambio inmediatamente.
+     *
+     * @param slot {@code AgendaHorariosDia} horario a liberar
+     */
+    public void releaseAgendaHorario(AgendaHorariosDia slot) {
+
+        log.debug("Liberando horario: id={}", slot.getId());
+
+        slot.setEstaOcupada(false);
+        saveAgendaHorariosDia(slot);
+
+    }
+
     //endregion
 
 }

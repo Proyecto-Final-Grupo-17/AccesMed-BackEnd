@@ -73,6 +73,33 @@ public class MedicoPrestacionDomainService {
     }
 
     /**
+     * Busca la asignación médico-prestación vigente en una fecha dada, entre el médico y
+     * la prestación indicados. A diferencia de {@link #existsVigenteEnFecha}, devuelve la
+     * entidad completa (necesaria, por ejemplo, para leer {@code precioParticular}).
+     *
+     * @param medicoId {@code UUID} identificador del médico
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @param fecha {@code ZonedDateTime} instante contra el cual evaluar la vigencia
+     * @return {@code MedicoPrestacion} la asignación vigente entre ambos en ese instante
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe
+     *         una asignación vigente entre ese médico y esa prestación en esa fecha
+     */
+    public MedicoPrestacion findVigenteEnFecha(UUID medicoId, UUID prestacionId, ZonedDateTime fecha) {
+
+        log.debug("Buscando asignación médico-prestación vigente: médico={}, prestación={}, fecha={}", medicoId, prestacionId, fecha);
+
+        return medicoPrestacionRepository.findByMedico_IdAndPrestacion_IdAndVigenteAt(medicoId, prestacionId, fecha)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró asignación médico-prestación vigente: médico={}, prestación={}, fecha={}",
+                            medicoId, prestacionId, fecha);
+                    return new RecursoNoEncontradoException(getClass(), "MEDICO_PRESTACION_NO_ENCONTRADA",
+                            "No existe una asignación vigente entre el médico " + medicoId
+                                    + " y la prestación " + prestacionId + " en la fecha " + fecha);
+                });
+
+    }
+
+    /**
      * Busca las asignaciones vigentes en una fecha dada de un médico.
      *
      * @param medicoId {@code UUID} identificador del médico

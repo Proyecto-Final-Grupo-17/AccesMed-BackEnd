@@ -173,6 +173,29 @@ public class ObraSocialPlanPrestacionDomainService {
 
     }
 
+    /**
+     * Busca la cobertura activa que existe entre un plan y una prestación indicados.
+     * Valida que el plan del paciente cubre realmente la prestación.
+     *
+     * @param planId {@code UUID} identificador del plan
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @return {@code ObraSocialPlanPrestacion} la cobertura activa entre ambos
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe
+     *         una cobertura activa entre ese plan y esa prestación
+     */
+    public ObraSocialPlanPrestacion findCoberturaByPlanAndPrestacion(UUID planId, UUID prestacionId) {
+
+        log.debug("Buscando cobertura entre plan={} y prestación={}", planId, prestacionId);
+
+        return obraSocialPlanPrestacionRepository.findByPlan_IdAndPrestacion_IdAndDeletedAtIsNull(planId, prestacionId)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró cobertura activa entre plan={} y prestación={}", planId, prestacionId);
+                    return new RecursoNoEncontradoException(getClass(), "OBRA_SOCIAL_PLAN_PRESTACION_NO_ENCONTRADA",
+                            "El plan " + planId + " no cubre la prestación " + prestacionId + ".");
+                });
+
+    }
+
     //endregion
 
 }
