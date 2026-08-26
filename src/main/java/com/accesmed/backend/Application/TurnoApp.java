@@ -180,9 +180,9 @@ public class TurnoApp {
         turnoNuevo.setFechaLimiteCancelacion(turnoNuevo.getFechaHoraInicio()
                 .minus(prestacionExistente.getTiempoToleranciaCancelacion()));
         turnoNuevo.setFechaLimiteAnuncioTemprano(turnoNuevo.getFechaHoraInicio()
-                .minus(prestacionExistente.getTiempoToleranciaAnuncio().multipliedBy(2)));
-        turnoNuevo.setFechaLimiteAnuncioTardio(turnoNuevo.getFechaHoraInicio()
                 .minus(prestacionExistente.getTiempoToleranciaAnuncio()));
+        turnoNuevo.setFechaLimiteAnuncioTardio(turnoNuevo.getFechaHoraInicio()
+                .plus(prestacionExistente.getTiempoToleranciaAnuncio()));
         turnoNuevo.setFechaHoraRecordatorioConfirmacion(turnoNuevo.getFechaHoraInicio()
                 .minus(prestacionExistente.getTiempoRecordatorioConfirmacion()));
 
@@ -317,9 +317,9 @@ public class TurnoApp {
         turnoNuevo.setFechaLimiteCancelacion(turnoNuevo.getFechaHoraInicio()
                 .minus(turnoViejo.getPrestacion().getTiempoToleranciaCancelacion()));
         turnoNuevo.setFechaLimiteAnuncioTemprano(turnoNuevo.getFechaHoraInicio()
-                .minus(turnoViejo.getPrestacion().getTiempoToleranciaAnuncio().multipliedBy(2)));
-        turnoNuevo.setFechaLimiteAnuncioTardio(turnoNuevo.getFechaHoraInicio()
                 .minus(turnoViejo.getPrestacion().getTiempoToleranciaAnuncio()));
+        turnoNuevo.setFechaLimiteAnuncioTardio(turnoNuevo.getFechaHoraInicio()
+                .plus(turnoViejo.getPrestacion().getTiempoToleranciaAnuncio()));
         turnoNuevo.setFechaHoraRecordatorioConfirmacion(turnoNuevo.getFechaHoraInicio()
                 .minus(turnoViejo.getPrestacion().getTiempoRecordatorioConfirmacion()));
 
