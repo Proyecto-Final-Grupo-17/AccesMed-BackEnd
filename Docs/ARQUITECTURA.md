@@ -958,6 +958,18 @@ línea Spring Boot 4). Acá va el qué y el porqué de cada dependencia.
   (`TestcontainersConfiguration`, `@ServiceConnection`): valida Liquibase/`ddl-auto`
   contra un contenedor descartable, aislado de la Postgres de `docker/dev/docker-compose.yml`
 
+Además de las dependencias, el `pom.xml` declara dos **plugins de build** que no son parte del
+artefacto pero sí del control de calidad:
+
+- `jacoco-maven-plugin` — engancha el agente de JaCoCo a la JVM de los tests (`prepare-agent`)
+  y, terminada la fase `test`, vuelca la cobertura a `target/site/jacoco/jacoco.xml`. Sonar no
+  calcula cobertura por su cuenta: importa ese reporte.
+- `sonar-maven-plugin` — scanner oficial de SonarQube Cloud. Se dispara con `./mvnw sonar:sonar`
+  y toma su configuración del bloque `<properties>` del `pom.xml` (**no** de
+  `sonar-project.properties`, que solo aplica al scanner CLI). En CI lo ejecuta
+  `.github/workflows/sonarcloud.yml`, encadenado al `verify` para que encuentre el reporte de
+  JaCoCo recién generado. Versiones y criterios en [`STACK.md`](STACK.md).
+
 > Hibernate no se agrega aparte: viene dentro de `spring-boot-starter-data-jpa`.
 
 > **Descartadas a propósito** (las ofrece Initializr por defecto, no son parte del stack):
