@@ -12,7 +12,7 @@ Todas las versiones son **estables (GA)**, sobre la línea **Spring Boot 4**.
 
 | Tecnología | Versión |
 |---|---|
-| Java | 25 (LTS) |
+| Java | 25 (LTS) — Oracle JDK |
 | Spring Boot | 4.1.0 |
 | Maven | 3.9.x (wrapper `./mvnw`) |
 | PostgreSQL | 16.x (`postgres:16-alpine`) |
@@ -25,13 +25,17 @@ Todas las versiones son **estables (GA)**, sobre la línea **Spring Boot 4**.
 | `lombok-mapstruct-binding` | 0.2.0 |
 | hibernate-processor | 7.4.x (metamodelo estático JPA; se llamaba `hibernate-jpamodelgen` hasta Hibernate 6) |
 | springdoc-openapi (Swagger) | 3.0.3 |
+| JaCoCo (cobertura) | 0.8.15 |
+| `sonar-maven-plugin` (análisis estático) | 5.7.0.6970 |
 
 Las dependencias gestionadas por el BOM de Spring Boot se declaran **sin `<version>`**.
 Detalle completo, criterios y fuentes en [`Docs/STACK.md`](Docs/STACK.md).
 
 ## Requisitos
 
-- Java 25 (LTS)
+- **Oracle JDK 25 (LTS)** — es la distribución que usa el equipo y la misma que usa el
+  workflow de CI (`distribution: 'oracle'`). Cualquier JDK 25 compila igual, pero
+  mantenerse en la misma evita diferencias de comportamiento entre local y CI.
 - Maven 3.9+ (o el wrapper `./mvnw`)
 - Docker + Docker Compose
 
@@ -119,6 +123,11 @@ el dropdown del IDE.
 ./mvnw clean install       # combinación típica antes de un PR: limpio + reconstruyo + testeo
 ```
 
+**Cobertura de tests:** `./mvnw verify` deja el reporte de JaCoCo en
+`target/site/jacoco/` — `index.html` para leerlo en el navegador y `jacoco.xml`, que es
+el que importa SonarQube Cloud. No hace falta un goal aparte: el plugin está enganchado
+a la fase `test`.
+
 **Tests específicos:**
 
 ```bash
@@ -146,6 +155,13 @@ aislada de la base de `docker/dev/docker-compose.yml` — Liquibase valida el es
 contra ese contenedor descartable, no contra la base de desarrollo. Si Docker no está
 disponible, `./mvnw test`/`verify` falla con `Could not find a valid Docker environment`,
 no por un bug en el código.
+
+El test corre con `@ActiveProfiles("test")`, contra `src/test/resources/application-test.yml`.
+Ese perfil existe solo para aportar las properties que el contexto necesita y que viven
+únicamente en los perfiles `dev`/`staging`/`prod` (hoy, `accesmed.cors.allowed-origins`).
+El datasource NO se declara ahí: lo autoconfigura Testcontainers vía `@ServiceConnection`.
+Si se agrega una property obligatoria a un perfil, hay que sumarla también a este archivo
+o el test de contexto se rompe.
 
 **Warning de Lombok al compilar (`sun.misc.Unsafe` / `lombok.permit.Permit`):** en JDK 24+
 es un warning conocido y no bloqueante — Lombok todavía usa `Unsafe` internamente para
@@ -176,9 +192,14 @@ docker compose restart        # reiniciar el contenedor sin recrearlo
 | `dev` | Activo | Postgres local (docker-compose) |
 | `staging` | Por definir | — |
 | `prod` | Por definir | — |
+| `test` | Activo | Postgres efímera de Testcontainers |
 
 Se selecciona con la variable de entorno `SPRING_PROFILES_ACTIVE`. Config en
 `application-<perfil>.yml`; lo común en `application.yml`.
+
+`test` es la excepción: no se activa por variable de entorno sino con
+`@ActiveProfiles("test")` en los tests, y su archivo vive en `src/test/resources/`, no
+en `src/main/resources/`.
 
 ### Ramas
 
@@ -223,6 +244,9 @@ accesmed-backend/
 ├── CLAUDE.md
 ├── README.md
 ├── pom.xml
+├── .github/
+│   └── workflows/
+│       └── sonarcloud.yml   (análisis estático en cada push y PR)
 ├── docs/
 │   ├── ARQUITECTURA.md
 │   ├── STACK.md
@@ -255,6 +279,9 @@ accesmed-backend/
     │   │   └── Agente/         (entrada del agente; reutiliza el núcleo)
     │   └── resources/
     └── test/
+        ├── java/com/accesmed/backend/
+        └── resources/
+            └── application-test.yml  (perfil `test` de los tests de contexto)
 ```
 
 ## Skills de Claude Code

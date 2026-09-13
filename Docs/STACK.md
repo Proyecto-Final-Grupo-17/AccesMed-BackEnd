@@ -21,7 +21,7 @@ Solo se fija versión explícita para lo que el BOM **no** gestiona: MapStruct,
 
 | Tecnología | Versión | Cómo se fija |
 |---|---|---|
-| Java | **25 (LTS)** | `<java.version>25</java.version>`. Spring Boot 4.1 requiere mínimo Java 17, pero recomienda la última LTS disponible — 25 es la más reciente (GA septiembre 2025). |
+| Java | **25 (LTS)** | `<java.version>25</java.version>`. Spring Boot 4.1 requiere mínimo Java 17, pero recomienda la última LTS disponible — 25 es la más reciente (GA septiembre 2025). El equipo trabaja con **Oracle JDK 25** y el workflow de CI usa la misma distribución (`distribution: 'oracle'`). |
 | Maven | **3.9.x** | Wrapper `./mvnw` versionado en el repo |
 
 ## Framework
@@ -77,6 +77,34 @@ entre sí y generar código incompleto.
 |---|---|---|
 | JUnit 5, Mockito, AssertJ | — | `spring-boot-starter-test` (BOM), scope `test` |
 | Testcontainers (`spring-boot-testcontainers` + `org.testcontainers:testcontainers-postgresql`) | 2.0.5 (BOM) | Scope `test`. Levanta una Postgres 16 efímera y aislada para `AccesMedApplicationTests` (vía `@ServiceConnection`), sin depender de `docker/dev/docker-compose.yml` — requiere Docker corriendo, pero no el compose de dev levantado a mano. En Testcontainers 2.0.x el artifact del módulo Postgres se renombró de `postgresql` a `testcontainers-postgresql`; ojo si se busca en documentación vieja. |
+
+## Calidad y análisis estático
+
+| Tecnología | Versión | Cómo se fija |
+|---|---|---|
+| JaCoCo (`jacoco-maven-plugin`) | **0.8.15** | Versión explícita en `<properties>` (`jacoco.version`). Genera el reporte de cobertura que SonarQube Cloud importa. **No bajar de 0.8.13**: la 0.8.12 no lee bytecode de Java 25 (class file 69) y el agente falla con `Unsupported class file major version`. |
+| `sonar-maven-plugin` | **5.7.0.6970** | Versión explícita en `<properties>` (`sonar-maven-plugin.version`). Scanner oficial de SonarQube Cloud para Maven. |
+
+Ninguno de los dos lo gestiona el BOM de Spring Boot, así que ambos llevan versión explícita.
+
+### Dónde vive la configuración del análisis
+
+Toda la configuración `sonar.*` está en el bloque `<properties>` del `pom.xml`, comentada.
+**No se usa `sonar-project.properties`**: ese archivo solo lo lee el scanner en su versión
+CLI. El scanner de Maven toma su configuración del POM y de los `-D` de la línea de comandos,
+y deriva solo las rutas de fuentes, tests y binarios (`sonar.java.binaries`), que por eso no
+hace falta declarar.
+
+El análisis corre automáticamente en GitHub Actions (`.github/workflows/sonarcloud.yml`) en
+cada push a `main`/`staging`/`develop` y en cada Pull Request, encadenado a `./mvnw verify`
+para que el scanner encuentre el reporte de JaCoCo recién generado.
+
+El workflow usa **Oracle JDK 25** (`distribution: 'oracle'`), el mismo vendor que el equipo
+usa en local. `docker/Dockerfile` se queda en Temurin a propósito: esa imagen se distribuye y
+no necesita el mismo vendor que el JDK de desarrollo.
+
+SonarQube Cloud soporta Java 25 de forma nativa (LTS 8, 11, 17, 21 y 25, más las versiones
+intermedias).
 
 ## Conveniencia de desarrollo
 

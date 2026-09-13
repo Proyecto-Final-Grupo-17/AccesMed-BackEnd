@@ -1,0 +1,65 @@
+name: SonarCloud Analysis
+
+# El análisis corre solo, sin que nadie lo dispare a mano:
+#  - en cada push a las ramas de integración (main / staging / develop), como control
+#    posterior al merge;
+#  - en cada Pull Request abierto, actualizado o reabierto, antes de aprobar el merge.
+on:
+  push:
+    branches:
+      - main
+      - staging
+      - develop
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build-and-analyze:
+    name: Build, test and analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      # fetch-depth: 0 trae el historial completo. Sonar lo necesita para atribuir cada
+      # línea a su autor y para distinguir el "código nuevo" del preexistente, que es
+      # sobre lo que se evalúa el Quality Gate.
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Mismo JDK que declara el pom (java.version = 25) y mismo vendor que usa el equipo
+      # en local: Oracle JDK. `cache: maven` reutiliza el ~/.m2 entre corridas, sin
+      # necesidad de un actions/cache aparte.
+      # A diferencia de Temurin, Oracle JDK no viene precacheado en la tool-cache del
+      # runner, así que setup-java lo descarga en cada corrida (~30-60 s extra).
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          java-version: '25'
+          distribution: 'oracle'
+          cache: maven
+
+      # Cachea el estado del scanner (reglas y análisis incremental) entre corridas.
+      - name: Cache SonarQube packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      # Un solo comando encadena las tres cosas, en este orden y en la misma corrida:
+      #  1. `verify` compila y ejecuta los tests — Testcontainers levanta la Postgres
+      #     efímera sobre el Docker que ya trae el runner de ubuntu-latest;
+      #  2. JaCoCo deja la cobertura en target/site/jacoco/jacoco.xml;
+      #  3. `sonar:sonar` analiza el código y publica el resultado, encontrando el
+      #     reporte de cobertura recién generado.
+      # Se usa el wrapper (./mvnw) para correr con la misma versión de Maven que en local.
+      - name: Build, test and analyze
+        env:
+          # Permite a Sonar decorar el Pull Request con los issues detectados.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Token de SonarQube Cloud. Se genera en My Account > Security y se carga como
+          # secreto del repositorio (Settings > Secrets and variables > Actions).
+          # Nunca se versiona en el repositorio.
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
