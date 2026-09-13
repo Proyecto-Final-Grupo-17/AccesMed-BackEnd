@@ -31,7 +31,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 
-/**
+    /**
  * Controlador REST para los endpoints de Obra Social.
  * Recibe requests, valida que el id de la ruta coincida con el del body cuando
  * corresponde, delega en el caso de uso {@code ObraSocialApp} y devuelve responses.

@@ -72,6 +72,21 @@ public interface MedicoPrestacionRepository extends JpaRepository<MedicoPrestaci
     boolean existsVigenteEnFecha(@Param("medicoId") UUID medicoId, @Param("prestacionId") UUID prestacionId, @Param("fecha") ZonedDateTime fecha);
 
     /**
+     * Busca la asignación médico-prestación vigente en un instante dado, entre el médico
+     * y la prestación indicados. Usada donde hace falta la entidad completa (ej. su
+     * {@code precioParticular}), no solo la existencia.
+     *
+     * @param medicoId {@code UUID} identificador del médico
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @param fecha {@code ZonedDateTime} instante contra el cual evaluar la vigencia
+     * @return {@code Optional<MedicoPrestacion>} la asignación vigente entre ambos en ese instante, o vacío
+     */
+    @Query("SELECT mp FROM MedicoPrestacion mp WHERE mp.medico.id = :medicoId AND mp.prestacion.id = :prestacionId "
+            + "AND mp.fechaInicioVigencia <= :fecha AND (mp.fechaFinVigencia IS NULL OR :fecha < mp.fechaFinVigencia)")
+    Optional<MedicoPrestacion> findByMedico_IdAndPrestacion_IdAndVigenteAt(@Param("medicoId") UUID medicoId,
+            @Param("prestacionId") UUID prestacionId, @Param("fecha") ZonedDateTime fecha);
+
+    /**
      * Verifica si el período {@code [desde, hasta)} indicado se solapa con alguna
      * vigencia ya existente entre el médico y la prestación indicados. {@code hasta}
      * {@code null} representa un período abierto (sin fecha de corte).

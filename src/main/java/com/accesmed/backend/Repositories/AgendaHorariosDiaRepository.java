@@ -152,6 +152,18 @@ public interface AgendaHorariosDiaRepository extends JpaRepository<AgendaHorario
     List<ConteoAgendaMedico> countDiasYHorariosActivosByAgendaMedicoIds(@Param("agendaMedicoIds") Collection<UUID> agendaMedicoIds);
 
     /**
+     * Busca un horario disponible (no ocupado, activo) por su id, validando que
+     * pertenece al médico y la prestación indicados.
+     *
+     * @param slotId {@code UUID} identificador del horario
+     * @param medicoId {@code UUID} identificador del médico propietario
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @return {@code Optional<AgendaHorariosDia>} el horario disponible, si existe
+     */
+    Optional<AgendaHorariosDia> findByIdAndAgendaMedico_Medico_IdAndPrestacion_IdAndEstaOcupadaFalseAndDeletedAtIsNull(
+            UUID slotId, UUID medicoId, UUID prestacionId);
+
+    /**
      * Proyección cerrada del conteo agrupado de {@link #countDiasYHorariosActivosByAgendaMedicoIds}:
      * cantidad de fechas distintas y de horarios activos de una agenda médica.
      */
