@@ -19,9 +19,15 @@ import com.accesmed.backend.Records.Turno.Request.CreateTurnoRequest;
 import com.accesmed.backend.Records.Turno.Request.ReprogramTurnoRequest;
 import com.accesmed.backend.Records.Turno.Request.ValidateTurnoRequest;
 import com.accesmed.backend.Records.Turno.Response.CancelTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.ConfirmTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.CreateTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.FinishTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.ReprogramTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.StartAtencionTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.StartSalaDeEsperaTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.ValidateTurnoResponse;
+import com.accesmed.backend.Notifications.TurnoNotificacionEvent;
+import com.accesmed.backend.Notifications.TipoNotificacionTurno;
 import com.accesmed.backend.Services.DomainServices.AgendaHorariosDiaDomainService;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoTurnoDomainService;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
@@ -39,6 +45,7 @@ import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.TurnoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,6 +81,7 @@ public class TurnoApp {
     private final IndicacionPrestacionTurnoDomainService indicacionPrestacionTurnoDomainService;
     private final FabricaEstrategiaCalcularMontoAPagarTurno fabricaEstrategiaCalcularMontoAPagarTurno;
     private final TurnoMapper turnoMapper;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     //endregion
 
@@ -207,7 +215,7 @@ public class TurnoApp {
         //Mapear y devolver
         var createTurnoResponse = turnoMapper.toCreateResponse(turnoGuardado, estadoInicial);
 
-        // TODO(observador): publicar TurnoNotificacionEvent(REGISTRADO, turnoGuardado)
+        applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.REGISTRADO, turnoGuardado));
         return createTurnoResponse;
 
     }
@@ -335,7 +343,7 @@ public class TurnoApp {
         //Mapear y devolver
         var reprogramTurnoResponse = turnoMapper.toReprogramResponse(turnoNuevoGuardado, estadoInicial);
 
-        // TODO(observador): publicar TurnoNotificacionEvent(REPROGRAMADO, turnoNuevoGuardado)
+        applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.REPROGRAMADO, turnoNuevoGuardado));
         return reprogramTurnoResponse;
 
     }
@@ -372,7 +380,9 @@ public class TurnoApp {
         //Mapear y devolver
         var cancelTurnoResponse = turnoMapper.toCancelResponse(turnoExistente, EstadoTurno.CANCELADO);
 
-        // TODO(observador): publicar TurnoNotificacionEvent(motivoCancelacion == VALIDACION_VENCIDA || VALIDACION_RECHAZADA ? NO_VALIDADO : CANCELADO, turno)
+        TipoNotificacionTurno tipoNotificacion = motivoCancelacion == MotivoCancelacion.VALIDACION_VENCIDA
+                ? TipoNotificacionTurno.NO_VALIDADO : TipoNotificacionTurno.CANCELADO;
+        applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(tipoNotificacion, turnoExistente));
         return cancelTurnoResponse;
 
     }
@@ -407,6 +417,8 @@ public class TurnoApp {
             estadoResultante = EstadoTurno.PENDIENTE;
             //Marcar indicaciones como validadas
             indicacionPrestacionTurnoDomainService.marcarValidadas(indicacionesTurno);
+            // No se publica notificación: la tabla de eventos no mapea ningún NOTIF para "validación aprobada"
+            // (el paciente ya recibió NOTIF-1 al crear el turno y todavía falta que confirme).
         } else {
             //Rechazar: liberar slot, establecer motivo y transicionar
             agendaHorariosDiaDomainService.releaseAgendaHorario(turnoExistente.getAgendaHorarios());
@@ -416,13 +428,101 @@ public class TurnoApp {
             estadoResultante = EstadoTurno.CANCELADO;
             //Marcar indicaciones como validadas (aunque sea rechazado, se marca la validación)
             indicacionPrestacionTurnoDomainService.marcarValidadas(indicacionesTurno);
+            applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.NO_VALIDADO, turnoExistente));
         }
 
         //Mapear y devolver
         var validateTurnoResponse = turnoMapper.toValidateResponse(turnoExistente, estadoResultante);
 
-        // TODO(observador): publicar TurnoNotificacionEvent(...)
         return validateTurnoResponse;
+
+    }
+
+    /**
+     * Confirma un turno en estado PENDIENTE, transicionándolo a estado CONFIRMADO
+     * y publicando un evento de notificación.
+     *
+     * @param id {@code UUID} identificador del turno a confirmar
+     * @return {@code ConfirmTurnoResponse} el turno confirmado
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está
+     *         en estado PENDIENTE
+     */
+    @Transactional
+    public ConfirmTurnoResponse confirmTurno(UUID id) {
+
+        log.info("Confirmación de turno iniciada: turnoId={}", id);
+
+        var turnoExistente = turnoDomainService.findTurnoById(id);
+        historicoEstadoTurnoDomainService.transitionPendienteToConfirmadoTurno(turnoExistente);
+        applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.CONFIRMADO, turnoExistente));
+
+        return turnoMapper.toConfirmResponse(turnoExistente, EstadoTurno.CONFIRMADO);
+
+    }
+
+    /**
+     * Inicia la sala de espera para un turno en estado CONFIRMADO, transicionándolo
+     * a estado EN_SALA_DE_ESPERA.
+     *
+     * @param id {@code UUID} identificador del turno
+     * @return {@code StartSalaDeEsperaTurnoResponse} el turno en sala de espera
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está
+     *         en estado CONFIRMADO
+     */
+    @Transactional
+    public StartSalaDeEsperaTurnoResponse startSalaDeEsperaTurno(UUID id) {
+
+        log.info("Inicio de sala de espera iniciado: turnoId={}", id);
+
+        var turnoExistente = turnoDomainService.findTurnoById(id);
+        historicoEstadoTurnoDomainService.transitionConfirmadoToEnSalaDeEsperaTurno(turnoExistente);
+
+        return turnoMapper.toStartSalaDeEsperaResponse(turnoExistente, EstadoTurno.EN_SALA_DE_ESPERA);
+
+    }
+
+    /**
+     * Inicia la atención de un turno en estado EN_SALA_DE_ESPERA, transicionándolo
+     * a estado EN_CURSO.
+     *
+     * @param id {@code UUID} identificador del turno
+     * @return {@code StartAtencionTurnoResponse} el turno en atención
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está
+     *         en estado EN_SALA_DE_ESPERA
+     */
+    @Transactional
+    public StartAtencionTurnoResponse startAtencionTurno(UUID id) {
+
+        log.info("Inicio de atención iniciado: turnoId={}", id);
+
+        var turnoExistente = turnoDomainService.findTurnoById(id);
+        historicoEstadoTurnoDomainService.transitionEnSalaDeEsperaToEnCursoTurno(turnoExistente);
+
+        return turnoMapper.toStartAtencionResponse(turnoExistente, EstadoTurno.EN_CURSO);
+
+    }
+
+    /**
+     * Finaliza un turno en estado EN_CURSO, transicionándolo a estado FINALIZADO.
+     *
+     * @param id {@code UUID} identificador del turno
+     * @return {@code FinishTurnoResponse} el turno finalizado
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está
+     *         en estado EN_CURSO
+     */
+    @Transactional
+    public FinishTurnoResponse finishTurno(UUID id) {
+
+        log.info("Finalización de turno iniciada: turnoId={}", id);
+
+        var turnoExistente = turnoDomainService.findTurnoById(id);
+        historicoEstadoTurnoDomainService.transitionEnCursoToFinalizadoTurno(turnoExistente);
+
+        return turnoMapper.toFinishResponse(turnoExistente, EstadoTurno.FINALIZADO);
 
     }
 

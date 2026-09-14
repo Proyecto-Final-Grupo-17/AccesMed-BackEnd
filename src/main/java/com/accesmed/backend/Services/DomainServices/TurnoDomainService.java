@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -202,6 +203,22 @@ public class TurnoDomainService {
                             "TURNO_NO_ENCONTRADO",
                             "No existe un turno con el identificador " + turnoId);
                 });
+
+    }
+
+    /**
+     * Busca todos los turnos cuyo estado vigente sea el indicado. Utilizado por los
+     * schedulers para encontrar candidatos a transiciones automáticas. Ejemplo: el
+     * scheduler de confirmación automática busca turnos en estado {@code PENDIENTE}.
+     *
+     * @param estado {@code EstadoTurno} estado vigente a buscar
+     * @return {@code List<Turno>} lista de turnos con ese estado vigente
+     */
+    public List<com.accesmed.backend.Domain.Turno> findTurnosByEstadoVigente(EstadoTurno estado) {
+
+        log.debug("Buscando turnos con estado vigente: estado={}", estado);
+
+        return turnoRepository.findByEstadoVigente(estado);
 
     }
 

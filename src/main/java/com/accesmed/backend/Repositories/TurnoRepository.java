@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -168,5 +169,16 @@ public interface TurnoRepository extends JpaRepository<Turno, UUID>, JpaSpecific
     @Query("SELECT MAX(h.turno.fechaHoraInicio) FROM HistoricoEstadoTurno h "
             + "WHERE h.turno.paciente.id = :pacienteId AND h.fechaHoraFin IS NULL AND h.estado NOT IN :estadosFinales")
     Optional<ZonedDateTime> findMaxFechaHoraInicioByPacienteIdAndEstadoVigenteNotIn(UUID pacienteId, Collection<EstadoTurno> estadosFinales);
+
+    /**
+     * Busca todos los turnos cuyo estado vigente sea el indicado. Utilizado por los
+     * schedulers para encontrar candidatos a transiciones automáticas. La consulta obtiene
+     * el turno a través del histórico de estados vigentes.
+     *
+     * @param estado {@code EstadoTurno} estado vigente a buscar
+     * @return {@code List<Turno>} lista de todos los turnos con ese estado vigente
+     */
+    @Query("SELECT h.turno FROM HistoricoEstadoTurno h WHERE h.estado = :estado AND h.fechaHoraFin IS NULL")
+    List<Turno> findByEstadoVigente(EstadoTurno estado);
 
 }

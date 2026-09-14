@@ -7,9 +7,13 @@ import com.accesmed.backend.Records.Turno.Request.CreateTurnoRequest;
 import com.accesmed.backend.Records.Turno.Request.ReprogramTurnoRequest;
 import com.accesmed.backend.Records.Turno.Request.ValidateTurnoRequest;
 import com.accesmed.backend.Records.Turno.Response.CancelTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.ConfirmTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.CreateTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.FinishTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.ListTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.ReprogramTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.StartAtencionTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.StartSalaDeEsperaTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.ValidateTurnoResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
@@ -153,6 +157,76 @@ public class TurnoController {
         ValidateTurnoResponse validateTurnoResponse = turnoApp.validateTurno(validateTurnoRequest);
 
         return ResponseEntity.ok(validateTurnoResponse);
+
+    }
+
+    /**
+     * Confirma un turno en estado PENDIENTE, transicionándolo a estado CONFIRMADO.
+     *
+     * @param id {@code UUID} identificador del turno a confirmar
+     * @return {@code ResponseEntity<ConfirmTurnoResponse>} el turno confirmado con status 200
+     * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
+     * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el turno no está en PENDIENTE
+     */
+    @PatchMapping("/Turno/{id}/Confirmacion")
+    public ResponseEntity<ConfirmTurnoResponse> confirmTurno(@PathVariable UUID id) {
+
+        log.info("Solicitud recibida: confirmar turno id={}", id);
+
+        return ResponseEntity.ok(turnoApp.confirmTurno(id));
+
+    }
+
+    /**
+     * Inicia la sala de espera para un turno en estado CONFIRMADO, transicionándolo
+     * a estado EN_SALA_DE_ESPERA.
+     *
+     * @param id {@code UUID} identificador del turno
+     * @return {@code ResponseEntity<StartSalaDeEsperaTurnoResponse>} el turno en sala de espera con status 200
+     * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
+     * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el turno no está en CONFIRMADO
+     */
+    @PatchMapping("/Turno/{id}/SalaDeEspera")
+    public ResponseEntity<StartSalaDeEsperaTurnoResponse> startSalaDeEsperaTurno(@PathVariable UUID id) {
+
+        log.info("Solicitud recibida: iniciar sala de espera para turno id={}", id);
+
+        return ResponseEntity.ok(turnoApp.startSalaDeEsperaTurno(id));
+
+    }
+
+    /**
+     * Inicia la atención de un turno en estado EN_SALA_DE_ESPERA, transicionándolo
+     * a estado EN_CURSO.
+     *
+     * @param id {@code UUID} identificador del turno
+     * @return {@code ResponseEntity<StartAtencionTurnoResponse>} el turno en atención con status 200
+     * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
+     * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el turno no está en EN_SALA_DE_ESPERA
+     */
+    @PatchMapping("/Turno/{id}/Atencion")
+    public ResponseEntity<StartAtencionTurnoResponse> startAtencionTurno(@PathVariable UUID id) {
+
+        log.info("Solicitud recibida: iniciar atención para turno id={}", id);
+
+        return ResponseEntity.ok(turnoApp.startAtencionTurno(id));
+
+    }
+
+    /**
+     * Finaliza un turno en estado EN_CURSO, transicionándolo a estado FINALIZADO.
+     *
+     * @param id {@code UUID} identificador del turno
+     * @return {@code ResponseEntity<FinishTurnoResponse>} el turno finalizado con status 200
+     * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
+     * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el turno no está en EN_CURSO
+     */
+    @PatchMapping("/Turno/{id}/Finalizacion")
+    public ResponseEntity<FinishTurnoResponse> finishTurno(@PathVariable UUID id) {
+
+        log.info("Solicitud recibida: finalizar turno id={}", id);
+
+        return ResponseEntity.ok(turnoApp.finishTurno(id));
 
     }
 

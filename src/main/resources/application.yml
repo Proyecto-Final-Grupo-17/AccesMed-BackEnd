@@ -9,6 +9,17 @@ spring:
     # OSIV apagado: en una API REST no hay vista que dispare lazy-loading fuera del
     # Service/App, y dejarlo prendido esconde N+1 detrás de una sesión abierta de más.
     open-in-view: false
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 springdoc:
   swagger-ui:
@@ -24,3 +35,14 @@ management:
   endpoint:
     health:
       show-details: never
+
+accesmed:
+  scheduler:
+    recordar-confirmacion:
+      cron: ${ACCESMED_SCHEDULER_RECORDAR_CONFIRMACION_CRON:*/5 * * * * *}
+    confirmar-turnos-automaticamente:
+      cron: ${ACCESMED_SCHEDULER_CONFIRMAR_TURNOS_CRON:*/5 * * * * *}
+    vencer-validacion-turno:
+      cron: ${ACCESMED_SCHEDULER_VENCER_VALIDACION_CRON:*/5 * * * * *}
+    marcar-ausentes:
+      cron: ${ACCESMED_SCHEDULER_MARCAR_AUSENTES_CRON:*/5 * * * * *}

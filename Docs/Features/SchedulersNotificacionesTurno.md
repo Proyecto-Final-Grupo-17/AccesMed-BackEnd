@@ -1,8 +1,8 @@
 # Feature: Schedulers y Notificaciones de Turno
 
-> **Estado actual**: solo está armada la estructura de paquetes y clases (skeleton), sin
-> lógica de negocio ni integración real. Este documento describe el diseño acordado; se
-> completa a medida que se implementen los CU de `Turno` y los canales de notificación.
+> **Estado actual**: implementado. Cuenta con 4 métodos `@Scheduled` en una única clase
+> `TurnoScheduler` (paquete `Schedulers`), apoyada en un bean `TurnoSchedulerService` para
+> la atomicidad transaccional, más el canal de notificación por mail (`CanalNotificacionTurnoMail`).
 
 ## Contexto
 
@@ -31,19 +31,20 @@
 
 ### Schedulers
 
-Un scheduler nunca reprograma turnos por su cuenta: llama al **mismo método de
-`Application`** que usaría el caso de uso manual equivalente (ej. el mismo método de
-cancelación que usa "Cancelar Turno" manual), así toda la validación y la notificación
-quedan en un solo lugar. Un scheduler **nunca** importa nada de `Notifications/`
-directamente — es el `App`, al final de la orquestación, el que publica el evento de
-notificación.
+Las 4 transiciones automáticas son 4 métodos `@Scheduled` dentro de una única clase
+`TurnoScheduler` (paquete `Schedulers`). La ejecución transaccional de cada una vive en un
+bean separado `TurnoSchedulerService`, necesario porque `@Transactional` en un método
+llamado por auto-invocación desde el mismo bean no funciona en Spring. `TurnoSchedulerService`
+publica el evento de notificación (`TurnoNotificacionEvent`) en los casos que corresponde
+(confirmación, vencimiento de validación, marcar ausente, recordatorio); los schedulers
+no dependen de la capa `Application` ni importan `Notifications/` directamente.
 
-| Scheduler | Transición | Guarda |
+| Método en `TurnoScheduler` | Transición | Guarda |
 |---|---|---|
-| `RecordarConfirmacionScheduler` | No cambia estado | `Pendiente` con `fechaHoraRecordatorioConfirmacion` vencida |
-| `ConfirmarTurnosAutomaticamenteScheduler` | `Pendiente → Confirmado` | `fechaLimiteConfirmacion` vencida |
-| `VencerValidacionTurnoScheduler` | `EsperaValidacion → Cancelado` | `fechaLimiteValidacion` vencida |
-| `MarcarAusentesScheduler` | `Confirmado → Ausente` | `fechaLimiteAnuncioTardio` vencida |
+| `recordarConfirmacionTurno` | No cambia estado | `Pendiente` con `fechaHoraRecordatorioConfirmacion` vencida |
+| `confirmarTurnosVencidos` | `Pendiente → Confirmado` | `fechaLimiteConfirmacion` vencida |
+| `vencerValidacionesTurno` | `EsperaValidacion → Cancelado` | `fechaLimiteValidacion` vencida |
+| `marcarAusentesTurno` | `Confirmado → Ausente` | `fechaLimiteAnuncioTardio` vencida |
 
 Reglas comunes a los cuatro:
 
@@ -76,26 +77,22 @@ para cuando se decida encararlo.
 | Evento | Notificación | Quién lo dispara |
 |---|---|---|
 | Registrar Turno | NOTIF-1 Turno Registrado | CU manual (Solicitar) |
-| Confirmar Turno | NOTIF-2 Turno Confirmado | CU manual **y** `ConfirmarTurnosAutomaticamenteScheduler` |
+| Confirmar Turno | NOTIF-2 Turno Confirmado | CU manual **y** `TurnoScheduler` (confirmarTurnosVencidos) vía `TurnoSchedulerService` |
 | Cancelar Turno | NOTIF-3 Turno Cancelado | CU manual (Cancelar) |
 | Reprogramar Turno | NOTIF-4 Turno Reprogramado | CU manual |
-| Rechazar Validación / **Vencer Validación** | NOTIF-5 Turno No Validado | CU manual (Rechazar) **y** `VencerValidacionTurnoScheduler` |
-| Recordatorio vencido | NOTIF-6 Recordar Confirmación | `RecordarConfirmacionScheduler` (es el propio disparador, no reacciona a nada) |
+| Rechazar Validación / **Vencer Validación** | NOTIF-5 Turno No Validado | CU manual (Rechazar) **y** `TurnoScheduler` (vencerValidacionesTurno) vía `TurnoSchedulerService` |
+| Recordatorio vencido | NOTIF-6 Recordar Confirmación | `TurnoScheduler` (recordarConfirmacionTurno) vía `TurnoSchedulerService` |
+| Marcar Ausente | NOTIF-7 Turno Ausente | `TurnoScheduler` (marcarAusentesTurno) vía `TurnoSchedulerService` |
 
-**Dos detalles a respetar al implementar:**
+**Un detalle a respetar al implementar:**
 
-- **`VencerValidacionTurnoScheduler` dispara NOTIF-5, no NOTIF-3**, aunque el estado
+- **`TurnoScheduler` (vencerValidacionesTurno) dispara NOTIF-5, no NOTIF-3**, aunque el estado
   destino sea el mismo `Cancelado` que usa la cancelación manual — el mensaje tiene que
   ser distinto ("no completaste la indicación a tiempo", no un genérico "se canceló tu
   turno"). El único método de cancelación en `Application` (reutilizado por el CU manual y
   por el scheduler) decide qué disparar según `motivoCancelacion`
   (`VALIDACION_VENCIDA` → NOTIF-5, cualquier otro motivo → NOTIF-3); cada canal branchea el
   mensaje según ese mismo motivo.
-- **`MarcarAusentesScheduler` no tiene notificación mapeada.** Ni el DTE ni la tabla de
-  eventos definen un NOTIF-7 para "Ausente" — puede ser una omisión de la documentación o
-  una decisión real de no avisarle al paciente que faltó. Queda pendiente de decisión
-  antes de implementar; si se agrega, sería un séptimo valor en `TipoNotificacionTurno`
-  (`AUSENTE`) y una fila más en esta tabla.
 
 ---
 

@@ -190,6 +190,128 @@ public class HistoricoEstadoTurnoDomainService {
 
     }
 
+    /**
+     * Transiciona un turno de {@code PENDIENTE} a {@code CONFIRMADO}
+     * (confirmación de turno por el paciente).
+     *
+     * @param turno {@code Turno} turno a transicionar
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el estado vigente no es
+     *         {@code PENDIENTE}
+     */
+    public void transitionPendienteToConfirmadoTurno(Turno turno) {
+
+        log.debug("Transición PENDIENTE → CONFIRMADO de turno: id={}", turno.getId());
+
+        //Validar que el estado vigente sea PENDIENTE
+        EstadoTurno estadoVigente = getEstadoVigente(turno.getId());
+        if (estadoVigente != EstadoTurno.PENDIENTE) {
+            log.warn("No se pudo transicionar turno {}: estado vigente {} no es PENDIENTE", turno.getId(), estadoVigente);
+            throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
+                    "El turno no está en estado PENDIENTE");
+        }
+
+        cerrarYAbrirTramo(turno, EstadoTurno.CONFIRMADO);
+
+    }
+
+    /**
+     * Transiciona un turno de {@code CONFIRMADO} a {@code EN_SALA_DE_ESPERA}
+     * (ingreso del paciente a la sala de espera).
+     *
+     * @param turno {@code Turno} turno a transicionar
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el estado vigente no es
+     *         {@code CONFIRMADO}
+     */
+    public void transitionConfirmadoToEnSalaDeEsperaTurno(Turno turno) {
+
+        log.debug("Transición CONFIRMADO → EN_SALA_DE_ESPERA de turno: id={}", turno.getId());
+
+        //Validar que el estado vigente sea CONFIRMADO
+        EstadoTurno estadoVigente = getEstadoVigente(turno.getId());
+        if (estadoVigente != EstadoTurno.CONFIRMADO) {
+            log.warn("No se pudo transicionar turno {}: estado vigente {} no es CONFIRMADO", turno.getId(), estadoVigente);
+            throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
+                    "El turno no está en estado CONFIRMADO");
+        }
+
+        cerrarYAbrirTramo(turno, EstadoTurno.EN_SALA_DE_ESPERA);
+
+    }
+
+    /**
+     * Transiciona un turno de {@code EN_SALA_DE_ESPERA} a {@code EN_CURSO}
+     * (inicio de la atención del paciente).
+     *
+     * @param turno {@code Turno} turno a transicionar
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el estado vigente no es
+     *         {@code EN_SALA_DE_ESPERA}
+     */
+    public void transitionEnSalaDeEsperaToEnCursoTurno(Turno turno) {
+
+        log.debug("Transición EN_SALA_DE_ESPERA → EN_CURSO de turno: id={}", turno.getId());
+
+        //Validar que el estado vigente sea EN_SALA_DE_ESPERA
+        EstadoTurno estadoVigente = getEstadoVigente(turno.getId());
+        if (estadoVigente != EstadoTurno.EN_SALA_DE_ESPERA) {
+            log.warn("No se pudo transicionar turno {}: estado vigente {} no es EN_SALA_DE_ESPERA", turno.getId(), estadoVigente);
+            throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
+                    "El turno no está en estado EN_SALA_DE_ESPERA");
+        }
+
+        cerrarYAbrirTramo(turno, EstadoTurno.EN_CURSO);
+
+    }
+
+    /**
+     * Transiciona un turno de {@code EN_CURSO} a {@code FINALIZADO}
+     * (conclusión de la atención del paciente).
+     *
+     * @param turno {@code Turno} turno a transicionar
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el estado vigente no es
+     *         {@code EN_CURSO}
+     */
+    public void transitionEnCursoToFinalizadoTurno(Turno turno) {
+
+        log.debug("Transición EN_CURSO → FINALIZADO de turno: id={}", turno.getId());
+
+        //Validar que el estado vigente sea EN_CURSO
+        EstadoTurno estadoVigente = getEstadoVigente(turno.getId());
+        if (estadoVigente != EstadoTurno.EN_CURSO) {
+            log.warn("No se pudo transicionar turno {}: estado vigente {} no es EN_CURSO", turno.getId(), estadoVigente);
+            throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
+                    "El turno no está en estado EN_CURSO");
+        }
+
+        cerrarYAbrirTramo(turno, EstadoTurno.FINALIZADO);
+
+    }
+
+    /**
+     * Transiciona un turno de {@code CONFIRMADO} a {@code AUSENTE}
+     * (el paciente no se presentó al turno). Uso exclusivo del scheduler
+     * `TurnoScheduler`, que marca automáticamente ausentes aquellos turnos
+     * que superaron su fecha límite de anuncio tardío.
+     *
+     * @param turno {@code Turno} turno a transicionar
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el estado vigente no es
+     *         {@code CONFIRMADO}
+     */
+    public void transitionToAusenteTurno(Turno turno) {
+
+        log.debug("Transición CONFIRMADO → AUSENTE de turno: id={}", turno.getId());
+
+        //Validar que el estado vigente sea CONFIRMADO
+        EstadoTurno estadoVigente = getEstadoVigente(turno.getId());
+        if (estadoVigente != EstadoTurno.CONFIRMADO) {
+            log.warn("No se pudo transicionar turno {}: estado vigente {} no es CONFIRMADO", turno.getId(), estadoVigente);
+            throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
+                    "El turno no está en estado CONFIRMADO");
+        }
+
+        cerrarYAbrirTramo(turno, EstadoTurno.AUSENTE);
+
+    }
+
     //endregion
 
     //region ========== Métodos auxiliares privados ==========

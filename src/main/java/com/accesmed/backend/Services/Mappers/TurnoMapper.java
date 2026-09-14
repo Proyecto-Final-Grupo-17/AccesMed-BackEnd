@@ -3,9 +3,13 @@ package com.accesmed.backend.Services.Mappers;
 import com.accesmed.backend.Domain.EstadoTurno;
 import com.accesmed.backend.Domain.Turno;
 import com.accesmed.backend.Records.Turno.Response.CancelTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.ConfirmTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.CreateTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.FinishTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.ListTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.ReprogramTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.StartAtencionTurnoResponse;
+import com.accesmed.backend.Records.Turno.Response.StartSalaDeEsperaTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.ValidateTurnoResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -112,6 +116,78 @@ public interface TurnoMapper {
     @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura", qualifiedByName = "tipoCoberturaToString")
     @Mapping(target = "estadoActual", source = "estadoActual")
     ListTurnoResponse toListResponse(Turno turno, EstadoTurno estadoActual);
+
+    /**
+     * Convierte una entidad {@code Turno} a {@code ConfirmTurnoResponse}.
+     *
+     * @param turno {@code Turno} entidad
+     * @param estadoActual {@code EstadoTurno} estado vigente del turno
+     * @return {@code ConfirmTurnoResponse} respuesta de confirmación
+     */
+    @Mapping(target = "id", source = "turno.id")
+    @Mapping(target = "codigo", source = "turno.codigo")
+    @Mapping(target = "pacienteId", source = "turno.paciente.id")
+    @Mapping(target = "medicoId", source = "turno.medico.id")
+    @Mapping(target = "prestacionId", source = "turno.prestacion.id")
+    @Mapping(target = "fechaHoraInicio", source = "turno.fechaHoraInicio")
+    @Mapping(target = "montoAPagar", source = "turno.montoAPagar")
+    @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura", qualifiedByName = "tipoCoberturaToString")
+    @Mapping(target = "estadoActual", source = "estadoActual")
+    ConfirmTurnoResponse toConfirmResponse(Turno turno, EstadoTurno estadoActual);
+
+    /**
+     * Convierte una entidad {@code Turno} a {@code StartSalaDeEsperaTurnoResponse}.
+     *
+     * @param turno {@code Turno} entidad
+     * @param estadoActual {@code EstadoTurno} estado vigente del turno
+     * @return {@code StartSalaDeEsperaTurnoResponse} respuesta de ingreso a sala de espera
+     */
+    @Mapping(target = "id", source = "turno.id")
+    @Mapping(target = "codigo", source = "turno.codigo")
+    @Mapping(target = "pacienteId", source = "turno.paciente.id")
+    @Mapping(target = "medicoId", source = "turno.medico.id")
+    @Mapping(target = "prestacionId", source = "turno.prestacion.id")
+    @Mapping(target = "fechaHoraInicio", source = "turno.fechaHoraInicio")
+    @Mapping(target = "montoAPagar", source = "turno.montoAPagar")
+    @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura", qualifiedByName = "tipoCoberturaToString")
+    @Mapping(target = "estadoActual", source = "estadoActual")
+    StartSalaDeEsperaTurnoResponse toStartSalaDeEsperaResponse(Turno turno, EstadoTurno estadoActual);
+
+    /**
+     * Convierte una entidad {@code Turno} a {@code StartAtencionTurnoResponse}.
+     *
+     * @param turno {@code Turno} entidad
+     * @param estadoActual {@code EstadoTurno} estado vigente del turno
+     * @return {@code StartAtencionTurnoResponse} respuesta de inicio de atención
+     */
+    @Mapping(target = "id", source = "turno.id")
+    @Mapping(target = "codigo", source = "turno.codigo")
+    @Mapping(target = "pacienteId", source = "turno.paciente.id")
+    @Mapping(target = "medicoId", source = "turno.medico.id")
+    @Mapping(target = "prestacionId", source = "turno.prestacion.id")
+    @Mapping(target = "fechaHoraInicio", source = "turno.fechaHoraInicio")
+    @Mapping(target = "montoAPagar", source = "turno.montoAPagar")
+    @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura", qualifiedByName = "tipoCoberturaToString")
+    @Mapping(target = "estadoActual", source = "estadoActual")
+    StartAtencionTurnoResponse toStartAtencionResponse(Turno turno, EstadoTurno estadoActual);
+
+    /**
+     * Convierte una entidad {@code Turno} a {@code FinishTurnoResponse}.
+     *
+     * @param turno {@code Turno} entidad
+     * @param estadoActual {@code EstadoTurno} estado vigente del turno
+     * @return {@code FinishTurnoResponse} respuesta de finalización
+     */
+    @Mapping(target = "id", source = "turno.id")
+    @Mapping(target = "codigo", source = "turno.codigo")
+    @Mapping(target = "pacienteId", source = "turno.paciente.id")
+    @Mapping(target = "medicoId", source = "turno.medico.id")
+    @Mapping(target = "prestacionId", source = "turno.prestacion.id")
+    @Mapping(target = "fechaHoraInicio", source = "turno.fechaHoraInicio")
+    @Mapping(target = "montoAPagar", source = "turno.montoAPagar")
+    @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura", qualifiedByName = "tipoCoberturaToString")
+    @Mapping(target = "estadoActual", source = "estadoActual")
+    FinishTurnoResponse toFinishResponse(Turno turno, EstadoTurno estadoActual);
 
     /**
      * Convierte un {@code TipoCobertura} enum a {@code String}.

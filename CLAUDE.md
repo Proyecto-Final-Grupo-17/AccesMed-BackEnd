@@ -35,9 +35,11 @@ Reglas de dominio que hay que respetar (son verdad de terreno, salen del diagram
 - `Turno N→1 AgendaHorariosDia` y `Turno N→1 MedicoPrestacion`.
   A `Medico` y `Prestacion` desde `Turno` **solo se llega vía `MedicoPrestacion`**
   (asociaciones derivadas de solo lectura, sin FK redundante).
-- Estados del `Turno` (DTE): `Pendiente → EsperaValidacion → Confirmado →
-  Iniciado/Ausente → Finalizado/Cancelado`, con `EnSalaDeEspera` entre Confirmado e
-  Iniciado/Ausente. El estado activo es el `HistoricoEstadoTurno` con `finishedAt` vacío.
+- Estados del `Turno` (DTE): nueve estados (`ESPERA_VALIDACION`, `PENDIENTE`, `CONFIRMADO`,
+  `EN_SALA_DE_ESPERA`, `EN_CURSO`, `FINALIZADO`, `CANCELADO`, `REPROGRAMADO`, `AUSENTE`).
+  Flujo principal: `ESPERA_VALIDACION`/`PENDIENTE` → `CONFIRMADO` → `EN_SALA_DE_ESPERA` →
+  `EN_CURSO` → `FINALIZADO`; flujo lateral: `CANCELADO`, `REPROGRAMADO`, `AUSENTE` son finales
+  alcanzables desde distintos puntos. El estado activo es el `HistoricoEstadoTurno` con `finishedAt` vacío.
 - **El estado vigente NO se materializa** en `Prestacion`, `Plan` ni `Turno` (no hay
   columna `estado_actual`): es siempre el tramo del `HistoricoEstado*` con `fecha_hora_fin`
   vacío. La relación entidad↔histórico es **unidireccional** (solo el `@ManyToOne` del
