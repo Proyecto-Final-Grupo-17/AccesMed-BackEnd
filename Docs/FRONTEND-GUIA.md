@@ -122,7 +122,7 @@ mira ahí antes de preguntar.
 ## 5. Autenticación y sesión
 
 Detalle completo de cada endpoint en [`Docs/Features/Autenticacion.md`](Features/Autenticacion.md)
-y del catálogo de permisos en [`Docs/Features/RolesYPermisos.md`](Features/RolesYPermisos.md).
+y del catálogo de permisos en [`Docs/Features/UsuariosRolesYPermisos.md`](Features/UsuariosRolesYPermisos.md).
 Acá va el contrato mínimo que necesita el front para manejar la sesión.
 
 ### Login
@@ -177,7 +177,7 @@ abiertas de ese usuario (todos los refresh tokens vigentes quedan sin efecto).
 
 ### Permisos: 403 no siempre es "arreglalo reintentando"
 
-Los permisos son dinámicos por rol (ver `RolesYPermisos.md`) y se recalculan en cada
+Los permisos son dinámicos por rol (ver `UsuariosRolesYPermisos.md`) y se recalculan en cada
 request — no vienen en el JWT. Si el front necesita saber de antemano qué puede hacer el
 usuario logueado para, por ejemplo, ocultar un botón, no hay (todavía) un endpoint que
 devuelva "mis permisos": la fuente de verdad es el 403 real del endpoint. Diseñá el panel

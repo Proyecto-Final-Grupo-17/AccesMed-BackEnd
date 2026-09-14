@@ -1,21 +1,87 @@
-# Feature: Roles y Permisos
+# Feature: Usuarios, Roles y Permisos
 
 ## Contexto
 
-- **Para qué es**: control de acceso granular. Cada endpoint exige un `Permiso` puntual
-  (`@PreAuthorize("hasAuthority('...')")`); un `Usuario` tiene uno o más `Rol`, y cada `Rol`
-  agrupa un conjunto de `Permiso`. Las authorities de un usuario se recalculan **en cada
-  request** desde la base (nunca desde el JWT, que es liviano — ver
-  `Docs/Features/Autenticacion.md`), así que un cambio de rol o de permisos de un rol tiene
-  efecto inmediato.
+- **Para qué es**: quién puede entrar al sistema (`Usuario`, la credencial) y qué puede
+  hacer una vez adentro (`Rol` → conjunto de `Permiso`). Cada endpoint exige un `Permiso`
+  puntual (`@PreAuthorize("hasAuthority('...')")`); un `Usuario` tiene uno o más `Rol`
+  vigentes, y cada `Rol` agrupa un conjunto de `Permiso`. Las authorities de un usuario se
+  recalculan **en cada request** desde la base (nunca desde el JWT, que es liviano — ver
+  `Docs/Features/Autenticacion.md`), así que un cambio de rol, de permisos de un rol, o una
+  baja de usuario tienen efecto inmediato — no hay que esperar a que expire ningún token.
 
-- **Para qué sirve**: hay tres roles de sistema fijos (`Medico`, `Admin`, `SuperAdmin`) que
-  cubren el día a día de la clínica, y por encima de ellos el `SuperAdmin` puede crear
-  **roles dinámicos** con un subconjunto de permisos a medida (ej. un rol "Facturación" que
-  solo consulta turnos y obras sociales, sin tocar nada más).
+- **Para qué sirve**: `Usuario` es la credencial de acceso de un `Medico` o de un `Admin`
+  (nunca de los dos, nunca de ninguno — ver §Usuario). Hay tres roles de sistema fijos
+  (`Medico`, `Admin`, `SuperAdmin`) que cubren el día a día de la clínica, y por encima de
+  ellos el `SuperAdmin` puede crear **roles dinámicos** con un subconjunto de permisos a
+  medida (ej. un rol "Facturación" que solo consulta turnos y obras sociales, sin tocar
+  nada más).
 
-- **Quiénes la usan**: el `SuperAdmin` gestiona roles y asignaciones desde el panel; el
-  resto de los roles simplemente heredan lo que su rol les da.
+- **Quiénes la usan**: el `SuperAdmin` gestiona usuarios, roles y asignaciones desde el
+  panel; el resto de los roles simplemente heredan lo que su rol les da.
+
+- **Cómo funciona el mecanismo por debajo** (JWT, filtros, `UserDetails`, etc.) está
+  documentado aparte, pensado para aprender Spring Security a través de este proyecto: ver
+  `Docs/Security.md`. Este documento es el contrato funcional (qué endpoints hay, qué
+  reciben, qué reglas de negocio aplican); `Security.md` es el mecanismo.
+
+---
+
+## Usuario
+
+`Usuario` es **la credencial de acceso**, no una persona: no tiene nombre, apellido ni
+ningún dato personal propio — solo `mail` (el que se usa para loguearse) y
+`passwordHash` (nunca texto plano). Apunta a **uno** de estos dos, nunca a los dos ni a
+ninguno (invariante reforzado con un `CHECK` en el esquema, `ck_usuario_medico_xor_admin`):
+
+- Un `Medico` (`Usuario.medicoId`) — el usuario del panel para un médico.
+- Un `Admin` (`Usuario.adminId`) — el usuario del panel para personal administrativo,
+  incluidos los `SuperAdmin` (la diferencia entre `Admin` y `SuperAdmin` está en el `Rol`
+  asignado, no en la entidad `Admin`/`Usuario`).
+
+**No hay endpoint de lectura para `Usuario`** (no existe `GetUsuarioResponse` ni
+`UsuarioQueryService`) — a propósito: nadie necesita "listar usuarios" como tal, se opera
+sobre el `Medico`/`Admin` dueño, o sobre el `Rol` que tiene asignado (`GET /Rol/{rolId}`
+no lista usuarios tampoco; hoy no hay una pantalla de "todos los usuarios del sistema").
+
+### Ciclo de vida
+
+Un `Usuario` nunca se crea suelto — siempre nace atado a un `Medico` o a un `Admin` ya
+existente, con la contraseña puesta en un hash **no utilizable** (un UUID aleatorio
+hasheado) hasta que la persona la define de verdad activando la cuenta por mail:
+
+| Acción | Endpoint | Permiso | Qué pasa |
+|---|---|---|---|
+| Alta con médico nuevo | `POST /accesmed-api/Medico/Medico` con `crearUsuario: true` | `MED_ALTA` + `USER_ALTA` | Crea el `Medico` y, en la misma transacción, su `Usuario` pendiente de activación — ver `Docs/Features/Medico.md`. |
+| Alta con admin nuevo | `POST /accesmed-api/Admin/Admin` | `USER_ALTA` | El `Admin` **siempre** se crea con usuario — no existe alta de Admin sin credencial. |
+| Asignar/reemplazar usuario de un médico | `POST /accesmed-api/Usuario/AsignarMedico/{id}` | `USER_ALTA` | Alta inicial (si el médico todavía no tenía usuario) o reemplazo (cuenta comprometida: da de baja el anterior y crea uno nuevo). |
+| Asignar/reemplazar usuario de un admin | `POST /accesmed-api/Usuario/AsignarAdmin/{id}` | `USER_ALTA` | Mismo mecanismo que arriba, para un `Admin`. |
+| Baja (siempre en cascada, nunca directa) | `DELETE /Medico/Medico/{id}` o `DELETE /Admin/Admin/{id}` | `MED_BAJA` / `USER_BAJA` | Dar de baja al `Medico`/`Admin` desactiva automáticamente su `Usuario` — no hay un endpoint para dar de baja solo el `Usuario`. La baja de `Usuario` **no** cascadea al revés. |
+
+**Request para asignar/reemplazar — `AsignarUsuarioRequest`** (el id del médico/admin
+viaja en la ruta, no en el body):
+
+| Campo | Tipo | Obligatorio | Notas |
+|-------|------|-------------|-------|
+| `mail` | String (formato email) | Sí | El mail de login del usuario nuevo. |
+
+Al asignar/reemplazar: si el médico/admin ya tenía un usuario activo, se le da de baja
+(`softDeleteUsuario`) antes de crear el nuevo — nunca conviven dos usuarios activos para
+la misma persona. El usuario nuevo queda **pendiente de activación**: recibe un mail con
+un link de un solo uso (`RestablecerContrasena`, mismo mecanismo que "olvidé mi
+contraseña" — ver `Docs/Features/Autenticacion.md`) para poner su propia contraseña, y se
+le asigna automáticamente el rol de sistema que corresponde (`Medico` o `Admin`).
+
+### Reglas de negocio
+
+- Asignar el rol **`Medico`** a un usuario exige que tenga `medicoId` (no `adminId`).
+- Asignar **cualquier otro rol** (incluido `Admin`, `SuperAdmin`, o uno dinámico) exige que
+  tenga `adminId` (no `medicoId`). Un usuario vinculado a un `Medico` nunca puede tener un
+  rol que no sea `Medico`.
+- Dar de baja un `Medico`/`Admin` revoca **todos** los refresh tokens vigentes del usuario
+  y le manda un mail avisando la baja — efecto inmediato sobre cualquier sesión abierta,
+  no solo sobre logins futuros (el detalle técnico de por qué es inmediato está en
+  `Docs/Security.md §5.4`).
 
 ---
 
@@ -104,26 +170,6 @@ médico nunca ve turnos, agenda o pacientes que no sean los suyos, aunque tenga 
 - `USUARIO_SIN_MEDICO_VINCULADO` (422): se intentó asignar el rol `Medico` a un usuario que no tiene `Medico` vinculado.
 - `USUARIO_SIN_ADMIN_VINCULADO` (422): se intentó asignar cualquier rol que no sea `Medico` a un usuario sin `Admin` vinculado.
 
-## Gestión de usuarios (alta/reemplazo)
-
-- **Médico con usuario en el mismo alta**: `POST /accesmed-api/Medico/Medico` con
-  `crearUsuario: true` (exige además `USER_ALTA` a quien crea el médico) — ver
-  `Docs/Features/Medico.md`.
-- **Admin con usuario, siempre atómico**: `POST /accesmed-api/Admin/Admin` (`USER_ALTA`)
-  crea el `Admin` y su `Usuario` en la misma operación; no hay alta de Admin sin usuario.
-- **Asignar/reemplazar usuario de un médico o admin ya existente**:
-  `POST /accesmed-api/Usuario/AsignarMedico/{id}` y
-  `POST /accesmed-api/Usuario/AsignarAdmin/{id}` (ambos `USER_ALTA`), con
-  `AsignarUsuarioRequest { mail }`. Sirve tanto para el alta inicial (todavía no tenía
-  usuario) como para el reemplazo tras una cuenta comprometida: si ya tenía uno, se da de
-  baja el anterior (revocando sus refresh tokens) y se crea uno nuevo pendiente de
-  activación, con el rol de sistema correspondiente ya asignado.
-- **Baja en cascada**: dar de baja un `Medico` o un `Admin` (`DELETE`) desactiva
-  automáticamente su `Usuario` — no hace falta un segundo request. La baja de `Usuario` no
-  cascadea al revés.
-
----
-
 ## Ejemplo por rol: mismo flujo de turnos, distinto alcance
 
 Tomando el mismo flujo — "ver y actuar sobre turnos" — desde los tres roles:
@@ -151,4 +197,6 @@ Tomando el mismo flujo — "ver y actuar sobre turnos" — desde los tres roles:
 ---
 
 > Errores: todos los endpoints devuelven el mismo contrato `AccesMedError` ante cualquier
-> falla — ver `Docs/FRONTEND-GUIA.md §1`.
+> falla — ver `Docs/FRONTEND-GUIA.md §1`. Para entender el mecanismo de autenticación y
+> autorización por debajo de este contrato (JWT, filtros, `UserDetails`, los tres
+> mecanismos de autorización), ver `Docs/Security.md`.

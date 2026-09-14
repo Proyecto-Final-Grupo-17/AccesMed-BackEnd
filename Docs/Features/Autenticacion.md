@@ -5,7 +5,7 @@
 - **Para qué es**: todo el panel web interno (administrador, médico) requiere sesión.
   `/accesmed-api/**` ya **no** es de acceso libre: salvo las rutas de `Auth` explícitamente
   listadas, cualquier endpoint exige un access token JWT válido, y además el permiso que
-  le corresponda a esa operación (ver `Docs/Features/RolesYPermisos.md`).
+  le corresponda a esa operación (ver `Docs/Features/UsuariosRolesYPermisos.md`).
 
 - **Para qué sirve**: login con mail/contraseña, renovar la sesión sin volver a loguearse
   (refresh token), cerrar sesión, y el ciclo de vida de la contraseña — activar una cuenta
@@ -141,7 +141,7 @@ Tomemos el login de tres usuarios distintos contra el mismo endpoint:
   endpoints le devuelven todo, sin scope.
 - **Un SuperAdmin** hace login igual; la diferencia no está en el login, está en qué
   permisos resuelve `UsuarioDetailsService` al armar sus authorities (ver el detalle de
-  permisos por rol en `Docs/Features/RolesYPermisos.md`).
+  permisos por rol en `Docs/Features/UsuariosRolesYPermisos.md`).
 
 ---
 

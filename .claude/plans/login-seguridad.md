@@ -21,7 +21,7 @@ entidades con QueryService.
 **Fase 10** — `Docs/ARQUITECTURA.md` actualizado (árbol de `Security/` reescrito a la
 implementación real: `Usuario`/`Rol`/`UsuarioRol`/`Admin`/`Permiso` en el núcleo,
 `Application/Ports/`, `Security/Services/Utils/`; tabla de decisiones y prosa de "Security
-como slice vertical" reescritas). `Docs/Features/Autenticacion.md` y `RolesYPermisos.md`
+como slice vertical" reescritas). `Docs/Features/Autenticacion.md` y `UsuariosRolesYPermisos.md`
 nuevos, con ejemplo por rol. `Docs/Features/Medico.md` actualizado (`crearUsuario`, cascada
 de baja). `Docs/FRONTEND-GUIA.md` §5 reescrita (401 vs 403, refresh, logout, activación/
 recuperación). Documentar reveló dos bugs reales, ya corregidos: `RolController` exigía
@@ -345,7 +345,7 @@ es mecánico.
   el núcleo) y agregar 2-3 filas nuevas a la tabla de decisiones documentando el patrón de
   puerto (`GestionUsuarioPort`) y las tres capas de autorización.
 - **`Docs/Features/`** (vía convención de `feature-documenter`): `Autenticacion.md` (login,
-  refresh, logout, activación, recuperación) y `RolesYPermisos.md` (catálogo, roles de
+  refresh, logout, activación, recuperación) y `UsuariosRolesYPermisos.md` (catálogo, roles de
   sistema, delegación) — **cada uno con un ejemplo concreto de uso por rol**: qué ve/hace
   un Médico, qué ve/hace un Admin, qué ve/hace un SuperAdmin, sobre el mismo flujo (ej.
   "un Médico se loguea y solo puede confirmar sus propios turnos; un Admin ve y gestiona
