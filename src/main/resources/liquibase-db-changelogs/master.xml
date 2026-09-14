@@ -7,4 +7,35 @@
 
     <include file="changelogs/20260728222532-Infraestructura.xml" relativeToChangelogFile="true"/>
 
+    <!-- ====== Fase 1 — Catálogo base ====== -->
+    <include file="changelogs/20260731214500-Clinica.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731214600-Especialidad.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731214700-TipoIndicacionPrestacion.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731214800-Paciente.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731214900-ObraSocial.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731215000-Admin.xml" relativeToChangelogFile="true"/>
+
+    <!-- ====== Fase 2 — Primer nivel de dependencias ====== -->
+    <include file="changelogs/20260731215200-Medico.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731215300-Prestacion.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731215310-HistoricoEstadoPrestacion.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731215400-Plan.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731215410-HistoricoEstadoPlan.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731215500-Rol.xml" relativeToChangelogFile="true"/>
+
+    <!-- ====== Fase 3 — Clases asociativas y agenda ====== -->
+    <include file="changelogs/20260731215600-MedicoPrestacion.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731215700-IndicacionPrestacion.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731215800-AgendaMedico.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731220000-AgendaHorariosDia.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731220100-ObraSocialPlanPrestacion.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731220200-ObraSocialPaciente.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731220300-Usuario.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731220400-UsuarioRol.xml" relativeToChangelogFile="true"/>
+
+    <!-- ====== Fase 4 — Turno y su historia ====== -->
+    <include file="changelogs/20260731220500-Turno.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731220600-HistoricoEstadoTurno.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731220700-IndicacionPrestacionTurno.xml" relativeToChangelogFile="true"/>
+
 </databaseChangeLog>

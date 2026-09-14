@@ -1,0 +1,7 @@
+# Perfil `test`: aporta únicamente las properties que el contexto de Spring necesita para
+# levantar en los tests y que no están en application.yml (viven en los perfiles dev/staging/
+# prod, que los tests no activan). El datasource NO se declara acá: lo autoconfigura
+# Testcontainers vía @ServiceConnection (ver TestcontainersConfiguration).
+accesmed:
+  cors:
+    allowed-origins: http://localhost:5173

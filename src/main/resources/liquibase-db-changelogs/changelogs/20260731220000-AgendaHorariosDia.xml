@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260731220000-added-table-AgendaHorariosDia" author="claude">
+        <createTable tableName="agenda_horarios_dia">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_agenda_horarios_dia"/>
+            </column>
+            <column name="fecha" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hora_desde" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hora_hasta" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_limite_reserva" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="esta_ocupada" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <!-- ====== Relaciones ====== -->
+            <column name="agenda_medico_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_agenda_horarios_dia_agenda_medico" references="agenda_medico(id)"/>
+            </column>
+            <column name="prestacion_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_agenda_horarios_dia_prestacion" references="prestacion(id)"/>
+            </column>
+            <!-- ====== Columnas auditoría (incluye a la baja) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+            <column name="deleted_at" type="timestamptz"/>
+            <column name="deleted_by" type="uuid"/>
+            <column name="deleted_reason" type="varchar(500)"/>
+        </createTable>
+
+        <sql>ALTER TABLE agenda_horarios_dia ADD CONSTRAINT ck_agenda_horarios_dia_horas CHECK (hora_desde &lt; hora_hasta);</sql>
+
+        <sql>CREATE INDEX idx_agenda_horarios_dia_fecha_limite_reserva ON agenda_horarios_dia (fecha_limite_reserva);</sql>
+        <sql>CREATE INDEX idx_agenda_horarios_dia_prestacion ON agenda_horarios_dia (prestacion_id);</sql>
+        <sql>CREATE INDEX idx_agenda_horarios_dia_agenda_medico_fecha ON agenda_horarios_dia (agenda_medico_id, fecha);</sql>
+        <rollback>
+            <sql>ALTER TABLE agenda_horarios_dia DROP CONSTRAINT IF EXISTS ck_agenda_horarios_dia_horas;</sql>
+            <sql>DROP INDEX IF EXISTS idx_agenda_horarios_dia_fecha_limite_reserva;</sql>
+            <sql>DROP INDEX IF EXISTS idx_agenda_horarios_dia_prestacion;</sql>
+            <sql>DROP INDEX IF EXISTS idx_agenda_horarios_dia_agenda_medico_fecha;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

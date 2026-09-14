@@ -32,6 +32,40 @@
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
         <jjwt.version>0.13.0</jjwt.version>
+        <jacoco.version>0.8.15</jacoco.version>
+        <sonar-maven-plugin.version>5.7.0.6970</sonar-maven-plugin.version>
+
+        <!-- Codificación explícita de los fuentes: el scanner la usa para leer los .java
+             sin romper tildes ni eñes (el Javadoc y los mensajes están en español). -->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- ==================== Análisis estático (SonarQube Cloud) ====================
+             Este bloque ES el archivo de configuración del análisis. El scanner de Maven
+             (sonar-maven-plugin) toma su configuración del POM y de los -D de la línea de
+             comandos; NO lee sonar-project.properties, que solo aplica al scanner CLI. -->
+
+        <!-- Identificación del proyecto dentro de SonarQube Cloud. Los asignó la plataforma
+             al importar el repositorio. El projectKey conserva mayúsculas; la organization
+             es siempre minúsculas (es la key, no el nombre visible "Proyecto Final - Grupo 17"). -->
+        <sonar.projectKey>Proyecto-Final-Grupo-17_AccesMed-BackEnd</sonar.projectKey>
+        <sonar.organization>proyecto-final-grupo-17</sonar.organization>
+
+        <!-- Instancia contra la que se publica el análisis. Por defecto el scanner apunta a
+             un SonarQube local (localhost:9000), así que hay que declararlo explícitamente. -->
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+
+        <!-- Reporte XML de JaCoCo que Sonar importa como cobertura de tests. Lo genera la
+             ejecución `report` del jacoco-maven-plugin, más abajo. -->
+        <sonar.coverage.jacoco.xmlReportPaths>
+            ${project.build.directory}/site/jacoco/jacoco.xml
+        </sonar.coverage.jacoco.xmlReportPaths>
+
+        <!-- Exclusiones del análisis: el código que generan los procesadores de anotaciones
+             (MapStruct, Lombok, hibernate-jpamodelgen) no lo escribe ni lo mantiene el
+             equipo, así que ensuciaría las métricas sin aportar valor.
+             Las carpetas de fuentes y de tests no hace falta declararlas: el scanner las
+             deriva del POM (src/main/java, src/test/java, target/classes). -->
+        <sonar.exclusions>**/target/generated-sources/**</sonar.exclusions>
     </properties>
     <dependencies>
         <dependency>
@@ -57,6 +91,10 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-liquibase</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
         <dependency>
@@ -137,6 +175,16 @@
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -202,6 +250,42 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!-- JaCoCo: mide la cobertura de los tests. Sonar no la calcula por su cuenta,
+                 la importa del reporte XML que genera este plugin. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <!-- Engancha el agente de JaCoCo a la JVM que Surefire levanta para los
+                         tests, para que registre qué líneas se ejecutan. -->
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <!-- Ya corridos los tests, vuelca lo registrado a
+                         target/site/jacoco/jacoco.xml (la ruta que lee Sonar). -->
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Scanner oficial de SonarQube Cloud para Maven. Se dispara con
+                 `./mvnw sonar:sonar` y publica el análisis usando el bloque <properties>
+                 de arriba y el token del entorno (SONAR_TOKEN). -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>${sonar-maven-plugin.version}</version>
             </plugin>
         </plugins>
     </build>

@@ -2,6 +2,7 @@ package com.accesmed.backend.Config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -11,6 +12,8 @@ import org.springframework.security.web.SecurityFilterChain;
  * Configuración mínima de Spring Security para que la app arranque. Sin JWT todavía: eso
  * lo trae la feature de Security (ver {@code docs/ARQUITECTURA.md}). Acá solo se abren los
  * endpoints públicos de infraestructura (Swagger, health) y se deja el resto autenticado.
+ * El CORS aplicado es el definido en
+ * {@link com.accesmed.backend.Controllers.ControllersConfig.CorsConfig}.
  */
 @Configuration
 @EnableWebSecurity
@@ -32,8 +35,9 @@ public class SecurityConfig {
         httpSecurity
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**",
-                                "/actuator/health").permitAll()
+                                "/actuator/health", "/accesmed-api/**").permitAll()
                         .anyRequest().authenticated())
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable);
 
         return httpSecurity.build();

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        MedicoPrestacion se rige por VIGENCIA, no por baja logica: se asigna abriendo un
+        periodo y se desasigna cerrando fecha_fin_vigencia. Reasignar es crear una fila
+        nueva, nunca reabrir la vieja. Por eso no hay deleted_at ni unicidad del par:
+        la regla es que los periodos del mismo par medico-prestacion no se solapen.
+    -->
+    <changeSet id="20260731215600-added-table-MedicoPrestacion" author="claude">
+        <createTable tableName="medico_prestacion">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_medico_prestacion"/>
+            </column>
+            <column name="atiende_particular" type="boolean">
+                <constraints nullable="false"/>
+            </column>
+            <column name="precio_particular" type="numeric(12,2)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- ====== Columnas de vigencia ====== -->
+            <column name="fecha_inicio_vigencia" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_fin_vigencia" type="timestamptz"/>
+            <!-- ====== Relaciones ====== -->
+            <column name="medico_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_medico_prestacion_medico" references="medico(id)"/>
+            </column>
+            <column name="prestacion_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_medico_prestacion_prestacion" references="prestacion(id)"/>
+            </column>
+            <!-- ====== Columnas auditoría (sin baja: se retira por vigencia) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+        </createTable>
+
+        <sql>ALTER TABLE medico_prestacion ADD CONSTRAINT ck_medico_prestacion_precio_particular CHECK (precio_particular > 0);</sql>
+        <sql>ALTER TABLE medico_prestacion ADD CONSTRAINT ck_medico_prestacion_vigencia CHECK (fecha_fin_vigencia IS NULL OR fecha_inicio_vigencia &lt; fecha_fin_vigencia);</sql>
+
+        <!-- No solapamiento de periodos del mismo par medico-prestacion. Requiere btree_gist (Infraestructura). -->
+        <sql>
+            ALTER TABLE medico_prestacion ADD CONSTRAINT ex_medico_prestacion_no_solapamiento
+            EXCLUDE USING gist (
+                medico_id WITH =,
+                prestacion_id WITH =,
+                tstzrange(fecha_inicio_vigencia, fecha_fin_vigencia) WITH &amp;&amp;
+            );
+        </sql>
+
+        <sql>CREATE INDEX idx_medico_prestacion_prestacion ON medico_prestacion (prestacion_id);</sql>
+        <rollback>
+            <sql>ALTER TABLE medico_prestacion DROP CONSTRAINT IF EXISTS ck_medico_prestacion_precio_particular;</sql>
+            <sql>ALTER TABLE medico_prestacion DROP CONSTRAINT IF EXISTS ck_medico_prestacion_vigencia;</sql>
+            <sql>ALTER TABLE medico_prestacion DROP CONSTRAINT IF EXISTS ex_medico_prestacion_no_solapamiento;</sql>
+            <sql>DROP INDEX IF EXISTS idx_medico_prestacion_prestacion;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
