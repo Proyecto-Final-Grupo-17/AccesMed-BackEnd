@@ -1,5 +1,6 @@
 package com.accesmed.backend.Security.Config;
 
+import com.accesmed.backend.Security.Jwt.JwtAuthenticationEntryPoint;
 import com.accesmed.backend.Security.Jwt.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +31,7 @@ public class SecurityFilterChainConfig {
     //region ========== Dependencias o inyecciones ==========
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
     //endregion
 
@@ -49,6 +51,7 @@ public class SecurityFilterChainConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
+                .exceptionHandling(exceptionHandling -> exceptionHandling.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return httpSecurity.build();
