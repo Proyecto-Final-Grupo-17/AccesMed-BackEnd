@@ -10,8 +10,10 @@ import com.accesmed.backend.Records.IndicacionPrestacion.Response.UpdateIndicaci
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ScheduleBajaIndicacionPrestacionResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.IndicacionPrestacionQueryService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -144,17 +146,19 @@ public class IndicacionPrestacionController {
      *
      * @param indicacionPrestacionCriteria {@code IndicacionPrestacionCriteria} filtros a aplicar
      *        (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<GetIndicacionPrestacionResponse>} la indicación encontrada (HTTP 200)
      */
     @PreAuthorize("hasAuthority('PREST_CONSULTAR')")
     @GetMapping("/IndicacionPrestacion/Buscar")
     public ResponseEntity<GetIndicacionPrestacionResponse> findIndicacionPrestacionByCriteria(
-            @ParameterObject IndicacionPrestacionCriteria indicacionPrestacionCriteria) {
+            @ParameterObject IndicacionPrestacionCriteria indicacionPrestacionCriteria,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: buscar indicación de prestación criteria={}", indicacionPrestacionCriteria);
 
         GetIndicacionPrestacionResponse getIndicacionPrestacionResponse = indicacionPrestacionQueryService
-                .findIndicacionPrestacionByCriteria(indicacionPrestacionCriteria);
+                .findIndicacionPrestacionByCriteria(indicacionPrestacionCriteria, usuarioDetails);
 
         return ResponseEntity.ok(getIndicacionPrestacionResponse);
 
@@ -167,18 +171,20 @@ public class IndicacionPrestacionController {
      * @param indicacionPrestacionCriteria {@code IndicacionPrestacionCriteria} filtros a aplicar
      *        (ver {@code Docs/ARQUITECTURA.md §7})
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListIndicacionPrestacionResponse>>} página de indicaciones (HTTP 200)
      */
     @PreAuthorize("hasAuthority('PREST_CONSULTAR')")
     @GetMapping("/IndicacionPrestacion")
     public ResponseEntity<PageResponse<ListIndicacionPrestacionResponse>> findIndicacionesPrestacion(
             @ParameterObject IndicacionPrestacionCriteria indicacionPrestacionCriteria,
-            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar indicaciones de prestación criteria={} page={}", indicacionPrestacionCriteria, pageable);
 
         PageResponse<ListIndicacionPrestacionResponse> pageResponse = indicacionPrestacionQueryService
-                .findIndicacionesPrestacion(indicacionPrestacionCriteria, pageable);
+                .findIndicacionesPrestacion(indicacionPrestacionCriteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 

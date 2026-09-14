@@ -8,6 +8,7 @@ import com.accesmed.backend.Records.Plan.Request.UpdatePlanRequest;
 import com.accesmed.backend.Records.Plan.Response.CambioEstadoPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.GetPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.ListPlanResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import com.accesmed.backend.Services.QueryServices.PlanQueryService;
@@ -19,6 +20,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -173,15 +175,18 @@ public class PlanController {
      * para criterios que identifican un plan puntual (ej. {@code id.equals}).
      *
      * @param planCriteria {@code PlanCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<GetPlanResponse>} el plan encontrado (HTTP 200)
      */
     @PreAuthorize("hasAuthority('OS_CONSULTAR')")
     @GetMapping("/Plan/Buscar")
-    public ResponseEntity<GetPlanResponse> findPlanByCriteria(@ParameterObject PlanCriteria planCriteria) {
+    public ResponseEntity<GetPlanResponse> findPlanByCriteria(
+            @ParameterObject PlanCriteria planCriteria,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: buscar plan criteria={}", planCriteria);
 
-        GetPlanResponse getPlanResponse = planQueryService.findPlanByCriteria(planCriteria);
+        GetPlanResponse getPlanResponse = planQueryService.findPlanByCriteria(planCriteria, usuarioDetails);
 
         return ResponseEntity.ok(getPlanResponse);
 
@@ -192,17 +197,19 @@ public class PlanController {
      *
      * @param planCriteria {@code PlanCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListPlanResponse>>} página de planes (HTTP 200)
      */
     @PreAuthorize("hasAuthority('OS_CONSULTAR')")
     @GetMapping("/Plan")
     public ResponseEntity<PageResponse<ListPlanResponse>> findPlanes(
             @ParameterObject PlanCriteria planCriteria,
-            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar planes criteria={} page={}", planCriteria, pageable);
 
-        PageResponse<ListPlanResponse> pageResponse = planQueryService.findPlanes(planCriteria, pageable);
+        PageResponse<ListPlanResponse> pageResponse = planQueryService.findPlanes(planCriteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 

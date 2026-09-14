@@ -10,6 +10,7 @@ import com.accesmed.backend.Records.Prestacion.Response.CreatePrestacionResponse
 import com.accesmed.backend.Records.Prestacion.Response.GetPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.ListPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.UpdatePrestacionResponse;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -185,6 +186,8 @@ public interface PrestacionMapper {
      *
      * @param prestacion {@code Prestacion} entidad
      * @param estadoVigente {@code EstadoPrestacion} estado vigente calculado del histórico
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code ListPrestacionResponse} respuesta de listado
      */
     @Mapping(target = "id", source = "prestacion.id")
@@ -193,7 +196,25 @@ public interface PrestacionMapper {
     @Mapping(target = "especialidadId", source = "prestacion.especialidad.id")
     @Mapping(target = "especialidadNombre", source = "prestacion.especialidad.nombre")
     @Mapping(target = "estadoActual", source = "estadoVigente")
-    ListPrestacionResponse toListResponse(Prestacion prestacion, EstadoPrestacion estadoVigente);
+    @Mapping(target = "auditoria", source = "auditoria")
+    ListPrestacionResponse toListResponse(Prestacion prestacion, EstadoPrestacion estadoVigente, AuditoriaResponse auditoria);
+
+    /**
+     * Arma el {@code AuditoriaResponse} de una prestación. {@code Prestacion} no tiene
+     * soft delete propio (se retira por estados), así que {@code deletedAt}/{@code deletedBy}/
+     * {@code deletedReason} siempre viajan en {@code null}.
+     *
+     * @param prestacion {@code Prestacion} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría de la prestación
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", ignore = true)
+    @Mapping(target = "deletedBy", ignore = true)
+    @Mapping(target = "deletedReason", ignore = true)
+    AuditoriaResponse toAuditoria(Prestacion prestacion);
 
     /**
      * Convierte un {@link Integer} (minutos) a {@link Duration}.

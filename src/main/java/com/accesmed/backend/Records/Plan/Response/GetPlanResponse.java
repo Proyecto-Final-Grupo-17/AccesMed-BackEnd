@@ -1,6 +1,7 @@
 package com.accesmed.backend.Records.Plan.Response;
 
 import com.accesmed.backend.Domain.EstadoPlan;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 
 import java.util.List;
 import java.util.UUID;
@@ -44,7 +45,13 @@ public record GetPlanResponse(
         /**
          * Prestaciones cubiertas por el plan ({@code List<GetCoberturaAnidadaResponse>}).
          */
-        List<GetCoberturaAnidadaResponse> coberturas
+        List<GetCoberturaAnidadaResponse> coberturas,
+
+        /**
+         * Datos de auditoría ({@code AuditoriaResponse}), solo poblado si quien consulta
+         * tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario.
+         */
+        AuditoriaResponse auditoria
 
 ) {
 }

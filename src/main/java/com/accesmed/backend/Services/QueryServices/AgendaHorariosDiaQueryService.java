@@ -3,15 +3,19 @@ package com.accesmed.backend.Services.QueryServices;
 import com.accesmed.backend.Domain.AgendaHorariosDia;
 import com.accesmed.backend.Domain.AgendaHorariosDia_;
 import com.accesmed.backend.Domain.AgendaMedico_;
+import com.accesmed.backend.Domain.Auditable_;
 import com.accesmed.backend.Domain.Medico_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Prestacion_;
 import com.accesmed.backend.Records.AgendaMedico.Criteria.AgendaHorariosCriteria;
 import com.accesmed.backend.Records.AgendaMedico.Response.ListAgendaHorarioResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.ListHorarioDisponibleResponse;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Repositories.AgendaHorariosDiaRepository;
 import com.accesmed.backend.Repositories.ClinicaRepository;
 import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.AgendaMedicoMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
@@ -51,6 +55,7 @@ public class AgendaHorariosDiaQueryService extends AbstractFiltroQueryService<Ag
     private final AgendaMedicoMapper agendaMedicoMapper;
     private final ClinicaRepository clinicaRepository;
     private final AlcanceMedicoService alcanceMedicoService;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -109,6 +114,9 @@ public class AgendaHorariosDiaQueryService extends AbstractFiltroQueryService<Ag
         if (criteria.getEstaOcupada() != null) {
             specification = specification.and(buildSpecification(criteria.getEstaOcupada(), AgendaHorariosDia_.estaOcupada));
         }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
+        }
 
         return specification;
 
@@ -126,6 +134,11 @@ public class AgendaHorariosDiaQueryService extends AbstractFiltroQueryService<Ag
 
         log.debug("Buscando horarios de agenda por criteria: {}, pageable: {}", criteria, pageable);
 
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
+
         // Aplicar scope: si el criterio trae medicoId, reemplazarlo con el del usuario si es médico
         AgendaHorariosCriteria criteriaEfectivo = criteria != null ? criteria : new AgendaHorariosCriteria();
         UUID medicoIdEfectivo = alcanceMedicoService.resolveMedicoId(usuarioDetails, criteriaEfectivo.getMedicoId() != null ? criteriaEfectivo.getMedicoId().getEquals() : null);
@@ -135,7 +148,8 @@ public class AgendaHorariosDiaQueryService extends AbstractFiltroQueryService<Ag
         }
 
         Page<AgendaHorariosDia> horariosPaginados = findByCriteria(criteriaEfectivo, pageable);
-        return PageResponse.from(horariosPaginados, agendaMedicoMapper::toListHorarioResponse);
+        return PageResponse.from(horariosPaginados, horario -> agendaMedicoMapper.toListHorarioResponse(horario,
+                tieneAuditoria ? agendaMedicoMapper.toAuditoria(horario) : null));
 
     }
 

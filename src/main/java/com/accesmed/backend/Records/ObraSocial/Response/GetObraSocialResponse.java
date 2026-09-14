@@ -1,5 +1,7 @@
 package com.accesmed.backend.Records.ObraSocial.Response;
 
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -31,7 +33,13 @@ public record GetObraSocialResponse(
         /**
          * Planes de la obra social ({@code List<GetPlanAnidadoResponse>}).
          */
-        List<GetPlanAnidadoResponse> planes
+        List<GetPlanAnidadoResponse> planes,
+
+        /**
+         * Datos de auditoría ({@code AuditoriaResponse}), solo poblado si quien consulta
+         * tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario.
+         */
+        AuditoriaResponse auditoria
 
 ) {
 }

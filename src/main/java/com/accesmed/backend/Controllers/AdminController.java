@@ -6,6 +6,7 @@ import com.accesmed.backend.Records.Admin.Request.UpdateAdminRequest;
 import com.accesmed.backend.Records.Admin.Response.CreateAdminResponse;
 import com.accesmed.backend.Records.Admin.Response.GetAdminResponse;
 import com.accesmed.backend.Records.Admin.Response.UpdateAdminResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.AdminQueryService;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -119,15 +121,18 @@ public class AdminController {
      * Obtiene un admin por su identificador.
      *
      * @param id {@code UUID} identificador del admin
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<GetAdminResponse>} el admin solicitado (HTTP 200)
      */
     @GetMapping("/Admin/{id}")
     @PreAuthorize("hasAuthority('USER_CONSULTAR')")
-    public ResponseEntity<GetAdminResponse> getAdminById(@PathVariable UUID id) {
+    public ResponseEntity<GetAdminResponse> getAdminById(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: obtener admin id={}", id);
 
-        GetAdminResponse getAdminResponse = adminQueryService.findAdminById(id);
+        GetAdminResponse getAdminResponse = adminQueryService.findAdminById(id, usuarioDetails);
 
         return ResponseEntity.ok(getAdminResponse);
 

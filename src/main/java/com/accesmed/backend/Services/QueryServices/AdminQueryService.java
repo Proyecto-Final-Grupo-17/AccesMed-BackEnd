@@ -1,8 +1,12 @@
 package com.accesmed.backend.Services.QueryServices;
 
 import com.accesmed.backend.Domain.Admin;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Records.Admin.Response.GetAdminResponse;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Repositories.AdminRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.AdminMapper;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +30,7 @@ public class AdminQueryService {
 
     private final AdminRepository adminRepository;
     private final AdminMapper adminMapper;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -35,13 +40,16 @@ public class AdminQueryService {
      * Busca un admin activo por su identificador.
      *
      * @param id {@code UUID} identificador del admin
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code GetAdminResponse} el admin activo
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe
      *         un admin activo con ese id
      */
-    public GetAdminResponse findAdminById(UUID id) {
+    public GetAdminResponse findAdminById(UUID id, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando admin por id: {}", id);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
 
         Admin adminExistente = adminRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> {
@@ -50,7 +58,8 @@ public class AdminQueryService {
                             "No se encontró el admin solicitado.");
                 });
 
-        return adminMapper.toGetResponse(adminExistente);
+        return adminMapper.toGetResponse(adminExistente,
+                tieneAuditoria ? adminMapper.toAuditoria(adminExistente) : null);
 
     }
 

@@ -10,6 +10,7 @@ import com.accesmed.backend.Records.AgendaMedico.Response.HorarioAgendaResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.ListAgendaHorarioResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.ListAgendaMedicoResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.ListHorarioDisponibleResponse;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -66,12 +67,15 @@ public interface AgendaMedicoMapper {
      * Convierte una entidad {@code AgendaHorariosDia} a {@code ListAgendaHorarioResponse}.
      *
      * @param agendaHorariosDia {@code AgendaHorariosDia} entidad
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code ListAgendaHorarioResponse} fila del listado de {@code listHorariosAgenda}
      */
-    @Mapping(target = "medicoId", source = "agendaMedico.medico.id")
-    @Mapping(target = "prestacionId", source = "prestacion.id")
-    @Mapping(target = "prestacionNombre", source = "prestacion.nombre")
-    ListAgendaHorarioResponse toListHorarioResponse(AgendaHorariosDia agendaHorariosDia);
+    @Mapping(target = "medicoId", source = "agendaHorariosDia.agendaMedico.medico.id")
+    @Mapping(target = "prestacionId", source = "agendaHorariosDia.prestacion.id")
+    @Mapping(target = "prestacionNombre", source = "agendaHorariosDia.prestacion.nombre")
+    @Mapping(target = "auditoria", source = "auditoria")
+    ListAgendaHorarioResponse toListHorarioResponse(AgendaHorariosDia agendaHorariosDia, AuditoriaResponse auditoria);
 
     /**
      * Convierte una lista de entidades {@code AgendaHorariosDia} a una lista de
@@ -139,37 +143,75 @@ public interface AgendaMedicoMapper {
     }
 
     /**
-     * Arma el {@code GetAgendaMedicoResponse} a partir de la agenda y sus días activos ya
-     * expandidos.
+     * Arma el {@code GetAgendaMedicoResponse} a partir de la agenda, sus días activos ya
+     * expandidos y su información de auditoría.
      *
      * @param agendaMedico {@code AgendaMedico} agenda encontrada
      * @param dias {@code List<DiaAgendaResponse>} días activos, con sus horarios activos
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code GetAgendaMedicoResponse} respuesta de la búsqueda puntual
      */
-    default GetAgendaMedicoResponse toGetResponse(AgendaMedico agendaMedico, List<DiaAgendaResponse> dias) {
+    default GetAgendaMedicoResponse toGetResponse(AgendaMedico agendaMedico, List<DiaAgendaResponse> dias, AuditoriaResponse auditoria) {
 
         return new GetAgendaMedicoResponse(agendaMedico.getId(), agendaMedico.getMedico().getId(),
                 agendaMedico.getMedico().getNombre(), agendaMedico.getMedico().getApellido(),
-                agendaMedico.getFechaHoraInicioVigencia(), agendaMedico.getFechaHoraFinVigencia(), dias);
+                agendaMedico.getFechaHoraInicioVigencia(), agendaMedico.getFechaHoraFinVigencia(), dias, auditoria);
 
     }
 
     /**
-     * Arma una fila de {@code listAgendaMedico} a partir de la agenda y sus conteos ya
-     * resueltos por el {@code App}.
+     * Arma una fila de {@code listAgendaMedico} a partir de la agenda, sus conteos ya
+     * resueltos por el {@code App} y su información de auditoría.
      *
      * @param agendaMedico {@code AgendaMedico} agenda
      * @param cantidadDias {@code long} cantidad de días activos de la agenda
      * @param cantidadHorarios {@code long} cantidad de horarios activos de la agenda
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code ListAgendaMedicoResponse} fila del listado
      */
-    default ListAgendaMedicoResponse toListResponse(AgendaMedico agendaMedico, long cantidadDias, long cantidadHorarios) {
+    default ListAgendaMedicoResponse toListResponse(AgendaMedico agendaMedico, long cantidadDias, long cantidadHorarios, AuditoriaResponse auditoria) {
 
         return new ListAgendaMedicoResponse(agendaMedico.getId(), agendaMedico.getMedico().getId(),
                 agendaMedico.getMedico().getNombre(), agendaMedico.getMedico().getApellido(),
                 agendaMedico.getFechaHoraInicioVigencia(), agendaMedico.getFechaHoraFinVigencia(),
-                cantidadDias, cantidadHorarios);
+                cantidadDias, cantidadHorarios, auditoria);
 
     }
+
+    /**
+     * Arma el {@code AuditoriaResponse} de un horario de agenda ({@code AgendaHorariosDia}).
+     * {@code AgendaHorariosDia} tiene soft delete propio ({@code deletedAt}/{@code deletedBy}/
+     * {@code deletedReason}), así que los mapeos son directos.
+     *
+     * @param agendaHorariosDia {@code AgendaHorariosDia} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría del horario
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", source = "deletedAt")
+    @Mapping(target = "deletedBy", source = "deletedBy")
+    @Mapping(target = "deletedReason", source = "deletedReason")
+    AuditoriaResponse toAuditoria(AgendaHorariosDia agendaHorariosDia);
+
+    /**
+     * Arma el {@code AuditoriaResponse} de una agenda ({@code AgendaMedico}). {@code AgendaMedico}
+     * no tiene soft delete propio (se gestiona por vigencia), así que {@code deletedAt}/{@code deletedBy}/
+     * {@code deletedReason} siempre viajan en {@code null}.
+     *
+     * @param agendaMedico {@code AgendaMedico} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría de la agenda
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", ignore = true)
+    @Mapping(target = "deletedBy", ignore = true)
+    @Mapping(target = "deletedReason", ignore = true)
+    AuditoriaResponse toAuditoria(AgendaMedico agendaMedico);
 
 }

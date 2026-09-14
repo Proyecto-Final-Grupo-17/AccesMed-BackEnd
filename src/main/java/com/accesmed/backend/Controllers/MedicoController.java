@@ -113,15 +113,17 @@ public class MedicoController {
      * {@code id.equals}).
      *
      * @param medicoCriteria {@code MedicoCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<GetMedicoResponse>} el médico encontrado (HTTP 200)
      */
     @PreAuthorize("hasAuthority('MED_CONSULTAR')")
     @GetMapping("/Medico/Buscar")
-    public ResponseEntity<GetMedicoResponse> findMedicoByCriteria(@ParameterObject MedicoCriteria medicoCriteria) {
+    public ResponseEntity<GetMedicoResponse> findMedicoByCriteria(@ParameterObject MedicoCriteria medicoCriteria,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: buscar médico criteria={}", medicoCriteria);
 
-        GetMedicoResponse getMedicoResponse = medicoQueryService.findMedicoByCriteria(medicoCriteria);
+        GetMedicoResponse getMedicoResponse = medicoQueryService.findMedicoByCriteria(medicoCriteria, usuarioDetails);
 
         return ResponseEntity.ok(getMedicoResponse);
 
@@ -132,17 +134,19 @@ public class MedicoController {
      *
      * @param medicoCriteria {@code MedicoCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListMedicoResponse>>} página de médicos (HTTP 200)
      */
     @PreAuthorize("hasAuthority('MED_CONSULTAR')")
     @GetMapping("/Medico")
     public ResponseEntity<PageResponse<ListMedicoResponse>> findMedicos(
             @ParameterObject MedicoCriteria medicoCriteria,
-            @ParameterObject @PageableDefault(size = 20, sort = "apellido") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "apellido") Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar médicos criteria={} page={}", medicoCriteria, pageable);
 
-        PageResponse<ListMedicoResponse> pageResponse = medicoQueryService.findMedicos(medicoCriteria, pageable);
+        PageResponse<ListMedicoResponse> pageResponse = medicoQueryService.findMedicos(medicoCriteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 

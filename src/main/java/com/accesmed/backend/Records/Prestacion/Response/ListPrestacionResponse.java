@@ -1,6 +1,7 @@
 package com.accesmed.backend.Records.Prestacion.Response;
 
 import com.accesmed.backend.Domain.EstadoPrestacion;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 
 import java.util.UUID;
 
@@ -39,7 +40,13 @@ public record ListPrestacionResponse(
         /**
          * Estado actual de la prestación ({@code EstadoPrestacion}).
          */
-        EstadoPrestacion estadoActual
+        EstadoPrestacion estadoActual,
+
+        /**
+         * Datos de auditoría ({@code AuditoriaResponse}), solo poblado si quien consulta
+         * tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario.
+         */
+        AuditoriaResponse auditoria
 
 ) {
 }

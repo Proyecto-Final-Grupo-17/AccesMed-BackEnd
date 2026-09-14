@@ -8,6 +8,7 @@ import com.accesmed.backend.Records.ObraSocial.Response.CreateObraSocialResponse
 import com.accesmed.backend.Records.ObraSocial.Response.GetObraSocialResponse;
 import com.accesmed.backend.Records.ObraSocial.Response.ListObraSocialResponse;
 import com.accesmed.backend.Records.ObraSocial.Response.SoftDeleteObraSocialResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.ObraSocialQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
@@ -19,6 +20,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -109,15 +111,17 @@ public class ObraSocialController {
      * social puntual (ej. {@code id.equals}).
      *
      * @param obraSocialCriteria {@code ObraSocialCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<GetObraSocialResponse>} la obra social encontrada (HTTP 200)
      */
     @PreAuthorize("hasAuthority('OS_CONSULTAR')")
     @GetMapping("/ObraSocial/Buscar")
-    public ResponseEntity<GetObraSocialResponse> findObraSocialByCriteria(@ParameterObject ObraSocialCriteria obraSocialCriteria) {
+    public ResponseEntity<GetObraSocialResponse> findObraSocialByCriteria(@ParameterObject ObraSocialCriteria obraSocialCriteria,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: buscar obra social criteria={}", obraSocialCriteria);
 
-        GetObraSocialResponse getObraSocialResponse = obraSocialQueryService.findObraSocialByCriteria(obraSocialCriteria);
+        GetObraSocialResponse getObraSocialResponse = obraSocialQueryService.findObraSocialByCriteria(obraSocialCriteria, usuarioDetails);
 
         return ResponseEntity.ok(getObraSocialResponse);
 
@@ -128,17 +132,19 @@ public class ObraSocialController {
      *
      * @param obraSocialCriteria {@code ObraSocialCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListObraSocialResponse>>} página de obras sociales (HTTP 200)
      */
     @PreAuthorize("hasAuthority('OS_CONSULTAR')")
     @GetMapping("/ObraSocial")
     public ResponseEntity<PageResponse<ListObraSocialResponse>> findObrasSociales(
             @ParameterObject ObraSocialCriteria obraSocialCriteria,
-            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar obras sociales criteria={} page={}", obraSocialCriteria, pageable);
 
-        PageResponse<ListObraSocialResponse> pageResponse = obraSocialQueryService.findObrasSociales(obraSocialCriteria, pageable);
+        PageResponse<ListObraSocialResponse> pageResponse = obraSocialQueryService.findObrasSociales(obraSocialCriteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 

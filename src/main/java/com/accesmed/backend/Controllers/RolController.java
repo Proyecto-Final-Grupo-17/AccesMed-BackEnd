@@ -7,6 +7,7 @@ import com.accesmed.backend.Records.Rol.Request.UpdateRolRequest;
 import com.accesmed.backend.Records.Rol.Response.CreateRolResponse;
 import com.accesmed.backend.Records.Rol.Response.GetRolResponse;
 import com.accesmed.backend.Records.Rol.Response.UpdateRolResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.RolQueryService;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -120,15 +122,18 @@ public class RolController {
      * Obtiene un rol por su identificador.
      *
      * @param id {@code UUID} identificador del rol
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<GetRolResponse>} el rol solicitado (HTTP 200)
      */
     @GetMapping("/Rol/{id}")
     @PreAuthorize("hasAuthority('AUTZ_ROL_CONSULTAR')")
-    public ResponseEntity<GetRolResponse> getRolById(@PathVariable UUID id) {
+    public ResponseEntity<GetRolResponse> getRolById(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: obtener rol id={}", id);
 
-        GetRolResponse getRolResponse = rolQueryService.findRolById(id);
+        GetRolResponse getRolResponse = rolQueryService.findRolById(id, usuarioDetails);
 
         return ResponseEntity.ok(getRolResponse);
 
@@ -137,15 +142,17 @@ public class RolController {
     /**
      * Lista todos los roles activos.
      *
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<List<GetRolResponse>>} listado de roles (HTTP 200)
      */
     @GetMapping("/Rol")
     @PreAuthorize("hasAuthority('AUTZ_ROL_CONSULTAR')")
-    public ResponseEntity<List<GetRolResponse>> listRoles() {
+    public ResponseEntity<List<GetRolResponse>> listRoles(
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar todos los roles");
 
-        List<GetRolResponse> getRolResponses = rolQueryService.findRoles();
+        List<GetRolResponse> getRolResponses = rolQueryService.findRoles(usuarioDetails);
 
         return ResponseEntity.ok(getRolResponses);
 

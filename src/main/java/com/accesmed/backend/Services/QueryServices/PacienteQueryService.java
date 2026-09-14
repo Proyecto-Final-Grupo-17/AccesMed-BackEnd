@@ -3,7 +3,9 @@ package com.accesmed.backend.Services.QueryServices;
 import com.accesmed.backend.Domain.Auditable_;
 import com.accesmed.backend.Domain.Paciente;
 import com.accesmed.backend.Domain.Paciente_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Turno;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.Paciente.Criteria.PacienteCriteria;
 import com.accesmed.backend.Records.Paciente.Response.GetObraSocialAnidadaResponse;
 import com.accesmed.backend.Records.Paciente.Response.GetPacienteResponse;
@@ -12,6 +14,7 @@ import com.accesmed.backend.Repositories.ObraSocialPacienteRepository;
 import com.accesmed.backend.Repositories.PacienteRepository;
 import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.ObraSocialPacienteMapper;
 import com.accesmed.backend.Services.Mappers.PacienteMapper;
@@ -49,6 +52,7 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
     private final ObraSocialPacienteRepository obraSocialPacienteRepository;
     private final ObraSocialPacienteMapper obraSocialPacienteMapper;
     private final AlcanceMedicoService alcanceMedicoService;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -78,6 +82,8 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
 
         log.debug("Buscando paciente por criteria: {}", criteria);
 
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+
         //Buscar el paciente por el criteria proporcionado, aplicando scope si es médico
         Paciente pacienteExistente = findOneByCriteria(criteria, usuarioDetails)
                 .orElseThrow(() -> {
@@ -91,7 +97,8 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
                 .toGetObraSocialAnidadaResponses(obraSocialPacienteRepository.findByPaciente_IdAndDeletedAtIsNull(pacienteExistente.getId()));
 
         //Mapear y devolver la respuesta
-        GetPacienteResponse getPacienteResponse = pacienteMapper.toGetResponse(pacienteExistente, obrasSocialesResponse);
+        GetPacienteResponse getPacienteResponse = pacienteMapper.toGetResponse(pacienteExistente, obrasSocialesResponse,
+                tieneAuditoria ? pacienteMapper.toAuditoria(pacienteExistente) : null);
         return getPacienteResponse;
 
     }
@@ -112,11 +119,18 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
 
         log.debug("Listado de pacientes iniciado: criteria={}, page={}", criteria, pageable);
 
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
+
         //Buscar pacientes que cumplen el criteria, paginados, aplicando scope si es médico
         Page<Paciente> pacientesPagina = findByCriteria(criteria, pageable, usuarioDetails);
 
         //Mapear y devolver response
-        PageResponse<ListPacienteResponse> pageResponse = PageResponse.from(pacientesPagina, pacienteMapper::toListResponse);
+        PageResponse<ListPacienteResponse> pageResponse = PageResponse.from(pacientesPagina,
+                paciente -> pacienteMapper.toListResponse(paciente,
+                        tieneAuditoria ? pacienteMapper.toAuditoria(paciente) : null));
         return pageResponse;
 
     }
@@ -164,6 +178,9 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
         }
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
+        }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
         }
 
         return specification;

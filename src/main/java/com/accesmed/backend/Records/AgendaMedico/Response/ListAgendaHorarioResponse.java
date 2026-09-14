@@ -1,5 +1,7 @@
 package com.accesmed.backend.Records.AgendaMedico.Response;
 
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
+
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
@@ -18,6 +20,8 @@ import java.util.UUID;
  * @param prestacionNombre {@code String} nombre de la prestación del slot
  * @param fechaLimiteReserva {@code ZonedDateTime} plazo límite para reservar el slot
  * @param estaOcupada {@code Boolean} si el slot ya tiene un turno asociado
+ * @param auditoria {@code AuditoriaResponse} datos de auditoría, solo poblado si quien consulta
+ *         tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario
  */
 public record ListAgendaHorarioResponse(
         UUID id,
@@ -28,7 +32,8 @@ public record ListAgendaHorarioResponse(
         UUID prestacionId,
         String prestacionNombre,
         ZonedDateTime fechaLimiteReserva,
-        Boolean estaOcupada
+        Boolean estaOcupada,
+        AuditoriaResponse auditoria
 ) {
 
 }

@@ -41,6 +41,23 @@ public class AutorizacionService {
 
     }
 
+    /**
+     * Verifica si el usuario autenticado tiene el permiso indicado, sin lanzar excepción.
+     * Pensado para decisiones condicionales de lectura (ej. poblar el bloque de auditoría
+     * de un Response solo si el usuario tiene {@code AUDITORIA_CONSULTAR}).
+     *
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
+     * @param permiso {@code Permiso} el permiso a verificar
+     * @return {@code boolean} {@code true} si lo tiene
+     */
+    public boolean hasAuthority(UsuarioDetails usuarioDetails, Permiso permiso) {
+
+        return usuarioDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(authority -> authority.equals(permiso.name()));
+
+    }
+
     //endregion
 
 }

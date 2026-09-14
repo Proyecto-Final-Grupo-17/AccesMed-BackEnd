@@ -6,15 +6,18 @@ import com.accesmed.backend.Domain.HistoricoEstadoTurno;
 import com.accesmed.backend.Domain.HistoricoEstadoTurno_;
 import com.accesmed.backend.Domain.Medico_;
 import com.accesmed.backend.Domain.Paciente_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Prestacion_;
 import com.accesmed.backend.Domain.Turno;
 import com.accesmed.backend.Domain.Turno_;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.Turno.Criteria.TurnoCriteria;
 import com.accesmed.backend.Records.Turno.Response.ListTurnoResponse;
 import com.accesmed.backend.Repositories.HistoricoEstadoTurnoRepository;
 import com.accesmed.backend.Repositories.TurnoRepository;
 import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Mappers.TurnoMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.EstadoTurnoFilter;
@@ -57,6 +60,7 @@ public class TurnoQueryService extends AbstractFiltroQueryService<Turno, TurnoCr
     private final TurnoMapper turnoMapper;
     private final HistoricoEstadoTurnoRepository historicoEstadoTurnoRepository;
     private final AlcanceMedicoService alcanceMedicoService;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -86,6 +90,12 @@ public class TurnoQueryService extends AbstractFiltroQueryService<Turno, TurnoCr
         // Inicializar criteria si viene nulo
         TurnoCriteria criteriaEfectivo = criteria != null ? criteria : new TurnoCriteria();
 
+        // Verificar permisos de auditoría
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria) {
+            criteriaEfectivo.setCreatedBy(null);
+        }
+
         // Resolver el medicoId efectivo: extraer el equals del filter si existe
         UUID medicoIdDelCriteria = null;
         if (criteriaEfectivo.getMedicoId() != null && criteriaEfectivo.getMedicoId().getEquals() != null) {
@@ -106,7 +116,8 @@ public class TurnoQueryService extends AbstractFiltroQueryService<Turno, TurnoCr
                 turnosPaginada.getContent().stream().map(Turno::getId).toList());
 
         PageResponse<ListTurnoResponse> pageResponse = PageResponse.from(turnosPaginada,
-                turno -> turnoMapper.toListResponse(turno, estadosVigentes.get(turno.getId())));
+                turno -> turnoMapper.toListResponse(turno, estadosVigentes.get(turno.getId()),
+                        tieneAuditoria ? turnoMapper.toAuditoria(turno) : null));
         return pageResponse;
 
     }
@@ -152,6 +163,9 @@ public class TurnoQueryService extends AbstractFiltroQueryService<Turno, TurnoCr
         }
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
+        }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
         }
 
         return specification;

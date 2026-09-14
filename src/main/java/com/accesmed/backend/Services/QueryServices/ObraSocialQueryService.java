@@ -5,7 +5,9 @@ import com.accesmed.backend.Domain.EstadoPlan;
 import com.accesmed.backend.Domain.HistoricoEstadoPlan;
 import com.accesmed.backend.Domain.ObraSocial;
 import com.accesmed.backend.Domain.ObraSocial_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Plan;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.ObraSocial.Criteria.ObraSocialCriteria;
 import com.accesmed.backend.Records.ObraSocial.Response.GetObraSocialResponse;
 import com.accesmed.backend.Records.ObraSocial.Response.GetPlanAnidadoResponse;
@@ -15,6 +17,8 @@ import com.accesmed.backend.Repositories.HistoricoEstadoPlanRepository;
 import com.accesmed.backend.Repositories.ObraSocialPlanPrestacionRepository;
 import com.accesmed.backend.Repositories.ObraSocialRepository;
 import com.accesmed.backend.Repositories.PlanRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.ObraSocialMapper;
 import com.accesmed.backend.Services.Mappers.ObraSocialPlanPrestacionMapper;
@@ -56,6 +60,7 @@ public class ObraSocialQueryService extends AbstractFiltroQueryService<ObraSocia
     private final HistoricoEstadoPlanRepository historicoEstadoPlanRepository;
     private final ObraSocialPlanPrestacionRepository obraSocialPlanPrestacionRepository;
     private final ObraSocialPlanPrestacionMapper obraSocialPlanPrestacionMapper;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -73,17 +78,21 @@ public class ObraSocialQueryService extends AbstractFiltroQueryService<ObraSocia
      * incluyendo sus planes asociados.
      *
      * @param criteria {@code ObraSocialCriteria} filtros a aplicar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code GetObraSocialResponse} la obra social encontrada con sus planes
      * @throws RecursoNoEncontradoException si ninguna obra social activa cumple el criteria
      */
-    public GetObraSocialResponse findObraSocialByCriteria(ObraSocialCriteria criteria) {
+    public GetObraSocialResponse findObraSocialByCriteria(ObraSocialCriteria criteria, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando obra social por criteria: {}", criteria);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
 
         ObraSocial obraSocialEncontrada = getObraSocialActiva(criteria);
         List<GetPlanAnidadoResponse> planesResponse = mapPlanesAnidados(
                 planRepository.findAllByObraSocialId(obraSocialEncontrada.getId()));
-        return obraSocialMapper.toGetResponse(obraSocialEncontrada, planesResponse);
+        return obraSocialMapper.toGetResponse(obraSocialEncontrada, planesResponse,
+                tieneAuditoria ? obraSocialMapper.toAuditoria(obraSocialEncontrada) : null);
 
     }
 
@@ -92,14 +101,22 @@ public class ObraSocialQueryService extends AbstractFiltroQueryService<ObraSocia
      *
      * @param criteria {@code ObraSocialCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListObraSocialResponse>} página de DTOs mapeados
      */
-    public PageResponse<ListObraSocialResponse> findObrasSociales(ObraSocialCriteria criteria, Pageable pageable) {
+    public PageResponse<ListObraSocialResponse> findObrasSociales(ObraSocialCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando obras sociales por criteria: {}, pageable: {}", criteria, pageable);
 
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
+
         Page<ObraSocial> obrasSocialesPaginadas = findByCriteria(criteria, pageable);
-        return PageResponse.from(obrasSocialesPaginadas, obraSocialMapper::toListResponse);
+        return PageResponse.from(obrasSocialesPaginadas,
+                obraSocial -> obraSocialMapper.toListResponse(obraSocial,
+                        tieneAuditoria ? obraSocialMapper.toAuditoria(obraSocial) : null));
 
     }
 
@@ -160,6 +177,9 @@ public class ObraSocialQueryService extends AbstractFiltroQueryService<ObraSocia
         }
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
+        }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
         }
 
         return specification;

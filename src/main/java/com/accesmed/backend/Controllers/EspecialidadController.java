@@ -8,8 +8,10 @@ import com.accesmed.backend.Records.Especialidad.Response.CreateEspecialidadResp
 import com.accesmed.backend.Records.Especialidad.Response.GetEspecialidadResponse;
 import com.accesmed.backend.Records.Especialidad.Response.ListEspecialidadResponse;
 import com.accesmed.backend.Records.Especialidad.Response.SoftDeleteEspecialidadResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.EspecialidadQueryService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -110,15 +112,18 @@ public class EspecialidadController {
      * puntual (ej. {@code id.equals}).
      *
      * @param especialidadCriteria {@code EspecialidadCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<GetEspecialidadResponse>} la especialidad encontrada (HTTP 200)
      */
     @PreAuthorize("hasAuthority('ESP_CONSULTAR')")
     @GetMapping("/Especialidad/Buscar")
-    public ResponseEntity<GetEspecialidadResponse> findEspecialidadByCriteria(@ParameterObject EspecialidadCriteria especialidadCriteria) {
+    public ResponseEntity<GetEspecialidadResponse> findEspecialidadByCriteria(
+            @ParameterObject EspecialidadCriteria especialidadCriteria,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: buscar especialidad criteria={}", especialidadCriteria);
 
-        GetEspecialidadResponse getEspecialidadResponse = especialidadQueryService.findEspecialidadByCriteria(especialidadCriteria);
+        GetEspecialidadResponse getEspecialidadResponse = especialidadQueryService.findEspecialidadByCriteria(especialidadCriteria, usuarioDetails);
 
         return ResponseEntity.ok(getEspecialidadResponse);
 
@@ -129,17 +134,19 @@ public class EspecialidadController {
      *
      * @param especialidadCriteria {@code EspecialidadCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListEspecialidadResponse>>} página de especialidades (HTTP 200)
      */
     @PreAuthorize("hasAuthority('ESP_CONSULTAR')")
     @GetMapping("/Especialidad")
     public ResponseEntity<PageResponse<ListEspecialidadResponse>> findEspecialidades(
             @ParameterObject EspecialidadCriteria especialidadCriteria,
-            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar especialidades criteria={} page={}", especialidadCriteria, pageable);
 
-        PageResponse<ListEspecialidadResponse> pageResponse = especialidadQueryService.findEspecialidades(especialidadCriteria, pageable);
+        PageResponse<ListEspecialidadResponse> pageResponse = especialidadQueryService.findEspecialidades(especialidadCriteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 

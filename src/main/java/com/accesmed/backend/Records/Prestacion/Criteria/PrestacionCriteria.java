@@ -32,4 +32,10 @@ public class PrestacionCriteria {
     private InstantFilter createdDate;
     private InstantFilter lastModifiedDate;
 
+    /**
+     * Filtro de auditoría — solo se honra si quien consulta tiene {@code AUDITORIA_CONSULTAR}
+     * (ver {@code PrestacionQueryService}); se ignora en caso contrario.
+     */
+    private StringFilter createdBy;
+
 }

@@ -1,6 +1,7 @@
 package com.accesmed.backend.Records.IndicacionPrestacionTurno.Criteria;
 
 import com.accesmed.backend.Services.QueryServices.Filtering.InstantFilter;
+import com.accesmed.backend.Services.QueryServices.Filtering.StringFilter;
 import com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,5 +26,11 @@ public class IndicacionPrestacionTurnoCriteria {
     private UUIDFilter indicacionPrestacionId;
     private InstantFilter createdDate;
     private InstantFilter lastModifiedDate;
+
+    /**
+     * Filtro de auditoría — solo se honra si quien consulta tiene {@code AUDITORIA_CONSULTAR}
+     * (ver {@code IndicacionPrestacionTurnoQueryService}); se ignora en caso contrario.
+     */
+    private StringFilter createdBy;
 
 }

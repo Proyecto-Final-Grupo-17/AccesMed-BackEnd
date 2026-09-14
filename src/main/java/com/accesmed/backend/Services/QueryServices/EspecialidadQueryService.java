@@ -3,10 +3,14 @@ package com.accesmed.backend.Services.QueryServices;
 import com.accesmed.backend.Domain.Auditable_;
 import com.accesmed.backend.Domain.Especialidad;
 import com.accesmed.backend.Domain.Especialidad_;
+import com.accesmed.backend.Domain.Permiso;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.Especialidad.Criteria.EspecialidadCriteria;
 import com.accesmed.backend.Records.Especialidad.Response.GetEspecialidadResponse;
 import com.accesmed.backend.Records.Especialidad.Response.ListEspecialidadResponse;
 import com.accesmed.backend.Repositories.EspecialidadRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.EspecialidadMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
@@ -37,6 +41,7 @@ public class EspecialidadQueryService extends AbstractFiltroQueryService<Especia
 
     private final EspecialidadRepository especialidadRepository;
     private final EspecialidadMapper especialidadMapper;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -56,13 +61,20 @@ public class EspecialidadQueryService extends AbstractFiltroQueryService<Especia
      * mapeada (no paginada).
      *
      * @param criteria {@code EspecialidadCriteria} filtros a aplicar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code GetEspecialidadResponse} la especialidad encontrada, mapeada a response
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ninguna
      *         especialidad activa cumple el criteria
      */
-    public GetEspecialidadResponse findEspecialidadByCriteria(EspecialidadCriteria criteria) {
+    public GetEspecialidadResponse findEspecialidadByCriteria(EspecialidadCriteria criteria,
+            UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando especialidad por criteria: {}", criteria);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
 
         Especialidad especialidadExistente = findOneByCriteria(criteria)
                 .orElseThrow(() -> {
@@ -71,7 +83,8 @@ public class EspecialidadQueryService extends AbstractFiltroQueryService<Especia
                             "No existe una especialidad activa que cumpla el criteria proporcionado.");
                 });
 
-        GetEspecialidadResponse getEspecialidadResponse = especialidadMapper.toGetResponse(especialidadExistente);
+        GetEspecialidadResponse getEspecialidadResponse = especialidadMapper.toGetResponse(especialidadExistente,
+                tieneAuditoria ? especialidadMapper.toAuditoria(especialidadExistente) : null);
         return getEspecialidadResponse;
 
     }
@@ -81,18 +94,27 @@ public class EspecialidadQueryService extends AbstractFiltroQueryService<Especia
      *
      * @param criteria {@code EspecialidadCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListEspecialidadResponse>} página de especialidades
      *         que cumplen el criteria, mapeadas a response
      */
-    public PageResponse<ListEspecialidadResponse> findEspecialidades(EspecialidadCriteria criteria, Pageable pageable) {
+    public PageResponse<ListEspecialidadResponse> findEspecialidades(EspecialidadCriteria criteria, Pageable pageable,
+            UsuarioDetails usuarioDetails) {
 
         log.debug("Listado de especialidades iniciado: criteria={}, page={}", criteria, pageable);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
 
         //Buscar especialidades que cumplen el criteria, paginadas
         Page<Especialidad> especialidadesPagina = findByCriteria(criteria, pageable);
 
         //Mapear y devolver response
-        PageResponse<ListEspecialidadResponse> pageResponse = PageResponse.from(especialidadesPagina, especialidadMapper::toListResponse);
+        PageResponse<ListEspecialidadResponse> pageResponse = PageResponse.from(especialidadesPagina,
+                especialidad -> especialidadMapper.toListResponse(especialidad,
+                        tieneAuditoria ? especialidadMapper.toAuditoria(especialidad) : null));
         return pageResponse;
 
     }
@@ -131,6 +153,9 @@ public class EspecialidadQueryService extends AbstractFiltroQueryService<Especia
         }
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
+        }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
         }
 
         return specification;

@@ -2,12 +2,13 @@
 
 ## ESTADO ACTUAL (última actualización: corte de sesión)
 
-✅ **Completadas: Fase 0, 1, 2, 3, 4, 5, 6 (6a UsuarioApp/Controller + 6b RolApp/RolController + AdminApp/AdminController), 7 (retrofit Medico), 8 (@PreAuthorize + scoping en los 13 controllers restantes: Clinica, Especialidad, Prestacion, TipoIndicacionPrestacion, IndicacionPrestacion, ObraSocial, Plan, ObraSocialPrestacion, MedicoPrestacion, ObraSocialPaciente, AgendaMedico, Paciente, Turno).**
+✅ **Completadas: Fase 0, 1, 2, 3, 4, 5, 6 (6a UsuarioApp/Controller + 6b RolApp/RolController + AdminApp/AdminController), 7 (retrofit Medico), 8 (@PreAuthorize + scoping en los 13 controllers restantes: Clinica, Especialidad, Prestacion, TipoIndicacionPrestacion, IndicacionPrestacion, ObraSocial, Plan, ObraSocialPrestacion, MedicoPrestacion, ObraSocialPaciente, AgendaMedico, Paciente, Turno), 9 (retrofit de auditoría en las 15 entidades con QueryService: `AuditoriaResponse` compartido + `AutorizacionService.hasAuthority(...)` + `toAuditoria` en cada Mapper + filtro `createdBy` condicional en cada Criteria/QueryService + `@AuthenticationPrincipal UsuarioDetails` en los Controllers de lectura).**
+
+`./mvnw.cmd compile` verde tras la Fase 9. `./mvnw.cmd test-compile` falla, pero por deuda preexistente de la Fase 8 (no tocada en esta sesión): `TurnoAppTest`/`TurnoControllerTest` no se actualizaron cuando `TurnoApp.startSalaDeEsperaTurno`/`startAtencionTurno`/`finishTurno` pidieron `UsuarioDetails` — queda para la Fase 11.
 
 Todo compiló verde en cada fase (`mvnw.cmd compile -q`, JDK 25). Se verificaron a mano los archivos donde corrieron agentes en paralelo sobre el mismo archivo (`AgendaMedicoQueryService.java`, `TurnoQueryService.java`) — sin corrupción, quedaron consistentes.
 
 ⏳ **Pendiente, en este orden:**
-- **Fase 9** — Retrofit de auditoría (`AuditoriaResponse` embebido, `AUDITORIA_CONSULTAR`) en las ~15 entidades de lectura. Todavía no arrancada.
 - **Fase 10** — Documentación: actualizar `Docs/ARQUITECTURA.md` (el árbol de `Security/` quedó desactualizado — todavía dice que `Usuario`/`Rol`/`UsuarioRol`/`Permiso` están en `Security/Domain/`, cuando en la implementación real quedaron en el núcleo; falta documentar `Application/Ports/`, `Security/Services/Utils/`, y las nuevas filas de decisión). `Docs/Features/Autenticacion.md` y `RolesYPermisos.md` (con ejemplo por rol) nuevos. Actualizar `Docs/Features/Medico.md`. Extender `Docs/FRONTEND-GUIA.md` con la sección de autenticación.
 - **Fase 11** — Tests (unit de `AuthApp`/`UsuarioApp`/`AlcanceMedicoService`/`AutorizacionService`, integración de `AuthController`).
 

@@ -1,8 +1,12 @@
 package com.accesmed.backend.Services.QueryServices;
 
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Rol;
 import com.accesmed.backend.Records.Rol.Response.GetRolResponse;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Repositories.RolRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.RolMapper;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +31,7 @@ public class RolQueryService {
 
     private final RolRepository rolRepository;
     private final RolMapper rolMapper;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -36,13 +41,16 @@ public class RolQueryService {
      * Busca un rol activo por su identificador.
      *
      * @param id {@code UUID} identificador del rol
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code GetRolResponse} el rol activo
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe
      *         un rol activo con ese id
      */
-    public GetRolResponse findRolById(UUID id) {
+    public GetRolResponse findRolById(UUID id, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando rol por id: {}", id);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
 
         Rol rolExistente = rolRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> {
@@ -51,25 +59,30 @@ public class RolQueryService {
                             "No se encontró el rol solicitado.");
                 });
 
-        return rolMapper.toGetResponse(rolExistente);
+        return rolMapper.toGetResponse(rolExistente,
+                tieneAuditoria ? rolMapper.toAuditoria(rolExistente) : null);
 
     }
 
     /**
      * Lista todos los roles activos.
      *
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code List<GetRolResponse>} listado de todos los roles activos
      */
-    public List<GetRolResponse> findRoles() {
+    public List<GetRolResponse> findRoles(UsuarioDetails usuarioDetails) {
 
         log.debug("Listando todos los roles activos");
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
 
         List<Rol> rolesActivos = rolRepository.findAll().stream()
                 .filter(rol -> rol.getDeletedAt() == null)
                 .toList();
 
         return rolesActivos.stream()
-                .map(rolMapper::toGetResponse)
+                .map(rol -> rolMapper.toGetResponse(rol,
+                        tieneAuditoria ? rolMapper.toAuditoria(rol) : null))
                 .toList();
 
     }

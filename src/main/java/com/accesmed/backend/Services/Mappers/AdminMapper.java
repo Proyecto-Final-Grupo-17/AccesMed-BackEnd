@@ -6,6 +6,7 @@ import com.accesmed.backend.Records.Admin.Request.UpdateAdminRequest;
 import com.accesmed.backend.Records.Admin.Response.CreateAdminResponse;
 import com.accesmed.backend.Records.Admin.Response.GetAdminResponse;
 import com.accesmed.backend.Records.Admin.Response.UpdateAdminResponse;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -61,9 +62,17 @@ public interface AdminMapper {
      * Convierte una entidad {@code Admin} a {@code GetAdminResponse}.
      *
      * @param admin {@code Admin} entidad
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *        consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code GetAdminResponse} response de lectura
      */
-    GetAdminResponse toGetResponse(Admin admin);
+    @Mapping(target = "id", source = "admin.id")
+    @Mapping(target = "nombre", source = "admin.nombre")
+    @Mapping(target = "apellido", source = "admin.apellido")
+    @Mapping(target = "dni", source = "admin.dni")
+    @Mapping(target = "email", source = "admin.email")
+    @Mapping(target = "auditoria", source = "auditoria")
+    GetAdminResponse toGetResponse(Admin admin, AuditoriaResponse auditoria);
 
     //endregion
 
@@ -88,6 +97,26 @@ public interface AdminMapper {
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "lastModifiedBy", ignore = true)
     void update(@MappingTarget Admin admin, UpdateAdminRequest updateAdminRequest);
+
+    //endregion
+
+    //region ========== Auditoría ==========
+
+    /**
+     * Arma el {@code AuditoriaResponse} de un admin. {@code Admin} tiene soft delete propio,
+     * así que {@code deletedAt}/{@code deletedBy}/{@code deletedReason} se mapean normalmente.
+     *
+     * @param admin {@code Admin} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría del admin
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", source = "deletedAt")
+    @Mapping(target = "deletedBy", source = "deletedBy")
+    @Mapping(target = "deletedReason", source = "deletedReason")
+    AuditoriaResponse toAuditoria(Admin admin);
 
     //endregion
 

@@ -1,5 +1,7 @@
 package com.accesmed.backend.Records.Medico.Response;
 
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -52,7 +54,13 @@ public record GetMedicoResponse(
         /**
          * Prestaciones que atiende el médico ({@code List<GetPrestacionAnidadaResponse>}).
          */
-        List<GetPrestacionAnidadaResponse> prestaciones
+        List<GetPrestacionAnidadaResponse> prestaciones,
+
+        /**
+         * Datos de auditoría ({@code AuditoriaResponse}), solo poblado si quien consulta
+         * tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario.
+         */
+        AuditoriaResponse auditoria
 
 ) {
 }

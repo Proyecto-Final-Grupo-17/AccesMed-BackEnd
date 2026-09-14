@@ -171,7 +171,7 @@ public class MedicoApp {
         //Devolver response mapeado, con las prestaciones vigentes del médico
         List<GetPrestacionAnidadaResponse> prestacionesResponse = medicoPrestacionMapper
                 .toGetPrestacionAnidadaResponses(medicoPrestacionDomainService.findAsignacionesVigentesByMedico(id, ZonedDateTime.now()));
-        GetMedicoResponse getMedicoResponse = medicoMapper.toGetResponse(medicoActualizado, prestacionesResponse);
+        GetMedicoResponse getMedicoResponse = medicoMapper.toGetResponse(medicoActualizado, prestacionesResponse, null);
         return getMedicoResponse;
 
     }

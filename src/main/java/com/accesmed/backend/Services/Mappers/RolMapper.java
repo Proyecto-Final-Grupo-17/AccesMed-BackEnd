@@ -6,6 +6,7 @@ import com.accesmed.backend.Records.Rol.Request.UpdateRolRequest;
 import com.accesmed.backend.Records.Rol.Response.CreateRolResponse;
 import com.accesmed.backend.Records.Rol.Response.GetRolResponse;
 import com.accesmed.backend.Records.Rol.Response.UpdateRolResponse;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -65,9 +66,16 @@ public interface RolMapper {
      * Convierte una entidad {@code Rol} a {@code GetRolResponse}.
      *
      * @param rol {@code Rol} entidad
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *        consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code GetRolResponse} response de lectura
      */
-    GetRolResponse toGetResponse(Rol rol);
+    @Mapping(target = "id", source = "rol.id")
+    @Mapping(target = "nombre", source = "rol.nombre")
+    @Mapping(target = "esSistema", source = "rol.esSistema")
+    @Mapping(target = "permisos", source = "rol.permisos")
+    @Mapping(target = "auditoria", source = "auditoria")
+    GetRolResponse toGetResponse(Rol rol, AuditoriaResponse auditoria);
 
     //endregion
 
@@ -91,6 +99,26 @@ public interface RolMapper {
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "lastModifiedBy", ignore = true)
     void update(@MappingTarget Rol rol, UpdateRolRequest updateRolRequest);
+
+    //endregion
+
+    //region ========== Auditoría ==========
+
+    /**
+     * Arma el {@code AuditoriaResponse} de un rol. {@code Rol} tiene soft delete propio,
+     * así que {@code deletedAt}/{@code deletedBy}/{@code deletedReason} se mapean normalmente.
+     *
+     * @param rol {@code Rol} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría del rol
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", source = "deletedAt")
+    @Mapping(target = "deletedBy", source = "deletedBy")
+    @Mapping(target = "deletedReason", source = "deletedReason")
+    AuditoriaResponse toAuditoria(Rol rol);
 
     //endregion
 

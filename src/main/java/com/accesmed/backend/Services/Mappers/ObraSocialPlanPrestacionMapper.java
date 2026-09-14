@@ -9,6 +9,7 @@ import com.accesmed.backend.Records.ObraSocialPrestacion.Response.UnassignObraSo
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.UpdateObraSocialPrestacionResponse;
 import com.accesmed.backend.Records.Plan.Request.AsignarCoberturaAnidadaRequest;
 import com.accesmed.backend.Records.Plan.Response.GetCoberturaAnidadaResponse;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
@@ -82,16 +83,19 @@ public interface ObraSocialPlanPrestacionMapper {
      * Convierte una entidad {@code ObraSocialPlanPrestacion} a {@code ListObraSocialPrestacionResponse}.
      *
      * @param obraSocialPlanPrestacion {@code ObraSocialPlanPrestacion} entidad
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *        consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code ListObraSocialPrestacionResponse} respuesta de listado
      */
-    @Mapping(target = "planId", source = "plan.id")
-    @Mapping(target = "planCodigo", source = "plan.codigo")
-    @Mapping(target = "planNombre", source = "plan.nombre")
-    @Mapping(target = "obraSocialId", source = "plan.obraSocial.id")
-    @Mapping(target = "prestacionId", source = "prestacion.id")
-    @Mapping(target = "prestacionCodigo", source = "prestacion.codigo")
-    @Mapping(target = "prestacionNombre", source = "prestacion.nombre")
-    ListObraSocialPrestacionResponse toListResponse(ObraSocialPlanPrestacion obraSocialPlanPrestacion);
+    @Mapping(target = "planId", source = "obraSocialPlanPrestacion.plan.id")
+    @Mapping(target = "planCodigo", source = "obraSocialPlanPrestacion.plan.codigo")
+    @Mapping(target = "planNombre", source = "obraSocialPlanPrestacion.plan.nombre")
+    @Mapping(target = "obraSocialId", source = "obraSocialPlanPrestacion.plan.obraSocial.id")
+    @Mapping(target = "prestacionId", source = "obraSocialPlanPrestacion.prestacion.id")
+    @Mapping(target = "prestacionCodigo", source = "obraSocialPlanPrestacion.prestacion.codigo")
+    @Mapping(target = "prestacionNombre", source = "obraSocialPlanPrestacion.prestacion.nombre")
+    @Mapping(target = "auditoria", source = "auditoria")
+    ListObraSocialPrestacionResponse toListResponse(ObraSocialPlanPrestacion obraSocialPlanPrestacion, AuditoriaResponse auditoria);
 
     /**
      * Aplica los datos de un {@code UpdateObraSocialPrestacionRequest} sobre una cobertura
@@ -144,5 +148,22 @@ public interface ObraSocialPlanPrestacionMapper {
      * @return {@code List<GetCoberturaAnidadaResponse>} lista de respuestas
      */
     List<GetCoberturaAnidadaResponse> toGetCoberturaAnidadaResponses(List<ObraSocialPlanPrestacion> coberturas);
+
+    /**
+     * Arma el {@code AuditoriaResponse} de una cobertura plan-prestación. {@code ObraSocialPlanPrestacion}
+     * tiene soft delete propio, así que {@code deletedAt}/{@code deletedBy}/{@code deletedReason} se
+     * mapean normalmente.
+     *
+     * @param obraSocialPlanPrestacion {@code ObraSocialPlanPrestacion} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría de la cobertura
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", source = "deletedAt")
+    @Mapping(target = "deletedBy", source = "deletedBy")
+    @Mapping(target = "deletedReason", source = "deletedReason")
+    AuditoriaResponse toAuditoria(ObraSocialPlanPrestacion obraSocialPlanPrestacion);
 
 }
