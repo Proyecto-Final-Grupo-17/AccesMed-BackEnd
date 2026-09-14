@@ -1,7 +1,7 @@
 package com.accesmed.backend.Security.Jwt;
 
 import com.accesmed.backend.Controllers.Errors.AccesMedError;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;

@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Set;
@@ -22,6 +23,11 @@ import java.util.stream.Collectors;
  * Security, recalculando sus permisos ({@code authorities}) desde la base en cada
  * llamada — nunca desde datos cacheados en el token. Así un cambio de rol o de permisos
  * tiene efecto inmediato, sin esperar a que expire el access token.
+ *
+ * <p>{@code @Transactional}: {@code UsuarioRol.rol} es {@code LAZY}. Sin una sesión de
+ * Hibernate abierta durante todo el método, acceder a {@code usuarioRol.getRol()} en el
+ * stream de abajo tira {@code LazyInitializationException} (no hay OSIV,
+ * {@code open-in-view: false}) — pasa en cada request autenticado, no solo en login.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -37,6 +43,7 @@ public class UsuarioDetailsService implements UserDetailsService {
     //region ========== Métodos ==========
 
     @Override
+    @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String mail) throws UsernameNotFoundException {
 
         Usuario usuario = usuarioDomainService.findUsuarioActivoByMail(mail)
