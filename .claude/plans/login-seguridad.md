@@ -45,11 +45,13 @@ es infraestructura/datos que solo se puede hacer con Docker disponible):
 - Correr Liquibase contra una base real: recrear la base de dev (`docker compose -f
   docker/dev/docker-compose.yml down -v && up -d`) y confirmar que las migraciones corren
   limpias — nunca se hizo contra una base real en ninguna sesión.
-- Sembrar un `Usuario` de prueba para los 3 roles de sistema — hace falta para poder
-  loguearse la primera vez (no hay ningún `Medico`/`Admin` con usuario todavía, y
-  `AdminController.createAdmin` requiere `USER_ALTA`, que nadie tiene sin loguearse antes —
-  problema del huevo y la gallina a resolver a mano la primera vez, insertando un
-  `Usuario`+`UsuarioRol` para el `SuperAdmin` sembrado directo por SQL en dev).
+- Sembrar el primer `Usuario` SuperAdmin — resuelto con `Scripts/seed-superadmin.sql`
+  (mail `proyectofinalgrupo17@gmail.com`, password `accesmed2026`, hasheada con
+  pgcrypto/bcrypt directo en el INSERT, sin pasar por la app). Falta correrlo contra la
+  base de dev (`psql "postgresql://accesmed:accesmed@localhost:5432/accesmed" -f
+  Scripts/seed-superadmin.sql`, después de que Liquibase haya migrado). A partir de ahí,
+  cualquier `Admin`/`Medico` adicional se crea desde la app (`POST /Admin/Admin` con
+  `USER_ALTA`, o `POST /Medico/Medico` con `crearUsuario: true`).
 - Correr `AuthControllerTest`/`AccesMedApplicationTests` con Docker disponible, para
   confirmar en verde lo que en esta sesión solo se pudo verificar por compilación.
 - Probar el flujo end-to-end a mano (login real contra Swagger, un 403, un scope de
