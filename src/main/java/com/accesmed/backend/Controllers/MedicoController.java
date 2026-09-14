@@ -2,6 +2,7 @@ package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.MedicoApp;
 import com.accesmed.backend.Records.Medico.Criteria.MedicoCriteria;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.QueryServices.MedicoQueryService;
 import com.accesmed.backend.Records.Medico.Request.CreateMedicoRequest;
 import com.accesmed.backend.Records.Medico.Request.UpdateMedicoRequest;
@@ -18,6 +19,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -55,15 +58,18 @@ public class MedicoController {
      * Crea un médico nuevo junto con las prestaciones existentes que atiende (alta atómica).
      *
      * @param createMedicoRequest {@code CreateMedicoRequest} datos del médico y sus prestaciones
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada del usuario que realiza la operación
      * @return {@code ResponseEntity<CreateMedicoResponse>} el médico creado (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('MED_ALTA')")
     @PostMapping("/Medico")
     public ResponseEntity<CreateMedicoResponse> createMedico(
-            @Valid @RequestBody CreateMedicoRequest createMedicoRequest) {
+            @Valid @RequestBody CreateMedicoRequest createMedicoRequest,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: crear médico matrícula={}", createMedicoRequest.matricula());
 
-        CreateMedicoResponse createMedicoResponse = medicoApp.createMedico(createMedicoRequest);
+        CreateMedicoResponse createMedicoResponse = medicoApp.createMedico(createMedicoRequest, usuarioDetails);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(createMedicoResponse);
 
@@ -77,6 +83,7 @@ public class MedicoController {
      * @return {@code ResponseEntity<GetMedicoResponse>} el médico actualizado (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
+    @PreAuthorize("hasAuthority('MED_MODIFICAR')")
     @PatchMapping("/Medico/{id}")
     public ResponseEntity<GetMedicoResponse> updateMedico(
             @PathVariable UUID id,
@@ -108,6 +115,7 @@ public class MedicoController {
      * @param medicoCriteria {@code MedicoCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @return {@code ResponseEntity<GetMedicoResponse>} el médico encontrado (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('MED_CONSULTAR')")
     @GetMapping("/Medico/Buscar")
     public ResponseEntity<GetMedicoResponse> findMedicoByCriteria(@ParameterObject MedicoCriteria medicoCriteria) {
 
@@ -126,6 +134,7 @@ public class MedicoController {
      * @param pageable {@code Pageable} página solicitada
      * @return {@code ResponseEntity<PageResponse<ListMedicoResponse>>} página de médicos (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('MED_CONSULTAR')")
     @GetMapping("/Medico")
     public ResponseEntity<PageResponse<ListMedicoResponse>> findMedicos(
             @ParameterObject MedicoCriteria medicoCriteria,
@@ -145,6 +154,7 @@ public class MedicoController {
      * @param id {@code UUID} identificador del médico
      * @return {@code ResponseEntity<SoftDeleteMedicoResponse>} la confirmación de la baja (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('MED_BAJA')")
     @DeleteMapping("/Medico/{id}")
     public ResponseEntity<SoftDeleteMedicoResponse> softDeleteMedico(@PathVariable UUID id) {
 

@@ -10,6 +10,8 @@ import com.accesmed.backend.Records.AgendaMedico.Response.ListAgendaHorarioRespo
 import com.accesmed.backend.Records.AgendaMedico.Response.ListHorarioDisponibleResponse;
 import com.accesmed.backend.Repositories.AgendaHorariosDiaRepository;
 import com.accesmed.backend.Repositories.ClinicaRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.AgendaMedicoMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
@@ -26,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
+import java.util.UUID;
 
 /**
  * Consultas de lectura para la entidad {@code AgendaHorariosDia}, incluido el filtrado
@@ -47,6 +50,7 @@ public class AgendaHorariosDiaQueryService extends AbstractFiltroQueryService<Ag
     private final AgendaHorariosDiaRepository agendaHorariosDiaRepository;
     private final AgendaMedicoMapper agendaMedicoMapper;
     private final ClinicaRepository clinicaRepository;
+    private final AlcanceMedicoService alcanceMedicoService;
 
     //endregion
 
@@ -115,13 +119,22 @@ public class AgendaHorariosDiaQueryService extends AbstractFiltroQueryService<Ag
      *
      * @param criteria {@code AgendaHorariosCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListAgendaHorarioResponse>} página de horarios mapeados
      */
-    public PageResponse<ListAgendaHorarioResponse> findHorariosByCriteria(AgendaHorariosCriteria criteria, Pageable pageable) {
+    public PageResponse<ListAgendaHorarioResponse> findHorariosByCriteria(AgendaHorariosCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando horarios de agenda por criteria: {}, pageable: {}", criteria, pageable);
 
-        Page<AgendaHorariosDia> horariosPaginados = findByCriteria(criteria, pageable);
+        // Aplicar scope: si el criterio trae medicoId, reemplazarlo con el del usuario si es médico
+        AgendaHorariosCriteria criteriaEfectivo = criteria != null ? criteria : new AgendaHorariosCriteria();
+        UUID medicoIdEfectivo = alcanceMedicoService.resolveMedicoId(usuarioDetails, criteriaEfectivo.getMedicoId() != null ? criteriaEfectivo.getMedicoId().getEquals() : null);
+        if (medicoIdEfectivo != null) {
+            criteriaEfectivo.setMedicoId(new com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter());
+            criteriaEfectivo.getMedicoId().setEquals(medicoIdEfectivo);
+        }
+
+        Page<AgendaHorariosDia> horariosPaginados = findByCriteria(criteriaEfectivo, pageable);
         return PageResponse.from(horariosPaginados, agendaMedicoMapper::toListHorarioResponse);
 
     }

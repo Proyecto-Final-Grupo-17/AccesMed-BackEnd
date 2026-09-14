@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -58,6 +59,7 @@ public class ObraSocialPrestacionController {
      * @param assignObraSocialPrestacionRequest {@code AssignObraSocialPrestacionRequest} datos de la cobertura
      * @return {@code ResponseEntity<GetObraSocialPrestacionResponse>} la cobertura creada (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('OS_MODIFICAR')")
     @PostMapping("/Asignar")
     public ResponseEntity<GetObraSocialPrestacionResponse> assignPrestacion(
             @Valid @RequestBody AssignObraSocialPrestacionRequest assignObraSocialPrestacionRequest) {
@@ -78,6 +80,7 @@ public class ObraSocialPrestacionController {
      * @param updateObraSocialPrestacionRequest {@code UpdateObraSocialPrestacionRequest} datos nuevos de la cobertura
      * @return {@code ResponseEntity<UpdateObraSocialPrestacionResponse>} la cobertura actualizada (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_MODIFICAR')")
     @PatchMapping("/{id}")
     public ResponseEntity<UpdateObraSocialPrestacionResponse> updateCobertura(
             @PathVariable UUID id,
@@ -105,6 +108,7 @@ public class ObraSocialPrestacionController {
      * @param id {@code UUID} identificador de la cobertura
      * @return {@code ResponseEntity<UnassignObraSocialPrestacionResponse>} la confirmación de la baja (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_BAJA')")
     @PatchMapping("/Desasignar/{id}")
     public ResponseEntity<UnassignObraSocialPrestacionResponse> unassignPrestacion(@PathVariable UUID id) {
 
@@ -125,6 +129,7 @@ public class ObraSocialPrestacionController {
      * @param pageable {@code Pageable} página solicitada
      * @return {@code ResponseEntity<PageResponse<ListObraSocialPrestacionResponse>>} página de coberturas (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_CONSULTAR')")
     @GetMapping("/ObraSocialPrestacion")
     public ResponseEntity<PageResponse<ListObraSocialPrestacionResponse>> findObraSocialPrestaciones(
             @ParameterObject ObraSocialPrestacionCriteria obraSocialPrestacionCriteria,

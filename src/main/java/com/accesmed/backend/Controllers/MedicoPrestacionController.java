@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,6 +48,7 @@ public class MedicoPrestacionController {
      * @param assignMedicoPrestacionRequest {@code AssignMedicoPrestacionRequest} datos de la asignación
      * @return {@code ResponseEntity<GetMedicoPrestacionResponse>} la asignación creada (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('MED_ASIGNAR_PRESTACION')")
     @PostMapping("/Asignar")
     public ResponseEntity<GetMedicoPrestacionResponse> assignPrestacion(
             @Valid @RequestBody AssignMedicoPrestacionRequest assignMedicoPrestacionRequest) {
@@ -69,6 +71,7 @@ public class MedicoPrestacionController {
      * @return {@code ResponseEntity<UnassignMedicoPrestacionResponse>} la confirmación del cierre de
      *         vigencia (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('MED_ASIGNAR_PRESTACION')")
     @PatchMapping("/Vigencia/{id}")
     public ResponseEntity<UnassignMedicoPrestacionResponse> unassignPrestacion(
             @PathVariable UUID id,

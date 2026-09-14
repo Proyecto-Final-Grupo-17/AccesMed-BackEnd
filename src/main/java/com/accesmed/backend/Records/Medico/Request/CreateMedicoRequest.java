@@ -69,7 +69,15 @@ public record CreateMedicoRequest(
          * Puede venir vacía.
          */
         @Valid
-        List<AsignarPrestacionAnidadaRequest> prestaciones
+        List<AsignarPrestacionAnidadaRequest> prestaciones,
+
+        /**
+         * Si se debe crear un usuario de acceso para el médico ({@code Boolean}, nullable).
+         * Si es {@code true}, además de crear el médico se le crea el usuario de login
+         * (el email será {@code Medico.email}). Si es {@code null} o {@code false}, el médico
+         * se crea sin usuario. Requiere el permiso {@code USER_ALTA} para quien realiza la operación.
+         */
+        Boolean crearUsuario
 
 ) {
 }

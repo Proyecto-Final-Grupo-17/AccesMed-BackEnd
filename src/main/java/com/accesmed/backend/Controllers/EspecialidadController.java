@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -58,6 +59,7 @@ public class EspecialidadController {
      * @param createEspecialidadRequest {@code CreateEspecialidadRequest} datos de la especialidad
      * @return {@code ResponseEntity<CreateEspecialidadResponse>} la especialidad creada (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('ESP_ALTA')")
     @PostMapping("/Especialidad")
     public ResponseEntity<CreateEspecialidadResponse> createEspecialidad(
             @Valid @RequestBody CreateEspecialidadRequest createEspecialidadRequest) {
@@ -78,6 +80,7 @@ public class EspecialidadController {
      * @return {@code ResponseEntity<GetEspecialidadResponse>} la especialidad actualizada (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
+    @PreAuthorize("hasAuthority('ESP_MODIFICAR')")
     @PatchMapping("/Especialidad/{id}")
     public ResponseEntity<GetEspecialidadResponse> updateEspecialidad(
             @PathVariable UUID id,
@@ -109,6 +112,7 @@ public class EspecialidadController {
      * @param especialidadCriteria {@code EspecialidadCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @return {@code ResponseEntity<GetEspecialidadResponse>} la especialidad encontrada (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('ESP_CONSULTAR')")
     @GetMapping("/Especialidad/Buscar")
     public ResponseEntity<GetEspecialidadResponse> findEspecialidadByCriteria(@ParameterObject EspecialidadCriteria especialidadCriteria) {
 
@@ -127,6 +131,7 @@ public class EspecialidadController {
      * @param pageable {@code Pageable} página solicitada
      * @return {@code ResponseEntity<PageResponse<ListEspecialidadResponse>>} página de especialidades (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('ESP_CONSULTAR')")
     @GetMapping("/Especialidad")
     public ResponseEntity<PageResponse<ListEspecialidadResponse>> findEspecialidades(
             @ParameterObject EspecialidadCriteria especialidadCriteria,
@@ -146,6 +151,7 @@ public class EspecialidadController {
      * @param id {@code UUID} identificador de la especialidad
      * @return {@code ResponseEntity<SoftDeleteEspecialidadResponse>} la confirmación de la baja (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('ESP_BAJA')")
     @DeleteMapping("/Especialidad/{id}")
     public ResponseEntity<SoftDeleteEspecialidadResponse> softDeleteEspecialidad(@PathVariable UUID id) {
 

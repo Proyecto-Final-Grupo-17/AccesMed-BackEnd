@@ -37,5 +37,7 @@
     <include file="changelogs/20260731220500-Turno.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/20260731220600-HistoricoEstadoTurno.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/20260731220700-IndicacionPrestacionTurno.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731220800-RefreshToken.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260731220900-PasswordResetToken.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

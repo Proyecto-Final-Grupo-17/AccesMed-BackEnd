@@ -6,6 +6,7 @@ import com.accesmed.backend.Records.Clinica.Response.GetClinicaResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,6 +39,7 @@ public class ClinicaController {
      *
      * @return {@code ResponseEntity<GetClinicaResponse>} la clínica (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('CONFIG_CONSULTAR')")
     @GetMapping("/Clinica")
     public ResponseEntity<GetClinicaResponse> findClinica() {
 
@@ -55,6 +57,7 @@ public class ClinicaController {
      * @param updateClinicaRequest {@code UpdateClinicaRequest} datos a actualizar
      * @return {@code ResponseEntity<GetClinicaResponse>} la clínica actualizada (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('CONFIG_MODIFICAR')")
     @PatchMapping("/Clinica")
     public ResponseEntity<GetClinicaResponse> updateClinica(
             @Valid @RequestBody UpdateClinicaRequest updateClinicaRequest) {

@@ -13,6 +13,8 @@ import com.accesmed.backend.Records.Turno.Criteria.TurnoCriteria;
 import com.accesmed.backend.Records.Turno.Response.ListTurnoResponse;
 import com.accesmed.backend.Repositories.HistoricoEstadoTurnoRepository;
 import com.accesmed.backend.Repositories.TurnoRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
 import com.accesmed.backend.Services.Mappers.TurnoMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.EstadoTurnoFilter;
@@ -54,6 +56,7 @@ public class TurnoQueryService extends AbstractFiltroQueryService<Turno, TurnoCr
     private final TurnoRepository turnoRepository;
     private final TurnoMapper turnoMapper;
     private final HistoricoEstadoTurnoRepository historicoEstadoTurnoRepository;
+    private final AlcanceMedicoService alcanceMedicoService;
 
     //endregion
 
@@ -68,17 +71,36 @@ public class TurnoQueryService extends AbstractFiltroQueryService<Turno, TurnoCr
 
     /**
      * Lista turnos según el criteria de filtrado dinámico proporcionado, devolviendo
-     * una página mapeada a responses con su estado vigente.
+     * una página mapeada a responses con su estado vigente. Aplica scope de lectura:
+     * si el usuario autenticado es médico, fuerza el filtro a su propio id.
      *
      * @param criteria {@code TurnoCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListTurnoResponse>} página de DTOs mapeados con su estado vigente
      */
-    public PageResponse<ListTurnoResponse> findTurnos(TurnoCriteria criteria, Pageable pageable) {
+    public PageResponse<ListTurnoResponse> findTurnos(TurnoCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando turnos por criteria: {}, pageable: {}", criteria, pageable);
 
-        Page<Turno> turnosPaginada = findByCriteria(criteria, pageable);
+        // Inicializar criteria si viene nulo
+        TurnoCriteria criteriaEfectivo = criteria != null ? criteria : new TurnoCriteria();
+
+        // Resolver el medicoId efectivo: extraer el equals del filter si existe
+        UUID medicoIdDelCriteria = null;
+        if (criteriaEfectivo.getMedicoId() != null && criteriaEfectivo.getMedicoId().getEquals() != null) {
+            medicoIdDelCriteria = criteriaEfectivo.getMedicoId().getEquals();
+        }
+        UUID medicoIdEfectivo = alcanceMedicoService.resolveMedicoId(usuarioDetails, medicoIdDelCriteria);
+
+        // Si se resolvió un medicoId efectivo distinto, actualizar el criteria
+        if (medicoIdEfectivo != null && !medicoIdEfectivo.equals(medicoIdDelCriteria)) {
+            com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter medicoFilter = new com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter();
+            medicoFilter.setEquals(medicoIdEfectivo);
+            criteriaEfectivo.setMedicoId(medicoFilter);
+        }
+
+        Page<Turno> turnosPaginada = findByCriteria(criteriaEfectivo, pageable);
 
         Map<UUID, EstadoTurno> estadosVigentes = resolverEstadosVigentes(
                 turnosPaginada.getContent().stream().map(Turno::getId).toList());

@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -56,6 +57,7 @@ public class PlanController {
      * @param addPlanRequest {@code AddPlanRequest} datos del plan a agregar
      * @return {@code ResponseEntity<GetPlanResponse>} el plan agregado (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('OS_ALTA')")
     @PostMapping("/Plan")
     public ResponseEntity<GetPlanResponse> createPlan(@Valid @RequestBody AddPlanRequest addPlanRequest) {
 
@@ -75,6 +77,7 @@ public class PlanController {
      * @return {@code ResponseEntity<GetPlanResponse>} el plan actualizado (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
+    @PreAuthorize("hasAuthority('OS_MODIFICAR')")
     @PatchMapping("/Plan/{id}")
     public ResponseEntity<GetPlanResponse> updatePlan(
             @PathVariable UUID id,
@@ -103,6 +106,7 @@ public class PlanController {
      * @param id {@code UUID} identificador del plan
      * @return {@code ResponseEntity<CambioEstadoPlanResponse>} el plan publicado (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_MODIFICAR')")
     @PatchMapping("/Plan/{id}/Publicar")
     public ResponseEntity<CambioEstadoPlanResponse> publishPlan(@PathVariable UUID id) {
 
@@ -120,6 +124,7 @@ public class PlanController {
      * @param id {@code UUID} identificador del plan
      * @return {@code ResponseEntity<CambioEstadoPlanResponse>} el plan despublicado (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_MODIFICAR')")
     @PatchMapping("/Plan/{id}/Despublicar")
     public ResponseEntity<CambioEstadoPlanResponse> unpublishPlan(@PathVariable UUID id) {
 
@@ -139,6 +144,7 @@ public class PlanController {
      * @return {@code ResponseEntity<CambioEstadoPlanResponse>} el plan deshabilitado (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
+    @PreAuthorize("hasAuthority('OS_BAJA')")
     @PatchMapping("/Plan/{id}/Deshabilitar")
     public ResponseEntity<CambioEstadoPlanResponse> disablePlan(
             @PathVariable UUID id,
@@ -169,6 +175,7 @@ public class PlanController {
      * @param planCriteria {@code PlanCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @return {@code ResponseEntity<GetPlanResponse>} el plan encontrado (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_CONSULTAR')")
     @GetMapping("/Plan/Buscar")
     public ResponseEntity<GetPlanResponse> findPlanByCriteria(@ParameterObject PlanCriteria planCriteria) {
 
@@ -187,6 +194,7 @@ public class PlanController {
      * @param pageable {@code Pageable} página solicitada
      * @return {@code ResponseEntity<PageResponse<ListPlanResponse>>} página de planes (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_CONSULTAR')")
     @GetMapping("/Plan")
     public ResponseEntity<PageResponse<ListPlanResponse>> findPlanes(
             @ParameterObject PlanCriteria planCriteria,

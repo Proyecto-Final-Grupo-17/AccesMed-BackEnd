@@ -52,15 +52,17 @@
 
         <sql>
             ALTER TABLE rol_permiso ADD CONSTRAINT ck_rol_permiso_permiso CHECK (permiso IN (
-                'CONFIG_MODIFICAR',
+                'CONFIG_MODIFICAR','CONFIG_CONSULTAR',
                 'MED_ALTA','MED_MODIFICAR','MED_BAJA','MED_CONSULTAR','MED_ASIGNAR_PRESTACION',
                 'PREST_ALTA','PREST_MODIFICAR','PREST_BAJA','PREST_CONSULTAR',
+                'ESP_ALTA','ESP_MODIFICAR','ESP_BAJA','ESP_CONSULTAR',
                 'AGEN_CONFIGURAR','AGEN_CONSULTAR',
                 'PACIENTE_ALTA','PACIENTE_MODIFICAR','PACIENTE_BAJA','PACIENTE_CONSULTAR',
                 'OS_ALTA','OS_MODIFICAR','OS_BAJA','OS_CONSULTAR',
                 'TURN_REGISTRAR','TURN_VALIDAR','TURN_CONFIRMAR','TURN_REPROGRAMAR','TURN_CANCELAR','TURN_ANUNCIAR','TURN_INICIAR','TURN_FINALIZAR','TURN_CONSULTAR',
                 'USER_ALTA','USER_MODIFICAR','USER_BAJA','USER_CONSULTAR',
-                'AUTZ_ROL_ALTA','AUTZ_ROL_MODIFICAR','AUTZ_ROL_BAJA','AUTZ_ROL_ASIGNAR'
+                'AUTZ_ROL_ALTA','AUTZ_ROL_MODIFICAR','AUTZ_ROL_BAJA','AUTZ_ROL_ASIGNAR',
+                'AUDITORIA_CONSULTAR'
             ));
         </sql>
         <sql>ALTER TABLE rol_permiso ADD CONSTRAINT uq_rol_permiso_rol_permiso UNIQUE (rol_id, permiso);</sql>
@@ -70,7 +72,7 @@
         </rollback>
     </changeSet>
 
-    <!-- Carga inicial: los dos roles de sistema, Medico y Admin, con es_sistema = true. -->
+    <!-- Carga inicial: los tres roles de sistema, Medico, Admin y SuperAdmin, con es_sistema = true. -->
     <changeSet id="20260731215502-inserted-data-RolSistema" author="claude">
         <sql>
             INSERT INTO rol (id, nombre, es_sistema, created_at, created_by)
@@ -78,32 +80,53 @@
 
             INSERT INTO rol (id, nombre, es_sistema, created_at, created_by)
             VALUES (gen_random_uuid(), 'Admin', true, now(), 'system');
+
+            INSERT INTO rol (id, nombre, es_sistema, created_at, created_by)
+            VALUES (gen_random_uuid(), 'SuperAdmin', true, now(), 'system');
         </sql>
         <sql>
             INSERT INTO rol_permiso (rol_id, permiso)
             SELECT id, permiso FROM rol, (VALUES
-                ('AGEN_CONSULTAR'), ('MED_CONSULTAR'), ('PREST_CONSULTAR'),
-                ('TURN_INICIAR'), ('TURN_FINALIZAR'), ('TURN_CONSULTAR'), ('TURN_VALIDAR')
+                ('MED_CONSULTAR'), ('PREST_CONSULTAR'),
+                ('AGEN_CONFIGURAR'), ('AGEN_CONSULTAR'),
+                ('PACIENTE_CONSULTAR'),
+                ('TURN_REPROGRAMAR'), ('TURN_CANCELAR'), ('TURN_ANUNCIAR'),
+                ('TURN_INICIAR'), ('TURN_FINALIZAR'), ('TURN_CONSULTAR')
             ) AS permisos(permiso)
             WHERE rol.nombre = 'Medico';
 
             INSERT INTO rol_permiso (rol_id, permiso)
             SELECT id, permiso FROM rol, (VALUES
-                ('CONFIG_MODIFICAR'),
+                ('CONFIG_CONSULTAR'),
+                ('MED_CONSULTAR'), ('MED_ASIGNAR_PRESTACION'),
+                ('PREST_CONSULTAR'),
+                ('ESP_CONSULTAR'),
+                ('AGEN_CONFIGURAR'), ('AGEN_CONSULTAR'),
+                ('PACIENTE_ALTA'), ('PACIENTE_MODIFICAR'), ('PACIENTE_BAJA'), ('PACIENTE_CONSULTAR'),
+                ('OS_CONSULTAR'),
+                ('TURN_REGISTRAR'), ('TURN_VALIDAR'), ('TURN_CONFIRMAR'), ('TURN_REPROGRAMAR'), ('TURN_CANCELAR'), ('TURN_ANUNCIAR'), ('TURN_CONSULTAR')
+            ) AS permisos(permiso)
+            WHERE rol.nombre = 'Admin';
+
+            INSERT INTO rol_permiso (rol_id, permiso)
+            SELECT id, permiso FROM rol, (VALUES
+                ('CONFIG_MODIFICAR'), ('CONFIG_CONSULTAR'),
                 ('MED_ALTA'), ('MED_MODIFICAR'), ('MED_BAJA'), ('MED_CONSULTAR'), ('MED_ASIGNAR_PRESTACION'),
                 ('PREST_ALTA'), ('PREST_MODIFICAR'), ('PREST_BAJA'), ('PREST_CONSULTAR'),
+                ('ESP_ALTA'), ('ESP_MODIFICAR'), ('ESP_BAJA'), ('ESP_CONSULTAR'),
                 ('AGEN_CONFIGURAR'), ('AGEN_CONSULTAR'),
                 ('PACIENTE_ALTA'), ('PACIENTE_MODIFICAR'), ('PACIENTE_BAJA'), ('PACIENTE_CONSULTAR'),
                 ('OS_ALTA'), ('OS_MODIFICAR'), ('OS_BAJA'), ('OS_CONSULTAR'),
-                ('TURN_REGISTRAR'), ('TURN_VALIDAR'), ('TURN_CONFIRMAR'), ('TURN_REPROGRAMAR'), ('TURN_CANCELAR'), ('TURN_ANUNCIAR'), ('TURN_CONSULTAR'),
+                ('TURN_REGISTRAR'), ('TURN_VALIDAR'), ('TURN_CONFIRMAR'), ('TURN_REPROGRAMAR'), ('TURN_CANCELAR'), ('TURN_ANUNCIAR'), ('TURN_INICIAR'), ('TURN_FINALIZAR'), ('TURN_CONSULTAR'),
                 ('USER_ALTA'), ('USER_MODIFICAR'), ('USER_BAJA'), ('USER_CONSULTAR'),
-                ('AUTZ_ROL_ALTA'), ('AUTZ_ROL_MODIFICAR'), ('AUTZ_ROL_BAJA'), ('AUTZ_ROL_ASIGNAR')
+                ('AUTZ_ROL_ALTA'), ('AUTZ_ROL_MODIFICAR'), ('AUTZ_ROL_BAJA'), ('AUTZ_ROL_ASIGNAR'),
+                ('AUDITORIA_CONSULTAR')
             ) AS permisos(permiso)
-            WHERE rol.nombre = 'Admin';
+            WHERE rol.nombre = 'SuperAdmin';
         </sql>
         <rollback>
             <sql>DELETE FROM rol_permiso;</sql>
-            <sql>DELETE FROM rol WHERE nombre IN ('Medico', 'Admin');</sql>
+            <sql>DELETE FROM rol WHERE nombre IN ('Medico', 'Admin', 'SuperAdmin');</sql>
         </rollback>
     </changeSet>
 

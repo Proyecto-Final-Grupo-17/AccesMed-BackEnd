@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -57,6 +58,7 @@ public class ObraSocialController {
      * @param createObraSocialRequest {@code CreateObraSocialRequest} datos de la obra social y sus planes
      * @return {@code ResponseEntity<CreateObraSocialResponse>} la obra social creada (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('OS_ALTA')")
     @PostMapping("/ObraSocial")
     public ResponseEntity<CreateObraSocialResponse> createObraSocial(
             @Valid @RequestBody CreateObraSocialRequest createObraSocialRequest) {
@@ -77,6 +79,7 @@ public class ObraSocialController {
      * @return {@code ResponseEntity<GetObraSocialResponse>} la obra social actualizada (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
+    @PreAuthorize("hasAuthority('OS_MODIFICAR')")
     @PatchMapping("/ObraSocial/{id}")
     public ResponseEntity<GetObraSocialResponse> updateObraSocial(
             @PathVariable UUID id,
@@ -108,6 +111,7 @@ public class ObraSocialController {
      * @param obraSocialCriteria {@code ObraSocialCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @return {@code ResponseEntity<GetObraSocialResponse>} la obra social encontrada (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_CONSULTAR')")
     @GetMapping("/ObraSocial/Buscar")
     public ResponseEntity<GetObraSocialResponse> findObraSocialByCriteria(@ParameterObject ObraSocialCriteria obraSocialCriteria) {
 
@@ -126,6 +130,7 @@ public class ObraSocialController {
      * @param pageable {@code Pageable} página solicitada
      * @return {@code ResponseEntity<PageResponse<ListObraSocialResponse>>} página de obras sociales (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_CONSULTAR')")
     @GetMapping("/ObraSocial")
     public ResponseEntity<PageResponse<ListObraSocialResponse>> findObrasSociales(
             @ParameterObject ObraSocialCriteria obraSocialCriteria,
@@ -146,6 +151,7 @@ public class ObraSocialController {
      * @param id {@code UUID} identificador de la obra social
      * @return {@code ResponseEntity<SoftDeleteObraSocialResponse>} la confirmación de la baja (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_BAJA')")
     @DeleteMapping("/ObraSocial/{id}")
     public ResponseEntity<SoftDeleteObraSocialResponse> softDeleteObraSocial(@PathVariable UUID id) {
 

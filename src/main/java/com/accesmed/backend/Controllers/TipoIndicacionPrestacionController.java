@@ -19,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -58,6 +59,7 @@ public class TipoIndicacionPrestacionController {
      * @param createTipoIndicacionPrestacionRequest {@code CreateTipoIndicacionPrestacionRequest} datos del tipo
      * @return {@code ResponseEntity<CreateTipoIndicacionPrestacionResponse>} el tipo creado (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('PREST_ALTA')")
     @PostMapping("/TipoIndicacionPrestacion")
     public ResponseEntity<CreateTipoIndicacionPrestacionResponse> createTipoIndicacionPrestacion(
             @Valid @RequestBody CreateTipoIndicacionPrestacionRequest createTipoIndicacionPrestacionRequest) {
@@ -79,6 +81,7 @@ public class TipoIndicacionPrestacionController {
      * @return {@code ResponseEntity<UpdateTipoIndicacionPrestacionResponse>} el tipo actualizado (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
+    @PreAuthorize("hasAuthority('PREST_MODIFICAR')")
     @PutMapping("/TipoIndicacionPrestacion/{id}")
     public ResponseEntity<UpdateTipoIndicacionPrestacionResponse> updateTipoIndicacionPrestacion(
             @PathVariable UUID id,
@@ -106,6 +109,7 @@ public class TipoIndicacionPrestacionController {
      * @param id {@code UUID} identificador del tipo
      * @return {@code ResponseEntity<SoftDeleteTipoIndicacionPrestacionResponse>} la confirmación de la baja (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('PREST_BAJA')")
     @DeleteMapping("/TipoIndicacionPrestacion/{id}")
     public ResponseEntity<SoftDeleteTipoIndicacionPrestacionResponse> softDeleteTipoIndicacionPrestacion(@PathVariable UUID id) {
 
@@ -128,6 +132,7 @@ public class TipoIndicacionPrestacionController {
      *        (ver {@code Docs/ARQUITECTURA.md §7})
      * @return {@code ResponseEntity<GetTipoIndicacionPrestacionResponse>} el tipo encontrado (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('PREST_CONSULTAR')")
     @GetMapping("/TipoIndicacionPrestacion/Buscar")
     public ResponseEntity<GetTipoIndicacionPrestacionResponse> findTipoIndicacionPrestacionByCriteria(
             @ParameterObject TipoIndicacionPrestacionCriteria tipoIndicacionPrestacionCriteria) {
@@ -150,6 +155,7 @@ public class TipoIndicacionPrestacionController {
      * @param pageable {@code Pageable} página solicitada
      * @return {@code ResponseEntity<PageResponse<ListTipoIndicacionPrestacionResponse>>} página de tipos (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('PREST_CONSULTAR')")
     @GetMapping("/TipoIndicacionPrestacion")
     public ResponseEntity<PageResponse<ListTipoIndicacionPrestacionResponse>> findTiposIndicacionPrestacion(
             @ParameterObject TipoIndicacionPrestacionCriteria tipoIndicacionPrestacionCriteria,

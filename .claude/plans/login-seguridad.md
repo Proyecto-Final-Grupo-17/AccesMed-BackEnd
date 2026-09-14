@@ -1,5 +1,23 @@
 # Plan — Login / Seguridad (JWT, roles dinámicos, permisos) — AccesMed
 
+## ESTADO ACTUAL (última actualización: corte de sesión)
+
+✅ **Completadas: Fase 0, 1, 2, 3, 4, 5, 6 (6a UsuarioApp/Controller + 6b RolApp/RolController + AdminApp/AdminController), 7 (retrofit Medico), 8 (@PreAuthorize + scoping en los 13 controllers restantes: Clinica, Especialidad, Prestacion, TipoIndicacionPrestacion, IndicacionPrestacion, ObraSocial, Plan, ObraSocialPrestacion, MedicoPrestacion, ObraSocialPaciente, AgendaMedico, Paciente, Turno).**
+
+Todo compiló verde en cada fase (`mvnw.cmd compile -q`, JDK 25). Se verificaron a mano los archivos donde corrieron agentes en paralelo sobre el mismo archivo (`AgendaMedicoQueryService.java`, `TurnoQueryService.java`) — sin corrupción, quedaron consistentes.
+
+⏳ **Pendiente, en este orden:**
+- **Fase 9** — Retrofit de auditoría (`AuditoriaResponse` embebido, `AUDITORIA_CONSULTAR`) en las ~15 entidades de lectura. Todavía no arrancada.
+- **Fase 10** — Documentación: actualizar `Docs/ARQUITECTURA.md` (el árbol de `Security/` quedó desactualizado — todavía dice que `Usuario`/`Rol`/`UsuarioRol`/`Permiso` están en `Security/Domain/`, cuando en la implementación real quedaron en el núcleo; falta documentar `Application/Ports/`, `Security/Services/Utils/`, y las nuevas filas de decisión). `Docs/Features/Autenticacion.md` y `RolesYPermisos.md` (con ejemplo por rol) nuevos. Actualizar `Docs/Features/Medico.md`. Extender `Docs/FRONTEND-GUIA.md` con la sección de autenticación.
+- **Fase 11** — Tests (unit de `AuthApp`/`UsuarioApp`/`AlcanceMedicoService`/`AutorizacionService`, integración de `AuthController`).
+
+**Antes de retomar**, además:
+- No se corrió Liquibase todavía contra una base real — falta recrear la base de dev (`docker compose -f docker/dev/docker-compose.yml down -v && up -d`) y confirmar que las migraciones corren limpias.
+- No se sembró ningún `Usuario` de prueba para los 3 roles de sistema — hace falta para poder loguearse la primera vez (no hay ningún `Medico`/`Admin` con usuario todavía, y `AdminController.createAdmin` requiere `USER_ALTA`, que nadie tiene sin loguearse antes — problema del huevo y la gallina a resolver a mano la primera vez, insertando un `Usuario`+`UsuarioRol` para el `SuperAdmin` sembrado directo por SQL en dev).
+- No se probó el flujo end-to-end todavía (login real, un 403, un scope de médico).
+
+---
+
 ## Contexto
 
 El backend tiene el dominio de seguridad modelado y migrado en BD (`Usuario`, `Rol`,

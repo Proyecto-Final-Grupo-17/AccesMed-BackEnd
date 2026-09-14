@@ -1,8 +1,10 @@
 package com.accesmed.backend.Application;
 
+import com.accesmed.backend.Application.Ports.GestionUsuarioPort;
 import com.accesmed.backend.Domain.Especialidad;
 import com.accesmed.backend.Domain.Medico;
 import com.accesmed.backend.Domain.MedicoPrestacion;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Records.Medico.Request.AsignarPrestacionAnidadaRequest;
 import com.accesmed.backend.Records.Medico.Request.CreateMedicoRequest;
@@ -11,6 +13,8 @@ import com.accesmed.backend.Records.Medico.Response.CreateMedicoResponse;
 import com.accesmed.backend.Records.Medico.Response.GetMedicoResponse;
 import com.accesmed.backend.Records.Medico.Response.GetPrestacionAnidadaResponse;
 import com.accesmed.backend.Records.Medico.Response.SoftDeleteMedicoResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.DomainServices.EspecialidadDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoPrestacionDomainService;
@@ -54,15 +58,21 @@ public class MedicoApp {
     private final MedicoMapper medicoMapper;
     private final MedicoPrestacionMapper medicoPrestacionMapper;
 
+    //Services cross-cutting
+    private final AutorizacionService autorizacionService;
+    private final GestionUsuarioPort gestionUsuarioPort;
+
     //endregion
 
     //region ========== Métodos ==========
 
     /**
      * Crea un médico nuevo junto con las prestaciones existentes que atiende, en una
-     * única transacción atómica.
+     * única transacción atómica. Opcionalmente, crea su usuario de acceso si
+     * {@code createMedicoRequest.crearUsuario()} es {@code true}.
      *
      * @param createMedicoRequest {@code CreateMedicoRequest} datos del médico y sus prestaciones
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada del usuario que realiza la operación
      * @return {@code CreateMedicoResponse} el médico creado, con sus prestaciones asignadas
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la especialidad
      *         o alguna prestación no existen (activas)
@@ -70,7 +80,7 @@ public class MedicoApp {
      *         existen, o si la especialidad de alguna prestación no coincide con la del médico
      */
     @Transactional
-    public CreateMedicoResponse createMedico(CreateMedicoRequest createMedicoRequest) {
+    public CreateMedicoResponse createMedico(CreateMedicoRequest createMedicoRequest, UsuarioDetails usuarioDetails) {
 
         log.info("Creación de médico iniciada: matrícula={}", createMedicoRequest.matricula());
 
@@ -84,6 +94,12 @@ public class MedicoApp {
         Medico medicoNuevo = medicoMapper.toEntity(createMedicoRequest);
         medicoNuevo.setEspecialidad(especialidadExistente);
         Medico medicoGuardado = medicoDomainService.saveMedico(medicoNuevo);
+
+        //Crear usuario de acceso si fue solicitado
+        if (Boolean.TRUE.equals(createMedicoRequest.crearUsuario())) {
+            autorizacionService.requireAuthority(usuarioDetails, Permiso.USER_ALTA);
+            gestionUsuarioPort.asignarUsuarioAMedico(medicoGuardado.getId(), medicoGuardado.getEmail());
+        }
 
         //Asignar cada prestación anidada
         List<GetPrestacionAnidadaResponse> prestacionesResponse = new ArrayList<>();
@@ -162,6 +178,7 @@ public class MedicoApp {
 
     /**
      * Da de baja un médico (baja lógica restrictiva contra turnos vivos).
+     * Además, desactiva su usuario de acceso si existe.
      *
      * @param id {@code UUID} identificador del médico
      * @return {@code SoftDeleteMedicoResponse} la confirmación de la baja
@@ -181,6 +198,9 @@ public class MedicoApp {
 
         //Dar de baja
         medicoDomainService.softDeleteMedico(medicoExistente, "Baja de médico");
+
+        //Desactivar usuario de acceso
+        gestionUsuarioPort.desactivarUsuarioDeMedico(id);
 
         //Devolver response mapeado
         SoftDeleteMedicoResponse softDeleteMedicoResponse = medicoMapper.toSoftDeleteResponse(medicoExistente);

@@ -18,6 +18,8 @@ import com.accesmed.backend.Records.AgendaMedico.Response.CreateAgendaMedicoResp
 import com.accesmed.backend.Records.AgendaMedico.Response.DiaAgendaResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.UpdateAgendaMedicoResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.UpdateVigenciaAgendaMedicoResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
 import com.accesmed.backend.Services.DomainServices.AgendaHorariosDiaDomainService;
 import com.accesmed.backend.Services.DomainServices.AgendaMedicoDomainService;
 import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
@@ -81,6 +83,7 @@ public class AgendaMedicoApp {
 
     private final AgendaMedicoMapper agendaMedicoMapper;
     private final GeneradorSlotsAgenda generadorSlotsAgenda;
+    private final AlcanceMedicoService alcanceMedicoService;
 
     //endregion
 
@@ -91,6 +94,7 @@ public class AgendaMedicoApp {
      * {@code AgendaHorariosDia}. El patrón no se persiste: se descarta después de expandirlo.
      *
      * @param createAgendaMedicoRequest {@code CreateAgendaMedicoRequest} datos del período y del patrón
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code CreateAgendaMedicoResponse} la agenda creada, con sus días y horarios expandidos
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el médico no existe activo
      * @throws ValidacionException {@code ValidacionException} con los errores de forma del lote
@@ -98,9 +102,11 @@ public class AgendaMedicoApp {
      *         médico, o si el lote supera el tope de generación
      */
     @Transactional
-    public CreateAgendaMedicoResponse createAgendaMedico(CreateAgendaMedicoRequest createAgendaMedicoRequest) {
+    public CreateAgendaMedicoResponse createAgendaMedico(CreateAgendaMedicoRequest createAgendaMedicoRequest, UsuarioDetails usuarioDetails) {
 
         log.info("Creación de agenda médica iniciada: médico={}", createAgendaMedicoRequest.medicoId());
+
+        alcanceMedicoService.validateMedicoPropietario(usuarioDetails, createAgendaMedicoRequest.medicoId());
 
         Medico medicoExistente = medicoDomainService.findMedicoActivoById(createAgendaMedicoRequest.medicoId());
 
@@ -159,6 +165,7 @@ public class AgendaMedicoApp {
      *
      * @param updateAgendaMedicoRequest {@code UpdateAgendaMedicoRequest} delta a aplicar,
      *        incluyendo el id de la agenda (ya validado contra la ruta en el Controller)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code UpdateAgendaMedicoResponse} los conteos de cada efecto aplicado
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la agenda no existe
      * @throws ValidacionException {@code ValidacionException} si el delta es contradictorio o el
@@ -166,7 +173,7 @@ public class AgendaMedicoApp {
      * @throws ReglaNegocioException {@code ReglaNegocioException} si la baja arrastra algún slot ocupado
      */
     @Transactional
-    public UpdateAgendaMedicoResponse updateAgendaMedico(UpdateAgendaMedicoRequest updateAgendaMedicoRequest) {
+    public UpdateAgendaMedicoResponse updateAgendaMedico(UpdateAgendaMedicoRequest updateAgendaMedicoRequest, UsuarioDetails usuarioDetails) {
 
         UUID id = updateAgendaMedicoRequest.id();
 
@@ -174,6 +181,8 @@ public class AgendaMedicoApp {
 
         //Paso 1
         AgendaMedico agendaMedicoExistente = agendaMedicoDomainService.findAgendaMedicoById(id);
+
+        alcanceMedicoService.validateMedicoPropietario(usuarioDetails, agendaMedicoExistente.getMedico().getId());
 
         List<UUID> horariosAExcluirIds = nullToEmpty(updateAgendaMedicoRequest.horariosAExcluir());
         List<LocalDate> fechasAExcluir = nullToEmpty(updateAgendaMedicoRequest.fechasAExcluir());
@@ -213,6 +222,7 @@ public class AgendaMedicoApp {
      *
      * @param updateVigenciaAgendaMedicoRequest {@code UpdateVigenciaAgendaMedicoRequest} nuevas
      *        fechas, incluyendo el id de la agenda (ya validado contra la ruta en el Controller)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code UpdateVigenciaAgendaMedicoResponse} la vigencia actualizada y la cantidad de
      *         horarios dados de baja al adelantar el fin
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la agenda no existe
@@ -222,13 +232,15 @@ public class AgendaMedicoApp {
      *         otro del médico, o si adelantar el fin arrastra algún slot ocupado
      */
     @Transactional
-    public UpdateVigenciaAgendaMedicoResponse updateVigenciaAgendaMedico(UpdateVigenciaAgendaMedicoRequest updateVigenciaAgendaMedicoRequest) {
+    public UpdateVigenciaAgendaMedicoResponse updateVigenciaAgendaMedico(UpdateVigenciaAgendaMedicoRequest updateVigenciaAgendaMedicoRequest, UsuarioDetails usuarioDetails) {
 
         UUID id = updateVigenciaAgendaMedicoRequest.id();
 
         log.info("Actualización de vigencia de agenda médica iniciada: id={}", id);
 
         AgendaMedico agendaMedicoExistente = agendaMedicoDomainService.findAgendaMedicoById(id);
+
+        alcanceMedicoService.validateMedicoPropietario(usuarioDetails, agendaMedicoExistente.getMedico().getId());
 
         ZonedDateTime ahora = ZonedDateTime.now();
         ZonedDateTime nuevoInicio = updateVigenciaAgendaMedicoRequest.fechaHoraInicioVigencia() != null

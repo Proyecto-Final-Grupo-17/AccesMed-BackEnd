@@ -11,6 +11,7 @@ public enum Permiso {
 
     // CONFIG
     CONFIG_MODIFICAR,
+    CONFIG_CONSULTAR,
 
     // MED
     MED_ALTA,
@@ -24,6 +25,12 @@ public enum Permiso {
     PREST_MODIFICAR,
     PREST_BAJA,
     PREST_CONSULTAR,
+
+    // ESP
+    ESP_ALTA,
+    ESP_MODIFICAR,
+    ESP_BAJA,
+    ESP_CONSULTAR,
 
     // AGEN
     AGEN_CONFIGURAR,
@@ -60,6 +67,9 @@ public enum Permiso {
     AUTZ_ROL_ALTA,
     AUTZ_ROL_MODIFICAR,
     AUTZ_ROL_BAJA,
-    AUTZ_ROL_ASIGNAR
+    AUTZ_ROL_ASIGNAR,
+
+    // AUDITORIA
+    AUDITORIA_CONSULTAR
 
 }

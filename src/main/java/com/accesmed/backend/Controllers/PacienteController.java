@@ -28,6 +28,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import java.util.List;
 import java.util.UUID;
 
@@ -59,6 +62,7 @@ public class PacienteController {
      * @param createPacienteRequest {@code CreatePacienteRequest} datos del paciente y sus coberturas
      * @return {@code ResponseEntity<CreatePacienteResponse>} el paciente creado (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('PACIENTE_ALTA')")
     @PostMapping("/Paciente")
     public ResponseEntity<CreatePacienteResponse> createPaciente(
             @Valid @RequestBody CreatePacienteRequest createPacienteRequest) {
@@ -79,6 +83,7 @@ public class PacienteController {
      * @return {@code ResponseEntity<GetPacienteResponse>} el paciente actualizado (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
+    @PreAuthorize("hasAuthority('PACIENTE_MODIFICAR')")
     @PatchMapping("/Paciente/{id}")
     public ResponseEntity<GetPacienteResponse> updatePaciente(
             @PathVariable UUID id,
@@ -108,14 +113,18 @@ public class PacienteController {
      * puntual (ej. {@code id.equals}).
      *
      * @param pacienteCriteria {@code PacienteCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<GetPacienteResponse>} el paciente encontrado (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('PACIENTE_CONSULTAR')")
     @GetMapping("/Paciente/Buscar")
-    public ResponseEntity<GetPacienteResponse> findPacienteByCriteria(@ParameterObject PacienteCriteria pacienteCriteria) {
+    public ResponseEntity<GetPacienteResponse> findPacienteByCriteria(
+            @ParameterObject PacienteCriteria pacienteCriteria,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: buscar paciente criteria={}", pacienteCriteria);
 
-        GetPacienteResponse getPacienteResponse = pacienteQueryService.findPacienteByCriteria(pacienteCriteria);
+        GetPacienteResponse getPacienteResponse = pacienteQueryService.findPacienteByCriteria(pacienteCriteria, usuarioDetails);
 
         return ResponseEntity.ok(getPacienteResponse);
 
@@ -126,16 +135,19 @@ public class PacienteController {
      *
      * @param pacienteCriteria {@code PacienteCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListPacienteResponse>>} página de pacientes (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('PACIENTE_CONSULTAR')")
     @GetMapping("/Paciente")
     public ResponseEntity<PageResponse<ListPacienteResponse>> findPacientes(
             @ParameterObject PacienteCriteria pacienteCriteria,
-            @ParameterObject @PageableDefault(size = 20, sort = "apellido") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "apellido") Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar pacientes criteria={} page={}", pacienteCriteria, pageable);
 
-        PageResponse<ListPacienteResponse> pageResponse = pacienteQueryService.findPacientes(pacienteCriteria, pageable);
+        PageResponse<ListPacienteResponse> pageResponse = pacienteQueryService.findPacientes(pacienteCriteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 
@@ -147,6 +159,7 @@ public class PacienteController {
      * @param id {@code UUID} identificador del paciente
      * @return {@code ResponseEntity<SoftDeletePacienteResponse>} la confirmación de la baja (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('PACIENTE_BAJA')")
     @DeleteMapping("/Paciente/{id}")
     public ResponseEntity<SoftDeletePacienteResponse> softDeletePaciente(@PathVariable UUID id) {
 

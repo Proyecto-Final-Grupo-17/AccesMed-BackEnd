@@ -28,6 +28,8 @@ import com.accesmed.backend.Records.Turno.Response.StartSalaDeEsperaTurnoRespons
 import com.accesmed.backend.Records.Turno.Response.ValidateTurnoResponse;
 import com.accesmed.backend.Notifications.TurnoNotificacionEvent;
 import com.accesmed.backend.Notifications.TipoNotificacionTurno;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
 import com.accesmed.backend.Services.DomainServices.AgendaHorariosDiaDomainService;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoTurnoDomainService;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
@@ -82,6 +84,7 @@ public class TurnoApp {
     private final FabricaEstrategiaCalcularMontoAPagarTurno fabricaEstrategiaCalcularMontoAPagarTurno;
     private final TurnoMapper turnoMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final AlcanceMedicoService alcanceMedicoService;
 
     //endregion
 
@@ -225,6 +228,7 @@ public class TurnoApp {
      * enlazado por {@code turnoOrigen}, y cerrando el turno viejo en estado REPROGRAMADO.
      *
      * @param reprogramTurnoRequest {@code ReprogramTurnoRequest} id del turno original y nuevo slot
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ReprogramTurnoResponse} el turno nuevo reprogramado
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno
      *         original o el nuevo slot no existen
@@ -232,13 +236,16 @@ public class TurnoApp {
      *         venció, el nuevo slot no está disponible, o el turno está en un estado no permitido
      */
     @Transactional
-    public ReprogramTurnoResponse reprogramTurno(ReprogramTurnoRequest reprogramTurnoRequest) {
+    public ReprogramTurnoResponse reprogramTurno(ReprogramTurnoRequest reprogramTurnoRequest, UsuarioDetails usuarioDetails) {
 
         log.info("Reprogramación de turno iniciada: turnoId={}, slotId={}",
                 reprogramTurnoRequest.id(), reprogramTurnoRequest.slotId());
 
         //Buscar el turno viejo
         var turnoViejo = turnoDomainService.findTurnoById(reprogramTurnoRequest.id());
+
+        //Validar que el médico del turno pertenece al usuario autenticado (si es médico)
+        alcanceMedicoService.validateMedicoPropietario(usuarioDetails, turnoViejo.getMedico().getId());
 
         //Validar que no haya vencido el plazo de reprogramación
         ZonedDateTime ahora = ZonedDateTime.now();
@@ -352,18 +359,22 @@ public class TurnoApp {
      * Cancela un turno existente, liberando su slot y transicionándolo a estado CANCELADO.
      *
      * @param cancelTurnoRequest {@code CancelTurnoRequest} id del turno y motivo (opcional)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code CancelTurnoResponse} el turno cancelado
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno está en un
      *         estado final y no puede ser cancelado
      */
     @Transactional
-    public CancelTurnoResponse cancelTurno(CancelTurnoRequest cancelTurnoRequest) {
+    public CancelTurnoResponse cancelTurno(CancelTurnoRequest cancelTurnoRequest, UsuarioDetails usuarioDetails) {
 
         log.info("Cancelación de turno iniciada: turnoId={}", cancelTurnoRequest.id());
 
         //Buscar el turno
         var turnoExistente = turnoDomainService.findTurnoById(cancelTurnoRequest.id());
+
+        //Validar que el médico del turno pertenece al usuario autenticado (si es médico)
+        alcanceMedicoService.validateMedicoPropietario(usuarioDetails, turnoExistente.getMedico().getId());
 
         //Liberar el slot
         agendaHorariosDiaDomainService.releaseAgendaHorario(turnoExistente.getAgendaHorarios());
@@ -466,17 +477,21 @@ public class TurnoApp {
      * a estado EN_SALA_DE_ESPERA.
      *
      * @param id {@code UUID} identificador del turno
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code StartSalaDeEsperaTurnoResponse} el turno en sala de espera
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está
      *         en estado CONFIRMADO
      */
     @Transactional
-    public StartSalaDeEsperaTurnoResponse startSalaDeEsperaTurno(UUID id) {
+    public StartSalaDeEsperaTurnoResponse startSalaDeEsperaTurno(UUID id, UsuarioDetails usuarioDetails) {
 
         log.info("Inicio de sala de espera iniciado: turnoId={}", id);
 
         var turnoExistente = turnoDomainService.findTurnoById(id);
+
+        //Validar que el médico del turno pertenece al usuario autenticado (si es médico)
+        alcanceMedicoService.validateMedicoPropietario(usuarioDetails, turnoExistente.getMedico().getId());
         historicoEstadoTurnoDomainService.transitionConfirmadoToEnSalaDeEsperaTurno(turnoExistente);
 
         return turnoMapper.toStartSalaDeEsperaResponse(turnoExistente, EstadoTurno.EN_SALA_DE_ESPERA);
@@ -488,17 +503,21 @@ public class TurnoApp {
      * a estado EN_CURSO.
      *
      * @param id {@code UUID} identificador del turno
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code StartAtencionTurnoResponse} el turno en atención
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está
      *         en estado EN_SALA_DE_ESPERA
      */
     @Transactional
-    public StartAtencionTurnoResponse startAtencionTurno(UUID id) {
+    public StartAtencionTurnoResponse startAtencionTurno(UUID id, UsuarioDetails usuarioDetails) {
 
         log.info("Inicio de atención iniciado: turnoId={}", id);
 
         var turnoExistente = turnoDomainService.findTurnoById(id);
+
+        //Validar que el médico del turno pertenece al usuario autenticado (si es médico)
+        alcanceMedicoService.validateMedicoPropietario(usuarioDetails, turnoExistente.getMedico().getId());
         historicoEstadoTurnoDomainService.transitionEnSalaDeEsperaToEnCursoTurno(turnoExistente);
 
         return turnoMapper.toStartAtencionResponse(turnoExistente, EstadoTurno.EN_CURSO);
@@ -509,17 +528,21 @@ public class TurnoApp {
      * Finaliza un turno en estado EN_CURSO, transicionándolo a estado FINALIZADO.
      *
      * @param id {@code UUID} identificador del turno
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code FinishTurnoResponse} el turno finalizado
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está
      *         en estado EN_CURSO
      */
     @Transactional
-    public FinishTurnoResponse finishTurno(UUID id) {
+    public FinishTurnoResponse finishTurno(UUID id, UsuarioDetails usuarioDetails) {
 
         log.info("Finalización de turno iniciada: turnoId={}", id);
 
         var turnoExistente = turnoDomainService.findTurnoById(id);
+
+        //Validar que el médico del turno pertenece al usuario autenticado (si es médico)
+        alcanceMedicoService.validateMedicoPropietario(usuarioDetails, turnoExistente.getMedico().getId());
         historicoEstadoTurnoDomainService.transitionEnCursoToFinalizadoTurno(turnoExistente);
 
         return turnoMapper.toFinishResponse(turnoExistente, EstadoTurno.FINALIZADO);

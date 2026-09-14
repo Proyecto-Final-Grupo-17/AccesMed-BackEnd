@@ -3,12 +3,15 @@ package com.accesmed.backend.Services.QueryServices;
 import com.accesmed.backend.Domain.Auditable_;
 import com.accesmed.backend.Domain.Paciente;
 import com.accesmed.backend.Domain.Paciente_;
+import com.accesmed.backend.Domain.Turno;
 import com.accesmed.backend.Records.Paciente.Criteria.PacienteCriteria;
 import com.accesmed.backend.Records.Paciente.Response.GetObraSocialAnidadaResponse;
 import com.accesmed.backend.Records.Paciente.Response.GetPacienteResponse;
 import com.accesmed.backend.Records.Paciente.Response.ListPacienteResponse;
 import com.accesmed.backend.Repositories.ObraSocialPacienteRepository;
 import com.accesmed.backend.Repositories.PacienteRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.ObraSocialPacienteMapper;
 import com.accesmed.backend.Services.Mappers.PacienteMapper;
@@ -24,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Consultas de lectura para la entidad {@code Paciente}, incluido el filtrado dinámico
@@ -44,6 +48,7 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
     private final PacienteMapper pacienteMapper;
     private final ObraSocialPacienteRepository obraSocialPacienteRepository;
     private final ObraSocialPacienteMapper obraSocialPacienteMapper;
+    private final AlcanceMedicoService alcanceMedicoService;
 
     //endregion
 
@@ -61,18 +66,20 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
      * proporcionado (típicamente un criteria armado con igualdad por {@code id}),
      * junto con sus coberturas de obra social anidadas. A diferencia de
      * {@link #findPacientes}, devuelve un único paciente mapeado (no paginado).
+     * Si quien consulta es médico, solo puede ver pacientes con los que tiene turnos.
      *
      * @param criteria {@code PacienteCriteria} filtros a aplicar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code GetPacienteResponse} el paciente encontrado, mapeado y con coberturas
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ningún
      *         paciente activo cumple el criteria
      */
-    public GetPacienteResponse findPacienteByCriteria(PacienteCriteria criteria) {
+    public GetPacienteResponse findPacienteByCriteria(PacienteCriteria criteria, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando paciente por criteria: {}", criteria);
 
-        //Buscar el paciente por el criteria proporcionado
-        Paciente pacienteExistente = findOneByCriteria(criteria)
+        //Buscar el paciente por el criteria proporcionado, aplicando scope si es médico
+        Paciente pacienteExistente = findOneByCriteria(criteria, usuarioDetails)
                 .orElseThrow(() -> {
                     log.warn("No se encontró ningún paciente activo que cumpla el criteria: {}", criteria);
                     return new RecursoNoEncontradoException(getClass(), "PACIENTE_NO_ENCONTRADO",
@@ -92,19 +99,21 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
     /**
      * Lista pacientes activos según el criteria de filtrado dinámico proporcionado,
      * sin incluir coberturas anidadas en el listado (se obtienen bajo demanda para un
-     * paciente puntual con {@link #findPacienteByCriteria}).
+     * paciente puntual con {@link #findPacienteByCriteria}). Si quien consulta es médico,
+     * solo puede ver pacientes con los que tiene turnos.
      *
      * @param criteria {@code PacienteCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListPacienteResponse>} página de pacientes que cumplen el criteria,
      *         mapeados sin coberturas anidadas
      */
-    public PageResponse<ListPacienteResponse> findPacientes(PacienteCriteria criteria, Pageable pageable) {
+    public PageResponse<ListPacienteResponse> findPacientes(PacienteCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
 
         log.debug("Listado de pacientes iniciado: criteria={}, page={}", criteria, pageable);
 
-        //Buscar pacientes que cumplen el criteria, paginados
-        Page<Paciente> pacientesPagina = findByCriteria(criteria, pageable);
+        //Buscar pacientes que cumplen el criteria, paginados, aplicando scope si es médico
+        Page<Paciente> pacientesPagina = findByCriteria(criteria, pageable, usuarioDetails);
 
         //Mapear y devolver response
         PageResponse<ListPacienteResponse> pageResponse = PageResponse.from(pacientesPagina, pacienteMapper::toListResponse);
@@ -158,6 +167,73 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
         }
 
         return specification;
+
+    }
+
+    /**
+     * Busca un único paciente aplicando scope: si quien consulta es médico, solo devuelve
+     * pacientes con los que tiene turnos (via EXISTS sobre Turno).
+     *
+     * @param criteria {@code PacienteCriteria} filtros a aplicar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
+     * @return Optional del paciente encontrado
+     */
+    private java.util.Optional<Paciente> findOneByCriteria(PacienteCriteria criteria, UsuarioDetails usuarioDetails) {
+
+        log.debug("Buscando un paciente por criteria con scope: criteria={}", criteria);
+
+        Specification<Paciente> specification = createSpecification(criteria);
+        UUID medicoIdEfectivo = alcanceMedicoService.resolveMedicoId(usuarioDetails, null);
+
+        if (medicoIdEfectivo != null) {
+            UUID medicoIdFinal = medicoIdEfectivo;
+            specification = specification.and((root, query, cb) -> {
+                jakarta.persistence.criteria.Subquery<Long> subquery = query.subquery(Long.class);
+                jakarta.persistence.criteria.Root<Turno> turnoRoot = subquery.from(Turno.class);
+                subquery.select(cb.literal(1L));
+                subquery.where(
+                        cb.equal(turnoRoot.get("paciente"), root),
+                        cb.equal(turnoRoot.get("medico").get("id"), medicoIdFinal)
+                );
+                return cb.exists(subquery);
+            });
+        }
+
+        return getRepository().findOne(specification);
+
+    }
+
+    /**
+     * Lista pacientes aplicando scope: si quien consulta es médico, solo devuelve
+     * pacientes con los que tiene turnos (via EXISTS sobre Turno).
+     *
+     * @param criteria {@code PacienteCriteria} filtros a aplicar
+     * @param pageable {@code Pageable} paginación
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
+     * @return Page de pacientes encontrados
+     */
+    private Page<Paciente> findByCriteria(PacienteCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
+
+        log.debug("Buscando pacientes por criteria con scope: criteria={}, pageable={}", criteria, pageable);
+
+        Specification<Paciente> specification = createSpecification(criteria);
+        UUID medicoIdEfectivo = alcanceMedicoService.resolveMedicoId(usuarioDetails, null);
+
+        if (medicoIdEfectivo != null) {
+            UUID medicoIdFinal = medicoIdEfectivo;
+            specification = specification.and((root, query, cb) -> {
+                jakarta.persistence.criteria.Subquery<Long> subquery = query.subquery(Long.class);
+                jakarta.persistence.criteria.Root<Turno> turnoRoot = subquery.from(Turno.class);
+                subquery.select(cb.literal(1L));
+                subquery.where(
+                        cb.equal(turnoRoot.get("paciente"), root),
+                        cb.equal(turnoRoot.get("medico").get("id"), medicoIdFinal)
+                );
+                return cb.exists(subquery);
+            });
+        }
+
+        return getRepository().findAll(specification, pageable);
 
     }
 
