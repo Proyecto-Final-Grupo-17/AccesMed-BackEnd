@@ -25,6 +25,8 @@ import com.accesmed.backend.Services.DomainServices.PacienteDomainService;
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
 import com.accesmed.backend.Services.Utils.FabricaEstrategiaCalcularMontoAPagarTurno;
 import com.accesmed.backend.Services.Mappers.TurnoMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,6 +86,10 @@ class TurnoAppTest {
     private TurnoMapper turnoMapper;
     @Mock
     private ApplicationEventPublisher applicationEventPublisher;
+    @Mock
+    private AlcanceMedicoService alcanceMedicoService;
+    @Mock
+    private UsuarioDetails usuarioDetails;
 
     @InjectMocks
     private TurnoApp turnoApp;
@@ -174,7 +180,7 @@ class TurnoAppTest {
                         EstadoTurno.EN_SALA_DE_ESPERA
                 ));
 
-        StartSalaDeEsperaTurnoResponse respuesta = turnoApp.startSalaDeEsperaTurno(turnoId);
+        StartSalaDeEsperaTurnoResponse respuesta = turnoApp.startSalaDeEsperaTurno(turnoId, usuarioDetails);
 
         assertNotNull(respuesta);
         assertEquals(EstadoTurno.EN_SALA_DE_ESPERA, respuesta.estadoActual());
@@ -205,7 +211,7 @@ class TurnoAppTest {
                         EstadoTurno.EN_CURSO
                 ));
 
-        StartAtencionTurnoResponse respuesta = turnoApp.startAtencionTurno(turnoId);
+        StartAtencionTurnoResponse respuesta = turnoApp.startAtencionTurno(turnoId, usuarioDetails);
 
         assertNotNull(respuesta);
         assertEquals(EstadoTurno.EN_CURSO, respuesta.estadoActual());
@@ -236,7 +242,7 @@ class TurnoAppTest {
                         EstadoTurno.FINALIZADO
                 ));
 
-        FinishTurnoResponse respuesta = turnoApp.finishTurno(turnoId);
+        FinishTurnoResponse respuesta = turnoApp.finishTurno(turnoId, usuarioDetails);
 
         assertNotNull(respuesta);
         assertEquals(EstadoTurno.FINALIZADO, respuesta.estadoActual());

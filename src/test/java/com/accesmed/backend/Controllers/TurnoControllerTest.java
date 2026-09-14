@@ -6,6 +6,7 @@ import com.accesmed.backend.Records.Turno.Response.FinishTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.StartAtencionTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.StartSalaDeEsperaTurnoResponse;
 import com.accesmed.backend.Application.TurnoApp;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.QueryServices.TurnoQueryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +35,9 @@ class TurnoControllerTest {
 
     @Mock
     private TurnoQueryService turnoQueryService;
+
+    @Mock
+    private UsuarioDetails usuarioDetails;
 
     @InjectMocks
     private TurnoController turnoController;
@@ -89,13 +93,13 @@ class TurnoControllerTest {
                 EstadoTurno.EN_SALA_DE_ESPERA
         );
 
-        when(turnoApp.startSalaDeEsperaTurno(any(UUID.class))).thenReturn(respuestaEsperada);
+        when(turnoApp.startSalaDeEsperaTurno(any(UUID.class), any(UsuarioDetails.class))).thenReturn(respuestaEsperada);
 
-        var respuesta = turnoController.startSalaDeEsperaTurno(turnoId);
+        var respuesta = turnoController.startSalaDeEsperaTurno(turnoId, usuarioDetails);
 
         assertNotNull(respuesta);
         assertNotNull(respuesta.getBody());
-        verify(turnoApp).startSalaDeEsperaTurno(turnoId);
+        verify(turnoApp).startSalaDeEsperaTurno(turnoId, usuarioDetails);
     }
 
     @Test
@@ -119,13 +123,13 @@ class TurnoControllerTest {
                 EstadoTurno.EN_CURSO
         );
 
-        when(turnoApp.startAtencionTurno(any(UUID.class))).thenReturn(respuestaEsperada);
+        when(turnoApp.startAtencionTurno(any(UUID.class), any(UsuarioDetails.class))).thenReturn(respuestaEsperada);
 
-        var respuesta = turnoController.startAtencionTurno(turnoId);
+        var respuesta = turnoController.startAtencionTurno(turnoId, usuarioDetails);
 
         assertNotNull(respuesta);
         assertNotNull(respuesta.getBody());
-        verify(turnoApp).startAtencionTurno(turnoId);
+        verify(turnoApp).startAtencionTurno(turnoId, usuarioDetails);
     }
 
     @Test
@@ -149,13 +153,13 @@ class TurnoControllerTest {
                 EstadoTurno.FINALIZADO
         );
 
-        when(turnoApp.finishTurno(any(UUID.class))).thenReturn(respuestaEsperada);
+        when(turnoApp.finishTurno(any(UUID.class), any(UsuarioDetails.class))).thenReturn(respuestaEsperada);
 
-        var respuesta = turnoController.finishTurno(turnoId);
+        var respuesta = turnoController.finishTurno(turnoId, usuarioDetails);
 
         assertNotNull(respuesta);
         assertNotNull(respuesta.getBody());
-        verify(turnoApp).finishTurno(turnoId);
+        verify(turnoApp).finishTurno(turnoId, usuarioDetails);
     }
 
 }
