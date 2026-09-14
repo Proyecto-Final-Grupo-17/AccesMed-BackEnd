@@ -1,6 +1,12 @@
 # Plan — Login / Seguridad (JWT, roles dinámicos, permisos) — AccesMed
 
-## ESTADO ACTUAL (última actualización: corte de sesión)
+## ESTADO ACTUAL: 🎉 PLAN TERMINADO Y VERIFICADO DE PUNTA A PUNTA (2026-09-14)
+
+Las 12 fases (0 a 11) están implementadas, documentadas, testeadas y **probadas contra la
+app real** con Docker disponible — login, 401, 403, permisos y auditoría confirmados con
+`curl`, y los dos `@SpringBootTest` (`AccesMedApplicationTests`, `AuthControllerTest`)
+corren en verde. Dos bugs reales que solo un run real podía sacar a la luz quedaron
+corregidos (ver "Verificación end-to-end" más abajo). No queda nada pendiente de este plan.
 
 ✅ **Completadas: Fase 0 a 11 — el plan de implementación está terminado.** Fase 0-8 (JWT,
 roles dinámicos, permisos, retrofit de Medico y de los 13 controllers restantes), 9
@@ -34,28 +40,15 @@ arregló deuda de la Fase 8: `TurnoAppTest`/`TurnoControllerTest` no se habían 
 cuando `TurnoApp.startSalaDeEsperaTurno`/`startAtencionTurno`/`finishTurno` empezaron a
 pedir `UsuarioDetails`, y rompían `./mvnw test-compile`.
 
-`./mvnw.cmd compile` y `./mvnw.cmd test-compile` verdes. `./mvnw.cmd test` verde para todo
-lo que no depende de Docker (confirmado, exit 0); `AccesMedApplicationTests` y
-`AuthControllerTest` (los dos únicos `@SpringBootTest`) necesitan Docker corriendo para
-levantar la Postgres de Testcontainers — no se pudieron ejecutar en esta sesión por eso,
-sin relación con el código.
+`./mvnw.cmd compile`, `./mvnw.cmd test-compile` y `./mvnw.cmd test` (suite completa, los
+dos `@SpringBootTest` incluidos) verdes con Docker disponible. Ver "Verificación
+end-to-end" más abajo para el detalle de qué se probó contra la app real y los dos bugs
+que aparecieron recién ahí (ya corregidos).
 
-**Antes de dar el login por probado de punta a punta** (nada de esto es código pendiente,
-es infraestructura/datos que solo se puede hacer con Docker disponible):
-- Correr Liquibase contra una base real: recrear la base de dev (`docker compose -f
-  docker/dev/docker-compose.yml down -v && up -d`) y confirmar que las migraciones corren
-  limpias — nunca se hizo contra una base real en ninguna sesión.
-- Sembrar el primer `Usuario` SuperAdmin — resuelto con `Scripts/seed-superadmin.sql`
-  (mail `proyectofinalgrupo17@gmail.com`, password `accesmed2026`, hasheada con
-  pgcrypto/bcrypt directo en el INSERT, sin pasar por la app). Falta correrlo contra la
-  base de dev (`psql "postgresql://accesmed:accesmed@localhost:5432/accesmed" -f
-  Scripts/seed-superadmin.sql`, después de que Liquibase haya migrado). A partir de ahí,
-  cualquier `Admin`/`Medico` adicional se crea desde la app (`POST /Admin/Admin` con
-  `USER_ALTA`, o `POST /Medico/Medico` con `crearUsuario: true`).
-- Correr `AuthControllerTest`/`AccesMedApplicationTests` con Docker disponible, para
-  confirmar en verde lo que en esta sesión solo se pudo verificar por compilación.
-- Probar el flujo end-to-end a mano (login real contra Swagger, un 403, un scope de
-  médico) — ver la sección "Verificación end-to-end" más abajo, sigue vigente.
+**Bootstrap ya resuelto**: `Scripts/seed-superadmin.sql` (mail
+`proyectofinalgrupo17@gmail.com`, password `accesmed2026`) corrido contra la base de dev.
+A partir de acá, cualquier `Admin`/`Medico` adicional se crea desde la app
+(`POST /Admin/Admin` con `USER_ALTA`, o `POST /Medico/Medico` con `crearUsuario: true`).
 
 ---
 
@@ -381,13 +374,45 @@ como referencia de estilo de test existente).
 
 ## Verificación end-to-end
 
+✅ **Hecha (2026-09-14, con Docker disponible por primera vez en el proyecto).** Se
+recreó la base de dev, Liquibase corrió limpio (30 changesets), se corrió
+`Scripts/seed-superadmin.sql` y se probó contra la app real (`./mvnw spring-boot:run`,
+perfil `dev`) con `curl`:
+
+- Login real (`POST /Auth/Login`) → 200 con `accessToken`/`refreshToken`.
+- Login con contraseña incorrecta → 401 `CREDENCIALES_INVALIDAS`.
+- Endpoint protegido sin token (`GET /Rol/Rol`) → 401 `NO_AUTENTICADO`.
+- Endpoint protegido con token y permiso → 200, con los 3 roles de sistema, su catálogo
+  completo de permisos y el bloque `auditoria` poblado (confirma Fase 9 en vivo).
+- `AuthControllerTest`/`AccesMedApplicationTests` corridos con Docker disponible: verdes
+  (antes solo se habían verificado por compilación). Toda la suite de tests (`./mvnw test`)
+  verde, exit 0.
+- 403 sin permiso: cubierto por `AuthControllerTest.endpointProtegido_autenticadoSinElPermiso_403AccesoDenegado`,
+  que ahora corre en verde contra la base real.
+- Scope de médico: verificado a nivel unitario (`AlcanceMedicoServiceTest`, ya en verde
+  desde la Fase 11); no se armó un segundo usuario médico a mano para probarlo por curl —
+  si hace falta confirmarlo contra la app real, asignar el rol `Medico` a un `Usuario`
+  vinculado a alguno de los médicos de `Scripts/seed-datos-demo.sql` y repetir el flujo.
+- Confirmado que `/accesmed-api/**` ya no es `permitAll()` salvo las rutas de `Auth`
+  explícitamente listadas — los 401/403 de arriba lo demuestran en la práctica.
+
+**Dos bugs reales aparecieron recién al probar contra la app de verdad** (ningún test
+mockeado los detectaba — exactamente el tipo de cosa que esta verificación existe para
+atrapar), ya corregidos (ver commit `33d1886`):
+1. Spring Boot 4.1 cambió el `ObjectMapper` por defecto a Jackson 3
+   (`tools.jackson.databind`, no `com.fasterxml.jackson.databind`) — `JwtAuthenticationEntryPoint`
+   (agregado en la Fase 10) importaba el tipo viejo y la app no levantaba. Mismo error en
+   `AuthControllerTest`.
+2. `UsuarioDetailsService.loadUserByUsername` no era `@Transactional`: `UsuarioRol.rol` es
+   `LAZY` y no hay OSIV (`open-in-view: false`), así que **todo** request autenticado con
+   JWT fallaba en silencio (`LazyInitializationException` atrapada y logueada en `debug`,
+   invisible con el logging por default) y quedaba como 401 `NO_AUTENTICADO` aunque el
+   token fuera válido — no era un caso borde, era el 100% de los requests protegidos.
+
+Pasos originales de esta sección (referencia, ya ejecutados arriba):
 1. `./mvnw compile` tras cada fase.
-2. Recrear la base de dev (`docker compose -f docker/dev/docker-compose.yml down -v && up -d`)
-   después de la Fase 0, para que Liquibase corra limpio con el changelog editado.
+2. Recrear la base de dev (`docker compose -f docker/dev/docker-compose.yml down -v && up -d`).
 3. Swagger (`/swagger-ui.html`) debe mostrar los endpoints nuevos de `Auth`/`Usuario`/`Rol`/`Admin`.
-4. Probar manualmente con los 3 roles de sistema ya sembrados (`Medico`, `Admin`,
-   `SuperAdmin` — necesita al menos un `Usuario` de cada uno, sembrado a mano en dev para
-   poder loguearse la primera vez): login, un endpoint 200 con permiso, un endpoint 403 sin
-   permiso, un endpoint scoped (médico viendo solo sus turnos).
-5. Confirmar que `/accesmed-api/**` ya NO es `permitAll()` salvo las rutas de `Auth`
-   explícitamente listadas.
+4. Probar manualmente con los roles de sistema sembrados: login, 200 con permiso, 403 sin
+   permiso, scoped por médico.
+5. Confirmar que `/accesmed-api/**` ya no es `permitAll()` salvo `Auth`.
