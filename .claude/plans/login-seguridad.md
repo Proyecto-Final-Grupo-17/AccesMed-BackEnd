@@ -2,20 +2,58 @@
 
 ## ESTADO ACTUAL (última actualización: corte de sesión)
 
-✅ **Completadas: Fase 0, 1, 2, 3, 4, 5, 6 (6a UsuarioApp/Controller + 6b RolApp/RolController + AdminApp/AdminController), 7 (retrofit Medico), 8 (@PreAuthorize + scoping en los 13 controllers restantes: Clinica, Especialidad, Prestacion, TipoIndicacionPrestacion, IndicacionPrestacion, ObraSocial, Plan, ObraSocialPrestacion, MedicoPrestacion, ObraSocialPaciente, AgendaMedico, Paciente, Turno), 9 (retrofit de auditoría en las 15 entidades con QueryService: `AuditoriaResponse` compartido + `AutorizacionService.hasAuthority(...)` + `toAuditoria` en cada Mapper + filtro `createdBy` condicional en cada Criteria/QueryService + `@AuthenticationPrincipal UsuarioDetails` en los Controllers de lectura).**
+✅ **Completadas: Fase 0 a 11 — el plan de implementación está terminado.** Fase 0-8 (JWT,
+roles dinámicos, permisos, retrofit de Medico y de los 13 controllers restantes), 9
+(retrofit de auditoría en las 15 entidades con QueryService), 10 (documentación: ver
+detalle abajo), 11 (tests: ver detalle abajo).
 
-`./mvnw.cmd compile` verde tras la Fase 9. `./mvnw.cmd test-compile` falla, pero por deuda preexistente de la Fase 8 (no tocada en esta sesión): `TurnoAppTest`/`TurnoControllerTest` no se actualizaron cuando `TurnoApp.startSalaDeEsperaTurno`/`startAtencionTurno`/`finishTurno` pidieron `UsuarioDetails` — queda para la Fase 11.
+**Fase 9** — `AuditoriaResponse` compartido + `AutorizacionService.hasAuthority(...)` +
+`toAuditoria` en cada Mapper + filtro `createdBy` condicional en cada Criteria/QueryService
++ `@AuthenticationPrincipal UsuarioDetails` en los Controllers de lectura, en las 15
+entidades con QueryService.
 
-Todo compiló verde en cada fase (`mvnw.cmd compile -q`, JDK 25). Se verificaron a mano los archivos donde corrieron agentes en paralelo sobre el mismo archivo (`AgendaMedicoQueryService.java`, `TurnoQueryService.java`) — sin corrupción, quedaron consistentes.
+**Fase 10** — `Docs/ARQUITECTURA.md` actualizado (árbol de `Security/` reescrito a la
+implementación real: `Usuario`/`Rol`/`UsuarioRol`/`Admin`/`Permiso` en el núcleo,
+`Application/Ports/`, `Security/Services/Utils/`; tabla de decisiones y prosa de "Security
+como slice vertical" reescritas). `Docs/Features/Autenticacion.md` y `RolesYPermisos.md`
+nuevos, con ejemplo por rol. `Docs/Features/Medico.md` actualizado (`crearUsuario`, cascada
+de baja). `Docs/FRONTEND-GUIA.md` §5 reescrita (401 vs 403, refresh, logout, activación/
+recuperación). Documentar reveló dos bugs reales, ya corregidos: `RolController` exigía
+`AUTZ_ROL_CONSULTAR`, permiso que no existía en el catálogo (nadie podía consultar roles) —
+agregado al enum y al seed de SuperAdmin; no había `AuthenticationEntryPoint` propio, así
+que un token ausente/inválido/vencido caía en el 403 sin cuerpo de Spring Security en vez
+de un `AccesMedError` — agregado `JwtAuthenticationEntryPoint` (401, `NO_AUTENTICADO`).
 
-⏳ **Pendiente, en este orden:**
-- **Fase 10** — Documentación: actualizar `Docs/ARQUITECTURA.md` (el árbol de `Security/` quedó desactualizado — todavía dice que `Usuario`/`Rol`/`UsuarioRol`/`Permiso` están en `Security/Domain/`, cuando en la implementación real quedaron en el núcleo; falta documentar `Application/Ports/`, `Security/Services/Utils/`, y las nuevas filas de decisión). `Docs/Features/Autenticacion.md` y `RolesYPermisos.md` (con ejemplo por rol) nuevos. Actualizar `Docs/Features/Medico.md`. Extender `Docs/FRONTEND-GUIA.md` con la sección de autenticación.
-- **Fase 11** — Tests (unit de `AuthApp`/`UsuarioApp`/`AlcanceMedicoService`/`AutorizacionService`, integración de `AuthController`).
+**Fase 11** — Unit: `AuthAppTest`, `UsuarioAppTest`, `AlcanceMedicoServiceTest`,
+`AutorizacionServiceTest` (22 tests, todos verdes). Integración: `AuthControllerTest`
+(MockMvc + Testcontainers, contexto real) — login válido/inválido, refresh, endpoint
+protegido con 401/403. Compila y el único fallo al intentar correrlo es "Could not find a
+valid Docker environment" (Docker no está disponible en este entorno de sesión) — mismo
+requisito preexistente que ya tenía `AccesMedApplicationTests`, no es nuevo. De paso se
+arregló deuda de la Fase 8: `TurnoAppTest`/`TurnoControllerTest` no se habían actualizado
+cuando `TurnoApp.startSalaDeEsperaTurno`/`startAtencionTurno`/`finishTurno` empezaron a
+pedir `UsuarioDetails`, y rompían `./mvnw test-compile`.
 
-**Antes de retomar**, además:
-- No se corrió Liquibase todavía contra una base real — falta recrear la base de dev (`docker compose -f docker/dev/docker-compose.yml down -v && up -d`) y confirmar que las migraciones corren limpias.
-- No se sembró ningún `Usuario` de prueba para los 3 roles de sistema — hace falta para poder loguearse la primera vez (no hay ningún `Medico`/`Admin` con usuario todavía, y `AdminController.createAdmin` requiere `USER_ALTA`, que nadie tiene sin loguearse antes — problema del huevo y la gallina a resolver a mano la primera vez, insertando un `Usuario`+`UsuarioRol` para el `SuperAdmin` sembrado directo por SQL en dev).
-- No se probó el flujo end-to-end todavía (login real, un 403, un scope de médico).
+`./mvnw.cmd compile` y `./mvnw.cmd test-compile` verdes. `./mvnw.cmd test` verde para todo
+lo que no depende de Docker (confirmado, exit 0); `AccesMedApplicationTests` y
+`AuthControllerTest` (los dos únicos `@SpringBootTest`) necesitan Docker corriendo para
+levantar la Postgres de Testcontainers — no se pudieron ejecutar en esta sesión por eso,
+sin relación con el código.
+
+**Antes de dar el login por probado de punta a punta** (nada de esto es código pendiente,
+es infraestructura/datos que solo se puede hacer con Docker disponible):
+- Correr Liquibase contra una base real: recrear la base de dev (`docker compose -f
+  docker/dev/docker-compose.yml down -v && up -d`) y confirmar que las migraciones corren
+  limpias — nunca se hizo contra una base real en ninguna sesión.
+- Sembrar un `Usuario` de prueba para los 3 roles de sistema — hace falta para poder
+  loguearse la primera vez (no hay ningún `Medico`/`Admin` con usuario todavía, y
+  `AdminController.createAdmin` requiere `USER_ALTA`, que nadie tiene sin loguearse antes —
+  problema del huevo y la gallina a resolver a mano la primera vez, insertando un
+  `Usuario`+`UsuarioRol` para el `SuperAdmin` sembrado directo por SQL en dev).
+- Correr `AuthControllerTest`/`AccesMedApplicationTests` con Docker disponible, para
+  confirmar en verde lo que en esta sesión solo se pudo verificar por compilación.
+- Probar el flujo end-to-end a mano (login real contra Swagger, un 403, un scope de
+  médico) — ver la sección "Verificación end-to-end" más abajo, sigue vigente.
 
 ---
 
