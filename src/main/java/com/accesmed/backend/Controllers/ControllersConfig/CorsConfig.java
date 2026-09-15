@@ -39,7 +39,8 @@ public class CorsConfig {
 
     /**
      * Define los orígenes, métodos y headers permitidos para llamar a
-     * {@code /accesmed-api/**}. La usa {@link com.accesmed.backend.Config.SecurityConfig}
+     * {@code /accesmed-api/**}. La usa
+     * {@link com.accesmed.backend.Security.Config.SecurityFilterChainConfig}
      * al construir la cadena de filtros.
      *
      * @return {@code CorsConfigurationSource} la configuración CORS aplicada a la API

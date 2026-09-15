@@ -269,7 +269,7 @@ accesmed-backend/
     ├── main/
     │   ├── java/com/accesmed/backend/
     │   │   ├── AccesMedApplication.java
-    │   │   ├── Config/         (transversal: SecurityConfig, JpaAuditingConfig)
+    │   │   ├── Config/         (transversal de infraestructura, sin seguridad: JpaAuditingConfig, SchedulingConfig)
     │   │   ├── Controllers/    (+ Errors/: GlobalExceptionHandler, AccesMedError
     │   │   │                    + ControllersConfig/: OpenApiConfig, CORS, interceptores)
     │   │   ├── Application/    (<Entidad>App)
@@ -277,7 +277,7 @@ accesmed-backend/
     │   │   ├── Services/{DomainServices,QueryServices,Mappers,Errors,Utils}/
     │   │   ├── Repositories/
     │   │   ├── Records/<Entidad>/{Request,Response}/
-    │   │   ├── Security/       (slice vertical de auth, mismo patrón)
+    │   │   ├── Security/       (slice vertical de auth, mismo patrón; Config/SecurityFilterChainConfig.java arma el filter chain)
     │   │   └── Agente/         (entrada del agente; reutiliza el núcleo)
     │   └── resources/
     └── test/
