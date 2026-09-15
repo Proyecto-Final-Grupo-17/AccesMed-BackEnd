@@ -15,6 +15,7 @@ import com.accesmed.backend.Records.Turno.Response.ReprogramTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.StartAtencionTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.StartSalaDeEsperaTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.ValidateTurnoResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import com.accesmed.backend.Services.QueryServices.TurnoQueryService;
@@ -24,6 +25,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -66,6 +69,7 @@ public class TurnoController {
      * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si alguna regla de
      *         negocio es incumplida (409 via handler)
      */
+    @PreAuthorize("hasAuthority('TURN_REGISTRAR')")
     @PostMapping("/Turno")
     public ResponseEntity<CreateTurnoResponse> createTurno(
             @Valid @RequestBody CreateTurnoRequest createTurnoRequest) {
@@ -84,15 +88,18 @@ public class TurnoController {
      *
      * @param id {@code UUID} identificador del turno a reprogramar (validado contra el request)
      * @param reprogramTurnoRequest {@code ReprogramTurnoRequest} nuevo slot y id del turno
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada (inyectado por Spring Security)
      * @return {@code ResponseEntity<ReprogramTurnoResponse>} el turno nuevo con status 200
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno o slot no existen
      * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el plazo venció o hay otra regla incumplida
      */
+    @PreAuthorize("hasAuthority('TURN_REPROGRAMAR')")
     @PatchMapping("/Turno/{id}/Reprogramacion")
     public ResponseEntity<ReprogramTurnoResponse> reprogramTurno(
             @PathVariable UUID id,
-            @Valid @RequestBody ReprogramTurnoRequest reprogramTurnoRequest) {
+            @Valid @RequestBody ReprogramTurnoRequest reprogramTurnoRequest,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: reprogramar turno id={}", id);
 
@@ -103,7 +110,7 @@ public class TurnoController {
                     java.util.List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
-        ReprogramTurnoResponse reprogramTurnoResponse = turnoApp.reprogramTurno(reprogramTurnoRequest);
+        ReprogramTurnoResponse reprogramTurnoResponse = turnoApp.reprogramTurno(reprogramTurnoRequest, usuarioDetails);
 
         return ResponseEntity.ok(reprogramTurnoResponse);
 
@@ -114,17 +121,21 @@ public class TurnoController {
      * Nota: Este endpoint usa DELETE pero no borra el registro (baja lógica de estado).
      *
      * @param id {@code UUID} identificador del turno a cancelar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada (inyectado por Spring Security)
      * @return {@code ResponseEntity<Void>} sin contenido con status 204
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
      * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el turno está en estado final
      */
+    @PreAuthorize("hasAuthority('TURN_CANCELAR')")
     @DeleteMapping("/Turno/{id}")
-    public ResponseEntity<Void> cancelTurno(@PathVariable UUID id) {
+    public ResponseEntity<Void> cancelTurno(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: cancelar turno id={}", id);
 
         var cancelTurnoRequest = new CancelTurnoRequest(id, null);
-        turnoApp.cancelTurno(cancelTurnoRequest);
+        turnoApp.cancelTurno(cancelTurnoRequest, usuarioDetails);
 
         return ResponseEntity.noContent().build();
 
@@ -140,6 +151,7 @@ public class TurnoController {
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
      * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el turno no está en ESPERA_VALIDACION
      */
+    @PreAuthorize("hasAuthority('TURN_VALIDAR')")
     @PatchMapping("/Turno/{id}/Validacion")
     public ResponseEntity<ValidateTurnoResponse> validateTurno(
             @PathVariable UUID id,
@@ -168,6 +180,7 @@ public class TurnoController {
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
      * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el turno no está en PENDIENTE
      */
+    @PreAuthorize("hasAuthority('TURN_CONFIRMAR')")
     @PatchMapping("/Turno/{id}/Confirmacion")
     public ResponseEntity<ConfirmTurnoResponse> confirmTurno(@PathVariable UUID id) {
 
@@ -182,16 +195,20 @@ public class TurnoController {
      * a estado EN_SALA_DE_ESPERA.
      *
      * @param id {@code UUID} identificador del turno
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada (inyectado por Spring Security)
      * @return {@code ResponseEntity<StartSalaDeEsperaTurnoResponse>} el turno en sala de espera con status 200
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
      * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el turno no está en CONFIRMADO
      */
+    @PreAuthorize("hasAuthority('TURN_ANUNCIAR')")
     @PatchMapping("/Turno/{id}/SalaDeEspera")
-    public ResponseEntity<StartSalaDeEsperaTurnoResponse> startSalaDeEsperaTurno(@PathVariable UUID id) {
+    public ResponseEntity<StartSalaDeEsperaTurnoResponse> startSalaDeEsperaTurno(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: iniciar sala de espera para turno id={}", id);
 
-        return ResponseEntity.ok(turnoApp.startSalaDeEsperaTurno(id));
+        return ResponseEntity.ok(turnoApp.startSalaDeEsperaTurno(id, usuarioDetails));
 
     }
 
@@ -200,16 +217,20 @@ public class TurnoController {
      * a estado EN_CURSO.
      *
      * @param id {@code UUID} identificador del turno
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada (inyectado por Spring Security)
      * @return {@code ResponseEntity<StartAtencionTurnoResponse>} el turno en atención con status 200
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
      * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el turno no está en EN_SALA_DE_ESPERA
      */
+    @PreAuthorize("hasAuthority('TURN_INICIAR')")
     @PatchMapping("/Turno/{id}/Atencion")
-    public ResponseEntity<StartAtencionTurnoResponse> startAtencionTurno(@PathVariable UUID id) {
+    public ResponseEntity<StartAtencionTurnoResponse> startAtencionTurno(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: iniciar atención para turno id={}", id);
 
-        return ResponseEntity.ok(turnoApp.startAtencionTurno(id));
+        return ResponseEntity.ok(turnoApp.startAtencionTurno(id, usuarioDetails));
 
     }
 
@@ -217,16 +238,20 @@ public class TurnoController {
      * Finaliza un turno en estado EN_CURSO, transicionándolo a estado FINALIZADO.
      *
      * @param id {@code UUID} identificador del turno
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada (inyectado por Spring Security)
      * @return {@code ResponseEntity<FinishTurnoResponse>} el turno finalizado con status 200
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
      * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el turno no está en EN_CURSO
      */
+    @PreAuthorize("hasAuthority('TURN_FINALIZAR')")
     @PatchMapping("/Turno/{id}/Finalizacion")
-    public ResponseEntity<FinishTurnoResponse> finishTurno(@PathVariable UUID id) {
+    public ResponseEntity<FinishTurnoResponse> finishTurno(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: finalizar turno id={}", id);
 
-        return ResponseEntity.ok(turnoApp.finishTurno(id));
+        return ResponseEntity.ok(turnoApp.finishTurno(id, usuarioDetails));
 
     }
 
@@ -235,16 +260,19 @@ public class TurnoController {
      *
      * @param criteria {@code TurnoCriteria} filtros a aplicar (todos opcionales)
      * @param pageable {@code Pageable} paginación y ordenamiento
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada (inyectado por Spring Security)
      * @return {@code ResponseEntity<PageResponse<ListTurnoResponse>>} página de turnos y status 200
      */
+    @PreAuthorize("hasAuthority('TURN_CONSULTAR')")
     @GetMapping("/Turno")
     public ResponseEntity<PageResponse<ListTurnoResponse>> listTurnos(
             TurnoCriteria criteria,
-            Pageable pageable) {
+            Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar turnos con criteria={}, pageable={}", criteria, pageable);
 
-        PageResponse<ListTurnoResponse> pageResponse = turnoQueryService.findTurnos(criteria, pageable);
+        PageResponse<ListTurnoResponse> pageResponse = turnoQueryService.findTurnos(criteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 

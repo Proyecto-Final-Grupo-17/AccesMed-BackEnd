@@ -3,6 +3,7 @@ package com.accesmed.backend.Services.Mappers;
 import com.accesmed.backend.Domain.IndicacionPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Request.UpdateIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.Prestacion.Request.CreateIndicacionPrestacionAnidadaRequest;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.UpdateIndicacionPrestacionResponse;
@@ -137,10 +138,30 @@ public interface IndicacionPrestacionMapper {
     UpdateIndicacionPrestacionResponse toUpdateResponse(IndicacionPrestacion indicacionPrestacion);
 
     /**
-     * Convierte una entidad {@code IndicacionPrestacion} a {@code GetIndicacionPrestacionResponse}.
+     * Convierte una entidad {@code IndicacionPrestacion} y sus datos de auditoría a
+     * {@code GetIndicacionPrestacionResponse}.
      *
      * @param indicacionPrestacion {@code IndicacionPrestacion} entidad
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code GetIndicacionPrestacionResponse} respuesta de obtención
+     */
+    @Mapping(target = "id", source = "indicacionPrestacion.id")
+    @Mapping(target = "nombre", source = "indicacionPrestacion.nombre")
+    @Mapping(target = "descripcion", source = "indicacionPrestacion.descripcion")
+    @Mapping(target = "requiereValidacion", source = "indicacionPrestacion.requiereValidacion")
+    @Mapping(target = "prestacionId", source = "indicacionPrestacion.prestacion.id")
+    @Mapping(target = "tipoIndicacionPrestacionId", source = "indicacionPrestacion.tipoIndicacionPrestacion.id")
+    @Mapping(target = "tipoIndicacionPrestacionNombre", source = "indicacionPrestacion.tipoIndicacionPrestacion.nombre")
+    @Mapping(target = "auditoria", source = "auditoria")
+    GetIndicacionPrestacionResponse toGetResponse(IndicacionPrestacion indicacionPrestacion, AuditoriaResponse auditoria);
+
+    /**
+     * Convierte una entidad {@code IndicacionPrestacion} a {@code GetIndicacionPrestacionResponse}
+     * sin datos de auditoría (sobrecarga para compatibilidad con embedidos).
+     *
+     * @param indicacionPrestacion {@code IndicacionPrestacion} entidad
+     * @return {@code GetIndicacionPrestacionResponse} respuesta de obtención con auditoria = null
      */
     @Mapping(target = "id", source = "id")
     @Mapping(target = "nombre", source = "nombre")
@@ -149,13 +170,33 @@ public interface IndicacionPrestacionMapper {
     @Mapping(target = "prestacionId", source = "prestacion.id")
     @Mapping(target = "tipoIndicacionPrestacionId", source = "tipoIndicacionPrestacion.id")
     @Mapping(target = "tipoIndicacionPrestacionNombre", source = "tipoIndicacionPrestacion.nombre")
+    @Mapping(target = "auditoria", ignore = true)
     GetIndicacionPrestacionResponse toGetResponse(IndicacionPrestacion indicacionPrestacion);
 
     /**
-     * Convierte una entidad {@code IndicacionPrestacion} a {@code ListIndicacionPrestacionResponse}.
+     * Convierte una entidad {@code IndicacionPrestacion} y sus datos de auditoría a
+     * {@code ListIndicacionPrestacionResponse}.
      *
      * @param indicacionPrestacion {@code IndicacionPrestacion} entidad
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code ListIndicacionPrestacionResponse} respuesta de listado
+     */
+    @Mapping(target = "id", source = "indicacionPrestacion.id")
+    @Mapping(target = "nombre", source = "indicacionPrestacion.nombre")
+    @Mapping(target = "requiereValidacion", source = "indicacionPrestacion.requiereValidacion")
+    @Mapping(target = "prestacionId", source = "indicacionPrestacion.prestacion.id")
+    @Mapping(target = "tipoIndicacionPrestacionId", source = "indicacionPrestacion.tipoIndicacionPrestacion.id")
+    @Mapping(target = "tipoIndicacionPrestacionNombre", source = "indicacionPrestacion.tipoIndicacionPrestacion.nombre")
+    @Mapping(target = "auditoria", source = "auditoria")
+    ListIndicacionPrestacionResponse toListResponse(IndicacionPrestacion indicacionPrestacion, AuditoriaResponse auditoria);
+
+    /**
+     * Convierte una entidad {@code IndicacionPrestacion} a {@code ListIndicacionPrestacionResponse}
+     * sin datos de auditoría (sobrecarga para compatibilidad con otros usos).
+     *
+     * @param indicacionPrestacion {@code IndicacionPrestacion} entidad
+     * @return {@code ListIndicacionPrestacionResponse} respuesta de listado con auditoria = null
      */
     @Mapping(target = "id", source = "id")
     @Mapping(target = "nombre", source = "nombre")
@@ -163,6 +204,7 @@ public interface IndicacionPrestacionMapper {
     @Mapping(target = "prestacionId", source = "prestacion.id")
     @Mapping(target = "tipoIndicacionPrestacionId", source = "tipoIndicacionPrestacion.id")
     @Mapping(target = "tipoIndicacionPrestacionNombre", source = "tipoIndicacionPrestacion.nombre")
+    @Mapping(target = "auditoria", ignore = true)
     ListIndicacionPrestacionResponse toListResponse(IndicacionPrestacion indicacionPrestacion);
 
     /**
@@ -180,5 +222,22 @@ public interface IndicacionPrestacionMapper {
      * @return {@code ScheduleBajaIndicacionPrestacionResponse} respuesta de la baja programada
      */
     ScheduleBajaIndicacionPrestacionResponse toScheduleBajaResponse(IndicacionPrestacion indicacionPrestacion);
+
+    /**
+     * Arma el {@code AuditoriaResponse} de una indicación de prestación. {@code IndicacionPrestacion}
+     * no tiene soft delete propio (se retira cerrando vigencia), así que {@code deletedAt}/
+     * {@code deletedBy}/{@code deletedReason} siempre viajan en {@code null}.
+     *
+     * @param indicacionPrestacion {@code IndicacionPrestacion} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría de la indicación
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", ignore = true)
+    @Mapping(target = "deletedBy", ignore = true)
+    @Mapping(target = "deletedReason", ignore = true)
+    AuditoriaResponse toAuditoria(IndicacionPrestacion indicacionPrestacion);
 
 }

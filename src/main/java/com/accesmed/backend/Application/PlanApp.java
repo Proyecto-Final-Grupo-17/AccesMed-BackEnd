@@ -99,7 +99,7 @@ public class PlanApp {
         List<GetCoberturaAnidadaResponse> coberturasResponse = asignarCoberturasAnidadas(planGuardado, addPlanRequest.coberturas());
 
         //Devolver response mapeado. Recién abierto el tramo inicial, el estado vigente es NO_PUBLICADO.
-        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planGuardado, EstadoPlan.NO_PUBLICADO, coberturasResponse);
+        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planGuardado, EstadoPlan.NO_PUBLICADO, coberturasResponse, null);
         return getPlanResponse;
 
     }
@@ -144,7 +144,7 @@ public class PlanApp {
                 obraSocialPlanPrestacionDomainService.findCoberturasActivasByPlan(id));
 
         //Devolver response mapeado
-        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planActualizado, estadoVigente, coberturasResponse);
+        GetPlanResponse getPlanResponse = planMapper.toGetResponse(planActualizado, estadoVigente, coberturasResponse, null);
         return getPlanResponse;
 
     }

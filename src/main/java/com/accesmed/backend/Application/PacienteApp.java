@@ -143,7 +143,7 @@ public class PacienteApp {
         //Devolver response mapeado, con las coberturas del paciente
         List<GetObraSocialAnidadaResponse> obrasSocialesResponse = obraSocialPacienteMapper
                 .toGetObraSocialAnidadaResponses(obraSocialPacienteDomainService.findCoberturasActivasByPaciente(id));
-        GetPacienteResponse getPacienteResponse = pacienteMapper.toGetResponse(pacienteActualizado, obrasSocialesResponse);
+        GetPacienteResponse getPacienteResponse = pacienteMapper.toGetResponse(pacienteActualizado, obrasSocialesResponse, null);
         return getPacienteResponse;
 
     }

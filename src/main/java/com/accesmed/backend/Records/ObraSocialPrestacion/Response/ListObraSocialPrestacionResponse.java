@@ -1,6 +1,7 @@
 package com.accesmed.backend.Records.ObraSocialPrestacion.Response;
 
 import com.accesmed.backend.Domain.ModalidadCobertura;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -63,7 +64,13 @@ public record ListObraSocialPrestacionResponse(
         /**
          * Coseguro fijo a cargo del paciente ({@code BigDecimal}).
          */
-        BigDecimal coseguro
+        BigDecimal coseguro,
+
+        /**
+         * Datos de auditoría ({@code AuditoriaResponse}), solo poblado si quien consulta
+         * tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario.
+         */
+        AuditoriaResponse auditoria
 
 ) {
 }

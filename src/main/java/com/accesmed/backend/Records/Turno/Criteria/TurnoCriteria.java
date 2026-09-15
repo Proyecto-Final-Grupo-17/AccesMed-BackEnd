@@ -2,6 +2,7 @@ package com.accesmed.backend.Records.Turno.Criteria;
 
 import com.accesmed.backend.Services.QueryServices.Filtering.EstadoTurnoFilter;
 import com.accesmed.backend.Services.QueryServices.Filtering.InstantFilter;
+import com.accesmed.backend.Services.QueryServices.Filtering.StringFilter;
 import com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter;
 import com.accesmed.backend.Services.QueryServices.Filtering.ZonedDateTimeFilter;
 import lombok.Getter;
@@ -31,5 +32,11 @@ public class TurnoCriteria {
     private ZonedDateTimeFilter fechaHoraInicio;
     private InstantFilter createdDate;
     private InstantFilter lastModifiedDate;
+
+    /**
+     * Filtro de auditoría — solo se honra si quien consulta tiene {@code AUDITORIA_CONSULTAR}
+     * (ver {@code TurnoQueryService}); se ignora en caso contrario.
+     */
+    private StringFilter createdBy;
 
 }

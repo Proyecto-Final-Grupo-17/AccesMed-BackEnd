@@ -2,6 +2,16 @@
 # levantar en los tests y que no están en application.yml (viven en los perfiles dev/staging/
 # prod, que los tests no activan). El datasource NO se declara acá: lo autoconfigura
 # Testcontainers vía @ServiceConnection (ver TestcontainersConfiguration).
+spring:
+  mail:
+    username: test@accesmed.local
+    password: test-password
+
 accesmed:
   cors:
     allowed-origins: http://localhost:5173
+  frontend:
+    base-url: http://localhost:5173
+  jwt:
+    secret: test-jwt-secret-solo-para-tests-no-usar-en-produccion-1234567890
+    expiration-minutes: 30

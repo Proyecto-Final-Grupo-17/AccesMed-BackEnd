@@ -1,5 +1,7 @@
 package com.accesmed.backend.Records.Especialidad.Response;
 
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
+
 import java.util.UUID;
 
 /**
@@ -20,7 +22,13 @@ public record GetEspecialidadResponse(
         /**
          * Nombre de la especialidad ({@code String}).
          */
-        String nombre
+        String nombre,
+
+        /**
+         * Datos de auditoría ({@code AuditoriaResponse}), solo poblado si quien consulta
+         * tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario.
+         */
+        AuditoriaResponse auditoria
 
 ) {
 }

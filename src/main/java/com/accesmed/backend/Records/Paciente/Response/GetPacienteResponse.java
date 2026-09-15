@@ -1,5 +1,7 @@
 package com.accesmed.backend.Records.Paciente.Response;
 
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -48,7 +50,13 @@ public record GetPacienteResponse(
         /**
          * Coberturas de obra social del paciente ({@code List<GetObraSocialAnidadaResponse>}).
          */
-        List<GetObraSocialAnidadaResponse> obrasSociales
+        List<GetObraSocialAnidadaResponse> obrasSociales,
+
+        /**
+         * Datos de auditoría ({@code AuditoriaResponse}), solo poblado si quien consulta
+         * tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario.
+         */
+        AuditoriaResponse auditoria
 
 ) {
 }

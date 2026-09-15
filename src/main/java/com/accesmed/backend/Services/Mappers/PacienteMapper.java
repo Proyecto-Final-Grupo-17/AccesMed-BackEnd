@@ -1,6 +1,7 @@
 package com.accesmed.backend.Services.Mappers;
 
 import com.accesmed.backend.Domain.Paciente;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.Paciente.Request.CreatePacienteRequest;
 import com.accesmed.backend.Records.Paciente.Request.UpdatePacienteRequest;
 import com.accesmed.backend.Records.Paciente.Response.CreatePacienteResponse;
@@ -74,17 +75,41 @@ public interface PacienteMapper {
      *
      * @param paciente {@code Paciente} entidad
      * @param obrasSociales {@code List<GetObraSocialAnidadaResponse>} coberturas ya mapeadas
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code GetPacienteResponse} respuesta de obtención
      */
-    GetPacienteResponse toGetResponse(Paciente paciente, List<GetObraSocialAnidadaResponse> obrasSociales);
+    @Mapping(target = "auditoria", source = "auditoria")
+    GetPacienteResponse toGetResponse(Paciente paciente, List<GetObraSocialAnidadaResponse> obrasSociales, AuditoriaResponse auditoria);
 
     /**
      * Convierte una entidad {@code Paciente} a {@code ListPacienteResponse}.
      *
      * @param paciente {@code Paciente} entidad
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code ListPacienteResponse} respuesta de listado
      */
-    ListPacienteResponse toListResponse(Paciente paciente);
+    @Mapping(target = "auditoria", source = "auditoria")
+    ListPacienteResponse toListResponse(Paciente paciente, AuditoriaResponse auditoria);
+
+    /**
+     * Arma el {@code AuditoriaResponse} de un paciente. {@code Paciente} tiene soft delete
+     * propio, así que se mapean todos los campos: {@code createdDate}, {@code createdBy},
+     * {@code lastModifiedDate}, {@code lastModifiedBy}, {@code deletedAt}, {@code deletedBy},
+     * {@code deletedReason}.
+     *
+     * @param paciente {@code Paciente} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría del paciente
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", source = "deletedAt")
+    @Mapping(target = "deletedBy", source = "deletedBy")
+    @Mapping(target = "deletedReason", source = "deletedReason")
+    AuditoriaResponse toAuditoria(Paciente paciente);
 
     /**
      * Convierte una entidad {@code Paciente} a {@code SoftDeletePacienteResponse}.

@@ -2,6 +2,7 @@ package com.accesmed.backend.Services.Mappers;
 
 import com.accesmed.backend.Domain.EstadoTurno;
 import com.accesmed.backend.Domain.Turno;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.Turno.Response.CancelTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.ConfirmTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.CreateTurnoResponse;
@@ -104,6 +105,8 @@ public interface TurnoMapper {
      *
      * @param turno {@code Turno} entidad
      * @param estadoActual {@code EstadoTurno} estado vigente del turno
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code ListTurnoResponse} respuesta simplificada para listados
      */
     @Mapping(target = "id", source = "turno.id")
@@ -115,7 +118,8 @@ public interface TurnoMapper {
     @Mapping(target = "montoAPagar", source = "turno.montoAPagar")
     @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura", qualifiedByName = "tipoCoberturaToString")
     @Mapping(target = "estadoActual", source = "estadoActual")
-    ListTurnoResponse toListResponse(Turno turno, EstadoTurno estadoActual);
+    @Mapping(target = "auditoria", source = "auditoria")
+    ListTurnoResponse toListResponse(Turno turno, EstadoTurno estadoActual, AuditoriaResponse auditoria);
 
     /**
      * Convierte una entidad {@code Turno} a {@code ConfirmTurnoResponse}.
@@ -188,6 +192,23 @@ public interface TurnoMapper {
     @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura", qualifiedByName = "tipoCoberturaToString")
     @Mapping(target = "estadoActual", source = "estadoActual")
     FinishTurnoResponse toFinishResponse(Turno turno, EstadoTurno estadoActual);
+
+    /**
+     * Arma el {@code AuditoriaResponse} de un turno. {@code Turno} no tiene soft delete propio
+     * (su ciclo de vida se gestiona por {@link EstadoTurno}), así que {@code deletedAt}/
+     * {@code deletedBy}/{@code deletedReason} siempre viajan en {@code null}.
+     *
+     * @param turno {@code Turno} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría del turno
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", ignore = true)
+    @Mapping(target = "deletedBy", ignore = true)
+    @Mapping(target = "deletedReason", ignore = true)
+    AuditoriaResponse toAuditoria(Turno turno);
 
     /**
      * Convierte un {@code TipoCobertura} enum a {@code String}.

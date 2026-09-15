@@ -1,5 +1,6 @@
 package com.accesmed.backend.Records.AgendaMedico.Criteria;
 
+import com.accesmed.backend.Services.QueryServices.Filtering.StringFilter;
 import com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter;
 import com.accesmed.backend.Services.QueryServices.Filtering.ZonedDateTimeFilter;
 import lombok.Getter;
@@ -35,5 +36,11 @@ public class AgendaMedicoCriteria {
      * "vigente a tal fecha" enviando el parámetro, típicamente con el valor de "ahora".
      */
     private ZonedDateTime vigenteAl;
+
+    /**
+     * Filtro de auditoría — solo se honra si quien consulta tiene {@code AUDITORIA_CONSULTAR}
+     * (ver {@code AgendaMedicoQueryService}); se ignora en caso contrario.
+     */
+    private StringFilter createdBy;
 
 }

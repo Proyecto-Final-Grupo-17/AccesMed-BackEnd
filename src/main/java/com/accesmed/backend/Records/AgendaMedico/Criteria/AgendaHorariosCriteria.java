@@ -3,6 +3,7 @@ package com.accesmed.backend.Records.AgendaMedico.Criteria;
 import com.accesmed.backend.Services.QueryServices.Filtering.BooleanFilter;
 import com.accesmed.backend.Services.QueryServices.Filtering.LocalDateFilter;
 import com.accesmed.backend.Services.QueryServices.Filtering.LocalTimeFilter;
+import com.accesmed.backend.Services.QueryServices.Filtering.StringFilter;
 import com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,5 +29,11 @@ public class AgendaHorariosCriteria {
     private LocalDateFilter fecha;
     private LocalTimeFilter horaDesde;
     private BooleanFilter estaOcupada;
+
+    /**
+     * Filtro de auditoría — solo se honra si quien consulta tiene {@code AUDITORIA_CONSULTAR}
+     * (ver {@code AgendaHorariosDiaQueryService}); se ignora en caso contrario.
+     */
+    private StringFilter createdBy;
 
 }

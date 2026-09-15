@@ -19,3 +19,5 @@ spring:
 accesmed:
   cors:
     allowed-origins: ${ACCESMED_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  frontend:
+    base-url: ${ACCESMED_FRONTEND_BASE_URL:http://localhost:5173}

@@ -1,5 +1,7 @@
 package com.accesmed.backend.Records.IndicacionPrestacion.Response;
 
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
+
 import java.util.UUID;
 
 /**
@@ -41,7 +43,13 @@ public record GetIndicacionPrestacionResponse(
         /**
          * Nombre del tipo de indicación ({@code String}).
          */
-        String tipoIndicacionPrestacionNombre
+        String tipoIndicacionPrestacionNombre,
+
+        /**
+         * Datos de auditoría ({@code AuditoriaResponse}), solo poblado si quien consulta
+         * tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario.
+         */
+        AuditoriaResponse auditoria
 
 ) {
 }

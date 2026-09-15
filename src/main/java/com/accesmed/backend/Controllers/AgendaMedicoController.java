@@ -13,6 +13,7 @@ import com.accesmed.backend.Records.AgendaMedico.Response.ListAgendaMedicoRespon
 import com.accesmed.backend.Records.AgendaMedico.Response.ListHorarioDisponibleResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.UpdateAgendaMedicoResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.UpdateVigenciaAgendaMedicoResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.AgendaHorariosDiaQueryService;
 import com.accesmed.backend.Services.QueryServices.AgendaMedicoQueryService;
@@ -23,6 +24,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -60,15 +63,18 @@ public class AgendaMedicoController {
      * Crea un período de agenda nuevo a partir de un patrón semanal o de días sueltos.
      *
      * @param createAgendaMedicoRequest {@code CreateAgendaMedicoRequest} datos del período y del patrón
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<CreateAgendaMedicoResponse>} la agenda creada (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('AGEN_CONFIGURAR')")
     @PostMapping("/Agenda")
     public ResponseEntity<CreateAgendaMedicoResponse> createAgendaMedico(
-            @Valid @RequestBody CreateAgendaMedicoRequest createAgendaMedicoRequest) {
+            @Valid @RequestBody CreateAgendaMedicoRequest createAgendaMedicoRequest,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: crear agenda médica, médico={}", createAgendaMedicoRequest.medicoId());
 
-        CreateAgendaMedicoResponse createAgendaMedicoResponse = agendaMedicoApp.createAgendaMedico(createAgendaMedicoRequest);
+        CreateAgendaMedicoResponse createAgendaMedicoResponse = agendaMedicoApp.createAgendaMedico(createAgendaMedicoRequest, usuarioDetails);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(createAgendaMedicoResponse);
 
@@ -80,12 +86,15 @@ public class AgendaMedicoController {
      *
      * @param id {@code UUID} identificador de la agenda
      * @param updateAgendaMedicoRequest {@code UpdateAgendaMedicoRequest} delta a aplicar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<UpdateAgendaMedicoResponse>} los conteos de cada efecto aplicado (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('AGEN_CONFIGURAR')")
     @PatchMapping("/Agenda/{id}")
     public ResponseEntity<UpdateAgendaMedicoResponse> updateAgendaMedico(
             @PathVariable UUID id,
-            @Valid @RequestBody UpdateAgendaMedicoRequest updateAgendaMedicoRequest) {
+            @Valid @RequestBody UpdateAgendaMedicoRequest updateAgendaMedicoRequest,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: actualizar agenda médica, id={}", id);
 
@@ -96,7 +105,7 @@ public class AgendaMedicoController {
                     List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
         }
 
-        UpdateAgendaMedicoResponse updateAgendaMedicoResponse = agendaMedicoApp.updateAgendaMedico(updateAgendaMedicoRequest);
+        UpdateAgendaMedicoResponse updateAgendaMedicoResponse = agendaMedicoApp.updateAgendaMedico(updateAgendaMedicoRequest, usuarioDetails);
 
         return ResponseEntity.ok(updateAgendaMedicoResponse);
 
@@ -107,12 +116,15 @@ public class AgendaMedicoController {
      *
      * @param id {@code UUID} identificador de la agenda
      * @param updateVigenciaAgendaMedicoRequest {@code UpdateVigenciaAgendaMedicoRequest} nuevas fechas
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<UpdateVigenciaAgendaMedicoResponse>} la vigencia actualizada (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('AGEN_CONFIGURAR')")
     @PatchMapping("/Agenda/Vigencia/{id}")
     public ResponseEntity<UpdateVigenciaAgendaMedicoResponse> updateVigenciaAgendaMedico(
             @PathVariable UUID id,
-            @Valid @RequestBody UpdateVigenciaAgendaMedicoRequest updateVigenciaAgendaMedicoRequest) {
+            @Valid @RequestBody UpdateVigenciaAgendaMedicoRequest updateVigenciaAgendaMedicoRequest,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: actualizar vigencia de agenda médica, id={}", id);
 
@@ -124,7 +136,7 @@ public class AgendaMedicoController {
         }
 
         UpdateVigenciaAgendaMedicoResponse updateVigenciaAgendaMedicoResponse =
-                agendaMedicoApp.updateVigenciaAgendaMedico(updateVigenciaAgendaMedicoRequest);
+                agendaMedicoApp.updateVigenciaAgendaMedico(updateVigenciaAgendaMedicoRequest, usuarioDetails);
 
         return ResponseEntity.ok(updateVigenciaAgendaMedicoResponse);
 
@@ -135,15 +147,18 @@ public class AgendaMedicoController {
      *
      * @param agendaMedicoCriteria {@code AgendaMedicoCriteria} filtros a aplicar
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListAgendaMedicoResponse>>} página de agendas (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('AGEN_CONSULTAR')")
     @GetMapping("/Agenda")
     public ResponseEntity<PageResponse<ListAgendaMedicoResponse>> listAgendaMedico(
-            AgendaMedicoCriteria agendaMedicoCriteria, Pageable pageable) {
+            AgendaMedicoCriteria agendaMedicoCriteria, Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar agendas médicas, criteria={}, page={}", agendaMedicoCriteria, pageable);
 
-        PageResponse<ListAgendaMedicoResponse> pageResponse = agendaMedicoQueryService.findAgendasMedicas(agendaMedicoCriteria, pageable);
+        PageResponse<ListAgendaMedicoResponse> pageResponse = agendaMedicoQueryService.findAgendasMedicas(agendaMedicoCriteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 
@@ -155,14 +170,17 @@ public class AgendaMedicoController {
      * {@code Docs/FILTRADO-DINAMICO.md §3}.
      *
      * @param agendaMedicoCriteria {@code AgendaMedicoCriteria} filtros a aplicar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<GetAgendaMedicoResponse>} la agenda encontrada (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('AGEN_CONSULTAR')")
     @GetMapping("/Agenda/Buscar")
-    public ResponseEntity<GetAgendaMedicoResponse> getAgendaMedico(AgendaMedicoCriteria agendaMedicoCriteria) {
+    public ResponseEntity<GetAgendaMedicoResponse> getAgendaMedico(AgendaMedicoCriteria agendaMedicoCriteria,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: buscar agenda médica, criteria={}", agendaMedicoCriteria);
 
-        GetAgendaMedicoResponse getAgendaMedicoResponse = agendaMedicoQueryService.findAgendaMedicoByCriteria(agendaMedicoCriteria);
+        GetAgendaMedicoResponse getAgendaMedicoResponse = agendaMedicoQueryService.findAgendaMedicoByCriteria(agendaMedicoCriteria, usuarioDetails);
 
         return ResponseEntity.ok(getAgendaMedicoResponse);
 
@@ -174,15 +192,18 @@ public class AgendaMedicoController {
      *
      * @param agendaHorariosCriteria {@code AgendaHorariosCriteria} filtros a aplicar
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListAgendaHorarioResponse>>} página de horarios (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('AGEN_CONSULTAR')")
     @GetMapping("/Horarios")
     public ResponseEntity<PageResponse<ListAgendaHorarioResponse>> listHorariosAgenda(
-            AgendaHorariosCriteria agendaHorariosCriteria, Pageable pageable) {
+            AgendaHorariosCriteria agendaHorariosCriteria, Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar horarios de agenda, criteria={}, page={}", agendaHorariosCriteria, pageable);
 
-        PageResponse<ListAgendaHorarioResponse> pageResponse = agendaHorariosDiaQueryService.findHorariosByCriteria(agendaHorariosCriteria, pageable);
+        PageResponse<ListAgendaHorarioResponse> pageResponse = agendaHorariosDiaQueryService.findHorariosByCriteria(agendaHorariosCriteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 
@@ -195,11 +216,14 @@ public class AgendaMedicoController {
      *
      * @param agendaHorariosCriteria {@code AgendaHorariosCriteria} filtros a aplicar
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListHorarioDisponibleResponse>>} página de horarios disponibles (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('AGEN_CONSULTAR')")
     @GetMapping("/HorariosDisponibles")
     public ResponseEntity<PageResponse<ListHorarioDisponibleResponse>> listHorariosDisponibles(
-            AgendaHorariosCriteria agendaHorariosCriteria, Pageable pageable) {
+            AgendaHorariosCriteria agendaHorariosCriteria, Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar horarios disponibles, criteria={}, page={}", agendaHorariosCriteria, pageable);
 

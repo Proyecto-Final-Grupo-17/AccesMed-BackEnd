@@ -27,7 +27,12 @@
 3. Por cada prestación del array `prestaciones`, busca la prestación (debe existir y no
    estar deshabilitada), valida que su especialidad coincida con la del médico recién
    creado, y crea el vínculo médico-prestación con sus condiciones particulares.
-4. Devuelve el médico creado, con la lista de prestaciones que quedó asignada.
+4. Si `crearUsuario` vino en `true`, exige además el permiso `USER_ALTA` a quien hace la
+   operación (aparte de `MED_ALTA`, que ya exige el endpoint) y crea un usuario de acceso
+   para el médico, con el mail = `Medico.email`. El usuario queda pendiente de activación:
+   se le manda un mail con el link para poner su contraseña (ver
+   `Docs/Features/Autenticacion.md`).
+5. Devuelve el médico creado, con la lista de prestaciones que quedó asignada.
 
 **Request para el front — `CreateMedicoRequest`**
 
@@ -41,6 +46,7 @@
 | `numeroTelefono` | String (máx. 30) | Sí | |
 | `especialidadId` | UUID | Sí | Debe ser una especialidad activa existente. |
 | `prestaciones` | Array de objetos | No | Puede venir vacío. Ver tabla siguiente. |
+| `crearUsuario` | Boolean | No | `true` = además del médico, crea su usuario de acceso (mail = `Medico.email`), pendiente de activación. `null`/`false` = médico sin usuario. Requiere `USER_ALTA` en quien hace el alta. |
 
 **Prestación anidada — `AsignarPrestacionAnidadaRequest`**
 
@@ -110,7 +116,10 @@ que `GetMedicoResponse` pero **sin** la lista de prestaciones (evita N+1 en list
 1. Busca el médico activo.
 2. Valida que no tenga turnos vivos (estado actual no final). Si tiene, rechaza la baja.
 3. Marca el médico como dado de baja (`deletedAt`/`deletedReason`).
-4. Devuelve la confirmación de la baja.
+4. **Cascada de baja**: si el médico tenía un usuario de acceso, lo desactiva también (le
+   revoca los refresh tokens vigentes). La baja de `Usuario` no cascadea al revés: dar de
+   baja el usuario no da de baja al médico.
+5. Devuelve la confirmación de la baja.
 
 **Response para el front — `SoftDeleteMedicoResponse`**
 

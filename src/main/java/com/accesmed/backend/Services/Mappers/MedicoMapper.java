@@ -1,6 +1,7 @@
 package com.accesmed.backend.Services.Mappers;
 
 import com.accesmed.backend.Domain.Medico;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.Medico.Request.CreateMedicoRequest;
 import com.accesmed.backend.Records.Medico.Request.UpdateMedicoRequest;
 import com.accesmed.backend.Records.Medico.Response.CreateMedicoResponse;
@@ -80,20 +81,44 @@ public interface MedicoMapper {
      *
      * @param medico {@code Medico} entidad
      * @param prestaciones {@code List<GetPrestacionAnidadaResponse>} prestaciones ya mapeadas
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code GetMedicoResponse} respuesta de obtención
      */
     @Mapping(target = "especialidadId", source = "medico.especialidad.id")
     @Mapping(target = "prestaciones", source = "prestaciones")
-    GetMedicoResponse toGetResponse(Medico medico, List<GetPrestacionAnidadaResponse> prestaciones);
+    @Mapping(target = "auditoria", source = "auditoria")
+    GetMedicoResponse toGetResponse(Medico medico, List<GetPrestacionAnidadaResponse> prestaciones, AuditoriaResponse auditoria);
 
     /**
      * Convierte una entidad {@code Medico} a {@code ListMedicoResponse}.
      *
      * @param medico {@code Medico} entidad
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code ListMedicoResponse} respuesta de listado
      */
-    @Mapping(target = "especialidadId", source = "especialidad.id")
-    ListMedicoResponse toListResponse(Medico medico);
+    @Mapping(target = "especialidadId", source = "medico.especialidad.id")
+    @Mapping(target = "auditoria", source = "auditoria")
+    ListMedicoResponse toListResponse(Medico medico, AuditoriaResponse auditoria);
+
+    /**
+     * Arma el {@code AuditoriaResponse} de un médico. {@code Medico} tiene soft delete propio,
+     * así que se mapean todos los campos: {@code createdDate}, {@code createdBy},
+     * {@code lastModifiedDate}, {@code lastModifiedBy}, {@code deletedAt}, {@code deletedBy},
+     * {@code deletedReason}.
+     *
+     * @param medico {@code Medico} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría del médico
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", source = "deletedAt")
+    @Mapping(target = "deletedBy", source = "deletedBy")
+    @Mapping(target = "deletedReason", source = "deletedReason")
+    AuditoriaResponse toAuditoria(Medico medico);
 
     /**
      * Convierte una entidad {@code Medico} a {@code SoftDeleteMedicoResponse}.

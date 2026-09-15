@@ -3,12 +3,16 @@ package com.accesmed.backend.Services.QueryServices;
 import com.accesmed.backend.Domain.Auditable_;
 import com.accesmed.backend.Domain.IndicacionPrestacion;
 import com.accesmed.backend.Domain.IndicacionPrestacion_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Prestacion_;
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion_;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Criteria.IndicacionPrestacionCriteria;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.GetIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.IndicacionPrestacion.Response.ListIndicacionPrestacionResponse;
 import com.accesmed.backend.Repositories.IndicacionPrestacionRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.IndicacionPrestacionMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
@@ -44,6 +48,7 @@ public class IndicacionPrestacionQueryService extends AbstractFiltroQueryService
 
     private final IndicacionPrestacionRepository indicacionPrestacionRepository;
     private final IndicacionPrestacionMapper indicacionPrestacionMapper;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -63,13 +68,20 @@ public class IndicacionPrestacionQueryService extends AbstractFiltroQueryService
      * mapeada (no paginada).
      *
      * @param criteria {@code IndicacionPrestacionCriteria} filtros a aplicar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code GetIndicacionPrestacionResponse} la indicación encontrada, mapeada
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ninguna
      *         indicación vigente cumple el criteria
      */
-    public GetIndicacionPrestacionResponse findIndicacionPrestacionByCriteria(IndicacionPrestacionCriteria criteria) {
+    public GetIndicacionPrestacionResponse findIndicacionPrestacionByCriteria(IndicacionPrestacionCriteria criteria,
+            UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando indicación de prestación por criteria: {}", criteria);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
 
         IndicacionPrestacion indicacionExistente = findOneByCriteria(criteria)
                 .orElseThrow(() -> {
@@ -78,7 +90,8 @@ public class IndicacionPrestacionQueryService extends AbstractFiltroQueryService
                             "No existe una indicación de prestación vigente que cumpla el criteria proporcionado.");
                 });
 
-        GetIndicacionPrestacionResponse getIndicacionPrestacionResponse = indicacionPrestacionMapper.toGetResponse(indicacionExistente);
+        GetIndicacionPrestacionResponse getIndicacionPrestacionResponse = indicacionPrestacionMapper.toGetResponse(
+                indicacionExistente, tieneAuditoria ? indicacionPrestacionMapper.toAuditoria(indicacionExistente) : null);
         return getIndicacionPrestacionResponse;
 
     }
@@ -88,16 +101,25 @@ public class IndicacionPrestacionQueryService extends AbstractFiltroQueryService
      *
      * @param criteria {@code IndicacionPrestacionCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListIndicacionPrestacionResponse>} página de indicaciones
      *         que cumplen el criteria, mapeadas
      */
-    public PageResponse<ListIndicacionPrestacionResponse> findIndicacionesPrestacion(IndicacionPrestacionCriteria criteria, Pageable pageable) {
+    public PageResponse<ListIndicacionPrestacionResponse> findIndicacionesPrestacion(IndicacionPrestacionCriteria criteria, Pageable pageable,
+            UsuarioDetails usuarioDetails) {
 
         log.debug("Listado de indicaciones de prestación iniciado: criteria={}, page={}", criteria, pageable);
 
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
+
         Page<IndicacionPrestacion> indicacionesPagina = findByCriteria(criteria, pageable);
 
-        PageResponse<ListIndicacionPrestacionResponse> pageResponse = PageResponse.from(indicacionesPagina, indicacionPrestacionMapper::toListResponse);
+        PageResponse<ListIndicacionPrestacionResponse> pageResponse = PageResponse.from(indicacionesPagina,
+                indicacionPrestacion -> indicacionPrestacionMapper.toListResponse(indicacionPrestacion,
+                        tieneAuditoria ? indicacionPrestacionMapper.toAuditoria(indicacionPrestacion) : null));
         return pageResponse;
 
     }
@@ -151,6 +173,9 @@ public class IndicacionPrestacionQueryService extends AbstractFiltroQueryService
         }
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
+        }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
         }
 
         return specification;

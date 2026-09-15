@@ -36,6 +36,12 @@ public class MedicoCriteria {
     private InstantFilter lastModifiedDate;
 
     /**
+     * Filtro de auditoría — solo se honra si quien consulta tiene {@code AUDITORIA_CONSULTAR}
+     * (ver {@code MedicoQueryService}); se ignora en caso contrario.
+     */
+    private StringFilter createdBy;
+
+    /**
      * Filtro derivado (§5 AGEN): resuelve con un {@code EXISTS}/{@code NOT EXISTS} contra
      * {@code agenda_medico} si el médico tiene una agenda vigente en {@link #agendaVigenteAl}.
      * Reemplaza al endpoint "médicos sin agenda vigente" (no se construye aparte).

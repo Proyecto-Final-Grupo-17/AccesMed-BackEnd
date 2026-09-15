@@ -119,13 +119,70 @@ mira ahí antes de preguntar.
 
 ---
 
-## 5. Autenticación
+## 5. Autenticación y sesión
 
-- La API usa **JWT**. Se obtiene en el endpoint de login y se manda en cada request en el
-  header `Authorization: Bearer <token>`.
-- Si el token vence, la API responde **401** (con el `AccesMedError` de siempre). El front
-  refresca el token o manda a login.
-- Los permisos son por rol; un usuario autenticado pero sin permiso recibe **403**.
+Detalle completo de cada endpoint en [`Docs/Features/Autenticacion.md`](Features/Autenticacion.md)
+y del catálogo de permisos en [`Docs/Features/UsuariosRolesYPermisos.md`](Features/UsuariosRolesYPermisos.md).
+Acá va el contrato mínimo que necesita el front para manejar la sesión.
+
+### Login
+
+`POST /accesmed-api/Auth/Login` con `{ mail, password }` devuelve
+`{ accessToken, refreshToken }`. Guardá los dos. El `accessToken` va en el header de **cada**
+request siguiente:
+
+```
+Authorization: Bearer <accessToken>
+```
+
+### Cuándo refrescar (401 vs 403 — no son lo mismo)
+
+| HTTP | Código en `AccesMedError` | Significa | Qué hacer en el front |
+|------|---------------------------|-----------|------------------------|
+| 401 en `/Auth/Login` | `CREDENCIALES_INVALIDAS` | mail o contraseña incorrectos | mostrar el error en el form de login, no reintentar solo |
+| 401 en cualquier otro endpoint | `NO_AUTENTICADO` | no hay `Authorization`, el token es inválido, o **venció** | intentar `POST /Auth/Refresh` con el `refreshToken` guardado; si el refresh también falla (401/404), limpiar la sesión y mandar a login |
+| 403 en cualquier endpoint | `ACCESO_DENEGADO` | el usuario está autenticado (el token es válido) pero **no tiene el permiso** que ese endpoint exige | no reintentar ni refrescar — mostrar "no autorizado". Reintentar el refresh acá no cambia nada: el problema no es el token |
+
+**Regla práctica para el interceptor HTTP**: un 401 dispara el flujo de refresh-y-reintento
+una vez; un 403 no. Distinguilos por el `status`, no adivines por el `codigo` (que puede
+crecer).
+
+El access token vence a los 30 minutos (default); el refresh token a los 7 días y **no
+rota** — sigue sirviendo hasta que venza o se revoque con `Logout`. No hace falta pedir uno
+nuevo en cada refresh de access token.
+
+### Logout
+
+`POST /accesmed-api/Auth/Logout` con `{ refreshToken }` (requiere estar autenticado, o sea
+mandar también el `Authorization` vigente). Responde `204`. Revoca el refresh token: después
+de esto, ni él ni ningún access token que se haya emitido con él sirven. Limpiá ambos
+tokens del storage del front en este paso, no esperes la respuesta del backend para eso.
+
+### Activación de cuenta nueva y recuperación de contraseña
+
+Mismo mecanismo, mismo endpoint final — la diferencia es solo cómo se llega al link:
+
+- **Cuenta nueva** (un médico o admin recién tiene usuario asignado): le llega un mail con
+  un link de activación. El front resuelve una pantalla de "poner tu contraseña" a partir
+  del `token` que viene como query param en ese link.
+- **Olvidé mi contraseña**: `POST /accesmed-api/Auth/OlvideContrasena` con `{ mail }`.
+  **Siempre responde 200**, exista o no el mail — mostrá siempre el mismo mensaje ("si el
+  mail existe, te llegará un correo"), nunca reveles si el mail está registrado.
+
+En ambos casos, la pantalla final es la misma: `POST /accesmed-api/Auth/RestablecerContrasena`
+con `{ token, passwordNueva }` (8 a 100 caracteres). Responde `200` sin cuerpo, o `404` si
+el token no existe/venció/ya se usó — en ese caso el front debe ofrecer pedir un link nuevo,
+no reintentar con el mismo token. Restablecer la contraseña revoca todas las sesiones
+abiertas de ese usuario (todos los refresh tokens vigentes quedan sin efecto).
+
+### Permisos: 403 no siempre es "arreglalo reintentando"
+
+Los permisos son dinámicos por rol (ver `UsuariosRolesYPermisos.md`) y se recalculan en cada
+request — no vienen en el JWT. Si el front necesita saber de antemano qué puede hacer el
+usuario logueado para, por ejemplo, ocultar un botón, no hay (todavía) un endpoint que
+devuelva "mis permisos": la fuente de verdad es el 403 real del endpoint. Diseñá el panel
+para tolerar un 403 en una acción (mostrar el mensaje, no romper la pantalla), no para
+prevenirlo adivinando el rol por el mail o similar.
 
 ---
 
@@ -149,7 +206,8 @@ mira ahí antes de preguntar.
 
 - [ ] Implementar un interceptor HTTP que parsee `AccesMedError` de forma uniforme.
 - [ ] Mostrar `errores[]` como lista en formularios; usar `codigo` para lógica.
-- [ ] Guardar el JWT y mandarlo en `Authorization`; manejar 401 (refresh/login).
+- [ ] Guardar el `accessToken`/`refreshToken` y mandar el primero en `Authorization`; en
+      401 intentar `Refresh` una vez y si falla ir a login, en 403 no reintentar (ver §5).
 - [ ] Leer los request/response de cada endpoint en Swagger, no asumir la forma.
 - [ ] Manejar fechas en UTC; convertir solo para mostrar.
 - [ ] En `PUT`/`PATCH`, mandar el mismo `id` en la URL y en el body (si difieren, 422).

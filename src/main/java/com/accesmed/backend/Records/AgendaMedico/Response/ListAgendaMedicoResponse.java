@@ -1,5 +1,7 @@
 package com.accesmed.backend.Records.AgendaMedico.Response;
 
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
+
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
@@ -15,6 +17,8 @@ import java.util.UUID;
  * @param fechaHoraFinVigencia {@code ZonedDateTime} fin del período de vigencia
  * @param cantidadDias {@code long} cantidad de días activos de la agenda
  * @param cantidadHorarios {@code long} cantidad de horarios activos de la agenda
+ * @param auditoria {@code AuditoriaResponse} datos de auditoría, solo poblado si quien consulta
+ *         tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario
  */
 public record ListAgendaMedicoResponse(
         UUID id,
@@ -24,7 +28,8 @@ public record ListAgendaMedicoResponse(
         ZonedDateTime fechaHoraInicioVigencia,
         ZonedDateTime fechaHoraFinVigencia,
         long cantidadDias,
-        long cantidadHorarios
+        long cantidadHorarios,
+        AuditoriaResponse auditoria
 ) {
 
 }

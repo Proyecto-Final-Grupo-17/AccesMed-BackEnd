@@ -7,6 +7,8 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -94,6 +96,54 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(AccesMedError.of(
                 HttpStatus.UNPROCESSABLE_ENTITY.value(), "VALIDACION",
                 "La solicitud tiene errores de validación.", errores, request.getRequestURI()));
+
+    }
+
+    /**
+     * Traduce el rechazo de autorización ({@code AccessDeniedException}) a
+     * {@code AccesMedError} con un mensaje en español. Se loguea porque, aunque es un
+     * 4xx de cliente, Spring Security no tiene un Service de origen que lo logueó
+     * previamente.
+     *
+     * @param accessDeniedException {@code AccessDeniedException} excepción de acceso
+     *        denegado lanzada por Spring Security
+     * @param request {@code HttpServletRequest} request HTTP que disparó el error
+     * @return {@code ResponseEntity<AccesMedError>} el error de acceso denegado traducido
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<AccesMedError> handleAccessDenied(AccessDeniedException accessDeniedException,
+                                                             HttpServletRequest request) {
+
+        log.warn("Acceso denegado en {}: {}", request.getRequestURI(), accessDeniedException.getMessage());
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(AccesMedError.of(
+                HttpStatus.FORBIDDEN.value(), "ACCESO_DENEGADO",
+                "No tiene permisos para realizar esta acción.",
+                List.of("No tiene permisos para realizar esta acción."), request.getRequestURI()));
+
+    }
+
+    /**
+     * Traduce los errores de autenticación ({@code AuthenticationException}) a
+     * {@code AccesMedError} con un mensaje en español. Se loguea porque Spring Security
+     * no tiene un Service de origen que lo logueó previamente. Cubre tanto credenciales
+     * inválidas como otros errores de autenticación.
+     *
+     * @param authenticationException {@code AuthenticationException} excepción de
+     *        autenticación lanzada por Spring Security
+     * @param request {@code HttpServletRequest} request HTTP que disparó el error
+     * @return {@code ResponseEntity<AccesMedError>} el error de autenticación traducido
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<AccesMedError> handleAuthenticationException(AuthenticationException authenticationException,
+                                                                       HttpServletRequest request) {
+
+        log.warn("Autenticación fallida en {}", request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(AccesMedError.of(
+                HttpStatus.UNAUTHORIZED.value(), "CREDENCIALES_INVALIDAS",
+                "El mail o la contraseña son incorrectos.",
+                List.of("El mail o la contraseña son incorrectos."), request.getRequestURI()));
 
     }
 

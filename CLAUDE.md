@@ -72,7 +72,9 @@ Estas convenciones se aplican SIEMPRE. El detalle y ejemplos están en `Docs/ARQ
   `OpenApiConfig`, CORS, interceptores) y **`Controllers/Validators`** (constraints custom
   de Bean Validation —anotación + `ConstraintValidator`— aplicadas a nivel de record;
   vive ahí porque Bean Validation es responsabilidad del Controller, no del Service).
-  `Config/` queda para lo transversal de infraestructura (`SecurityConfig`, `JpaAuditingConfig`).
+  `Config/` queda para lo transversal de infraestructura que no es mecanismo de seguridad
+  (`JpaAuditingConfig`, `SchedulingConfig`); el filter chain de seguridad
+  (`SecurityFilterChainConfig`) vive en `Security/Config/`.
 
 **Nomenclatura:**
 

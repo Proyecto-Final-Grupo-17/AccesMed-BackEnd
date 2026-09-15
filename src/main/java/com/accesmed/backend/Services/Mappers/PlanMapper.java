@@ -3,6 +3,7 @@ package com.accesmed.backend.Services.Mappers;
 import com.accesmed.backend.Domain.EstadoPlan;
 import com.accesmed.backend.Domain.ObraSocial;
 import com.accesmed.backend.Domain.Plan;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.ObraSocial.Request.CreatePlanAnidadoRequest;
 import com.accesmed.backend.Records.ObraSocial.Response.GetPlanAnidadoResponse;
 import com.accesmed.backend.Records.Plan.Request.AddPlanRequest;
@@ -104,6 +105,8 @@ public interface PlanMapper {
      * @param plan {@code Plan} entidad
      * @param estadoVigente {@code EstadoPlan} estado vigente calculado del histórico
      * @param coberturas {@code List<GetCoberturaAnidadaResponse>} coberturas ya mapeadas del plan
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code GetPlanResponse} respuesta de obtención (también usada al agregar y actualizar)
      */
     @Mapping(target = "id", source = "plan.id")
@@ -113,13 +116,16 @@ public interface PlanMapper {
     @Mapping(target = "obraSocialNombre", source = "plan.obraSocial.nombre")
     @Mapping(target = "estadoActual", source = "estadoVigente")
     @Mapping(target = "coberturas", source = "coberturas")
-    GetPlanResponse toGetResponse(Plan plan, EstadoPlan estadoVigente, List<GetCoberturaAnidadaResponse> coberturas);
+    @Mapping(target = "auditoria", source = "auditoria")
+    GetPlanResponse toGetResponse(Plan plan, EstadoPlan estadoVigente, List<GetCoberturaAnidadaResponse> coberturas, AuditoriaResponse auditoria);
 
     /**
      * Convierte una entidad {@code Plan} a {@code ListPlanResponse}.
      *
      * @param plan {@code Plan} entidad
      * @param estadoVigente {@code EstadoPlan} estado vigente calculado del histórico
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code ListPlanResponse} respuesta de listado
      */
     @Mapping(target = "id", source = "plan.id")
@@ -128,7 +134,8 @@ public interface PlanMapper {
     @Mapping(target = "obraSocialId", source = "plan.obraSocial.id")
     @Mapping(target = "obraSocialNombre", source = "plan.obraSocial.nombre")
     @Mapping(target = "estadoActual", source = "estadoVigente")
-    ListPlanResponse toListResponse(Plan plan, EstadoPlan estadoVigente);
+    @Mapping(target = "auditoria", source = "auditoria")
+    ListPlanResponse toListResponse(Plan plan, EstadoPlan estadoVigente, AuditoriaResponse auditoria);
 
     /**
      * Convierte una entidad {@code Plan} a {@code CambioEstadoPlanResponse}.
@@ -158,5 +165,22 @@ public interface PlanMapper {
     @Mapping(target = "estadoActual", source = "estadoVigente")
     @Mapping(target = "coberturas", source = "coberturas")
     GetPlanAnidadoResponse toGetPlanAnidadoResponse(Plan plan, EstadoPlan estadoVigente, List<GetCoberturaAnidadaResponse> coberturas);
+
+    /**
+     * Arma el {@code AuditoriaResponse} de un plan. {@code Plan} no tiene soft delete propio
+     * (se retira por estados), así que {@code deletedAt}/{@code deletedBy}/
+     * {@code deletedReason} siempre viajan en {@code null}.
+     *
+     * @param plan {@code Plan} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría del plan
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", ignore = true)
+    @Mapping(target = "deletedBy", ignore = true)
+    @Mapping(target = "deletedReason", ignore = true)
+    AuditoriaResponse toAuditoria(Plan plan);
 
 }

@@ -1,5 +1,7 @@
 package com.accesmed.backend.Records.Medico.Response;
 
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
+
 import java.util.UUID;
 
 /**
@@ -45,7 +47,13 @@ public record ListMedicoResponse(
         /**
          * Identificador de la especialidad del médico ({@code UUID}).
          */
-        UUID especialidadId
+        UUID especialidadId,
+
+        /**
+         * Datos de auditoría ({@code AuditoriaResponse}), solo poblado si quien consulta
+         * tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario.
+         */
+        AuditoriaResponse auditoria
 
 ) {
 }

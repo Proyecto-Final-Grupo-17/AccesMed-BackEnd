@@ -5,15 +5,19 @@ import com.accesmed.backend.Domain.EstadoPlan;
 import com.accesmed.backend.Domain.HistoricoEstadoPlan;
 import com.accesmed.backend.Domain.HistoricoEstadoPlan_;
 import com.accesmed.backend.Domain.ObraSocial_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Domain.Plan_;
 import com.accesmed.backend.Records.Plan.Criteria.PlanCriteria;
 import com.accesmed.backend.Records.Plan.Response.GetCoberturaAnidadaResponse;
 import com.accesmed.backend.Records.Plan.Response.GetPlanResponse;
 import com.accesmed.backend.Records.Plan.Response.ListPlanResponse;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Repositories.HistoricoEstadoPlanRepository;
 import com.accesmed.backend.Repositories.ObraSocialPlanPrestacionRepository;
 import com.accesmed.backend.Repositories.PlanRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.ObraSocialPlanPrestacionMapper;
 import com.accesmed.backend.Services.Mappers.PlanMapper;
@@ -60,6 +64,7 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
     private final HistoricoEstadoPlanRepository historicoEstadoPlanRepository;
     private final ObraSocialPlanPrestacionRepository obraSocialPlanPrestacionRepository;
     private final ObraSocialPlanPrestacionMapper obraSocialPlanPrestacionMapper;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -79,13 +84,19 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
      * puntual (ej. {@code id.equals}).
      *
      * @param criteria {@code PlanCriteria} filtros a aplicar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code GetPlanResponse} el plan encontrado con su estado vigente
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ningún
      *         plan cumple el criteria
      */
-    public GetPlanResponse findPlanByCriteria(PlanCriteria criteria) {
+    public GetPlanResponse findPlanByCriteria(PlanCriteria criteria, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando plan por criteria: {}", criteria);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
 
         Plan planEncontrado = findOneByCriteria(criteria)
                 .orElseThrow(() -> {
@@ -94,7 +105,7 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
                             "No existe un plan que cumpla el criteria proporcionado.");
                 });
 
-        List<GetPlanResponse> planesMapeados = mapPlanesConEstado(List.of(planEncontrado));
+        List<GetPlanResponse> planesMapeados = mapPlanesConEstado(List.of(planEncontrado), tieneAuditoria);
         return planesMapeados.get(0);
 
     }
@@ -105,11 +116,17 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
      *
      * @param criteria {@code PlanCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListPlanResponse>} página de DTOs mapeados con su estado vigente
      */
-    public PageResponse<ListPlanResponse> findPlanes(PlanCriteria criteria, Pageable pageable) {
+    public PageResponse<ListPlanResponse> findPlanes(PlanCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando planes por criteria: {}, pageable: {}", criteria, pageable);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
 
         Page<Plan> planesPaginada = findByCriteria(criteria, pageable);
 
@@ -117,7 +134,8 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
                 planesPaginada.getContent().stream().map(Plan::getId).toList());
 
         PageResponse<ListPlanResponse> pageResponse = PageResponse.from(planesPaginada,
-                plan -> planMapper.toListResponse(plan, estadosVigentes.get(plan.getId())));
+                plan -> planMapper.toListResponse(plan, estadosVigentes.get(plan.getId()),
+                        tieneAuditoria ? planMapper.toAuditoria(plan) : null));
         return pageResponse;
 
     }
@@ -162,6 +180,9 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
         }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
+        }
 
         return specification;
 
@@ -172,9 +193,10 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
      * vigente de todos en una única consulta (evita N+1) y alimentándolo a cada response.
      *
      * @param planes {@code List<Plan>} planes a mapear
+     * @param tieneAuditoria {@code boolean} si quien consulta tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code List<GetPlanResponse>} responses detalladas con su estado vigente
      */
-    private List<GetPlanResponse> mapPlanesConEstado(List<Plan> planes) {
+    private List<GetPlanResponse> mapPlanesConEstado(List<Plan> planes, boolean tieneAuditoria) {
 
         List<UUID> planIds = planes.stream().map(Plan::getId).toList();
 
@@ -188,7 +210,8 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
 
         return planes.stream()
                 .map(plan -> planMapper.toGetResponse(plan, estadosVigentes.get(plan.getId()),
-                        coberturasPorPlan.getOrDefault(plan.getId(), List.of())))
+                        coberturasPorPlan.getOrDefault(plan.getId(), List.of()),
+                        tieneAuditoria ? planMapper.toAuditoria(plan) : null))
                 .toList();
 
     }
