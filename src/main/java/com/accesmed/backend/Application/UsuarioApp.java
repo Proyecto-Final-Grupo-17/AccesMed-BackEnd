@@ -8,11 +8,13 @@ import com.accesmed.backend.Domain.UsuarioRol;
 import com.accesmed.backend.Services.DomainServices.RolDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioRolDomainService;
+import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.ZonedDateTime;
 import java.util.UUID;
@@ -119,9 +121,81 @@ public class UsuarioApp {
         return desactivarUsuario(usuarioDomainService.findUsuarioActivoByAdminId(adminId).orElse(null));
     }
 
+    /**
+     * Busca un usuario activo por su identificador.
+     *
+     * @param id {@code UUID} identificador del usuario
+     * @return {@code Usuario} el usuario activo
+     */
+    @Transactional(readOnly = true)
+    public Usuario findUsuarioActivo(UUID id) {
+        return usuarioDomainService.findUsuarioActivoById(id);
+    }
+
+    /**
+     * Da de baja un usuario directamente (sin que implique dar de baja al médico o admin
+     * vinculado). El motivo es libre; si viene vacío se usa uno por default.
+     *
+     * @param id {@code UUID} identificador del usuario
+     * @param motivo {@code String} motivo de la baja, o {@code null}/vacío para usar el default
+     * @return {@code Usuario} el usuario dado de baja
+     */
+    @Transactional
+    public Usuario softDeleteUsuarioDirecto(UUID id, String motivo) {
+
+        log.info("Baja directa de usuario iniciada: id={}", id);
+
+        Usuario usuarioExistente = usuarioDomainService.findUsuarioActivoById(id);
+
+        String motivoAplicado = StringUtils.hasText(motivo) ? motivo : "Baja manual por SuperAdmin.";
+        usuarioDomainService.softDeleteUsuario(usuarioExistente, motivoAplicado);
+
+        return usuarioExistente;
+
+    }
+
+    /**
+     * Valida las precondiciones para cambiar el mail de un usuario (activo, mail nuevo
+     * distinto del actual y no usado por otro usuario activo) sin aplicar el cambio
+     * todavía — el mail solo se actualiza cuando se confirma el token correspondiente.
+     *
+     * @param id {@code UUID} identificador del usuario
+     * @param mailNuevo {@code String} mail nuevo propuesto
+     * @return {@code Usuario} el usuario, sin modificar
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el mail nuevo es igual
+     *         al actual o ya está en uso por otro usuario activo
+     */
+    @Transactional(readOnly = true)
+    public Usuario prepararCambioMail(UUID id, String mailNuevo) {
+
+        log.info("Preparando cambio de mail: id={}", id);
+
+        Usuario usuarioExistente = usuarioDomainService.findUsuarioActivoById(id);
+        validateMailNuevoDisponible(usuarioExistente, mailNuevo);
+
+        return usuarioExistente;
+
+    }
+
     //endregion
 
     //region ========== Métodos auxiliares privados ==========
+
+    private void validateMailNuevoDisponible(Usuario usuario, String mailNuevo) {
+
+        if (mailNuevo.equalsIgnoreCase(usuario.getMail())) {
+            log.warn("Mail nuevo igual al actual: usuarioId={}", usuario.getId());
+            throw new ReglaNegocioException(getClass(), "MAIL_YA_REGISTRADO",
+                    "El mail nuevo debe ser distinto del mail actual.");
+        }
+
+        usuarioDomainService.findUsuarioActivoByMail(mailNuevo).ifPresent(otro -> {
+            log.warn("Mail nuevo ya registrado por otro usuario activo: mailNuevo={}", mailNuevo);
+            throw new ReglaNegocioException(getClass(), "MAIL_YA_REGISTRADO",
+                    "El mail nuevo ya está en uso por otro usuario.");
+        });
+
+    }
 
     private Usuario desactivarUsuario(Usuario usuario) {
         if (usuario != null) {

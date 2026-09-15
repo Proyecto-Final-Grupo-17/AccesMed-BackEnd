@@ -175,6 +175,31 @@ el token no existe/venció/ya se usó — en ese caso el front debe ofrecer pedi
 no reintentar con el mismo token. Restablecer la contraseña revoca todas las sesiones
 abiertas de ese usuario (todos los refresh tokens vigentes quedan sin efecto).
 
+### Cambiar la propia contraseña o el propio mail (autoservicio)
+
+Cualquier usuario logueado puede cambiar su contraseña o su mail sin depender del
+SuperAdmin — ambos requieren `Authorization` pero **ningún permiso especial**. Los dos
+casos reutilizan el mismo mecanismo por mail que activación/recuperación (arriba): no
+hay un formulario de "contraseña actual + nueva", el cambio siempre se confirma por
+link.
+
+- **Contraseña**: `POST /accesmed-api/Auth/CambiarContrasena` (sin body). Responde `204`
+  y manda un mail al usuario con el mismo link de "restablecer contraseña" de arriba —
+  el front no hace nada más acá, la confirmación pasa por la pantalla de
+  `RestablecerContrasena` que ya existe.
+- **Mail**: `POST /accesmed-api/Auth/CambiarMail` con `{ mailNuevo }`. Responde `204` y
+  manda un mail **a la casilla nueva** (no a la vieja) con un link de confirmación. El
+  mail actual sigue sirviendo para loguearse mientras la confirmación esté pendiente —
+  avisale esto al usuario en la pantalla ("tu mail actual sigue funcionando hasta que
+  confirmes el nuevo").
+- **Confirmar el cambio de mail**: `POST /accesmed-api/Auth/ConfirmarCambioMail` con
+  `{ token }` (público, no requiere `Authorization` — se llega desde el link del mail,
+  igual que `RestablecerContrasena`). Responde `200` sin cuerpo, o `404` si el token no
+  existe/venció/ya se usó, o `409` con código `MAIL_YA_REGISTRADO` si otro usuario tomó
+  ese mail mientras la confirmación estaba pendiente. Después de confirmar, el mail
+  viejo deja de servir para loguearse — el front debe avisar que hay que volver a
+  loguearse con el mail nuevo.
+
 ### `GET /accesmed-api/Auth/Me`: quién es el usuario logueado
 
 Los permisos son dinámicos por rol (ver `UsuariosRolesYPermisos.md`) y se recalculan en cada
@@ -208,7 +233,51 @@ un 403 igual (mostrar el mensaje, no romper la pantalla).
 
 ---
 
-## 6. Convenciones de datos
+## 6. Gestión de usuarios (SuperAdmin)
+
+Pantalla de "usuarios del sistema" — exclusiva del SuperAdmin (permisos `USER_CONSULTAR`/
+`USER_MODIFICAR`/`USER_BAJA`). Detalle funcional completo en
+[`Docs/Features/UsuariosRolesYPermisos.md`](Features/UsuariosRolesYPermisos.md).
+
+### Listar y ver detalle
+
+`GET /accesmed-api/Usuario/Usuario` — paginado, con criteria de filtrado dinámico
+(`mail`, `medicoId`, `adminId`, y `estado` con valores `ACTIVO`/`INACTIVO`/`TODOS`; sin
+mandar `estado` trae solo activos). A diferencia del resto de los listados del sistema,
+**este sí puede traer usuarios dados de baja** — el front necesita mostrar el filtro de
+estado explícitamente, no asumir que todo lo que aparece está activo (usá el campo
+`activo` de cada fila para pintar el estado).
+
+`GET /accesmed-api/Usuario/Usuario/{id}` — detalle de un usuario puntual, esté activo o
+no. Devuelve, entre otros campos, `nombre`/`apellido` de la persona vinculada (médico o
+admin), `roles` (nombres de los roles vigentes) y, si está dado de baja, `deletedAt`/
+`deletedReason`.
+
+### Dar de baja un usuario
+
+`DELETE /accesmed-api/Usuario/Usuario/{id}?motivo=...` — el query param `motivo` es
+**opcional** (texto libre); si no se manda, el backend usa un motivo por default. Responde
+`204`. Importante para la UX: **esto no da de baja al médico/admin dueño de la cuenta**,
+solo revoca su acceso al sistema — la persona sigue existiendo en el padrón. Si el
+objetivo es dar de baja a la persona (no solo su acceso), es el flujo de
+`DELETE /Medico/Medico/{id}` o `DELETE /Admin/Admin/{id}` (que sí desactiva el usuario en
+cascada), no este endpoint.
+
+### Forzar un cambio de contraseña o de mail de otro usuario
+
+Mismo mecanismo que el autoservicio (ver §5), pero disparado por el SuperAdmin sobre un
+usuario cualquiera, indicando su `id` en la ruta:
+
+- `POST /accesmed-api/Usuario/Usuario/{id}/RestablecerContrasena` (sin body) — manda el
+  mail de restablecimiento al usuario. `204`.
+- `POST /accesmed-api/Usuario/Usuario/{id}/CambiarMail` con `{ mailNuevo }` — manda la
+  confirmación al mail nuevo (mismo endpoint público de confirmación,
+  `POST /Auth/ConfirmarCambioMail`, que el caso de autoservicio). `204`, o `409` con
+  código `MAIL_YA_REGISTRADO` si el mail ya está en uso o es igual al actual.
+
+---
+
+## 7. Convenciones de datos
 
 - **Fechas y horas**: ISO-8601 en UTC (`2026-07-22T10:15:30Z`). Convertí a zona local solo para mostrar.
 - **Bajas lógicas (soft delete)**: el backend no borra físico. Un recurso "dado de baja"
@@ -224,7 +293,7 @@ un 403 igual (mostrar el mensaje, no romper la pantalla).
 
 ---
 
-## 7. Checklist rápido para arrancar del lado del front
+## 8. Checklist rápido para arrancar del lado del front
 
 - [ ] Implementar un interceptor HTTP que parsee `AccesMedError` de forma uniforme.
 - [ ] Mostrar `errores[]` como lista en formularios; usar `codigo` para lógica.

@@ -1,7 +1,10 @@
 package com.accesmed.backend.Security.Controllers;
 
+import com.accesmed.backend.Application.Ports.GestionUsuarioPort;
 import com.accesmed.backend.Security.Application.AuthApp;
 import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Records.Auth.Request.CambiarMailRequest;
+import com.accesmed.backend.Security.Records.Auth.Request.ConfirmarCambioMailRequest;
 import com.accesmed.backend.Security.Records.Auth.Request.LoginRequest;
 import com.accesmed.backend.Security.Records.Auth.Request.OlvideContrasenaRequest;
 import com.accesmed.backend.Security.Records.Auth.Request.RefreshRequest;
@@ -33,6 +36,7 @@ public class AuthController {
     //region ========== Dependencias o inyecciones ==========
 
     private final AuthApp authApp;
+    private final GestionUsuarioPort gestionUsuarioPort;
 
     //endregion
 
@@ -111,6 +115,52 @@ public class AuthController {
             @Valid @RequestBody RestablecerContrasenaRequest restablecerContrasenaRequest) {
         log.info("Solicitud recibida: restablecer contraseña");
         authApp.restablecerContrasena(restablecerContrasenaRequest);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Dispara el mail de restablecimiento de contraseña para el propio usuario
+     * autenticado (mismo mecanismo que {@code /Auth/OlvideContrasena}, sin necesidad de
+     * mandar el mail porque ya está logueado).
+     *
+     * @param usuarioDetails {@code UsuarioDetails} usuario autenticado
+     * @return {@code ResponseEntity<Void>} 204
+     */
+    @PostMapping("/CambiarContrasena")
+    public ResponseEntity<Void> cambiarContrasena(@AuthenticationPrincipal UsuarioDetails usuarioDetails) {
+        log.info("Solicitud recibida: cambiar la propia contraseña");
+        gestionUsuarioPort.dispararResetContrasena(usuarioDetails.getUsuarioId());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Inicia el cambio de mail del propio usuario autenticado. El mail actual sigue
+     * vigente hasta confirmar el link mandado al mail nuevo.
+     *
+     * @param usuarioDetails {@code UsuarioDetails} usuario autenticado
+     * @param cambiarMailRequest {@code CambiarMailRequest} mail nuevo
+     * @return {@code ResponseEntity<Void>} 204
+     */
+    @PostMapping("/CambiarMail")
+    public ResponseEntity<Void> cambiarMail(@AuthenticationPrincipal UsuarioDetails usuarioDetails,
+            @Valid @RequestBody CambiarMailRequest cambiarMailRequest) {
+        log.info("Solicitud recibida: cambiar el propio mail");
+        gestionUsuarioPort.iniciarCambioMail(usuarioDetails.getUsuarioId(), cambiarMailRequest.mailNuevo());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Confirma un cambio de mail pendiente (propio o disparado por el SuperAdmin sobre
+     * un tercero) consumiendo el token mandado al mail nuevo.
+     *
+     * @param confirmarCambioMailRequest {@code ConfirmarCambioMailRequest} el token
+     * @return {@code ResponseEntity<Void>} 200
+     */
+    @PostMapping("/ConfirmarCambioMail")
+    public ResponseEntity<Void> confirmarCambioMail(
+            @Valid @RequestBody ConfirmarCambioMailRequest confirmarCambioMailRequest) {
+        log.info("Solicitud recibida: confirmar cambio de mail");
+        authApp.confirmarCambioMail(confirmarCambioMailRequest.token());
         return ResponseEntity.ok().build();
     }
 

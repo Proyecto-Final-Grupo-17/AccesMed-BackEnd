@@ -39,10 +39,10 @@ ninguno (invariante reforzado con un `CHECK` en el esquema, `ck_usuario_medico_x
   incluidos los `SuperAdmin` (la diferencia entre `Admin` y `SuperAdmin` está en el `Rol`
   asignado, no en la entidad `Admin`/`Usuario`).
 
-**No hay endpoint de lectura para `Usuario`** (no existe `GetUsuarioResponse` ni
-`UsuarioQueryService`) — a propósito: nadie necesita "listar usuarios" como tal, se opera
-sobre el `Medico`/`Admin` dueño, o sobre el `Rol` que tiene asignado (`GET /Rol/{rolId}`
-no lista usuarios tampoco; hoy no hay una pantalla de "todos los usuarios del sistema").
+El SuperAdmin tiene una pantalla propia de "usuarios del sistema": listar (activos e
+inactivos), ver el detalle de uno, darlo de baja, y forzar un cambio de contraseña o de
+mail — ver §ABM de Usuario más abajo. Fuera de eso, la vida de `Usuario` sigue atada al
+`Medico`/`Admin` dueño (alta, reemplazo).
 
 ### Ciclo de vida
 
@@ -56,7 +56,8 @@ hasheado) hasta que la persona la define de verdad activando la cuenta por mail:
 | Alta con admin nuevo | `POST /accesmed-api/Admin/Admin` | `USER_ALTA` | El `Admin` **siempre** se crea con usuario — no existe alta de Admin sin credencial. |
 | Asignar/reemplazar usuario de un médico | `POST /accesmed-api/Usuario/AsignarMedico/{id}` | `USER_ALTA` | Alta inicial (si el médico todavía no tenía usuario) o reemplazo (cuenta comprometida: da de baja el anterior y crea uno nuevo). |
 | Asignar/reemplazar usuario de un admin | `POST /accesmed-api/Usuario/AsignarAdmin/{id}` | `USER_ALTA` | Mismo mecanismo que arriba, para un `Admin`. |
-| Baja (siempre en cascada, nunca directa) | `DELETE /Medico/Medico/{id}` o `DELETE /Admin/Admin/{id}` | `MED_BAJA` / `USER_BAJA` | Dar de baja al `Medico`/`Admin` desactiva automáticamente su `Usuario` — no hay un endpoint para dar de baja solo el `Usuario`. La baja de `Usuario` **no** cascadea al revés. |
+| Baja en cascada (de la persona) | `DELETE /Medico/Medico/{id}` o `DELETE /Admin/Admin/{id}` | `MED_BAJA` / `USER_BAJA` | Dar de baja al `Medico`/`Admin` desactiva automáticamente su `Usuario`. |
+| Baja directa (solo el acceso) | `DELETE /Usuario/Usuario/{id}?motivo=` | `USER_BAJA` | Da de baja únicamente el `Usuario` — el `Medico`/`Admin` dueño sigue activo. Es la dirección inversa de la fila de arriba: la baja de `Usuario` **nunca** cascadea hacia la persona. `motivo` es libre y opcional (si no se manda, se usa un motivo por default). |
 
 **Request para asignar/reemplazar — `AsignarUsuarioRequest`** (el id del médico/admin
 viaja en la ruta, no en el body):
@@ -82,6 +83,56 @@ le asigna automáticamente el rol de sistema que corresponde (`Medico` o `Admin`
   y le manda un mail avisando la baja — efecto inmediato sobre cualquier sesión abierta,
   no solo sobre logins futuros (el detalle técnico de por qué es inmediato está en
   `Docs/Security.md §5.4`).
+
+### ABM de Usuario (SuperAdmin)
+
+Además del ciclo de vida atado al `Medico`/`Admin` de arriba, el SuperAdmin tiene una
+pantalla propia sobre `Usuario`:
+
+| Acción | Endpoint | Permiso |
+|---|---|---|
+| Listar usuarios (activos e inactivos, con filtro de `estado`) | `GET /accesmed-api/Usuario/Usuario` | `USER_CONSULTAR` |
+| Ver detalle de un usuario (esté activo o no) | `GET /accesmed-api/Usuario/Usuario/{id}` | `USER_CONSULTAR` |
+| Dar de baja el acceso (sin tocar al `Medico`/`Admin`) | `DELETE /accesmed-api/Usuario/Usuario/{id}?motivo=` | `USER_BAJA` |
+| Forzar un reset de contraseña | `POST /accesmed-api/Usuario/Usuario/{id}/RestablecerContrasena` | `USER_MODIFICAR` |
+| Forzar un cambio de mail | `POST /accesmed-api/Usuario/Usuario/{id}/CambiarMail` | `USER_MODIFICAR` |
+
+El listado (`GET /Usuario/Usuario`) es la única consulta del sistema que expone la baja
+lógica como filtro en vez de excluirla siempre (`UsuarioCriteria.estado`:
+`ACTIVO`/`INACTIVO`/`TODOS`, default `ACTIVO`) — el SuperAdmin necesita poder auditar
+también los usuarios desactivados.
+
+### Cambiar la propia contraseña o el propio mail (autoservicio)
+
+Cualquier usuario logueado puede ejecutar estas dos acciones sobre sí mismo, sin permiso
+especial (solo estar autenticado) y **con el mismo mecanismo** que usa el SuperAdmin
+sobre un tercero — un solo flujo, dos disparadores distintos:
+
+| Acción | Endpoint |
+|---|---|
+| Cambiar la propia contraseña | `POST /accesmed-api/Auth/CambiarContrasena` (sin body) |
+| Cambiar el propio mail | `POST /accesmed-api/Auth/CambiarMail` (`{ mailNuevo }`) |
+
+**Contraseña**: dispara el mismo mail de "restablecer contraseña" que ya existe
+(`PasswordResetToken`) — la confirmación es el endpoint público
+`POST /accesmed-api/Auth/RestablecerContrasena` que ya estaba (sin cambios). No hay
+formulario de "contraseña actual + nueva": el cambio siempre se confirma por mail.
+
+**Mail** (caso de uso nuevo): a diferencia de la contraseña, no existía ningún mecanismo
+para esto. Funciona en dos pasos con un token propio (`CambioMailToken`, mismo patrón que
+`PasswordResetToken`, ver `Docs/Security.md`):
+
+1. Se dispara el cambio (`POST /Auth/CambiarMail` en autoservicio, o
+   `POST /Usuario/Usuario/{id}/CambiarMail` si lo hace el SuperAdmin sobre otro usuario) —
+   se valida que el mail nuevo sea distinto del actual y no esté en uso por otro usuario
+   activo (`ReglaNegocioException MAIL_YA_REGISTRADO` si no), y se manda un mail de
+   confirmación **al mail nuevo** (no al viejo) — así se garantiza que la casilla nueva es
+   accesible antes de aplicar el cambio. El mail actual sigue sirviendo para loguearse
+   mientras la confirmación está pendiente.
+2. Se confirma con `POST /accesmed-api/Auth/ConfirmarCambioMail` (`{ token }`, público, no
+   requiere `Authorization` — se llega desde el link del mail) — recién ahí se actualiza
+   `Usuario.mail`. Re-valida la disponibilidad del mail nuevo por si otro usuario lo tomó
+   mientras la confirmación estaba pendiente.
 
 ---
 

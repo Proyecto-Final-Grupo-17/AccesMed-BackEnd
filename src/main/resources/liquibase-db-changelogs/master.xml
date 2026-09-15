@@ -39,5 +39,6 @@
     <include file="changelogs/20260731220700-IndicacionPrestacionTurno.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/20260731220800-RefreshToken.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/20260731220900-PasswordResetToken.xml" relativeToChangelogFile="true"/>
+    <include file="changelogs/20260915120000-CambioMailToken.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

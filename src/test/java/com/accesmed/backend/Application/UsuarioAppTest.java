@@ -1,12 +1,12 @@
 package com.accesmed.backend.Application;
 
 import com.accesmed.backend.Domain.Admin;
-import com.accesmed.backend.Domain.Medico;
-import com.accesmed.backend.Domain.Rol;
 import com.accesmed.backend.Domain.Usuario;
 import com.accesmed.backend.Services.DomainServices.RolDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioRolDomainService;
+import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -18,8 +18,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -28,9 +27,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests unitarios de {@link UsuarioApp}: alta de usuario pendiente de activación para un
- * médico y para un admin (con baja del anterior si ya tenía uno y asignación del rol de
- * sistema correspondiente), y desactivación por médico/admin.
+ * Tests unitarios de {@link UsuarioApp}: baja directa (con y sin motivo) y preparación de
+ * cambio de mail (mail disponible, igual al actual, ya registrado por otro usuario).
  */
 @ExtendWith(MockitoExtension.class)
 class UsuarioAppTest {
@@ -47,105 +45,92 @@ class UsuarioAppTest {
     @InjectMocks
     private UsuarioApp usuarioApp;
 
-    @Test
-    void crearUsuarioPendienteActivacion_paraMedicoSinUsuarioPrevio_creaYAsignaRolMedico() {
-        UUID medicoId = UUID.randomUUID();
-        Rol rolMedico = new Rol();
-        rolMedico.setId(UUID.randomUUID());
-        rolMedico.setNombre("Medico");
+    private Usuario usuarioActivo;
+    private UUID usuarioId;
 
-        when(passwordEncoder.encode(anyString())).thenReturn("hash-inicial-no-usable");
-        when(usuarioDomainService.findUsuarioActivoByMedicoId(medicoId)).thenReturn(Optional.empty());
-        when(usuarioDomainService.saveUsuario(any(Usuario.class))).thenAnswer(invocacion -> invocacion.getArgument(0));
-        when(rolDomainService.findRolActivoByNombre("Medico")).thenReturn(rolMedico);
-
-        Usuario usuarioCreado = usuarioApp.crearUsuarioPendienteActivacion(medicoId, null, "medico@accesmed.local");
-
-        assertNotNull(usuarioCreado);
-        assertEquals("medico@accesmed.local", usuarioCreado.getMail());
-        assertEquals(medicoId, usuarioCreado.getMedico().getId());
-        assertNull(usuarioCreado.getAdmin());
-
-        verify(usuarioDomainService, never()).softDeleteUsuario(any(), anyString());
-        verify(usuarioRolDomainService).validateAsignacionRol(usuarioCreado, rolMedico);
-        verify(usuarioRolDomainService).saveUsuarioRol(any());
+    @BeforeEach
+    void setUp() {
+        usuarioId = UUID.randomUUID();
+        usuarioActivo = new Usuario();
+        usuarioActivo.setId(usuarioId);
+        usuarioActivo.setMail("medico@accesmed.com");
+        usuarioActivo.setAdmin(new Admin());
     }
 
     @Test
-    void crearUsuarioPendienteActivacion_medicoConUsuarioPrevio_loDaDeBajaAntesDeCrearElNuevo() {
-        UUID medicoId = UUID.randomUUID();
-        Usuario usuarioAnterior = new Usuario();
-        usuarioAnterior.setId(UUID.randomUUID());
+    void softDeleteUsuarioDirecto_conMotivo_usaElMotivoProvisto() {
 
-        Rol rolMedico = new Rol();
-        rolMedico.setNombre("Medico");
+        when(usuarioDomainService.findUsuarioActivoById(usuarioId)).thenReturn(usuarioActivo);
 
-        when(passwordEncoder.encode(anyString())).thenReturn("hash-inicial-no-usable");
-        when(usuarioDomainService.findUsuarioActivoByMedicoId(medicoId)).thenReturn(Optional.of(usuarioAnterior));
-        when(usuarioDomainService.saveUsuario(any(Usuario.class))).thenAnswer(invocacion -> invocacion.getArgument(0));
-        when(rolDomainService.findRolActivoByNombre("Medico")).thenReturn(rolMedico);
+        usuarioApp.softDeleteUsuarioDirecto(usuarioId, "Cuenta comprometida.");
 
-        usuarioApp.crearUsuarioPendienteActivacion(medicoId, null, "medico-nuevo@accesmed.local");
+        verify(usuarioDomainService).softDeleteUsuario(usuarioActivo, "Cuenta comprometida.");
 
-        verify(usuarioDomainService).softDeleteUsuario(eq(usuarioAnterior), anyString());
     }
 
     @Test
-    void crearUsuarioPendienteActivacion_paraAdmin_asignaRolAdmin() {
-        UUID adminId = UUID.randomUUID();
-        Rol rolAdmin = new Rol();
-        rolAdmin.setNombre("Admin");
+    void softDeleteUsuarioDirecto_sinMotivo_usaElMotivoPorDefault() {
 
-        when(passwordEncoder.encode(anyString())).thenReturn("hash-inicial-no-usable");
-        when(usuarioDomainService.findUsuarioActivoByAdminId(adminId)).thenReturn(Optional.empty());
-        when(usuarioDomainService.saveUsuario(any(Usuario.class))).thenAnswer(invocacion -> invocacion.getArgument(0));
-        when(rolDomainService.findRolActivoByNombre("Admin")).thenReturn(rolAdmin);
+        when(usuarioDomainService.findUsuarioActivoById(usuarioId)).thenReturn(usuarioActivo);
 
-        Usuario usuarioCreado = usuarioApp.crearUsuarioPendienteActivacion(null, adminId, "admin@accesmed.local");
+        usuarioApp.softDeleteUsuarioDirecto(usuarioId, null);
 
-        assertEquals(adminId, usuarioCreado.getAdmin().getId());
-        assertNull(usuarioCreado.getMedico());
-        verify(usuarioRolDomainService).validateAsignacionRol(usuarioCreado, rolAdmin);
+        verify(usuarioDomainService).softDeleteUsuario(eq(usuarioActivo), anyString());
+        verify(usuarioDomainService).softDeleteUsuario(usuarioActivo, "Baja manual por SuperAdmin.");
+
     }
 
     @Test
-    void desactivarUsuarioPorMedico_conUsuarioActivo_loDaDeBaja() {
-        UUID medicoId = UUID.randomUUID();
-        Usuario usuarioActivo = new Usuario();
-        usuarioActivo.setId(UUID.randomUUID());
+    void softDeleteUsuarioDirecto_conMotivoEnBlanco_usaElMotivoPorDefault() {
 
-        when(usuarioDomainService.findUsuarioActivoByMedicoId(medicoId)).thenReturn(Optional.of(usuarioActivo));
+        when(usuarioDomainService.findUsuarioActivoById(usuarioId)).thenReturn(usuarioActivo);
 
-        Usuario resultado = usuarioApp.desactivarUsuarioPorMedico(medicoId);
+        usuarioApp.softDeleteUsuarioDirecto(usuarioId, "   ");
+
+        verify(usuarioDomainService).softDeleteUsuario(usuarioActivo, "Baja manual por SuperAdmin.");
+
+    }
+
+    @Test
+    void prepararCambioMail_conMailNuevoDisponible_noLanzaExcepcion() {
+
+        when(usuarioDomainService.findUsuarioActivoById(usuarioId)).thenReturn(usuarioActivo);
+        when(usuarioDomainService.findUsuarioActivoByMail("nuevo@accesmed.com")).thenReturn(Optional.empty());
+
+        Usuario resultado = usuarioApp.prepararCambioMail(usuarioId, "nuevo@accesmed.com");
 
         assertEquals(usuarioActivo, resultado);
-        verify(usuarioDomainService).softDeleteUsuario(eq(usuarioActivo), anyString());
+        assertEquals("medico@accesmed.com", resultado.getMail());
+
     }
 
     @Test
-    void desactivarUsuarioPorMedico_sinUsuarioActivo_noHaceNadaYDevuelveNull() {
-        UUID medicoId = UUID.randomUUID();
+    void prepararCambioMail_conMailNuevoIgualAlActual_lanzaReglaNegocio() {
 
-        when(usuarioDomainService.findUsuarioActivoByMedicoId(medicoId)).thenReturn(Optional.empty());
+        when(usuarioDomainService.findUsuarioActivoById(usuarioId)).thenReturn(usuarioActivo);
 
-        Usuario resultado = usuarioApp.desactivarUsuarioPorMedico(medicoId);
+        ReglaNegocioException exception = assertThrows(ReglaNegocioException.class,
+                () -> usuarioApp.prepararCambioMail(usuarioId, "medico@accesmed.com"));
 
-        assertNull(resultado);
-        verify(usuarioDomainService, never()).softDeleteUsuario(any(), anyString());
+        assertEquals("MAIL_YA_REGISTRADO", exception.getCodigo());
+        verify(usuarioDomainService, never()).findUsuarioActivoByMail(anyString());
+
     }
 
     @Test
-    void desactivarUsuarioPorAdmin_conUsuarioActivo_loDaDeBaja() {
-        UUID adminId = UUID.randomUUID();
-        Usuario usuarioActivo = new Usuario();
-        usuarioActivo.setId(UUID.randomUUID());
+    void prepararCambioMail_conMailNuevoYaRegistradoPorOtroUsuario_lanzaReglaNegocio() {
 
-        when(usuarioDomainService.findUsuarioActivoByAdminId(adminId)).thenReturn(Optional.of(usuarioActivo));
+        Usuario otroUsuario = new Usuario();
+        otroUsuario.setId(UUID.randomUUID());
 
-        Usuario resultado = usuarioApp.desactivarUsuarioPorAdmin(adminId);
+        when(usuarioDomainService.findUsuarioActivoById(usuarioId)).thenReturn(usuarioActivo);
+        when(usuarioDomainService.findUsuarioActivoByMail("nuevo@accesmed.com")).thenReturn(Optional.of(otroUsuario));
 
-        assertEquals(usuarioActivo, resultado);
-        verify(usuarioDomainService).softDeleteUsuario(eq(usuarioActivo), anyString());
+        ReglaNegocioException exception = assertThrows(ReglaNegocioException.class,
+                () -> usuarioApp.prepararCambioMail(usuarioId, "nuevo@accesmed.com"));
+
+        assertEquals("MAIL_YA_REGISTRADO", exception.getCodigo());
+
     }
 
 }

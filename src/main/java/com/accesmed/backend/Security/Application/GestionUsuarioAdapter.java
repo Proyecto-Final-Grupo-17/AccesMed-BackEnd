@@ -3,6 +3,7 @@ package com.accesmed.backend.Security.Application;
 import com.accesmed.backend.Application.Ports.GestionUsuarioPort;
 import com.accesmed.backend.Application.UsuarioApp;
 import com.accesmed.backend.Domain.Usuario;
+import com.accesmed.backend.Security.Services.DomainServices.CambioMailTokenDomainService;
 import com.accesmed.backend.Security.Services.DomainServices.PasswordResetTokenDomainService;
 import com.accesmed.backend.Security.Services.DomainServices.RefreshTokenDomainService;
 import com.accesmed.backend.Services.Utils.MailService;
@@ -27,6 +28,7 @@ public class GestionUsuarioAdapter implements GestionUsuarioPort {
 
     private final UsuarioApp usuarioApp;
     private final PasswordResetTokenDomainService passwordResetTokenDomainService;
+    private final CambioMailTokenDomainService cambioMailTokenDomainService;
     private final RefreshTokenDomainService refreshTokenDomainService;
     private final MailService mailService;
 
@@ -57,6 +59,31 @@ public class GestionUsuarioAdapter implements GestionUsuarioPort {
     @Override
     public void desactivarUsuarioDeAdmin(UUID adminId) {
         enviarMailBajaSiCorresponde(usuarioApp.desactivarUsuarioPorAdmin(adminId));
+    }
+
+    @Override
+    public void desactivarUsuarioDirecto(UUID usuarioId, String motivo) {
+        enviarMailBajaSiCorresponde(usuarioApp.softDeleteUsuarioDirecto(usuarioId, motivo));
+    }
+
+    @Override
+    public void dispararResetContrasena(UUID usuarioId) {
+        Usuario usuario = usuarioApp.findUsuarioActivo(usuarioId);
+        String token = passwordResetTokenDomainService.generarYGuardarPasswordResetToken(usuario);
+        String link = frontendBaseUrl + "/restablecer-contrasena?token=" + token;
+        mailService.enviarMail(usuario.getMail(), "Restablecé tu contraseña — AccesMed",
+                "Ingresá a este link para definir una contraseña nueva:\n\n" + link
+                        + "\n\nSi no pediste esto, contactá a un administrador.");
+    }
+
+    @Override
+    public void iniciarCambioMail(UUID usuarioId, String mailNuevo) {
+        Usuario usuario = usuarioApp.prepararCambioMail(usuarioId, mailNuevo);
+        String token = cambioMailTokenDomainService.generarYGuardarCambioMailToken(usuario, mailNuevo);
+        String link = frontendBaseUrl + "/confirmar-cambio-mail?token=" + token;
+        mailService.enviarMail(mailNuevo, "Confirmá tu mail nuevo — AccesMed",
+                "Ingresá a este link para confirmar tu mail nuevo de acceso a AccesMed:\n\n" + link
+                        + "\n\nTu mail actual sigue funcionando hasta que confirmes.");
     }
 
     //endregion
