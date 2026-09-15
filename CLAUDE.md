@@ -149,6 +149,15 @@ gestiona el BOM de Spring Boot se declaran sin `<version>`.
 `dev` (local, Postgres por docker-compose), `staging`, `prod` (se definen luego).
 Activar con `SPRING_PROFILES_ACTIVE`. Config en `application-<perfil>.yml`.
 
+**Secretos**: las variables sin default (`MAIL_USERNAME`, `MAIL_PASSWORD`,
+`ACCESMED_JWT_SECRET`) nunca se committean. En local salen de un `.env` en la raíz
+—gitignored, plantilla en `.env.example`— que `application.yml` importa con
+`spring.config.import: optional:file:.env[.properties]`; en `staging`/`prod` llegan
+como variables de entorno reales, que le ganan al archivo. Al agregar una property
+obligatoria nueva hay que sumarla a `.env.example` y a
+`src/test/resources/application-test.yml`, o se rompen el arranque local y el test
+de contexto.
+
 ## Ramas
 
 `main` (producción, `prod`) ← `staging` (`staging`) ← `develop` (`dev`). Dentro de
