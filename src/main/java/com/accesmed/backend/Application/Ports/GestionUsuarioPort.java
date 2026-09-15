@@ -41,4 +41,35 @@ public interface GestionUsuarioPort {
      */
     void desactivarUsuarioDeAdmin(UUID adminId);
 
+    /**
+     * Da de baja un usuario directamente, sin que implique dar de baja al médico/admin
+     * vinculado (a diferencia de {@link #desactivarUsuarioDeMedico}/
+     * {@link #desactivarUsuarioDeAdmin}, que sí lo dan de baja porque parten de la baja
+     * de la persona). Revoca los refresh tokens vigentes y avisa por mail.
+     *
+     * @param usuarioId {@code UUID} id del usuario
+     * @param motivo {@code String} motivo de la baja, o {@code null}/vacío para un default
+     */
+    void desactivarUsuarioDirecto(UUID usuarioId, String motivo);
+
+    /**
+     * Dispara el mail de restablecimiento de contraseña para un usuario (mismo mecanismo
+     * que "olvidé mi contraseña", disparado por el SuperAdmin sobre un tercero o por el
+     * propio usuario sobre sí mismo).
+     *
+     * @param usuarioId {@code UUID} id del usuario
+     */
+    void dispararResetContrasena(UUID usuarioId);
+
+    /**
+     * Inicia el cambio de mail de un usuario: valida el mail nuevo y manda el mail de
+     * confirmación a esa casilla. El mail solo se aplica cuando se confirma el token
+     * (ver {@code AuthApp#confirmarCambioMail}) — el mail actual sigue vigente hasta
+     * entonces.
+     *
+     * @param usuarioId {@code UUID} id del usuario
+     * @param mailNuevo {@code String} mail nuevo propuesto
+     */
+    void iniciarCambioMail(UUID usuarioId, String mailNuevo);
+
 }

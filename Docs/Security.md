@@ -56,10 +56,11 @@ Security/
 ├── Config/
 │   └── SecurityFilterChainConfig.java  # arma la SecurityFilterChain, y los beans PasswordEncoder/AuthenticationManager
 ├── Controllers/
-│   └── AuthController.java       # los 5 endpoints públicos de /Auth
+│   └── AuthController.java       # login, refresh, logout, recuperación/restablecimiento y autoservicio de contraseña/mail
 ├── Domain/
 │   ├── RefreshToken.java         # artefacto de sesión (no dato de negocio)
-│   └── PasswordResetToken.java   # artefacto de sesión (no dato de negocio)
+│   ├── PasswordResetToken.java   # artefacto de sesión (no dato de negocio)
+│   └── CambioMailToken.java      # artefacto de sesión: confirma un cambio de mail contra el mail nuevo
 ├── Jwt/
 │   ├── JwtService.java               # generar/validar el JWT
 │   ├── JwtAuthenticationFilter.java  # el filtro que lee el header Authorization en cada request
@@ -67,15 +68,18 @@ Security/
 │   ├── UsuarioDetails.java           # adapter Usuario → UserDetails
 │   └── UsuarioDetailsService.java    # recalcula authorities desde la base en cada request
 ├── Records/Auth/
-│   ├── Request/  (LoginRequest, RefreshRequest, OlvideContrasenaRequest, RestablecerContrasenaRequest)
+│   ├── Request/  (LoginRequest, RefreshRequest, OlvideContrasenaRequest, RestablecerContrasenaRequest,
+│   │              CambiarMailRequest, ConfirmarCambioMailRequest)
 │   └── Response/ (LoginResponse, RefreshResponse)
 ├── Repositories/
 │   ├── RefreshTokenRepository.java
-│   └── PasswordResetTokenRepository.java
+│   ├── PasswordResetTokenRepository.java
+│   └── CambioMailTokenRepository.java
 └── Services/
     ├── DomainServices/
     │   ├── RefreshTokenDomainService.java       # generar, validar, revocar refresh tokens
-    │   └── PasswordResetTokenDomainService.java # generar, validar, consumir tokens de activación/recuperación
+    │   ├── PasswordResetTokenDomainService.java # generar, validar, consumir tokens de activación/recuperación
+    │   └── CambioMailTokenDomainService.java    # generar, validar, consumir tokens de cambio de mail
     └── Utils/
         ├── AlcanceMedicoService.java   # scope "solo mis recursos" para un médico
         └── AutorizacionService.java    # permiso extra condicional dentro de un método
@@ -357,8 +361,11 @@ public AuthenticationManager authenticationManager(AuthenticationConfiguration a
 
 #### `AuthApp`
 
-El caso de uso completo de autenticación — cada método corresponde 1 a 1 con un endpoint
-de `AuthController`. Ver el detalle línea por línea de cada uno en §5 (los 4 flujos).
+El caso de uso completo de autenticación — la mayoría de sus métodos corresponde 1 a 1 con
+un endpoint de `AuthController` (las dos excepciones son `CambiarContrasena`/`CambiarMail`,
+que el controller resuelve llamando directo a `GestionUsuarioPort` en vez de a `AuthApp`,
+para reutilizar la misma lógica que usa el SuperAdmin sobre un tercero). Ver el detalle
+línea por línea de cada flujo en §5.
 
 | Dependencia | Para qué |
 |---|---|
@@ -366,6 +373,7 @@ de `AuthController`. Ver el detalle línea por línea de cada uno en §5 (los 4 
 | `JwtService` | emitir el access token |
 | `RefreshTokenDomainService` | generar/validar/revocar refresh tokens |
 | `PasswordResetTokenDomainService` | generar/validar/consumir tokens de activación-recuperación |
+| `CambioMailTokenDomainService` | validar/consumir el token de cambio de mail (ver `confirmarCambioMail`) |
 | `UsuarioDomainService` (núcleo) | buscar el usuario activo |
 | `UsuarioDetailsService` | recalcular `UserDetails` al refrescar |
 | `PasswordEncoder` | hashear la contraseña nueva al restablecer |
@@ -382,33 +390,43 @@ mail.
 | Método (de la interfaz) | Qué agrega sobre lo que hace `UsuarioApp` |
 |---|---|
 | `asignarUsuarioAMedico`/`asignarUsuarioAAdmin` | Después de que `UsuarioApp` crea el `Usuario` pendiente de activación, genera un `PasswordResetToken` y manda el mail "Activá tu cuenta" con el link `{frontendBaseUrl}/activar-cuenta?token=...` |
-| `desactivarUsuarioDeMedico`/`desactivarUsuarioDeAdmin` | Después de que `UsuarioApp` da de baja el `Usuario`, **revoca todos sus refresh tokens vigentes** y manda un mail avisando la baja — ver el flujo de baneo en §5.4 |
+| `desactivarUsuarioDeMedico`/`desactivarUsuarioDeAdmin` | Después de que `UsuarioApp` da de baja el `Usuario` (en cascada, porque se dio de baja la persona), **revoca todos sus refresh tokens vigentes** y manda un mail avisando la baja — ver el flujo de baneo en §5.4 |
+| `desactivarUsuarioDirecto` | Igual que arriba, pero para la baja directa del `Usuario` desde el ABM del SuperAdmin (`UsuarioApp.softDeleteUsuarioDirecto`) — el `Medico`/`Admin` no se toca. Mismo efecto de revocar tokens y avisar por mail |
+| `dispararResetContrasena` | Genera un `PasswordResetToken` y manda el mismo mail de restablecimiento que `OlvideContrasena`, pero disparado por el SuperAdmin sobre un tercero (o por `AuthController.cambiarContrasena` sobre uno mismo) en vez de por el propio usuario "olvidando" la contraseña |
+| `iniciarCambioMail` | Delega en `UsuarioApp.prepararCambioMail` la validación (usuario activo, mail nuevo disponible), genera un `CambioMailToken` y manda el mail de confirmación **al mail nuevo** — ver §5.5 |
 
 #### `AuthController`
 
-`@RequestMapping("/accesmed-api/Auth")`. Sin `@PreAuthorize` en ningún método (a
+`@RequestMapping("/accesmed-api/Auth")`. Ningún método tiene `@PreAuthorize` de permiso (a
 diferencia de todos los demás controllers del proyecto) — la autorización de estas rutas
-la resuelve por completo `SecurityFilterChainConfig` (4 son `permitAll()`, `Logout`
-simplemente exige estar autenticado sin exigir un permiso puntual). Cada método es un
-passthrough: recibe el record, llama al método homónimo de `AuthApp`, devuelve la
-respuesta. El detalle de cada endpoint (request/response, status codes, errores) está en
+la resuelve por completo `SecurityFilterChainConfig`: `Login`, `Refresh`,
+`OlvideContrasena`, `RestablecerContrasena` y `ConfirmarCambioMail` son `permitAll()`
+(no requieren estar logueado); `Me`, `Logout`, `CambiarContrasena` y `CambiarMail` exigen
+estar autenticado (`@AuthenticationPrincipal UsuarioDetails`) pero sin exigir ningún
+permiso puntual — son acciones sobre uno mismo, no sobre un tercero. Cada método es un
+passthrough: recibe el record, llama al método homónimo de `AuthApp` o, para
+`CambiarContrasena`/`CambiarMail`, al `GestionUsuarioPort` del núcleo pasándole el
+`usuarioId` del propio principal en vez del de la ruta (así reutiliza exactamente la misma
+lógica que usa el SuperAdmin sobre un tercero desde `UsuarioController`). El detalle de
+cada endpoint (request/response, status codes, errores) está en
 `Docs/Features/Autenticacion.md`.
 
 ### 3.5 `Domain/`, `Repositories/`, `Services/DomainServices/` — los tokens de sesión
 
-`RefreshToken` y `PasswordResetToken` son casi idénticos en forma (ambos: `id`,
-`tokenHash`, `expiresAt`, relación a `Usuario`, y un campo de "consumido" — `revokedAt` en
-uno, `usedAt` en el otro) pero cumplen roles distintos:
+`RefreshToken`, `PasswordResetToken` y `CambioMailToken` son casi idénticos en forma
+(todos: `id`, `tokenHash`, `expiresAt`, relación a `Usuario`, y un campo de "consumido" —
+`revokedAt` en el primero, `usedAt` en los otros dos) pero cumplen roles distintos:
 
-| | `RefreshToken` | `PasswordResetToken` |
-|---|---|---|
-| Para qué | Renovar el access token sin volver a pedir contraseña | Activar cuenta nueva **o** recuperar contraseña olvidada (mismo mecanismo para los dos casos) |
-| Vigencia | 7 días | 1 hora |
-| Se puede usar más de una vez | Sí, hasta que expire o se revoque (no rota) | No — de un solo uso, se marca `usedAt` al consumirlo |
-| Campo de invalidación | `revokedAt` | `usedAt` |
-| Repositorio | `findByTokenHashAndRevokedAtIsNull`, `findByUsuarioIdAndRevokedAtIsNull` | `findByTokenHashAndUsedAtIsNull` |
+| | `RefreshToken` | `PasswordResetToken` | `CambioMailToken` |
+|---|---|---|---|
+| Para qué | Renovar el access token sin volver a pedir contraseña | Activar cuenta nueva **o** recuperar/restablecer contraseña (mismo mecanismo para los tres casos: activación, autoservicio y disparado por el SuperAdmin) | Confirmar un cambio de mail (autoservicio o disparado por el SuperAdmin) contra el mail nuevo, antes de aplicarlo |
+| Vigencia | 7 días | 1 hora | 1 hora |
+| Se puede usar más de una vez | Sí, hasta que expire o se revoque (no rota) | No — de un solo uso, se marca `usedAt` al consumirlo | No — de un solo uso, se marca `usedAt` al consumirlo |
+| Campo de invalidación | `revokedAt` | `usedAt` | `usedAt` |
+| Dato extra que carga | — | — | `mailNuevo` (el mail propuesto, pendiente de confirmación) |
+| Repositorio | `findByTokenHashAndRevokedAtIsNull`, `findByUsuarioIdAndRevokedAtIsNull` | `findByTokenHashAndUsedAtIsNull` | `findByTokenHashAndUsedAtIsNull` |
 
-**Ninguno de los dos se persiste en texto plano.** El patrón es el mismo en ambos
+**Ninguno se persiste en texto plano.** El patrón es el mismo en los tres
 `DomainService` (`generarYGuardar...`):
 1. 32 bytes aleatorios de `SecureRandom` (256 bits de entropía).
 2. Se codifican en Base64-URL (`Base64.getUrlEncoder().withoutPadding()`) → ese es el
@@ -420,7 +438,8 @@ uno, `usedAt` en el otro) pero cumplen roles distintos:
    verificar en cada `Refresh`).
 4. Se guarda el hash (`tokenHash`) en la base.
 
-Al validar (`findRefreshTokenVigentePorValor`/`findPasswordResetTokenVigentePorValor`): se
+Al validar (`findRefreshTokenVigentePorValor`/`findPasswordResetTokenVigentePorValor`/
+`findCambioMailTokenVigentePorValor`): se
 recibe el valor plano, se hashea de la misma forma, se busca por ese hash — si no aparece
 (no existe / ya se usó / está revocado, según el filtro del repositorio) o si `expiresAt`
 ya pasó, tira `RecursoNoEncontradoException` (404).
@@ -469,7 +488,7 @@ claro cuál es cuál:
 
 ---
 
-## 5. Los cuatro flujos, paso a paso
+## 5. Los cinco flujos, paso a paso
 
 ### 5.1 Login
 
@@ -629,12 +648,17 @@ mecanismo real es la baja del usuario (§5.4), que sí se chequea en cada reques
 
 ### 5.4 "Baneo" (dar de baja el acceso de alguien)
 
-El proyecto no tiene un endpoint literal `POST /Usuario/{id}/Banear`. El equivalente real
-es dar de baja al `Medico`/`Admin` dueño de ese usuario (`DELETE`, soft delete) — que
-**cascadea** a desactivar su `Usuario` de acceso automáticamente. También existe un caso
-más chico: **reasignar** el usuario de un médico/admin (`POST /Usuario/AsignarMedico/{id}`
-o `AsignarAdmin/{id}`) dado de baja el anterior sin dar de baja a la persona — pensado para
-"cuenta comprometida, necesito credenciales nuevas ya".
+El proyecto no tiene un endpoint literal `POST /Usuario/{id}/Banear`, pero hay dos formas
+de lograrlo. La primera, y la que documenta el diagrama de abajo, es dar de baja al
+`Medico`/`Admin` dueño de ese usuario (`DELETE`, soft delete) — que **cascadea** a
+desactivar su `Usuario` de acceso automáticamente. La segunda es la baja **directa** del
+`Usuario` desde el ABM del SuperAdmin (`DELETE /accesmed-api/Usuario/Usuario/{id}`, ver
+`Docs/Features/UsuariosRolesYPermisos.md`): mismo efecto sobre el acceso (revoca refresh
+tokens, manda el mail de aviso, vía `GestionUsuarioAdapter.desactivarUsuarioDirecto`), pero
+**sin** tocar al `Medico`/`Admin` — sirve para suspender el acceso sin dar de baja a la
+persona. También existe un caso más chico: **reasignar** el usuario de un médico/admin
+(`POST /Usuario/AsignarMedico/{id}` o `AsignarAdmin/{id}`) dado de baja el anterior sin dar
+de baja a la persona — pensado para "cuenta comprometida, necesito credenciales nuevas ya".
 
 ```mermaid
 sequenceDiagram
@@ -678,6 +702,67 @@ Este es el punto clave que distingue a este mecanismo de "solo revocar el refres
 (§3.1, paso 2), no solo al emitir o refrescar el token. Por eso una baja tiene efecto
 inmediato sobre una sesión ya abierta, mientras que un simple logout no lo tiene sobre el
 access token en curso.
+
+### 5.5 Cambio de mail (autoservicio o disparado por el SuperAdmin)
+
+Único de los flujos de esta sección que **no existía** — se agregó junto con el resto del
+ABM de `Usuario`. Dos pasos con un token propio (`CambioMailToken`), y dos disparadores
+posibles que confluyen en la misma lógica:
+
+```mermaid
+sequenceDiagram
+    participant Actor as Usuario (auto) o SuperAdmin
+    participant C as AuthController / UsuarioController
+    participant GUP as GestionUsuarioPort
+    participant GUA as GestionUsuarioAdapter
+    participant UA as UsuarioApp
+    participant UDS as UsuarioDomainService
+    participant CMTD as CambioMailTokenDomainService
+    participant Mail as MailService
+    participant AA as AuthApp
+
+    Actor->>C: POST /Auth/CambiarMail {mailNuevo}  (autoservicio, requiere estar logueado)
+    Note over Actor,C: o POST /Usuario/Usuario/{id}/CambiarMail (SuperAdmin, requiere USER_MODIFICAR)
+    C->>GUP: iniciarCambioMail(usuarioId, mailNuevo)
+    GUP->>GUA: (implementación)
+    GUA->>UA: prepararCambioMail(usuarioId, mailNuevo)
+    UA->>UDS: findUsuarioActivoById(usuarioId)
+    UDS-->>UA: Usuario
+    UA->>UDS: findUsuarioActivoByMail(mailNuevo)
+    alt mail nuevo == mail actual, o ya en uso
+        UA-->>GUA: ReglaNegocioException MAIL_YA_REGISTRADO (409)
+    else disponible
+        UA-->>GUA: Usuario (sin modificar)
+        GUA->>CMTD: generarYGuardarCambioMailToken(usuario, mailNuevo)
+        CMTD-->>GUA: token plano
+        GUA->>Mail: enviarMail(mailNuevo, "Confirmá tu mail nuevo", link con el token)
+        Note over Mail: se manda al mail NUEVO, no al viejo —\nvalida que la casilla es accesible antes de aplicar el cambio
+        GUA-->>C: (void)
+        C-->>Actor: 204
+    end
+
+    Note over Actor: el mail actual sigue sirviendo para loguearse\nmientras la confirmación esté pendiente
+
+    Actor->>C: POST /Auth/ConfirmarCambioMail {token}  (público, permitAll)
+    C->>AA: confirmarCambioMail(token)
+    AA->>CMTD: findCambioMailTokenVigentePorValor(token)
+    CMTD-->>AA: CambioMailToken (con mailNuevo)
+    AA->>UDS: findUsuarioActivoByMail(mailNuevo)
+    alt otro usuario tomó ese mail mientras tanto
+        AA-->>C: ReglaNegocioException MAIL_YA_REGISTRADO (409)
+    else sigue disponible
+        AA->>UDS: usuario.setMail(mailNuevo); saveUsuario(usuario)
+        AA->>CMTD: marcarComoUsado(cambioMailToken)
+        AA-->>C: (void)
+        C-->>Actor: 200
+        Note over Actor: a partir de acá, loguear con el mail viejo ya no funciona
+    end
+```
+
+A diferencia de restablecer contraseña, confirmar el cambio de mail **no** revoca los
+refresh tokens vigentes — cambiar el mail no compromete una sesión abierta (a diferencia
+de una contraseña filtrada), así que no hay necesidad de forzar el re-login en otros
+dispositivos.
 
 La baja de `Usuario` **no cascadea al revés**: dar de baja solo el `Usuario` (sin dar de
 baja el `Medico`/`Admin`) no existe como operación directa expuesta — hoy solo pasa como

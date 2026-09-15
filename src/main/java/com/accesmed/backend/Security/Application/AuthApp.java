@@ -15,10 +15,13 @@ import com.accesmed.backend.Security.Records.Auth.Response.LoginResponse;
 import com.accesmed.backend.Security.Records.Auth.Response.MeResponse;
 import com.accesmed.backend.Security.Records.Auth.Response.MeRolResponse;
 import com.accesmed.backend.Security.Records.Auth.Response.RefreshResponse;
+import com.accesmed.backend.Security.Domain.CambioMailToken;
+import com.accesmed.backend.Security.Services.DomainServices.CambioMailTokenDomainService;
 import com.accesmed.backend.Security.Services.DomainServices.PasswordResetTokenDomainService;
 import com.accesmed.backend.Security.Services.DomainServices.RefreshTokenDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioRolDomainService;
+import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Utils.MailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +52,7 @@ public class AuthApp {
     private final JwtService jwtService;
     private final RefreshTokenDomainService refreshTokenDomainService;
     private final PasswordResetTokenDomainService passwordResetTokenDomainService;
+    private final CambioMailTokenDomainService cambioMailTokenDomainService;
     private final UsuarioDomainService usuarioDomainService;
     private final UsuarioRolDomainService usuarioRolDomainService;
     private final UsuarioDetailsService usuarioDetailsService;
@@ -188,6 +192,37 @@ public class AuthApp {
 
         passwordResetTokenDomainService.marcarComoUsado(passwordResetToken);
         refreshTokenDomainService.revocarTodosLosRefreshTokensDeUsuario(usuario);
+
+    }
+
+    /**
+     * Consume un token de cambio de mail vigente y aplica el mail nuevo sobre el usuario.
+     * Re-valida que el mail nuevo siga disponible (por si otro usuario lo tomó mientras
+     * la confirmación estaba pendiente).
+     *
+     * @param token {@code String} token de confirmación
+     * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException
+     *         {@code ReglaNegocioException} si el mail nuevo ya no está disponible
+     */
+    @Transactional
+    public void confirmarCambioMail(String token) {
+
+        log.info("Confirmando cambio de mail");
+
+        CambioMailToken cambioMailToken = cambioMailTokenDomainService.findCambioMailTokenVigentePorValor(token);
+        String mailNuevo = cambioMailToken.getMailNuevo();
+
+        usuarioDomainService.findUsuarioActivoByMail(mailNuevo).ifPresent(otro -> {
+            log.warn("Mail nuevo ya registrado por otro usuario al momento de confirmar: mailNuevo={}", mailNuevo);
+            throw new ReglaNegocioException(getClass(), "MAIL_YA_REGISTRADO",
+                    "El mail nuevo ya está en uso por otro usuario.");
+        });
+
+        Usuario usuario = cambioMailToken.getUsuario();
+        usuario.setMail(mailNuevo);
+        usuarioDomainService.saveUsuario(usuario);
+
+        cambioMailTokenDomainService.marcarComoUsado(cambioMailToken);
 
     }
 

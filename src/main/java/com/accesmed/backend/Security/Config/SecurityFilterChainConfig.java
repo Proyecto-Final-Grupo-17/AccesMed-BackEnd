@@ -45,7 +45,8 @@ public class SecurityFilterChainConfig {
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**",
                                 "/actuator/health",
                                 "/accesmed-api/Auth/Login", "/accesmed-api/Auth/Refresh",
-                                "/accesmed-api/Auth/OlvideContrasena", "/accesmed-api/Auth/RestablecerContrasena")
+                                "/accesmed-api/Auth/OlvideContrasena", "/accesmed-api/Auth/RestablecerContrasena",
+                                "/accesmed-api/Auth/ConfirmarCambioMail")
                         .permitAll()
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

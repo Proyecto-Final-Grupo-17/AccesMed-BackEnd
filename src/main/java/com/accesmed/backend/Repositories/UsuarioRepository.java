@@ -2,6 +2,7 @@ package com.accesmed.backend.Repositories;
 
 import com.accesmed.backend.Domain.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -9,10 +10,13 @@ import java.util.UUID;
 
 /**
  * Repositorio de acceso a datos para la entidad {@code Usuario}.
- * Todas las consultas filtran registros con baja lógica ({@code deletedAt IS NULL}).
+ * Los métodos {@code findByX} filtran registros con baja lógica ({@code deletedAt IS NULL});
+ * el filtrado dinámico vía {@link JpaSpecificationExecutor} (usado por
+ * {@code UsuarioQueryService}) expone {@code deletedAt} como filtro ({@code estado}) en vez
+ * de excluirlo siempre.
  */
 @Repository
-public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
+public interface UsuarioRepository extends JpaRepository<Usuario, UUID>, JpaSpecificationExecutor<Usuario> {
 
     /**
      * Busca un usuario activo por su identificador.
