@@ -160,7 +160,7 @@ public class ObraSocialApp {
 
         //Devolver response mapeado, con los planes de la obra social (estado vigente por lote)
         List<GetPlanAnidadoResponse> planesResponse = mapPlanesAnidados(planDomainService.findPlanesByObraSocial(id));
-        GetObraSocialResponse getObraSocialResponse = obraSocialMapper.toGetResponse(obraSocialActualizada, planesResponse);
+        GetObraSocialResponse getObraSocialResponse = obraSocialMapper.toGetResponse(obraSocialActualizada, planesResponse, null);
         return getObraSocialResponse;
 
     }

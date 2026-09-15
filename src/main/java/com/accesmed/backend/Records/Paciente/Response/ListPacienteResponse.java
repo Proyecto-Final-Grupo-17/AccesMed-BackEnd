@@ -1,5 +1,7 @@
 package com.accesmed.backend.Records.Paciente.Response;
 
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
+
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -41,7 +43,13 @@ public record ListPacienteResponse(
         /**
          * Número de teléfono del paciente ({@code String}).
          */
-        String numeroTelefono
+        String numeroTelefono,
+
+        /**
+         * Datos de auditoría ({@code AuditoriaResponse}), solo poblado si quien consulta
+         * tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario.
+         */
+        AuditoriaResponse auditoria
 
 ) {
 }

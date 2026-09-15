@@ -3,11 +3,15 @@ package com.accesmed.backend.Services.QueryServices;
 import com.accesmed.backend.Domain.ObraSocial_;
 import com.accesmed.backend.Domain.ObraSocialPlanPrestacion;
 import com.accesmed.backend.Domain.ObraSocialPlanPrestacion_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Plan_;
 import com.accesmed.backend.Domain.Prestacion_;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Criteria.ObraSocialPrestacionCriteria;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.ListObraSocialPrestacionResponse;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Repositories.ObraSocialPlanPrestacionRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Mappers.ObraSocialPlanPrestacionMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
@@ -38,6 +42,7 @@ public class ObraSocialPlanPrestacionQueryService
 
     private final ObraSocialPlanPrestacionRepository obraSocialPlanPrestacionRepository;
     private final ObraSocialPlanPrestacionMapper obraSocialPlanPrestacionMapper;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -56,17 +61,21 @@ public class ObraSocialPlanPrestacionQueryService
      *
      * @param criteria {@code ObraSocialPrestacionCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListObraSocialPrestacionResponse>} página de DTOs mapeados
      */
     public PageResponse<ListObraSocialPrestacionResponse> findObraSocialPrestaciones(
-            ObraSocialPrestacionCriteria criteria, Pageable pageable) {
+            ObraSocialPrestacionCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando coberturas plan-prestación por criteria: {}, pageable: {}", criteria, pageable);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
 
         Page<ObraSocialPlanPrestacion> coberturasPaginadas = findByCriteria(criteria, pageable);
 
         PageResponse<ListObraSocialPrestacionResponse> pageResponse = PageResponse.from(
-                coberturasPaginadas, obraSocialPlanPrestacionMapper::toListResponse);
+                coberturasPaginadas, cobertura -> obraSocialPlanPrestacionMapper.toListResponse(cobertura,
+                        tieneAuditoria ? obraSocialPlanPrestacionMapper.toAuditoria(cobertura) : null));
         return pageResponse;
 
     }

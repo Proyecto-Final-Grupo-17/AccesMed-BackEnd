@@ -1,6 +1,7 @@
 package com.accesmed.backend.Services.Mappers;
 
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Request.UpdateTipoIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Request.CreateTipoIndicacionPrestacionRequest;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.UpdateTipoIndicacionPrestacionResponse;
@@ -84,31 +85,29 @@ public interface TipoIndicacionPrestacionMapper {
      * Convierte una entidad {@code TipoIndicacionPrestacion} a {@code GetTipoIndicacionPrestacionResponse}.
      *
      * @param tipoIndicacionPrestacion {@code TipoIndicacionPrestacion} entidad
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code GetTipoIndicacionPrestacionResponse} respuesta de obtención
      */
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "codigo", source = "codigo")
-    @Mapping(target = "nombre", source = "nombre")
-    GetTipoIndicacionPrestacionResponse toGetResponse(TipoIndicacionPrestacion tipoIndicacionPrestacion);
+    @Mapping(target = "id", source = "tipoIndicacionPrestacion.id")
+    @Mapping(target = "codigo", source = "tipoIndicacionPrestacion.codigo")
+    @Mapping(target = "nombre", source = "tipoIndicacionPrestacion.nombre")
+    @Mapping(target = "auditoria", source = "auditoria")
+    GetTipoIndicacionPrestacionResponse toGetResponse(TipoIndicacionPrestacion tipoIndicacionPrestacion, AuditoriaResponse auditoria);
 
     /**
      * Convierte una entidad {@code TipoIndicacionPrestacion} a {@code ListTipoIndicacionPrestacionResponse}.
      *
      * @param tipoIndicacionPrestacion {@code TipoIndicacionPrestacion} entidad
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code ListTipoIndicacionPrestacionResponse} respuesta de listado
      */
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "codigo", source = "codigo")
-    @Mapping(target = "nombre", source = "nombre")
-    ListTipoIndicacionPrestacionResponse toListResponse(TipoIndicacionPrestacion tipoIndicacionPrestacion);
-
-    /**
-     * Convierte una lista de entidades {@code TipoIndicacionPrestacion} a una lista de {@code ListTipoIndicacionPrestacionResponse}.
-     *
-     * @param tiposIndicacionPrestacion {@code List<TipoIndicacionPrestacion>} lista de entidades
-     * @return {@code List<ListTipoIndicacionPrestacionResponse>} lista de respuestas
-     */
-    List<ListTipoIndicacionPrestacionResponse> toListResponses(List<TipoIndicacionPrestacion> tiposIndicacionPrestacion);
+    @Mapping(target = "id", source = "tipoIndicacionPrestacion.id")
+    @Mapping(target = "codigo", source = "tipoIndicacionPrestacion.codigo")
+    @Mapping(target = "nombre", source = "tipoIndicacionPrestacion.nombre")
+    @Mapping(target = "auditoria", source = "auditoria")
+    ListTipoIndicacionPrestacionResponse toListResponse(TipoIndicacionPrestacion tipoIndicacionPrestacion, AuditoriaResponse auditoria);
 
     /**
      * Convierte una entidad {@code TipoIndicacionPrestacion} a {@code SoftDeleteTipoIndicacionPrestacionResponse}.
@@ -117,5 +116,22 @@ public interface TipoIndicacionPrestacionMapper {
      * @return {@code SoftDeleteTipoIndicacionPrestacionResponse} respuesta de baja lógica
      */
     SoftDeleteTipoIndicacionPrestacionResponse toSoftDeleteResponse(TipoIndicacionPrestacion tipoIndicacionPrestacion);
+
+    /**
+     * Arma el {@code AuditoriaResponse} de un tipo de indicación de prestación.
+     * {@code TipoIndicacionPrestacion} tiene soft delete propio, así que {@code deletedAt}/
+     * {@code deletedBy}/{@code deletedReason} se mapean normalmente.
+     *
+     * @param tipoIndicacionPrestacion {@code TipoIndicacionPrestacion} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría del tipo de indicación
+     */
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", source = "deletedAt")
+    @Mapping(target = "deletedBy", source = "deletedBy")
+    @Mapping(target = "deletedReason", source = "deletedReason")
+    AuditoriaResponse toAuditoria(TipoIndicacionPrestacion tipoIndicacionPrestacion);
 
 }

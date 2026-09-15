@@ -1,12 +1,16 @@
 package com.accesmed.backend.Services.QueryServices;
 
 import com.accesmed.backend.Domain.Auditable_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion;
 import com.accesmed.backend.Domain.TipoIndicacionPrestacion_;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Criteria.TipoIndicacionPrestacionCriteria;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.GetTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Records.TipoIndicacionPrestacion.Response.ListTipoIndicacionPrestacionResponse;
 import com.accesmed.backend.Repositories.TipoIndicacionPrestacionRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.TipoIndicacionPrestacionMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
@@ -37,6 +41,7 @@ public class TipoIndicacionPrestacionQueryService extends AbstractFiltroQuerySer
 
     private final TipoIndicacionPrestacionRepository tipoIndicacionPrestacionRepository;
     private final TipoIndicacionPrestacionMapper tipoIndicacionPrestacionMapper;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -56,13 +61,19 @@ public class TipoIndicacionPrestacionQueryService extends AbstractFiltroQuerySer
      * mapeado (no paginado).
      *
      * @param criteria {@code TipoIndicacionPrestacionCriteria} filtros a aplicar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code GetTipoIndicacionPrestacionResponse} el tipo encontrado, mapeado
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ningún
      *         tipo activo cumple el criteria
      */
-    public GetTipoIndicacionPrestacionResponse findTipoIndicacionPrestacionByCriteria(TipoIndicacionPrestacionCriteria criteria) {
+    public GetTipoIndicacionPrestacionResponse findTipoIndicacionPrestacionByCriteria(TipoIndicacionPrestacionCriteria criteria, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando tipo de indicación de prestación por criteria: {}", criteria);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
 
         //Buscar el tipo por el criteria proporcionado
         TipoIndicacionPrestacion tipoExistente = findOneByCriteria(criteria)
@@ -73,7 +84,8 @@ public class TipoIndicacionPrestacionQueryService extends AbstractFiltroQuerySer
                 });
 
         //Mapear y devolver la respuesta
-        GetTipoIndicacionPrestacionResponse getTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionMapper.toGetResponse(tipoExistente);
+        GetTipoIndicacionPrestacionResponse getTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionMapper.toGetResponse(tipoExistente,
+                tieneAuditoria ? tipoIndicacionPrestacionMapper.toAuditoria(tipoExistente) : null);
         return getTipoIndicacionPrestacionResponse;
 
     }
@@ -83,18 +95,26 @@ public class TipoIndicacionPrestacionQueryService extends AbstractFiltroQuerySer
      *
      * @param criteria {@code TipoIndicacionPrestacionCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListTipoIndicacionPrestacionResponse>} página de tipos
      *         que cumplen el criteria, mapeados
      */
-    public PageResponse<ListTipoIndicacionPrestacionResponse> findTiposIndicacionPrestacion(TipoIndicacionPrestacionCriteria criteria, Pageable pageable) {
+    public PageResponse<ListTipoIndicacionPrestacionResponse> findTiposIndicacionPrestacion(TipoIndicacionPrestacionCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
 
         log.debug("Listado de tipos de indicación iniciado: criteria={}, page={}", criteria, pageable);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
 
         //Buscar tipos que cumplen el criteria, paginados
         Page<TipoIndicacionPrestacion> tiposPagina = findByCriteria(criteria, pageable);
 
         //Mapear y devolver response
-        PageResponse<ListTipoIndicacionPrestacionResponse> pageResponse = PageResponse.from(tiposPagina, tipoIndicacionPrestacionMapper::toListResponse);
+        PageResponse<ListTipoIndicacionPrestacionResponse> pageResponse = PageResponse.from(tiposPagina,
+                tipo -> tipoIndicacionPrestacionMapper.toListResponse(tipo,
+                        tieneAuditoria ? tipoIndicacionPrestacionMapper.toAuditoria(tipo) : null));
         return pageResponse;
 
     }
@@ -133,6 +153,9 @@ public class TipoIndicacionPrestacionQueryService extends AbstractFiltroQuerySer
         }
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
+        }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
         }
 
         return specification;

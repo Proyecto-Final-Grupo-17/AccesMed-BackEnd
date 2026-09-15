@@ -5,12 +5,16 @@ import com.accesmed.backend.Domain.Especialidad_;
 import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.HistoricoEstadoPrestacion;
 import com.accesmed.backend.Domain.HistoricoEstadoPrestacion_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Domain.Prestacion_;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.Prestacion.Criteria.PrestacionCriteria;
 import com.accesmed.backend.Records.Prestacion.Response.ListPrestacionResponse;
 import com.accesmed.backend.Repositories.HistoricoEstadoPrestacionRepository;
 import com.accesmed.backend.Repositories.PrestacionRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Mappers.PrestacionMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.EstadoPrestacionFilter;
@@ -54,6 +58,7 @@ public class PrestacionQueryService extends AbstractFiltroQueryService<Prestacio
     private final PrestacionRepository prestacionRepository;
     private final PrestacionMapper prestacionMapper;
     private final HistoricoEstadoPrestacionRepository historicoEstadoPrestacionRepository;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -72,11 +77,18 @@ public class PrestacionQueryService extends AbstractFiltroQueryService<Prestacio
      *
      * @param criteria {@code PrestacionCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListPrestacionResponse>} página de DTOs mapeados con su estado vigente
      */
-    public PageResponse<ListPrestacionResponse> findPrestaciones(PrestacionCriteria criteria, Pageable pageable) {
+    public PageResponse<ListPrestacionResponse> findPrestaciones(PrestacionCriteria criteria, Pageable pageable,
+            UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando prestaciones por criteria: {}, pageable: {}", criteria, pageable);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
 
         Page<Prestacion> prestacionesPaginada = findByCriteria(criteria, pageable);
 
@@ -84,7 +96,8 @@ public class PrestacionQueryService extends AbstractFiltroQueryService<Prestacio
                 prestacionesPaginada.getContent().stream().map(Prestacion::getId).toList());
 
         PageResponse<ListPrestacionResponse> pageResponse = PageResponse.from(prestacionesPaginada,
-                prestacion -> prestacionMapper.toListResponse(prestacion, estadosVigentes.get(prestacion.getId())));
+                prestacion -> prestacionMapper.toListResponse(prestacion, estadosVigentes.get(prestacion.getId()),
+                        tieneAuditoria ? prestacionMapper.toAuditoria(prestacion) : null));
         return pageResponse;
 
     }
@@ -128,6 +141,9 @@ public class PrestacionQueryService extends AbstractFiltroQueryService<Prestacio
         }
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
+        }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
         }
 
         return specification;

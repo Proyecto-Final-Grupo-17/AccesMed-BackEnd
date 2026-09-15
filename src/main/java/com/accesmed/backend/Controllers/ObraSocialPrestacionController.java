@@ -8,6 +8,7 @@ import com.accesmed.backend.Records.ObraSocialPrestacion.Response.GetObraSocialP
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.ListObraSocialPrestacionResponse;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.UnassignObraSocialPrestacionResponse;
 import com.accesmed.backend.Records.ObraSocialPrestacion.Response.UpdateObraSocialPrestacionResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import com.accesmed.backend.Services.QueryServices.ObraSocialPlanPrestacionQueryService;
@@ -18,6 +19,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -58,6 +61,7 @@ public class ObraSocialPrestacionController {
      * @param assignObraSocialPrestacionRequest {@code AssignObraSocialPrestacionRequest} datos de la cobertura
      * @return {@code ResponseEntity<GetObraSocialPrestacionResponse>} la cobertura creada (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('OS_MODIFICAR')")
     @PostMapping("/Asignar")
     public ResponseEntity<GetObraSocialPrestacionResponse> assignPrestacion(
             @Valid @RequestBody AssignObraSocialPrestacionRequest assignObraSocialPrestacionRequest) {
@@ -78,6 +82,7 @@ public class ObraSocialPrestacionController {
      * @param updateObraSocialPrestacionRequest {@code UpdateObraSocialPrestacionRequest} datos nuevos de la cobertura
      * @return {@code ResponseEntity<UpdateObraSocialPrestacionResponse>} la cobertura actualizada (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_MODIFICAR')")
     @PatchMapping("/{id}")
     public ResponseEntity<UpdateObraSocialPrestacionResponse> updateCobertura(
             @PathVariable UUID id,
@@ -105,6 +110,7 @@ public class ObraSocialPrestacionController {
      * @param id {@code UUID} identificador de la cobertura
      * @return {@code ResponseEntity<UnassignObraSocialPrestacionResponse>} la confirmación de la baja (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_BAJA')")
     @PatchMapping("/Desasignar/{id}")
     public ResponseEntity<UnassignObraSocialPrestacionResponse> unassignPrestacion(@PathVariable UUID id) {
 
@@ -123,17 +129,20 @@ public class ObraSocialPrestacionController {
      * @param obraSocialPrestacionCriteria {@code ObraSocialPrestacionCriteria} filtros a aplicar
      *        (ver {@code Docs/ARQUITECTURA.md §7})
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListObraSocialPrestacionResponse>>} página de coberturas (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('OS_CONSULTAR')")
     @GetMapping("/ObraSocialPrestacion")
     public ResponseEntity<PageResponse<ListObraSocialPrestacionResponse>> findObraSocialPrestaciones(
             @ParameterObject ObraSocialPrestacionCriteria obraSocialPrestacionCriteria,
-            @ParameterObject @PageableDefault(size = 20, sort = "prestacion.nombre") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "prestacion.nombre") Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar coberturas plan-prestación criteria={} page={}", obraSocialPrestacionCriteria, pageable);
 
         PageResponse<ListObraSocialPrestacionResponse> pageResponse =
-                obraSocialPlanPrestacionQueryService.findObraSocialPrestaciones(obraSocialPrestacionCriteria, pageable);
+                obraSocialPlanPrestacionQueryService.findObraSocialPrestaciones(obraSocialPrestacionCriteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 

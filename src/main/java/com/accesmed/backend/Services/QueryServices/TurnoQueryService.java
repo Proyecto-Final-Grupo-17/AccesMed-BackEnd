@@ -6,13 +6,18 @@ import com.accesmed.backend.Domain.HistoricoEstadoTurno;
 import com.accesmed.backend.Domain.HistoricoEstadoTurno_;
 import com.accesmed.backend.Domain.Medico_;
 import com.accesmed.backend.Domain.Paciente_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Prestacion_;
 import com.accesmed.backend.Domain.Turno;
 import com.accesmed.backend.Domain.Turno_;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.Turno.Criteria.TurnoCriteria;
 import com.accesmed.backend.Records.Turno.Response.ListTurnoResponse;
 import com.accesmed.backend.Repositories.HistoricoEstadoTurnoRepository;
 import com.accesmed.backend.Repositories.TurnoRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Mappers.TurnoMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.EstadoTurnoFilter;
@@ -54,6 +59,8 @@ public class TurnoQueryService extends AbstractFiltroQueryService<Turno, TurnoCr
     private final TurnoRepository turnoRepository;
     private final TurnoMapper turnoMapper;
     private final HistoricoEstadoTurnoRepository historicoEstadoTurnoRepository;
+    private final AlcanceMedicoService alcanceMedicoService;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -68,23 +75,49 @@ public class TurnoQueryService extends AbstractFiltroQueryService<Turno, TurnoCr
 
     /**
      * Lista turnos según el criteria de filtrado dinámico proporcionado, devolviendo
-     * una página mapeada a responses con su estado vigente.
+     * una página mapeada a responses con su estado vigente. Aplica scope de lectura:
+     * si el usuario autenticado es médico, fuerza el filtro a su propio id.
      *
      * @param criteria {@code TurnoCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListTurnoResponse>} página de DTOs mapeados con su estado vigente
      */
-    public PageResponse<ListTurnoResponse> findTurnos(TurnoCriteria criteria, Pageable pageable) {
+    public PageResponse<ListTurnoResponse> findTurnos(TurnoCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando turnos por criteria: {}, pageable: {}", criteria, pageable);
 
-        Page<Turno> turnosPaginada = findByCriteria(criteria, pageable);
+        // Inicializar criteria si viene nulo
+        TurnoCriteria criteriaEfectivo = criteria != null ? criteria : new TurnoCriteria();
+
+        // Verificar permisos de auditoría
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria) {
+            criteriaEfectivo.setCreatedBy(null);
+        }
+
+        // Resolver el medicoId efectivo: extraer el equals del filter si existe
+        UUID medicoIdDelCriteria = null;
+        if (criteriaEfectivo.getMedicoId() != null && criteriaEfectivo.getMedicoId().getEquals() != null) {
+            medicoIdDelCriteria = criteriaEfectivo.getMedicoId().getEquals();
+        }
+        UUID medicoIdEfectivo = alcanceMedicoService.resolveMedicoId(usuarioDetails, medicoIdDelCriteria);
+
+        // Si se resolvió un medicoId efectivo distinto, actualizar el criteria
+        if (medicoIdEfectivo != null && !medicoIdEfectivo.equals(medicoIdDelCriteria)) {
+            com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter medicoFilter = new com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter();
+            medicoFilter.setEquals(medicoIdEfectivo);
+            criteriaEfectivo.setMedicoId(medicoFilter);
+        }
+
+        Page<Turno> turnosPaginada = findByCriteria(criteriaEfectivo, pageable);
 
         Map<UUID, EstadoTurno> estadosVigentes = resolverEstadosVigentes(
                 turnosPaginada.getContent().stream().map(Turno::getId).toList());
 
         PageResponse<ListTurnoResponse> pageResponse = PageResponse.from(turnosPaginada,
-                turno -> turnoMapper.toListResponse(turno, estadosVigentes.get(turno.getId())));
+                turno -> turnoMapper.toListResponse(turno, estadosVigentes.get(turno.getId()),
+                        tieneAuditoria ? turnoMapper.toAuditoria(turno) : null));
         return pageResponse;
 
     }
@@ -130,6 +163,9 @@ public class TurnoQueryService extends AbstractFiltroQueryService<Turno, TurnoCr
         }
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
+        }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
         }
 
         return specification;

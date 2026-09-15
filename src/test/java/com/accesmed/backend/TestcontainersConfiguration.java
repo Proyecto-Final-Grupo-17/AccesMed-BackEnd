@@ -9,7 +9,7 @@ import org.testcontainers.utility.DockerImageName;
 // Postgres efímera vía Testcontainers, aislada de la Postgres de dev (docker/dev/docker-compose.yml):
 // Spring Boot la levanta y la apaga junto con el ApplicationContext, sin tocar datos persistentes.
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class TestcontainersConfiguration {
 
     @Bean
     @ServiceConnection

@@ -1,6 +1,7 @@
 package com.accesmed.backend.Records.Plan.Response;
 
 import com.accesmed.backend.Domain.EstadoPlan;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 
 import java.util.UUID;
 
@@ -37,7 +38,13 @@ public record ListPlanResponse(
         /**
          * Estado actual del plan ({@code EstadoPlan}).
          */
-        EstadoPlan estadoActual
+        EstadoPlan estadoActual,
+
+        /**
+         * Datos de auditoría ({@code AuditoriaResponse}), solo poblado si quien consulta
+         * tiene {@code AUDITORIA_CONSULTAR}; {@code null} en caso contrario.
+         */
+        AuditoriaResponse auditoria
 
 ) {
 }

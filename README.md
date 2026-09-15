@@ -226,6 +226,7 @@ Las features se ramifican desde `develop` como `feature/<Entidad o funcionalidad
 | [`Docs/STACK.md`](Docs/STACK.md) | Stack tecnológico detallado, con versiones |
 | [`.claude/plans/PLAN-SETUP-CLAUDE-CODE.md`](.claude/plans/PLAN-SETUP-CLAUDE-CODE.md) | Plan de setup paso a paso |
 | [`Docs/FRONTEND-GUIA.md`](Docs/FRONTEND-GUIA.md) | Contrato de API para el frontend |
+| [`Docs/Security.md`](Docs/Security.md) | Cómo funciona Spring Security en este proyecto (JWT, filtros, autenticación y autorización) |
 
 ## Arquitectura en una línea
 
@@ -251,7 +252,8 @@ accesmed-backend/
 │   ├── ARQUITECTURA.md
 │   ├── STACK.md
 │   ├── PLAN-SETUP-CLAUDE-CODE.md
-│   └── FRONTEND-GUIA.md
+│   ├── FRONTEND-GUIA.md
+│   └── Security.md
 ├── docker/
 │   ├── Dockerfile
 │   └── dev/
@@ -267,7 +269,7 @@ accesmed-backend/
     ├── main/
     │   ├── java/com/accesmed/backend/
     │   │   ├── AccesMedApplication.java
-    │   │   ├── Config/         (transversal: SecurityConfig, JpaAuditingConfig)
+    │   │   ├── Config/         (transversal de infraestructura, sin seguridad: JpaAuditingConfig, SchedulingConfig)
     │   │   ├── Controllers/    (+ Errors/: GlobalExceptionHandler, AccesMedError
     │   │   │                    + ControllersConfig/: OpenApiConfig, CORS, interceptores)
     │   │   ├── Application/    (<Entidad>App)
@@ -275,7 +277,7 @@ accesmed-backend/
     │   │   ├── Services/{DomainServices,QueryServices,Mappers,Errors,Utils}/
     │   │   ├── Repositories/
     │   │   ├── Records/<Entidad>/{Request,Response}/
-    │   │   ├── Security/       (slice vertical de auth, mismo patrón)
+    │   │   ├── Security/       (slice vertical de auth, mismo patrón; Config/SecurityFilterChainConfig.java arma el filter chain)
     │   │   └── Agente/         (entrada del agente; reutiliza el núcleo)
     │   └── resources/
     └── test/

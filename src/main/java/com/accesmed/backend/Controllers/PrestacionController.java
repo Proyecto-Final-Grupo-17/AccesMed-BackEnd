@@ -10,6 +10,7 @@ import com.accesmed.backend.Records.Prestacion.Response.CreatePrestacionResponse
 import com.accesmed.backend.Records.Prestacion.Response.ListPrestacionResponse;
 import com.accesmed.backend.Records.Prestacion.Response.UpdatePrestacionResponse;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import com.accesmed.backend.Services.QueryServices.PrestacionQueryService;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -57,6 +60,7 @@ public class PrestacionController {
      * @param createPrestacionRequest {@code CreatePrestacionRequest} datos de la prestación
      * @return {@code ResponseEntity<CreatePrestacionResponse>} la prestación creada (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('PREST_ALTA')")
     @PostMapping("/Prestacion")
     public ResponseEntity<CreatePrestacionResponse> createPrestacion(
             @Valid @RequestBody CreatePrestacionRequest createPrestacionRequest) {
@@ -77,6 +81,7 @@ public class PrestacionController {
      * @return {@code ResponseEntity<UpdatePrestacionResponse>} la prestación actualizada (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
+    @PreAuthorize("hasAuthority('PREST_MODIFICAR')")
     @PatchMapping("/Prestacion/{id}")
     public ResponseEntity<UpdatePrestacionResponse> updatePrestacion(
             @PathVariable UUID id,
@@ -105,6 +110,7 @@ public class PrestacionController {
      * @param id {@code UUID} identificador de la prestación
      * @return {@code ResponseEntity<CambioEstadoPrestacionResponse>} la prestación publicada (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('PREST_MODIFICAR')")
     @PatchMapping("/Prestacion/{id}/Publicar")
     public ResponseEntity<CambioEstadoPrestacionResponse> publishPrestacion(@PathVariable UUID id) {
 
@@ -124,6 +130,7 @@ public class PrestacionController {
      * @param id {@code UUID} identificador de la prestación
      * @return {@code ResponseEntity<CambioEstadoPrestacionResponse>} la prestación despublicada (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('PREST_MODIFICAR')")
     @PatchMapping("/Prestacion/{id}/Despublicar")
     public ResponseEntity<CambioEstadoPrestacionResponse> unpublishPrestacion(@PathVariable UUID id) {
 
@@ -145,6 +152,7 @@ public class PrestacionController {
      * @return {@code ResponseEntity<CambioEstadoPrestacionResponse>} la prestación deshabilitada (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
+    @PreAuthorize("hasAuthority('PREST_BAJA')")
     @PatchMapping("/Prestacion/{id}/Deshabilitar")
     public ResponseEntity<CambioEstadoPrestacionResponse> disablePrestacion(
             @PathVariable UUID id,
@@ -172,16 +180,20 @@ public class PrestacionController {
      *
      * @param prestacionCriteria {@code PrestacionCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListPrestacionResponse>>} página de prestaciones (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('PREST_CONSULTAR')")
     @GetMapping("/Prestacion")
     public ResponseEntity<PageResponse<ListPrestacionResponse>> findPrestaciones(
             @ParameterObject PrestacionCriteria prestacionCriteria,
-            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar prestaciones criteria={} page={}", prestacionCriteria, pageable);
 
-        PageResponse<ListPrestacionResponse> pageResponse = prestacionQueryService.findPrestaciones(prestacionCriteria, pageable);
+        PageResponse<ListPrestacionResponse> pageResponse =
+                prestacionQueryService.findPrestaciones(prestacionCriteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 

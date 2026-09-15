@@ -8,8 +8,10 @@ import com.accesmed.backend.Records.Especialidad.Response.CreateEspecialidadResp
 import com.accesmed.backend.Records.Especialidad.Response.GetEspecialidadResponse;
 import com.accesmed.backend.Records.Especialidad.Response.ListEspecialidadResponse;
 import com.accesmed.backend.Records.Especialidad.Response.SoftDeleteEspecialidadResponse;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.QueryServices.EspecialidadQueryService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.accesmed.backend.Services.QueryServices.Filtering.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -58,6 +61,7 @@ public class EspecialidadController {
      * @param createEspecialidadRequest {@code CreateEspecialidadRequest} datos de la especialidad
      * @return {@code ResponseEntity<CreateEspecialidadResponse>} la especialidad creada (HTTP 201)
      */
+    @PreAuthorize("hasAuthority('ESP_ALTA')")
     @PostMapping("/Especialidad")
     public ResponseEntity<CreateEspecialidadResponse> createEspecialidad(
             @Valid @RequestBody CreateEspecialidadRequest createEspecialidadRequest) {
@@ -78,6 +82,7 @@ public class EspecialidadController {
      * @return {@code ResponseEntity<GetEspecialidadResponse>} la especialidad actualizada (HTTP 200)
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      */
+    @PreAuthorize("hasAuthority('ESP_MODIFICAR')")
     @PatchMapping("/Especialidad/{id}")
     public ResponseEntity<GetEspecialidadResponse> updateEspecialidad(
             @PathVariable UUID id,
@@ -107,14 +112,18 @@ public class EspecialidadController {
      * puntual (ej. {@code id.equals}).
      *
      * @param especialidadCriteria {@code EspecialidadCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<GetEspecialidadResponse>} la especialidad encontrada (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('ESP_CONSULTAR')")
     @GetMapping("/Especialidad/Buscar")
-    public ResponseEntity<GetEspecialidadResponse> findEspecialidadByCriteria(@ParameterObject EspecialidadCriteria especialidadCriteria) {
+    public ResponseEntity<GetEspecialidadResponse> findEspecialidadByCriteria(
+            @ParameterObject EspecialidadCriteria especialidadCriteria,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: buscar especialidad criteria={}", especialidadCriteria);
 
-        GetEspecialidadResponse getEspecialidadResponse = especialidadQueryService.findEspecialidadByCriteria(especialidadCriteria);
+        GetEspecialidadResponse getEspecialidadResponse = especialidadQueryService.findEspecialidadByCriteria(especialidadCriteria, usuarioDetails);
 
         return ResponseEntity.ok(getEspecialidadResponse);
 
@@ -125,16 +134,19 @@ public class EspecialidadController {
      *
      * @param especialidadCriteria {@code EspecialidadCriteria} filtros a aplicar (ver {@code Docs/ARQUITECTURA.md §7})
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code ResponseEntity<PageResponse<ListEspecialidadResponse>>} página de especialidades (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('ESP_CONSULTAR')")
     @GetMapping("/Especialidad")
     public ResponseEntity<PageResponse<ListEspecialidadResponse>> findEspecialidades(
             @ParameterObject EspecialidadCriteria especialidadCriteria,
-            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "nombre") Pageable pageable,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: listar especialidades criteria={} page={}", especialidadCriteria, pageable);
 
-        PageResponse<ListEspecialidadResponse> pageResponse = especialidadQueryService.findEspecialidades(especialidadCriteria, pageable);
+        PageResponse<ListEspecialidadResponse> pageResponse = especialidadQueryService.findEspecialidades(especialidadCriteria, pageable, usuarioDetails);
 
         return ResponseEntity.ok(pageResponse);
 
@@ -146,6 +158,7 @@ public class EspecialidadController {
      * @param id {@code UUID} identificador de la especialidad
      * @return {@code ResponseEntity<SoftDeleteEspecialidadResponse>} la confirmación de la baja (HTTP 200)
      */
+    @PreAuthorize("hasAuthority('ESP_BAJA')")
     @DeleteMapping("/Especialidad/{id}")
     public ResponseEntity<SoftDeleteEspecialidadResponse> softDeleteEspecialidad(@PathVariable UUID id) {
 

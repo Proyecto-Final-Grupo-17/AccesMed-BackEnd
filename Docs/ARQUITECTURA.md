@@ -19,7 +19,7 @@ preguntas abiertas: cualquier código nuevo debe seguirlas.
 | Carpeta de los records: **`Records`** (no `dto`) | El nombre de la carpeta refleja el tipo Java que contiene. |
 | Records agrupados **por entidad primero**: `Records/<Entidad>/Request/` y `Records/<Entidad>/Response/` | Todo lo de una feature queda en una sola carpeta, igual que el resto de la arquitectura (`PrestacionApp`, `PrestacionController`, `PrestacionMapper`). Con `Request/<Entidad>` el request y el response del mismo endpoint quedan en ramas distintas del árbol. Escala mejor: una entidad nueva = un paquete nuevo, no dos carpetas tocadas. |
 | `Controllers` tiene tres subpaquetes fijos: **`Errors/`**, **`ControllersConfig/`** y **`Validators/`** | `Errors/` es el borde HTTP del manejo de errores (advice + contrato). `ControllersConfig/` es la configuración propia de la capa web (`OpenApiConfig`, y más adelante CORS, interceptores, config de MVC): describe la superficie HTTP, así que vive con los controllers. `Validators/` tiene las constraints custom de Bean Validation (anotación + `ConstraintValidator`) que se aplican a nivel de record — Bean Validation es responsabilidad del Controller (dispara `@Valid`), así que sus constraints propias viven ahí, no en `Services`. |
-| `Config/` en la raíz queda solo para configuración **transversal de infraestructura** (`SecurityConfig`, `JpaAuditingConfig`) | Seguridad es un filter chain que atraviesa toda la app y el auditing es de persistencia: no son "de controllers". Ahí van también las próximas configs de infraestructura (JWT, cache, async). |
+| `Config/` en la raíz queda solo para configuración **transversal de infraestructura que no es mecanismo de seguridad** (`JpaAuditingConfig`, `SchedulingConfig`) | El auditing es de persistencia, el scheduling es de infraestructura: no son "de controllers". El filter chain de seguridad (`SecurityFilterChainConfig`) vive en `Security/Config/`, junto con el resto del mecanismo de sesión reemplazable — no acá. |
 | Ruta base del controller: **`/accesmed-api/<Entidad>`** (PascalCase singular) y cada método agrega **su recurso** (`/Prestacion`, `/Agenda`) | El prefijo `accesmed-api` identifica la API del proyecto; la ruta de clase agrupa por entidad y la del método nombra el recurso concreto que esa operación toca, que en controllers de agregado no siempre es la entidad raíz (ej. `AgendaMedicoController` → `/Agenda`, `/Horario`). |
 | **PUT/PATCH con body**: `@PathVariable id` + record, y el Controller valida que ambos ids coincidan | El id en la ruta es lo que identifica el recurso en REST; el del body es el que llega del front. Es una inconsistencia de transporte HTTP, no una regla de negocio, así que la corta el Controller antes de llegar al App (422), en vez de actualizar en silencio el recurso equivocado. |
 | **PATCH sin body** (solo `@PathVariable id`) para actualizar un campo puntual | Cuando el cambio no lleva datos (marcar una bandera, avanzar un estado), un record vacío sería ruido: el id alcanza. |
@@ -47,7 +47,9 @@ preguntas abiertas: cualquier código nuevo debe seguirlas.
 | `Util` dentro de **`Services/Utils`** | Los helpers genéricos también son un tipo de soporte que usan los services/apps, igual que los `Mapper`. Se agrupa con el resto en vez de quedar suelto en la raíz. |
 | Build tool: **Maven** | Para un proyecto académico/colaborativo: es el default de Spring Initializr, más ejemplos, más predecible, menos curva. Gradle es más rápido pero suma complejidad que acá no rinde. |
 | Estructura de carpetas por **capa** en el núcleo + **slice vertical** para `Security` y `Agente` | Con pocas entidades, package-by-layer es legible. Seguridad y agente sí se aíslan porque son subsistemas con reglas propias. |
-| CRUD de usuarios/seguridad en su propio slice **`Security/`** | Auth es cohesiva y separable; conviene tenerla junta (entidades, servicios, filtros JWT, config). |
+| `Security/` se aísla **solo como mecanismo reemplazable** (JWT, tokens de sesión, config); `Usuario`/`Rol`/`UsuarioRol`/`Admin` ("quién existe y qué puede hacer") quedan en el **núcleo**, con Controller/App/DomainService/Repository de siempre | El dato de negocio (identidad, roles) no es lo mismo que el mecanismo que lo protege (JWT hoy, podría ser otra cosa mañana). Aislar solo el mecanismo permite reemplazarlo sin tocar el modelo de usuarios; si todo viviera bajo `Security/`, cambiar de JWT a sesiones arrastraría entidades de negocio con él. |
+| Cruce núcleo → `Security`: **`GestionUsuarioPort`** (interfaz en `Application/Ports/` del núcleo, implementada por `GestionUsuarioAdapter` en `Security/Application/`) | Ningún `App` del núcleo puede importar de `Security` directamente (violaría la dirección de dependencia: el núcleo no depende del mecanismo). El puerto invierte la dependencia: el núcleo declara qué necesita (`asignarUsuarioAMedico`, `desactivarUsuarioDeAdmin`...), `Security` lo implementa. |
+| Autorización en **tres mecanismos**, cada uno para un caso distinto: `@PreAuthorize("hasAuthority(...)")` (gate de entrada, permiso fijo), `AlcanceMedicoService` (scope sobre recursos propios del médico — Turno, Agenda, Paciente) y `AutorizacionService.requireAuthority(...)` (permiso extra condicional dentro de un método) | Un solo mecanismo no alcanza: el permiso de entrada es estático y declarativo (bien resuelto por `@PreAuthorize`), pero el scope "solo mis turnos" depende de datos en tiempo de ejecución, y un permiso condicional ("crear médico + usuario a la vez exige además `USER_ALTA`") no es el gate del endpoint sino una regla dentro del flujo. Los tres viven en `Security/Services/Utils/` (misma familia que el filtro JWT), agnósticos de dominio: la aplicación específica la hace el `QueryService`/`App` del núcleo que los llama. |
 | El agente tiene carpeta aparte **solo para la entrada**, reutiliza los mismos App/Service | El agente no duplica negocio: solo cambia el punto de entrada (controllers y records propios, otra auth). La lógica es la misma. |
 | Nombres de package en mayúsculas: `Domain`, `Services`, `Controllers`, `Application`, `Repositories`, `Records`, `Config`, `Security`, `Agente` | Convención de proyecto. **Nota técnica breve**: la convención estándar de Java es minúsculas para packages (el JLS solo lo recomienda, no lo exige); en mayúsculas compila y funciona igual, pero algunas herramientas/linters de estilo Java pueden marcarlo como advertencia. No es un problema funcional. |
 | Subpaquete por entidad dentro de un paquete de tipo, recién cuando supere ~8-10 archivos (ej. `Services/DomainServices/Medico/`) | No crear carpetas de un solo archivo por adelantado. |
@@ -336,30 +338,42 @@ accesmed-backend/
     │   │   ├── AccesMedApplication.java
     │   │   │
     │   │   ├── Config/                    # config transversal de infraestructura
-    │   │   │   ├── SecurityConfig.java
-    │   │   │   └── JpaAuditingConfig.java
+    │   │   │   ├── JpaAuditingConfig.java
+    │   │   │   └── SchedulingConfig.java
     │   │   │
     │   │   ├── Controllers/
     │   │   │   ├── <NombreEntidad>Controller.java
+    │   │   │   ├── UsuarioController.java
+    │   │   │   ├── RolController.java
+    │   │   │   ├── AdminController.java
     │   │   │   ├── Errors/
     │   │   │   │   ├── GlobalExceptionHandler.java
     │   │   │   │   └── AccesMedError.java
     │   │   │   └── ControllersConfig/      # config propia de la capa web
     │   │   │       └── OpenApiConfig.java  # (+ CORS, interceptores, config MVC)
     │   │   │
-    │   │   ├── Application/
-    │   │   │   └── <NombreEntidad>App.java
-    │   │   │
     │   │   ├── Domain/
     │   │   │   ├── Auditable.java
+    │   │   │   ├── Usuario.java             # "quién existe": núcleo, no Security
+    │   │   │   ├── Rol.java
+    │   │   │   ├── UsuarioRol.java
+    │   │   │   ├── Admin.java
+    │   │   │   ├── Permiso.java             # enum del catálogo de permisos
     │   │   │   └── <NombreEntidad>.java
     │   │   │
     │   │   ├── Services/
     │   │   │   ├── DomainServices/
+    │   │   │   │   ├── UsuarioDomainService.java
+    │   │   │   │   ├── RolDomainService.java
+    │   │   │   │   ├── UsuarioRolDomainService.java
+    │   │   │   │   ├── AdminDomainService.java
     │   │   │   │   └── <NombreEntidad>DomainService.java
     │   │   │   ├── QueryServices/
     │   │   │   │   └── <NombreEntidad>QueryService.java
     │   │   │   ├── Mappers/
+    │   │   │   │   ├── UsuarioMapper.java
+    │   │   │   │   ├── RolMapper.java
+    │   │   │   │   ├── AdminMapper.java
     │   │   │   │   └── <NombreEntidad>Mapper.java
     │   │   │   ├── Errors/
     │   │   │   │   ├── AccesMedException.java
@@ -370,35 +384,49 @@ accesmed-backend/
     │   │   │       └── <HelperGenerico>.java
     │   │   │
     │   │   ├── Repositories/
+    │   │   │   ├── UsuarioRepository.java
+    │   │   │   ├── RolRepository.java
+    │   │   │   ├── UsuarioRolRepository.java
+    │   │   │   ├── AdminRepository.java
     │   │   │   └── <NombreEntidad>Repository.java
     │   │   │
+    │   │   ├── Application/
+    │   │   │   ├── UsuarioApp.java
+    │   │   │   ├── RolApp.java
+    │   │   │   ├── AdminApp.java
+    │   │   │   ├── Ports/
+    │   │   │   │   └── GestionUsuarioPort.java   # interfaz: cruce núcleo → Security
+    │   │   │   └── <NombreEntidad>App.java
+    │   │   │
     │   │   ├── Records/
+    │   │   │   ├── Usuario/
+    │   │   │   ├── Rol/
+    │   │   │   ├── Admin/
     │   │   │   └── <NombreEntidad>/
     │   │   │       ├── Request/
     │   │   │       │   └── <Accion><NombreEntidad>Request.java
     │   │   │       └── Response/
     │   │   │           └── <Accion><NombreEntidad>Response.java
     │   │   │
-    │   │   ├── Security/
+    │   │   ├── Security/                    # SOLO mecanismo de sesión/JWT reemplazable
     │   │   │   ├── Controllers/
     │   │   │   │   └── AuthController.java
     │   │   │   ├── Application/
-    │   │   │   │   └── AuthApp.java
+    │   │   │   │   ├── AuthApp.java
+    │   │   │   │   └── GestionUsuarioAdapter.java   # implementa GestionUsuarioPort, delega en UsuarioApp
     │   │   │   ├── Domain/
-    │   │   │   │   ├── Usuario.java
-    │   │   │   │   ├── Rol.java
-    │   │   │   │   └── Permiso.java
+    │   │   │   │   ├── RefreshToken.java    # artefacto de sesión, no dato de negocio
+    │   │   │   │   └── PasswordResetToken.java
     │   │   │   ├── Services/
     │   │   │   │   ├── DomainServices/
-    │   │   │   │   │   └── UsuarioDomainService.java
-    │   │   │   │   ├── QueryServices/
-    │   │   │   │   │   └── UsuarioQueryService.java
-    │   │   │   │   ├── Mappers/
-    │   │   │   │   │   └── UsuarioMapper.java
-    │   │   │   │   └── Errors/
-    │   │   │   │       └── (reutiliza Services/Errors del núcleo)
+    │   │   │   │   │   ├── RefreshTokenDomainService.java
+    │   │   │   │   │   └── PasswordResetTokenDomainService.java
+    │   │   │   │   └── Utils/
+    │   │   │   │       ├── AlcanceMedicoService.java   # scope de recursos propios del médico
+    │   │   │   │       └── AutorizacionService.java    # permiso extra condicional en un método
     │   │   │   ├── Repositories/
-    │   │   │   │   └── UsuarioRepository.java
+    │   │   │   │   ├── RefreshTokenRepository.java
+    │   │   │   │   └── PasswordResetTokenRepository.java
     │   │   │   ├── Records/
     │   │   │   │   └── Auth/
     │   │   │   │       ├── Request/
@@ -408,7 +436,8 @@ accesmed-backend/
     │   │   │   ├── Jwt/
     │   │   │   │   ├── JwtService.java
     │   │   │   │   ├── JwtAuthenticationFilter.java
-    │   │   │   │   └── JwtProvider.java
+    │   │   │   │   ├── UsuarioDetails.java       # adapter de Usuario a UserDetails
+    │   │   │   │   └── UsuarioDetailsService.java
     │   │   │   └── Config/
     │   │   │       └── SecurityFilterChainConfig.java
     │   │   │
@@ -548,10 +577,11 @@ y `Agente/`: sus `Records/` también se agrupan por entidad o funcionalidad.
 `Errors/` ya se explicó arriba. `ControllersConfig/` es la **configuración propia de la
 capa web**: `OpenApiConfig` (metadata de Swagger, o sea la descripción de la superficie
 HTTP) y, cuando hagan falta, CORS, interceptores y config de MVC. `Config/` en la raíz
-queda para la configuración **transversal de infraestructura** (`SecurityConfig`,
-`JpaAuditingConfig`, y más adelante JWT, cache, async): la seguridad es un filter chain que
-atraviesa toda la app y el auditing es de persistencia — meterlos bajo `Controllers/` diría
-algo falso sobre a qué capa pertenecen.
+queda para la configuración **transversal de infraestructura** que no es mecanismo de
+seguridad (`JpaAuditingConfig`, `SchedulingConfig`, y más adelante cache, async): el
+auditing es de persistencia — meterlo bajo `Controllers/` diría algo falso sobre a qué capa
+pertenece. El filter chain de seguridad (`SecurityFilterChainConfig`) vive en
+`Security/Config/`, no acá (ver más abajo, "`Security` es mecanismo, no dato de negocio").
 
 **No hay carpeta `Shared`.** Antes existía un package transversal genérico; se eliminó y
 su contenido se repartió por dueño: excepciones a `Services/Errors`, el advice y el
@@ -559,14 +589,42 @@ contrato de error a `Controllers/Errors`, `Auditable` a `Domain` (es parte del m
 entidad), y los helpers genéricos a `Services/Utils` (mismo criterio que los `Mapper`:
 son soporte que consumen services y apps, no un cajón aparte).
 
-**`Security` como slice vertical.** Usuarios, roles, permisos y auth tienen su propia
-mini-estructura por capas dentro de `Security/` (mismo patrón: `Domain` solo entidades,
-`Services/{DomainServices,QueryServices,Mappers,Errors}` con la lógica, `Application` con
-los casos de uso). Sus excepciones propias (si las hay) viven en `Security/Services/Errors`;
-las traduce el mismo `GlobalExceptionHandler` global, no hace falta uno propio salvo
-que la seguridad tenga necesidades muy particulares de respuesta. Esto los mantiene
-juntos y permitiría, si algún día hiciera falta, extraerlos a un módulo aparte sin tocar
-el resto.
+**`Security` es mecanismo, no dato de negocio — `Usuario`/`Rol`/`UsuarioRol`/`Admin` viven
+en el núcleo.** La primera versión de este documento ponía todo "lo de seguridad" bajo
+`Security/`. En la implementación real la división quedó por **qué es reemplazable** y qué
+no: `Usuario`, `Rol`, `UsuarioRol` y `Admin` son "quién existe y qué puede hacer" — el mismo
+tipo de dato de negocio que `Medico` o `Turno`, con su Controller/App/DomainService/Mapper/
+Repository de siempre en el núcleo (`Domain`, `Application`, `Services/*`, `Repositories`,
+`Records`). `Security/` queda aislado **solo** para lo que es mecanismo de sesión
+reemplazable: `Jwt/` (emisión/validación de tokens, filtro, `UsuarioDetails`), `Config/`
+(el filter chain), `Domain/` con `RefreshToken`/`PasswordResetToken` (artefactos de sesión,
+no datos de negocio) y `Application/AuthApp` (el flujo de login/refresh/logout en sí). Si
+mañana cambia el mecanismo de sesión (JWT → algo distinto), se reemplaza `Security/` entero
+sin tocar el modelo de usuarios.
+
+**El cruce núcleo → `Security` es unidireccional, vía puerto.** Ningún `App` del núcleo
+puede importar de `Security` (sería la entidad de negocio dependiendo del mecanismo). Cuando
+el núcleo necesita algo de `Security` — por ejemplo, `MedicoApp.createMedico` dando de alta
+un `Usuario` junto con el médico — lo hace a través de `GestionUsuarioPort`, una interfaz
+declarada en `Application/Ports/` del núcleo (`asignarUsuarioAMedico`,
+`asignarUsuarioAAdmin`, `desactivarUsuarioDeMedico`, `desactivarUsuarioDeAdmin`).
+`Security/Application/GestionUsuarioAdapter` la implementa y delega en `UsuarioApp` del
+núcleo. `Security` sí puede importar del núcleo (dirección permitida: `RefreshToken`/
+`PasswordResetToken` tienen `@ManyToOne` a `Usuario`), pero el núcleo nunca importa de
+`Security` directamente.
+
+**Autorización en tres capas, todas en `Security/Services/Utils/` (misma familia que el
+filtro JWT).** 1) `@PreAuthorize("hasAuthority(...)")` en el Controller — gate de entrada
+declarativo, un permiso fijo por endpoint. 2) `AlcanceMedicoService`
+(`resolveMedicoId`/`validateMedicoPropietario`) — scope sobre recursos propios de un médico
+(`Turno`, `AgendaMedico`, `Paciente`): interpreta lo que `UsuarioDetailsService` calculó,
+pero es agnóstico de dominio — no conoce `Turno` ni `Paciente`, la aplicación concreta la
+hace el `QueryService`/`App` del núcleo que lo llama. 3) `AutorizacionService.requireAuthority(...)`
+— permiso extra condicional dentro de un método (ej. crear un médico con usuario en el
+mismo request exige, además de `MED_ALTA`, `USER_ALTA`) y `AutorizacionService.hasAuthority(...)`
+(variante no arrojable, usada por los `QueryService` para decidir si poblar el bloque
+`auditoria` de un Response). Las excepciones propias de `Security` (si las hay) viven en
+`Security/Services/Errors`; las traduce el mismo `GlobalExceptionHandler` global.
 
 **`Agente` sin duplicar negocio.** El agente hace, en el fondo, las mismas operaciones de
 turnos que el sistema interno. Entonces **reutiliza los mismos `App` y `Service`**.

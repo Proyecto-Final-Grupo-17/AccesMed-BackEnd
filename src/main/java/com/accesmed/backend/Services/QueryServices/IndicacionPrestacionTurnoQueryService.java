@@ -4,11 +4,15 @@ import com.accesmed.backend.Domain.Auditable_;
 import com.accesmed.backend.Domain.IndicacionPrestacion_;
 import com.accesmed.backend.Domain.IndicacionPrestacionTurno;
 import com.accesmed.backend.Domain.IndicacionPrestacionTurno_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Domain.Turno_;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.IndicacionPrestacionTurno.Criteria.IndicacionPrestacionTurnoCriteria;
 import com.accesmed.backend.Records.IndicacionPrestacionTurno.Response.GetIndicacionPrestacionTurnoResponse;
 import com.accesmed.backend.Records.IndicacionPrestacionTurno.Response.ListIndicacionPrestacionTurnoResponse;
 import com.accesmed.backend.Repositories.IndicacionPrestacionTurnoRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.IndicacionPrestacionTurnoMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
@@ -41,6 +45,7 @@ public class IndicacionPrestacionTurnoQueryService
 
     private final IndicacionPrestacionTurnoRepository indicacionPrestacionTurnoRepository;
     private final IndicacionPrestacionTurnoMapper indicacionPrestacionTurnoMapper;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -58,13 +63,20 @@ public class IndicacionPrestacionTurnoQueryService
      * mapeada (no paginada).
      *
      * @param criteria {@code IndicacionPrestacionTurnoCriteria} filtros a aplicar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code GetIndicacionPrestacionTurnoResponse} la indicación encontrada, mapeada
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si ninguna
      *         indicación vigente cumple el criteria
      */
-    public GetIndicacionPrestacionTurnoResponse findIndicacionPrestacionTurnoByCriteria(IndicacionPrestacionTurnoCriteria criteria) {
+    public GetIndicacionPrestacionTurnoResponse findIndicacionPrestacionTurnoByCriteria(IndicacionPrestacionTurnoCriteria criteria,
+            UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando indicación de prestación de turno por criteria: {}", criteria);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
 
         IndicacionPrestacionTurno indicacionExistente = findOneByCriteria(criteria)
                 .orElseThrow(() -> {
@@ -73,7 +85,8 @@ public class IndicacionPrestacionTurnoQueryService
                             "No existe una indicación de prestación de turno que cumpla el criteria proporcionado.");
                 });
 
-        GetIndicacionPrestacionTurnoResponse getIndicacionPrestacionTurnoResponse = indicacionPrestacionTurnoMapper.toGetResponse(indicacionExistente);
+        GetIndicacionPrestacionTurnoResponse getIndicacionPrestacionTurnoResponse = indicacionPrestacionTurnoMapper.toGetResponse(
+                indicacionExistente, tieneAuditoria ? indicacionPrestacionTurnoMapper.toAuditoria(indicacionExistente) : null);
         return getIndicacionPrestacionTurnoResponse;
 
     }
@@ -85,18 +98,25 @@ public class IndicacionPrestacionTurnoQueryService
      * @param criteria {@code IndicacionPrestacionTurnoCriteria} filtros a aplicar, o
      *         {@code null} para no filtrar
      * @param pageable {@code Pageable} página solicitada
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListIndicacionPrestacionTurnoResponse>} página de
      *         indicaciones que cumplen el criteria, mapeadas
      */
     public PageResponse<ListIndicacionPrestacionTurnoResponse> findIndicacionesPrestacionTurno(
-            IndicacionPrestacionTurnoCriteria criteria, Pageable pageable) {
+            IndicacionPrestacionTurnoCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
 
         log.debug("Listado de indicaciones de prestación de turno iniciado: criteria={}, page={}", criteria, pageable);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
 
         Page<IndicacionPrestacionTurno> indicacionesPagina = findByCriteria(criteria, pageable);
 
         PageResponse<ListIndicacionPrestacionTurnoResponse> pageResponse = PageResponse.from(indicacionesPagina,
-                indicacionPrestacionTurnoMapper::toListResponse);
+                indicacionPrestacionTurno -> indicacionPrestacionTurnoMapper.toListResponse(indicacionPrestacionTurno,
+                        tieneAuditoria ? indicacionPrestacionTurnoMapper.toAuditoria(indicacionPrestacionTurno) : null));
         return pageResponse;
 
     }
@@ -140,6 +160,9 @@ public class IndicacionPrestacionTurnoQueryService
         }
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
+        }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
         }
 
         return specification;

@@ -6,12 +6,16 @@ import com.accesmed.backend.Domain.Auditable_;
 import com.accesmed.backend.Domain.Especialidad_;
 import com.accesmed.backend.Domain.Medico;
 import com.accesmed.backend.Domain.Medico_;
+import com.accesmed.backend.Domain.Permiso;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.Medico.Criteria.MedicoCriteria;
 import com.accesmed.backend.Records.Medico.Response.GetMedicoResponse;
 import com.accesmed.backend.Records.Medico.Response.GetPrestacionAnidadaResponse;
 import com.accesmed.backend.Records.Medico.Response.ListMedicoResponse;
 import com.accesmed.backend.Repositories.MedicoPrestacionRepository;
 import com.accesmed.backend.Repositories.MedicoRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.MedicoMapper;
 import com.accesmed.backend.Services.Mappers.MedicoPrestacionMapper;
@@ -54,6 +58,7 @@ public class MedicoQueryService extends AbstractFiltroQueryService<Medico, Medic
     private final MedicoMapper medicoMapper;
     private final MedicoPrestacionRepository medicoPrestacionRepository;
     private final MedicoPrestacionMapper medicoPrestacionMapper;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -72,17 +77,21 @@ public class MedicoQueryService extends AbstractFiltroQueryService<Medico, Medic
      * {@code MedicoPrestacion}.
      *
      * @param criteria {@code MedicoCriteria} filtros a aplicar (típicamente por {@code id})
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code GetMedicoResponse} el médico activo con sus prestaciones
      * @throws RecursoNoEncontradoException si ningún médico activo cumple el criteria
      */
-    public GetMedicoResponse findMedicoByCriteria(MedicoCriteria criteria) {
+    public GetMedicoResponse findMedicoByCriteria(MedicoCriteria criteria, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando médico por criteria: {}", criteria);
+
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
 
         Medico medicoActivo = getMedicoActivo(criteria);
         List<GetPrestacionAnidadaResponse> prestacionesResponse = medicoPrestacionMapper
                 .toGetPrestacionAnidadaResponses(medicoPrestacionRepository.findByMedico_IdAndVigenteAt(medicoActivo.getId(), ZonedDateTime.now()));
-        return medicoMapper.toGetResponse(medicoActivo, prestacionesResponse);
+        return medicoMapper.toGetResponse(medicoActivo, prestacionesResponse,
+                tieneAuditoria ? medicoMapper.toAuditoria(medicoActivo) : null);
 
     }
 
@@ -91,14 +100,22 @@ public class MedicoQueryService extends AbstractFiltroQueryService<Medico, Medic
      *
      * @param criteria {@code MedicoCriteria} filtros a aplicar
      * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListMedicoResponse>} página de DTOs mapeados
      */
-    public PageResponse<ListMedicoResponse> findMedicos(MedicoCriteria criteria, Pageable pageable) {
+    public PageResponse<ListMedicoResponse> findMedicos(MedicoCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando médicos por criteria: {}, pageable: {}", criteria, pageable);
 
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
+
         Page<Medico> medicosPaginados = findByCriteria(criteria, pageable);
-        return PageResponse.from(medicosPaginados, medicoMapper::toListResponse);
+        return PageResponse.from(medicosPaginados,
+                medico -> medicoMapper.toListResponse(medico,
+                        tieneAuditoria ? medicoMapper.toAuditoria(medico) : null));
 
     }
 
@@ -171,6 +188,9 @@ public class MedicoQueryService extends AbstractFiltroQueryService<Medico, Medic
         }
         if (criteria.getLastModifiedDate() != null) {
             specification = specification.and(buildRangeSpecification(criteria.getLastModifiedDate(), Auditable_.lastModifiedDate));
+        }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
         }
         if (criteria.getTieneAgendaVigente() != null) {
             ZonedDateTime fechaReferencia = criteria.getAgendaVigenteAl() != null ? criteria.getAgendaVigenteAl() : ZonedDateTime.now();

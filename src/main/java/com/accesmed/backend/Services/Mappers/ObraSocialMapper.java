@@ -1,6 +1,7 @@
 package com.accesmed.backend.Services.Mappers;
 
 import com.accesmed.backend.Domain.ObraSocial;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Records.ObraSocial.Request.CreateObraSocialRequest;
 import com.accesmed.backend.Records.ObraSocial.Request.UpdateObraSocialRequest;
 import com.accesmed.backend.Records.ObraSocial.Response.CreateObraSocialResponse;
@@ -85,6 +86,8 @@ public interface ObraSocialMapper {
      *
      * @param obraSocial {@code ObraSocial} entidad
      * @param planes {@code List<GetPlanAnidadoResponse>} planes ya mapeados
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code GetObraSocialResponse} respuesta de obtención
      */
     @Mapping(target = "id", source = "obraSocial.id")
@@ -92,23 +95,37 @@ public interface ObraSocialMapper {
     @Mapping(target = "nombre", source = "obraSocial.nombre")
     @Mapping(target = "razonSocial", source = "obraSocial.razonSocial")
     @Mapping(target = "planes", source = "planes")
-    GetObraSocialResponse toGetResponse(ObraSocial obraSocial, List<GetPlanAnidadoResponse> planes);
+    @Mapping(target = "auditoria", source = "auditoria")
+    GetObraSocialResponse toGetResponse(ObraSocial obraSocial, List<GetPlanAnidadoResponse> planes, AuditoriaResponse auditoria);
 
     /**
      * Convierte una entidad {@code ObraSocial} a {@code ListObraSocialResponse}.
      *
      * @param obraSocial {@code ObraSocial} entidad
+     * @param auditoria {@code AuditoriaResponse} datos de auditoría, o {@code null} si quien
+     *         consulta no tiene {@code AUDITORIA_CONSULTAR}
      * @return {@code ListObraSocialResponse} respuesta de listado
      */
-    ListObraSocialResponse toListResponse(ObraSocial obraSocial);
+    @Mapping(target = "auditoria", source = "auditoria")
+    ListObraSocialResponse toListResponse(ObraSocial obraSocial, AuditoriaResponse auditoria);
 
     /**
-     * Convierte una lista de entidades {@code ObraSocial} a una lista de {@code ListObraSocialResponse}.
+     * Arma el {@code AuditoriaResponse} de una obra social. {@code ObraSocial} tiene soft delete
+     * propio, así que se mapean todos los campos: {@code createdDate}, {@code createdBy},
+     * {@code lastModifiedDate}, {@code lastModifiedBy}, {@code deletedAt}, {@code deletedBy},
+     * {@code deletedReason}.
      *
-     * @param obrasSociales {@code List<ObraSocial>} lista de entidades
-     * @return {@code List<ListObraSocialResponse>} lista de respuestas
+     * @param obraSocial {@code ObraSocial} entidad
+     * @return {@code AuditoriaResponse} datos de auditoría de la obra social
      */
-    List<ListObraSocialResponse> toListResponses(List<ObraSocial> obrasSociales);
+    @Mapping(target = "createdAt", source = "createdDate")
+    @Mapping(target = "createdBy", source = "createdBy")
+    @Mapping(target = "updatedAt", source = "lastModifiedDate")
+    @Mapping(target = "updatedBy", source = "lastModifiedBy")
+    @Mapping(target = "deletedAt", source = "deletedAt")
+    @Mapping(target = "deletedBy", source = "deletedBy")
+    @Mapping(target = "deletedReason", source = "deletedReason")
+    AuditoriaResponse toAuditoria(ObraSocial obraSocial);
 
     /**
      * Convierte una entidad {@code ObraSocial} a {@code SoftDeleteObraSocialResponse}.

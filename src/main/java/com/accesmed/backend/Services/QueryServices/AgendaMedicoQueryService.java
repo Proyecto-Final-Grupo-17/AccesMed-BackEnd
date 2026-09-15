@@ -3,14 +3,20 @@ package com.accesmed.backend.Services.QueryServices;
 import com.accesmed.backend.Domain.AgendaHorariosDia;
 import com.accesmed.backend.Domain.AgendaMedico;
 import com.accesmed.backend.Domain.AgendaMedico_;
+import com.accesmed.backend.Domain.Auditable_;
 import com.accesmed.backend.Domain.Especialidad_;
 import com.accesmed.backend.Domain.Medico_;
+import com.accesmed.backend.Domain.Permiso;
 import com.accesmed.backend.Records.AgendaMedico.Criteria.AgendaMedicoCriteria;
 import com.accesmed.backend.Records.AgendaMedico.Response.DiaAgendaResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.GetAgendaMedicoResponse;
 import com.accesmed.backend.Records.AgendaMedico.Response.ListAgendaMedicoResponse;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 import com.accesmed.backend.Repositories.AgendaHorariosDiaRepository;
 import com.accesmed.backend.Repositories.AgendaMedicoRepository;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
+import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
+import com.accesmed.backend.Security.Services.Utils.AutorizacionService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Mappers.AgendaMedicoMapper;
 import com.accesmed.backend.Services.QueryServices.Filtering.AbstractFiltroQueryService;
@@ -49,6 +55,8 @@ public class AgendaMedicoQueryService extends AbstractFiltroQueryService<AgendaM
     private final AgendaMedicoRepository agendaMedicoRepository;
     private final AgendaHorariosDiaRepository agendaHorariosDiaRepository;
     private final AgendaMedicoMapper agendaMedicoMapper;
+    private final AlcanceMedicoService alcanceMedicoService;
+    private final AutorizacionService autorizacionService;
 
     //endregion
 
@@ -101,6 +109,9 @@ public class AgendaMedicoQueryService extends AbstractFiltroQueryService<AgendaM
                     cb.lessThanOrEqualTo(root.get(AgendaMedico_.fechaHoraInicioVigencia), criteria.getVigenteAl()),
                     cb.greaterThan(root.get(AgendaMedico_.fechaHoraFinVigencia), criteria.getVigenteAl())));
         }
+        if (criteria.getCreatedBy() != null) {
+            specification = specification.and(buildStringSpecification(criteria.getCreatedBy(), Auditable_.createdBy));
+        }
 
         return specification;
 
@@ -111,17 +122,31 @@ public class AgendaMedicoQueryService extends AbstractFiltroQueryService<AgendaM
      * una agenda puntual identificada por su {@code id}), con sus días y horarios activos.
      *
      * @param criteria {@code AgendaMedicoCriteria} filtros a aplicar
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code GetAgendaMedicoResponse} la agenda encontrada con sus días y horarios
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException}
      *         si ninguna agenda cumple el criteria
      */
-    public GetAgendaMedicoResponse findAgendaMedicoByCriteria(AgendaMedicoCriteria criteria) {
+    public GetAgendaMedicoResponse findAgendaMedicoByCriteria(AgendaMedicoCriteria criteria, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando agenda médica por criteria: {}", criteria);
 
-        AgendaMedico agendaMedicoEncontrada = findOneByCriteria(criteria)
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
+
+        // Aplicar scope: si el criterio trae medicoId, reemplazarlo con el del usuario si es médico
+        AgendaMedicoCriteria criteriaEfectivo = criteria != null ? criteria : new AgendaMedicoCriteria();
+        UUID medicoIdEfectivo = alcanceMedicoService.resolveMedicoId(usuarioDetails, criteriaEfectivo.getMedicoId() != null ? criteriaEfectivo.getMedicoId().getEquals() : null);
+        if (medicoIdEfectivo != null) {
+            criteriaEfectivo.setMedicoId(new com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter());
+            criteriaEfectivo.getMedicoId().setEquals(medicoIdEfectivo);
+        }
+
+        AgendaMedico agendaMedicoEncontrada = findOneByCriteria(criteriaEfectivo)
                 .orElseThrow(() -> {
-                    log.warn("No se encontró ninguna agenda médica que cumpla el criteria: {}", criteria);
+                    log.warn("No se encontró ninguna agenda médica que cumpla el criteria: {}", criteriaEfectivo);
                     return new RecursoNoEncontradoException(getClass(),
                             "AGENDA_MEDICO_NO_ENCONTRADA",
                             "No existe una agenda médica que cumpla el criteria proporcionado.");
@@ -131,7 +156,8 @@ public class AgendaMedicoQueryService extends AbstractFiltroQueryService<AgendaM
         List<AgendaHorariosDia> horariosActivos = agendaHorariosDiaRepository.findByAgendaMedico_IdAndDeletedAtIsNull(agendaMedicoEncontrada.getId());
         List<DiaAgendaResponse> diasResponse = agendaMedicoMapper.toDiaAgendaResponses(horariosActivos);
 
-        return agendaMedicoMapper.toGetResponse(agendaMedicoEncontrada, diasResponse);
+        return agendaMedicoMapper.toGetResponse(agendaMedicoEncontrada, diasResponse,
+                tieneAuditoria ? agendaMedicoMapper.toAuditoria(agendaMedicoEncontrada) : null);
 
     }
 
@@ -141,13 +167,27 @@ public class AgendaMedicoQueryService extends AbstractFiltroQueryService<AgendaM
      *
      * @param criteria {@code AgendaMedicoCriteria} filtros a aplicar, o {@code null} para no filtrar
      * @param pageable {@code Pageable} paginación (ordenamiento y límite)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code PageResponse<ListAgendaMedicoResponse>} página de DTOs mapeados con conteos
      */
-    public PageResponse<ListAgendaMedicoResponse> findAgendasMedicas(AgendaMedicoCriteria criteria, Pageable pageable) {
+    public PageResponse<ListAgendaMedicoResponse> findAgendasMedicas(AgendaMedicoCriteria criteria, Pageable pageable, UsuarioDetails usuarioDetails) {
 
         log.debug("Buscando agendas médicas por criteria: {}, pageable: {}", criteria, pageable);
 
-        Page<AgendaMedico> agendasPaginadas = findByCriteria(criteria, pageable);
+        boolean tieneAuditoria = autorizacionService.hasAuthority(usuarioDetails, Permiso.AUDITORIA_CONSULTAR);
+        if (!tieneAuditoria && criteria != null) {
+            criteria.setCreatedBy(null);
+        }
+
+        // Aplicar scope: si el criterio trae medicoId, reemplazarlo con el del usuario si es médico
+        AgendaMedicoCriteria criteriaEfectivo = criteria != null ? criteria : new AgendaMedicoCriteria();
+        UUID medicoIdEfectivo = alcanceMedicoService.resolveMedicoId(usuarioDetails, criteriaEfectivo.getMedicoId() != null ? criteriaEfectivo.getMedicoId().getEquals() : null);
+        if (medicoIdEfectivo != null) {
+            criteriaEfectivo.setMedicoId(new com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter());
+            criteriaEfectivo.getMedicoId().setEquals(medicoIdEfectivo);
+        }
+
+        Page<AgendaMedico> agendasPaginadas = findByCriteria(criteriaEfectivo, pageable);
 
         //Obtener conteos de días y horarios activos por cada agenda, en una sola consulta agrupada
         List<UUID> agendaMedicoIds = agendasPaginadas.getContent()
@@ -166,7 +206,8 @@ public class AgendaMedicoQueryService extends AbstractFiltroQueryService<AgendaM
             AgendaHorariosDiaRepository.ConteoAgendaMedico conteo = conteosPorAgenda.get(agenda.getId());
             long cantidadDias = conteo != null ? conteo.getCantidadDias() : 0L;
             long cantidadHorarios = conteo != null ? conteo.getCantidadHorarios() : 0L;
-            return agendaMedicoMapper.toListResponse(agenda, cantidadDias, cantidadHorarios);
+            return agendaMedicoMapper.toListResponse(agenda, cantidadDias, cantidadHorarios,
+                    tieneAuditoria ? agendaMedicoMapper.toAuditoria(agenda) : null);
         });
 
     }

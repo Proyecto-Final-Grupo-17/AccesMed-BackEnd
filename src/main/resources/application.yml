@@ -46,3 +46,6 @@ accesmed:
       cron: ${ACCESMED_SCHEDULER_VENCER_VALIDACION_CRON:*/5 * * * * *}
     marcar-ausentes:
       cron: ${ACCESMED_SCHEDULER_MARCAR_AUSENTES_CRON:*/5 * * * * *}
+  jwt:
+    secret: ${ACCESMED_JWT_SECRET}
+    expiration-minutes: ${ACCESMED_JWT_EXPIRATION_MINUTES:30}

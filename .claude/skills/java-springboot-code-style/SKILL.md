@@ -168,8 +168,10 @@ Controllers/
 
 `Errors/` vive ahí porque el handler es, en esencia, parte de la capa de controller.
 `ControllersConfig/` porque configura la superficie HTTP. La configuración **transversal de
-infraestructura** (`SecurityConfig`, `JpaAuditingConfig`, JWT, cache, async) queda en
-`Config/` en la raíz: no pertenece a la capa web.
+infraestructura que no es mecanismo de seguridad** (`JpaAuditingConfig`, `SchedulingConfig`,
+cache, async) queda en `Config/` en la raíz: no pertenece a la capa web. El filter chain de
+seguridad (`SecurityFilterChainConfig`) vive en `Security/Config/`, junto al resto del
+mecanismo de auth.
 
 Nota: el sufijo de la clase (`Controller`, `Repository`, `DomainService`) queda en
 singular; solo el nombre de la **carpeta** va en plural.

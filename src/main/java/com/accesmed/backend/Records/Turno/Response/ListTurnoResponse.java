@@ -1,6 +1,7 @@
 package com.accesmed.backend.Records.Turno.Response;
 
 import com.accesmed.backend.Domain.EstadoTurno;
+import com.accesmed.backend.Records.Auditoria.AuditoriaResponse;
 
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
@@ -18,6 +19,7 @@ import java.util.UUID;
  * @param montoAPagar monto a abonar por el turno
  * @param tipoCobertura tipo de cobertura
  * @param estadoActual estado vigente del turno
+ * @param auditoria datos de auditoría, solo poblado si quien consulta tiene AUDITORIA_CONSULTAR
  */
 public record ListTurnoResponse(
         UUID id,
@@ -28,5 +30,6 @@ public record ListTurnoResponse(
         ZonedDateTime fechaHoraInicio,
         BigDecimal montoAPagar,
         String tipoCobertura,
-        EstadoTurno estadoActual
+        EstadoTurno estadoActual,
+        AuditoriaResponse auditoria
 ) {}
