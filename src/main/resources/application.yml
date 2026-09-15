@@ -1,6 +1,14 @@
 spring:
   application:
     name: AccesMed-BackEnd
+  # Secretos por archivo: las variables sin default (MAIL_USERNAME, MAIL_PASSWORD,
+  # ACCESMED_JWT_SECRET) se leen de un `.env` en la raíz del proyecto, que NO se
+  # versiona (está en .gitignore). `optional:` hace que el arranque no dependa del
+  # archivo: en staging/prod las mismas variables llegan por entorno real y el
+  # import se ignora. Una variable de entorno del shell le gana al `.env`.
+  # Ver `.env.example` para la plantilla.
+  config:
+    import: optional:file:.env[.properties]
   liquibase:
     change-log: classpath:liquibase-db-changelogs/master.xml
   jpa:

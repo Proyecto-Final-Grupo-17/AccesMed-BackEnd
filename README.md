@@ -48,7 +48,27 @@ Detalle completo, criterios y fuentes en [`Docs/STACK.md`](Docs/STACK.md).
    cd docker/dev && docker compose up -d
    ```
 
-2. **Arrancar la app (perfil `dev`):**
+2. **Completar los secretos de la app:**
+
+   ```bash
+   cp .env.example .env   # y completar MAIL_PASSWORD
+   ```
+
+   Son las variables **sin default** (`MAIL_USERNAME`, `MAIL_PASSWORD`,
+   `ACCESMED_JWT_SECRET`): si falta alguna, el contexto no levanta. La app las lee
+   de ese `.env` de la raíz al arrancar (`spring.config.import` en
+   `application.yml`), así no hay que exportarlas en cada consola. El archivo no se
+   versiona (está en `.gitignore`) y una variable de entorno del shell le gana a su
+   valor, que es lo que usan `staging`/`prod`: ahí las mismas variables llegan por
+   entorno real y el import —marcado `optional:`— simplemente se ignora.
+
+   `MAIL_PASSWORD` **no** es la contraseña de la cuenta de Google: es una
+   *contraseña de aplicación* de 16 caracteres, y requiere verificación en dos pasos
+   activada en la cuenta. Detalle de cada variable en `.env.example`. No confundir
+   este archivo con `docker/dev/.env`, que es el de docker-compose (credenciales de
+   la Postgres local).
+
+3. **Arrancar la app (perfil `dev`):**
 
    ```bash
    SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
@@ -60,10 +80,15 @@ Detalle completo, criterios y fuentes en [`Docs/STACK.md`](Docs/STACK.md).
    $env:SPRING_PROFILES_ACTIVE="dev"; ./mvnw spring-boot:run
    ```
 
-3. **Verificar:**
+4. **Verificar:**
    - API: http://localhost:8080
    - Swagger UI: http://localhost:8080/swagger-ui.html
    - Health: http://localhost:8080/actuator/health
+
+   Si `MAIL_PASSWORD` está vacío o es inválido, la app **arranca igual** pero
+   `/actuator/health` responde `DOWN`: el `MailHealthIndicator` de Actuator abre una
+   conexión SMTP real en cada chequeo y falla la autenticación. Todo lo que no sea
+   mail funciona normal.
 
 Liquibase aplica las migraciones de esquema automáticamente al arrancar (`ddl-auto:
 validate`, nunca `update`/`create`: el esquema lo maneja Liquibase, no Hibernate).
