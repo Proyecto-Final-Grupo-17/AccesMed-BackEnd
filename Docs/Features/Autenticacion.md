@@ -51,6 +51,40 @@
 **Errores posibles:**
 - `CREDENCIALES_INVALIDAS` (401): el mail no existe, el usuario está dado de baja, o la contraseña no coincide. El mensaje es genérico a propósito (no distingue "mail no existe" de "contraseña incorrecta") para no filtrar qué mails están registrados.
 
+### Quién soy — `GET /accesmed-api/Auth/Me`
+
+Requiere estar autenticado. Devuelve el perfil del usuario del token (médico o admin
+vinculado) junto con sus roles vigentes y los permisos de cada uno — pensado para que el
+front sepa "quién es" y "qué puede hacer" sin depender de un 403 real ni de un selector
+manual de rol.
+
+**Flujo simplificado:**
+1. Resuelve el `Usuario` a partir del `usuarioId` del token.
+2. Busca sus `UsuarioRol` vigentes (mismo criterio de vigencia que usa
+   `UsuarioDetailsService` para armar las authorities de cada request).
+3. Arma la respuesta con los datos personales (de `Medico` o `Admin`, según a cuál esté
+   vinculado el usuario) y la lista de roles con sus permisos.
+
+**Request**: sin body, sin parámetros — el usuario sale del `Authorization`.
+
+**Response — `MeResponse`**
+
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `id` | UUID | Id del usuario. |
+| `mail` | String | |
+| `nombre` / `apellido` | String | De la persona vinculada (`Medico` o `Admin`). |
+| `medicoId` | UUID o `null` | No nulo si el usuario es un médico. |
+| `adminId` | UUID o `null` | No nulo si el usuario es personal administrativo. Mutuamente excluyente con `medicoId`. |
+| `roles` | `List<MeRolResponse>` | Roles vigentes: cada uno con `id`, `nombre` y su `Set<Permiso>`. |
+
+**Errores posibles**: los mismos 401 genéricos de cualquier endpoint autenticado (token
+ausente/inválido/vencido) — ver `Docs/FRONTEND-GUIA.md §5`.
+
+> Este endpoint es una foto al momento de pedirla, no reemplaza la validación real de cada
+> acción: los permisos pueden cambiar entre que se llamó a `/Me` y que se intenta una
+> operación, así que un 403 puntual en otro endpoint sigue siendo la fuente de verdad final.
+
 ### Refresh — `POST /accesmed-api/Auth/Refresh`
 
 Renueva el access token sin pedir contraseña de nuevo, mientras el refresh token siga

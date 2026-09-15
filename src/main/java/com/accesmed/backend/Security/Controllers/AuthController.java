@@ -1,16 +1,20 @@
 package com.accesmed.backend.Security.Controllers;
 
 import com.accesmed.backend.Security.Application.AuthApp;
+import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Security.Records.Auth.Request.LoginRequest;
 import com.accesmed.backend.Security.Records.Auth.Request.OlvideContrasenaRequest;
 import com.accesmed.backend.Security.Records.Auth.Request.RefreshRequest;
 import com.accesmed.backend.Security.Records.Auth.Request.RestablecerContrasenaRequest;
 import com.accesmed.backend.Security.Records.Auth.Response.LoginResponse;
+import com.accesmed.backend.Security.Records.Auth.Response.MeResponse;
 import com.accesmed.backend.Security.Records.Auth.Response.RefreshResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -44,6 +48,18 @@ public class AuthController {
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         log.info("Solicitud recibida: login mail={}", loginRequest.mail());
         return ResponseEntity.ok(authApp.login(loginRequest));
+    }
+
+    /**
+     * Devuelve los datos del usuario autenticado: perfil y roles vigentes con sus permisos.
+     *
+     * @param usuarioDetails {@code UsuarioDetails} usuario autenticado
+     * @return {@code ResponseEntity<MeResponse>} los datos del usuario (200)
+     */
+    @GetMapping("/Me")
+    public ResponseEntity<MeResponse> me(@AuthenticationPrincipal UsuarioDetails usuarioDetails) {
+        log.info("Solicitud recibida: datos del usuario autenticado");
+        return ResponseEntity.ok(authApp.me(usuarioDetails));
     }
 
     /**
