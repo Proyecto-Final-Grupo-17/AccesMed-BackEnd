@@ -175,14 +175,36 @@ el token no existe/venció/ya se usó — en ese caso el front debe ofrecer pedi
 no reintentar con el mismo token. Restablecer la contraseña revoca todas las sesiones
 abiertas de ese usuario (todos los refresh tokens vigentes quedan sin efecto).
 
-### Permisos: 403 no siempre es "arreglalo reintentando"
+### `GET /accesmed-api/Auth/Me`: quién es el usuario logueado
 
 Los permisos son dinámicos por rol (ver `UsuariosRolesYPermisos.md`) y se recalculan en cada
-request — no vienen en el JWT. Si el front necesita saber de antemano qué puede hacer el
-usuario logueado para, por ejemplo, ocultar un botón, no hay (todavía) un endpoint que
-devuelva "mis permisos": la fuente de verdad es el 403 real del endpoint. Diseñá el panel
-para tolerar un 403 en una acción (mostrar el mensaje, no romper la pantalla), no para
-prevenirlo adivinando el rol por el mail o similar.
+request — no vienen en el JWT (el token solo lleva el id de usuario). Para saber quién es el
+usuario logueado y qué puede hacer (por ejemplo, para elegir la pantalla inicial u ocultar un
+botón sin esperar un 403), el front debe llamar a `GET /accesmed-api/Auth/Me` (requiere
+`Authorization`) después del login. Devuelve:
+
+```json
+{
+  "id": "uuid",
+  "mail": "medico@clinica.com",
+  "nombre": "...",
+  "apellido": "...",
+  "medicoId": "uuid o null",
+  "adminId": "uuid o null",
+  "roles": [
+    { "id": "uuid", "nombre": "Medico", "permisos": ["TURN_CONSULTAR", "..."] }
+  ]
+}
+```
+
+`medicoId`/`adminId` son mutuamente excluyentes (exactamente uno de los dos es no nulo) y
+sirven para saber si quien se logueó es un médico o personal administrativo. `roles` trae
+solo las asignaciones vigentes, cada una con sus permisos.
+
+Esto resuelve "quién es" y "qué rol/permisos tiene", no reemplaza la validación real: un
+403 en una acción concreta sigue siendo la fuente de verdad final (los permisos pueden
+cambiar entre que se llamó a `/Me` y que se intenta la acción). Diseñá el panel para tolerar
+un 403 igual (mostrar el mensaje, no romper la pantalla).
 
 ---
 

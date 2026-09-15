@@ -1,6 +1,7 @@
 package com.accesmed.backend.Security.Application;
 
 import com.accesmed.backend.Domain.Usuario;
+import com.accesmed.backend.Domain.UsuarioRol;
 import com.accesmed.backend.Security.Domain.PasswordResetToken;
 import com.accesmed.backend.Security.Domain.RefreshToken;
 import com.accesmed.backend.Security.Jwt.UsuarioDetails;
@@ -11,10 +12,13 @@ import com.accesmed.backend.Security.Records.Auth.Request.OlvideContrasenaReques
 import com.accesmed.backend.Security.Records.Auth.Request.RefreshRequest;
 import com.accesmed.backend.Security.Records.Auth.Request.RestablecerContrasenaRequest;
 import com.accesmed.backend.Security.Records.Auth.Response.LoginResponse;
+import com.accesmed.backend.Security.Records.Auth.Response.MeResponse;
+import com.accesmed.backend.Security.Records.Auth.Response.MeRolResponse;
 import com.accesmed.backend.Security.Records.Auth.Response.RefreshResponse;
 import com.accesmed.backend.Security.Services.DomainServices.PasswordResetTokenDomainService;
 import com.accesmed.backend.Security.Services.DomainServices.RefreshTokenDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioDomainService;
+import com.accesmed.backend.Services.DomainServices.UsuarioRolDomainService;
 import com.accesmed.backend.Services.Utils.MailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +29,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 /**
  * Orquesta el flujo de autenticación: login, refresco de access token, logout,
@@ -44,6 +50,7 @@ public class AuthApp {
     private final RefreshTokenDomainService refreshTokenDomainService;
     private final PasswordResetTokenDomainService passwordResetTokenDomainService;
     private final UsuarioDomainService usuarioDomainService;
+    private final UsuarioRolDomainService usuarioRolDomainService;
     private final UsuarioDetailsService usuarioDetailsService;
     private final PasswordEncoder passwordEncoder;
     private final MailService mailService;
@@ -76,6 +83,35 @@ public class AuthApp {
         String refreshTokenValor = refreshTokenDomainService.generarYGuardarRefreshToken(usuario);
 
         return new LoginResponse(accessToken, refreshTokenValor);
+
+    }
+
+    /**
+     * Devuelve los datos del usuario autenticado: perfil (médico o admin vinculado) y
+     * roles vigentes con sus permisos.
+     *
+     * @param usuarioDetails {@code UsuarioDetails} usuario autenticado
+     * @return {@code MeResponse} los datos del usuario
+     */
+    @Transactional(readOnly = true)
+    public MeResponse me(UsuarioDetails usuarioDetails) {
+
+        log.info("Solicitud de datos del usuario autenticado: usuarioId={}", usuarioDetails.getUsuarioId());
+
+        Usuario usuario = usuarioDomainService.findUsuarioActivoById(usuarioDetails.getUsuarioId());
+
+        String nombre = usuario.getMedico() != null ? usuario.getMedico().getNombre() : usuario.getAdmin().getNombre();
+        String apellido = usuario.getMedico() != null ? usuario.getMedico().getApellido() : usuario.getAdmin().getApellido();
+
+        List<MeRolResponse> roles = usuarioRolDomainService.findVigentesByUsuarioId(usuario.getId()).stream()
+                .map(UsuarioRol::getRol)
+                .map(rol -> new MeRolResponse(rol.getId(), rol.getNombre(), rol.getPermisos()))
+                .toList();
+
+        return new MeResponse(usuario.getId(), usuario.getMail(), nombre, apellido,
+                usuario.getMedico() != null ? usuario.getMedico().getId() : null,
+                usuario.getAdmin() != null ? usuario.getAdmin().getId() : null,
+                roles);
 
     }
 
