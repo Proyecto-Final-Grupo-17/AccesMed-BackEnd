@@ -32,6 +32,7 @@ import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.Mappers.AgendaMedicoMapper;
 import com.accesmed.backend.Services.Utils.GeneradorSlotsAgenda;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,7 +40,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -110,14 +110,15 @@ public class AgendaMedicoApp {
 
         Medico medicoExistente = medicoDomainService.findMedicoActivoById(createAgendaMedicoRequest.medicoId());
 
-        validatePeriodoAlta(createAgendaMedicoRequest.fechaHoraInicioVigencia(), createAgendaMedicoRequest.fechaHoraFinVigencia());
-        agendaMedicoDomainService.validateSinSolapamiento(medicoExistente.getId(),
-                createAgendaMedicoRequest.fechaHoraInicioVigencia(), createAgendaMedicoRequest.fechaHoraFinVigencia(), null);
-
         Clinica clinica = clinicaDomainService.findClinica();
         ZoneId zonaHorariaClinica = ZoneId.of(clinica.getZonaHoraria());
 
-        List<BloqueConFecha> bloquesConFecha = expandirBloques(createAgendaMedicoRequest, zonaHorariaClinica);
+        validatePeriodoAlta(createAgendaMedicoRequest.fechaInicioVigencia(), createAgendaMedicoRequest.fechaFinVigencia(),
+                LocalDate.now(zonaHorariaClinica));
+        agendaMedicoDomainService.validateSinSolapamiento(medicoExistente.getId(),
+                createAgendaMedicoRequest.fechaInicioVigencia(), createAgendaMedicoRequest.fechaFinVigencia(), null);
+
+        List<BloqueConFecha> bloquesConFecha = expandirBloques(createAgendaMedicoRequest);
 
         Set<UUID> prestacionIds = bloquesConFecha.stream()
                 .map(bloqueConFecha -> bloqueConFecha.bloque().prestacionId())
@@ -126,7 +127,7 @@ public class AgendaMedicoApp {
 
         validateMedicoPrestacionVigenteEnFechas(medicoExistente.getId(), bloquesConFecha.stream()
                 .map(bloqueConFecha -> new FechaPrestacion(bloqueConFecha.fecha(), bloqueConFecha.bloque().prestacionId()))
-                .toList(), zonaHorariaClinica);
+                .toList());
 
         List<GeneradorSlotsAgenda.BloqueAGenerar> bloquesAGenerar = bloquesConFecha.stream()
                 .map(bloqueConFecha -> new GeneradorSlotsAgenda.BloqueAGenerar(bloqueConFecha.fecha(),
@@ -242,19 +243,19 @@ public class AgendaMedicoApp {
 
         alcanceMedicoService.validateMedicoPropietario(usuarioDetails, agendaMedicoExistente.getMedico().getId());
 
-        ZonedDateTime ahora = ZonedDateTime.now();
-        ZonedDateTime nuevoInicio = updateVigenciaAgendaMedicoRequest.fechaHoraInicioVigencia() != null
-                ? updateVigenciaAgendaMedicoRequest.fechaHoraInicioVigencia() : agendaMedicoExistente.getFechaHoraInicioVigencia();
-        ZonedDateTime nuevoFin = updateVigenciaAgendaMedicoRequest.fechaHoraFinVigencia() != null
-                ? updateVigenciaAgendaMedicoRequest.fechaHoraFinVigencia() : agendaMedicoExistente.getFechaHoraFinVigencia();
+        LocalDate hoy = clinicaDomainService.findFechaActualClinica();
+        LocalDate nuevoInicio = updateVigenciaAgendaMedicoRequest.fechaInicioVigencia() != null
+                ? updateVigenciaAgendaMedicoRequest.fechaInicioVigencia() : agendaMedicoExistente.getFechaInicioVigencia();
+        LocalDate nuevoFin = updateVigenciaAgendaMedicoRequest.fechaFinVigencia() != null
+                ? updateVigenciaAgendaMedicoRequest.fechaFinVigencia() : agendaMedicoExistente.getFechaFinVigencia();
 
         List<String> errores = new ArrayList<>();
-        if (updateVigenciaAgendaMedicoRequest.fechaHoraInicioVigencia() != null
-                && !agendaMedicoExistente.getFechaHoraInicioVigencia().isAfter(ahora)) {
-            errores.add("No se puede mover el inicio de vigencia de una agenda que ya arrancó.");
+        if (updateVigenciaAgendaMedicoRequest.fechaInicioVigencia() != null
+                && !agendaMedicoExistente.getFechaInicioVigencia().isAfter(hoy)) {
+            errores.add("No se puede cambiar la fecha de inicio de una agenda que ya comenzó.");
         }
-        if (!nuevoInicio.isBefore(nuevoFin)) {
-            errores.add("La fecha de inicio de vigencia debe ser anterior a la fecha de fin.");
+        if (nuevoInicio.isAfter(nuevoFin)) {
+            errores.add("La fecha de inicio de la agenda no puede ser posterior a la fecha de fin.");
         }
         if (!errores.isEmpty()) {
             log.warn("No se pudo actualizar la vigencia de la agenda {}: {}", id, errores);
@@ -264,12 +265,12 @@ public class AgendaMedicoApp {
         agendaMedicoDomainService.validateSinSolapamiento(agendaMedicoExistente.getMedico().getId(), nuevoInicio, nuevoFin, id);
 
         int cantidadHorariosDadosDeBaja = 0;
-        boolean seAdelantaFin = updateVigenciaAgendaMedicoRequest.fechaHoraFinVigencia() != null
-                && nuevoFin.isBefore(agendaMedicoExistente.getFechaHoraFinVigencia());
+        boolean seAdelantaFin = updateVigenciaAgendaMedicoRequest.fechaFinVigencia() != null
+                && nuevoFin.isBefore(agendaMedicoExistente.getFechaFinVigencia());
 
         if (seAdelantaFin) {
 
-            List<AgendaHorariosDia> horariosPosteriores = agendaHorariosDiaDomainService.findHorariosPosteriores(id, nuevoFin.toLocalDate());
+            List<AgendaHorariosDia> horariosPosteriores = agendaHorariosDiaDomainService.findHorariosPosteriores(id, nuevoFin);
             Set<UUID> idsHorariosPosteriores = horariosPosteriores.stream().map(AgendaHorariosDia::getId).collect(Collectors.toSet());
 
             agendaHorariosDiaDomainService.validateSinOcupados(idsHorariosPosteriores);
@@ -279,13 +280,13 @@ public class AgendaMedicoApp {
 
         }
 
-        agendaMedicoExistente.setFechaHoraInicioVigencia(nuevoInicio);
-        agendaMedicoExistente.setFechaHoraFinVigencia(nuevoFin);
+        agendaMedicoExistente.setFechaInicioVigencia(nuevoInicio);
+        agendaMedicoExistente.setFechaFinVigencia(nuevoFin);
         AgendaMedico agendaMedicoActualizada = agendaMedicoDomainService.saveAgendaMedico(agendaMedicoExistente);
 
         UpdateVigenciaAgendaMedicoResponse updateVigenciaAgendaMedicoResponse = new UpdateVigenciaAgendaMedicoResponse(
-                agendaMedicoActualizada.getId(), agendaMedicoActualizada.getFechaHoraInicioVigencia(),
-                agendaMedicoActualizada.getFechaHoraFinVigencia(), cantidadHorariosDadosDeBaja);
+                agendaMedicoActualizada.getId(), agendaMedicoActualizada.getFechaInicioVigencia(),
+                agendaMedicoActualizada.getFechaFinVigencia(), cantidadHorariosDadosDeBaja);
         return updateVigenciaAgendaMedicoResponse;
 
     }
@@ -309,14 +310,10 @@ public class AgendaMedicoApp {
 
     }
 
-    private List<BloqueConFecha> expandirBloques(CreateAgendaMedicoRequest createAgendaMedicoRequest, ZoneId zonaHorariaClinica) {
+    private List<BloqueConFecha> expandirBloques(CreateAgendaMedicoRequest createAgendaMedicoRequest) {
 
-        //El inicio/fin de vigencia vienen como instante con el offset del cliente: hay que
-        //resolverlos a fecha de calendario con la zona horaria de la clínica, no con la del
-        //cliente, para que el patrón semanal se expanda sobre los días que la clínica
-        //considera reales.
-        LocalDate fechaInicio = createAgendaMedicoRequest.fechaHoraInicioVigencia().withZoneSameInstant(zonaHorariaClinica).toLocalDate();
-        LocalDate fechaFin = createAgendaMedicoRequest.fechaHoraFinVigencia().withZoneSameInstant(zonaHorariaClinica).toLocalDate();
+        LocalDate fechaInicio = createAgendaMedicoRequest.fechaInicioVigencia();
+        LocalDate fechaFin = createAgendaMedicoRequest.fechaFinVigencia();
         List<BloqueConFecha> bloquesConFecha = new ArrayList<>();
         List<String> errores = new ArrayList<>();
 
@@ -336,7 +333,8 @@ public class AgendaMedicoApp {
 
             for (DiaSueltoRequest diaSuelto : createAgendaMedicoRequest.diasSueltos()) {
                 if (diaSuelto.fecha().isBefore(fechaInicio) || diaSuelto.fecha().isAfter(fechaFin)) {
-                    errores.add("La fecha " + diaSuelto.fecha() + " está fuera del período de vigencia de la agenda.");
+                    errores.add("El día " + FormatoMensaje.fecha(diaSuelto.fecha()) + " está fuera del período de la agenda (del "
+                            + FormatoMensaje.fecha(fechaInicio) + " al " + FormatoMensaje.fecha(fechaFin) + ").");
                     continue;
                 }
                 for (BloqueHorarioRequest bloque : diaSuelto.bloques()) {
@@ -355,14 +353,14 @@ public class AgendaMedicoApp {
 
     }
 
-    private void validatePeriodoAlta(ZonedDateTime fechaHoraInicioVigencia, ZonedDateTime fechaHoraFinVigencia) {
+    private void validatePeriodoAlta(LocalDate fechaInicioVigencia, LocalDate fechaFinVigencia, LocalDate hoy) {
 
         List<String> errores = new ArrayList<>();
-        if (fechaHoraInicioVigencia.isBefore(ZonedDateTime.now())) {
-            errores.add("La fecha de inicio de vigencia no puede ser anterior a ahora.");
+        if (fechaInicioVigencia.isBefore(hoy)) {
+            errores.add("La fecha de inicio de la agenda no puede ser anterior a hoy.");
         }
-        if (!fechaHoraInicioVigencia.isBefore(fechaHoraFinVigencia)) {
-            errores.add("La fecha de inicio de vigencia debe ser anterior a la fecha de fin.");
+        if (fechaInicioVigencia.isAfter(fechaFinVigencia)) {
+            errores.add("La fecha de inicio de la agenda no puede ser posterior a la fecha de fin.");
         }
         if (!errores.isEmpty()) {
             log.warn("No se pudo crear la agenda médica: {}", errores);
@@ -392,16 +390,20 @@ public class AgendaMedicoApp {
         Map<UUID, EstadoPrestacion> estadosVigentes = historicoEstadoPrestacionDomainService.getEstadosVigentes(prestacionIds);
 
         List<String> errores = new ArrayList<>();
+        List<UUID> idsNoResueltos = new ArrayList<>();
         for (UUID prestacionId : prestacionIds) {
             if (!prestacionesActivasPorId.containsKey(prestacionId)) {
-                errores.add("La prestación " + prestacionId + " no existe o está deshabilitada.");
+                errores.add("Una de las prestaciones indicadas no existe o está deshabilitada.");
+                idsNoResueltos.add(prestacionId);
             } else if (estadosVigentes.get(prestacionId) != EstadoPrestacion.PUBLICADA) {
-                errores.add("La prestación " + prestacionId + " no está publicada.");
+                errores.add("La prestación \"" + prestacionesActivasPorId.get(prestacionId).getNombre()
+                        + "\" no está publicada, por eso no se le pueden generar horarios.");
+                idsNoResueltos.add(prestacionId);
             }
         }
 
         if (!errores.isEmpty()) {
-            log.warn("No se pudo resolver el lote de prestaciones de la agenda: {}", errores);
+            log.warn("No se pudo resolver el lote de prestaciones de la agenda: ids={}, errores={}", idsNoResueltos, errores);
             throw new ValidacionException(getClass(), errores);
         }
 
@@ -414,17 +416,14 @@ public class AgendaMedicoApp {
      * consulta (Fase 3 bis #2): trae los períodos de {@code MedicoPrestacion} del médico
      * para las prestaciones del lote una única vez y evalúa cada fecha en memoria, con la
      * misma semántica que la consulta puntual ({@code inicio <= fecha AND (fin IS NULL OR
-     * fecha < fin)}). Los pares se deduplican antes de validar.
+     * fecha <= fin)}). Los pares se deduplican antes de validar.
      *
      * @param medicoId {@code UUID} identificador del médico
      * @param fechasPrestacion {@code List<FechaPrestacion>} pares (fecha, prestación) a validar
-     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, con la que se
-     *        resuelve cada fecha a instante absoluto
      * @throws ValidacionException {@code ValidacionException} si el médico no tiene alguna
      *         de las prestaciones vigente en la fecha correspondiente
      */
-    private void validateMedicoPrestacionVigenteEnFechas(UUID medicoId, List<FechaPrestacion> fechasPrestacion,
-            ZoneId zonaHorariaClinica) {
+    private void validateMedicoPrestacionVigenteEnFechas(UUID medicoId, List<FechaPrestacion> fechasPrestacion) {
 
         List<FechaPrestacion> paresUnicos = fechasPrestacion.stream().distinct().toList();
 
@@ -433,19 +432,26 @@ public class AgendaMedicoApp {
                 .findAsignacionesByMedicoAndPrestaciones(medicoId, prestacionIds).stream()
                 .collect(Collectors.groupingBy(medicoPrestacion -> medicoPrestacion.getPrestacion().getId()));
 
-        List<String> errores = paresUnicos.stream()
+        List<FechaPrestacion> paresInvalidos = paresUnicos.stream()
                 .filter(fechaPrestacion -> {
-                    ZonedDateTime instanteFecha = fechaPrestacion.fecha().atStartOfDay(zonaHorariaClinica);
+                    LocalDate fecha = fechaPrestacion.fecha();
                     List<MedicoPrestacion> asignaciones = asignacionesPorPrestacion.getOrDefault(fechaPrestacion.prestacionId(), List.of());
-                    return asignaciones.stream().noneMatch(asignacion -> !asignacion.getFechaInicioVigencia().isAfter(instanteFecha)
-                            && (asignacion.getFechaFinVigencia() == null || instanteFecha.isBefore(asignacion.getFechaFinVigencia())));
+                    return asignaciones.stream().noneMatch(asignacion -> !asignacion.getFechaInicioVigencia().isAfter(fecha)
+                            && (asignacion.getFechaFinVigencia() == null || !fecha.isAfter(asignacion.getFechaFinVigencia())));
                 })
-                .map(fechaPrestacion -> "El médico no tiene la prestación " + fechaPrestacion.prestacionId()
-                        + " vigente en la fecha " + fechaPrestacion.fecha() + ".")
                 .toList();
 
-        if (!errores.isEmpty()) {
-            log.warn("No se pudo crear la agenda médica: {}", errores);
+        if (!paresInvalidos.isEmpty()) {
+            log.warn("No se pudo armar la agenda médica: el médico {} no tiene vigente la prestación en los pares (fecha, prestación) {}",
+                    medicoId, paresInvalidos);
+            Map<UUID, Prestacion> prestacionesPorId = prestacionDomainService.findPrestacionesActivasByIds(
+                    paresInvalidos.stream().map(FechaPrestacion::prestacionId).collect(Collectors.toSet())).stream()
+                    .collect(Collectors.toMap(Prestacion::getId, prestacion -> prestacion));
+            List<String> errores = paresInvalidos.stream()
+                    .map(fechaPrestacion -> "El médico no tiene asignada la prestación \""
+                            + prestacionesPorId.get(fechaPrestacion.prestacionId()).getNombre()
+                            + "\" el " + FormatoMensaje.fecha(fechaPrestacion.fecha()) + ".")
+                    .toList();
             throw new ValidacionException(getClass(), errores);
         }
 
@@ -456,8 +462,8 @@ public class AgendaMedicoApp {
         if (cantidadSlots > MAX_SLOTS_POR_CONFIRMAR) {
             log.warn("No se pudo generar la agenda: {} slots supera el tope operativo de {}", cantidadSlots, MAX_SLOTS_POR_CONFIRMAR);
             throw new ReglaNegocioException(getClass(), "AGENDA_LIMITE_GENERACION_EXCEDIDO",
-                    "El lote genera " + cantidadSlots + " horarios, superando el tope operativo de " + MAX_SLOTS_POR_CONFIRMAR
-                            + " por confirmación. Reducí el período o el patrón e intentá de nuevo.");
+                    "La agenda generaría " + cantidadSlots + " horarios y el máximo permitido por vez es " + MAX_SLOTS_POR_CONFIRMAR
+                            + ". Reducí el período o los días y horarios cargados e intentá de nuevo.");
         }
 
     }
@@ -482,8 +488,8 @@ public class AgendaMedicoApp {
 
         List<String> errores = horariosAAgregar.stream()
                 .filter(horario -> fechasAExcluirSet.contains(horario.fecha()))
-                .map(horario -> "No se puede agregar un horario el " + horario.fecha()
-                        + " y excluir esa misma fecha en el mismo request.")
+                .map(horario -> "No se pueden agregar horarios el " + FormatoMensaje.fecha(horario.fecha())
+                        + " y, a la vez, excluir ese mismo día.")
                 .distinct()
                 .toList();
 
@@ -501,9 +507,11 @@ public class AgendaMedicoApp {
         }
 
         List<String> erroresFecha = horariosAAgregar.stream()
-                .filter(horario -> horario.fecha().isBefore(agendaMedico.getFechaHoraInicioVigencia().toLocalDate())
-                        || horario.fecha().isAfter(agendaMedico.getFechaHoraFinVigencia().toLocalDate()))
-                .map(horario -> "La fecha " + horario.fecha() + " está fuera del período de vigencia de la agenda.")
+                .filter(horario -> horario.fecha().isBefore(agendaMedico.getFechaInicioVigencia())
+                        || horario.fecha().isAfter(agendaMedico.getFechaFinVigencia()))
+                .map(horario -> "El día " + FormatoMensaje.fecha(horario.fecha()) + " está fuera del período de la agenda (del "
+                        + FormatoMensaje.fecha(agendaMedico.getFechaInicioVigencia()) + " al "
+                        + FormatoMensaje.fecha(agendaMedico.getFechaFinVigencia()) + ").")
                 .distinct()
                 .toList();
         if (!erroresFecha.isEmpty()) {
@@ -519,7 +527,7 @@ public class AgendaMedicoApp {
 
         validateMedicoPrestacionVigenteEnFechas(agendaMedico.getMedico().getId(), horariosAAgregar.stream()
                 .map(horario -> new FechaPrestacion(horario.fecha(), horario.prestacionId()))
-                .toList(), zonaHorariaClinica);
+                .toList());
 
         Set<LocalDate> fechasAAgregar = horariosAAgregar.stream().map(HorarioAAgregarRequest::fecha).collect(Collectors.toSet());
         List<AgendaHorariosDia> horariosExistentes = agendaHorariosDiaDomainService

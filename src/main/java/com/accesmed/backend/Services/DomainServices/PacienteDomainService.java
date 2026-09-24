@@ -58,7 +58,7 @@ public class PacienteDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró el paciente activo: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "PACIENTE_NO_ENCONTRADO",
-                            "No existe un paciente activo con el id " + id);
+                            "No se encontró el paciente solicitado. Es posible que haya sido dado de baja.");
                 });
 
     }
@@ -75,7 +75,7 @@ public class PacienteDomainService {
         if (pacienteRepository.existsByDniAndDeletedAtIsNull(dni)) {
             log.warn("No se pudo crear el paciente: DNI {} ya existe", dni);
             throw new ReglaNegocioException(getClass(), "PACIENTE_DNI_DUPLICADO",
-                    "Ya existe un paciente activo con el DNI " + dni);
+                    "Ya existe un paciente con el DNI " + dni + ".");
         }
 
     }
@@ -94,7 +94,7 @@ public class PacienteDomainService {
         if (pacienteRepository.existsByDniAndDeletedAtIsNullAndIdNot(dni, idExcluido)) {
             log.warn("No se pudo actualizar el paciente: DNI {} ya existe en otro paciente", dni);
             throw new ReglaNegocioException(getClass(), "PACIENTE_DNI_DUPLICADO",
-                    "Ya existe otro paciente activo con el DNI " + dni);
+                    "Ya existe otro paciente con el DNI " + dni + ".");
         }
 
     }
@@ -111,7 +111,7 @@ public class PacienteDomainService {
         if (pacienteRepository.existsByNumeroTelefonoAndDeletedAtIsNull(numeroTelefono)) {
             log.warn("No se pudo crear el paciente: número de teléfono {} ya existe", numeroTelefono);
             throw new ReglaNegocioException(getClass(), "PACIENTE_NUMERO_TELEFONO_DUPLICADO",
-                    "Ya existe un paciente activo con el número de teléfono " + numeroTelefono);
+                    "Ya existe un paciente con el número de teléfono " + numeroTelefono + ".");
         }
 
     }
@@ -130,7 +130,7 @@ public class PacienteDomainService {
         if (pacienteRepository.existsByNumeroTelefonoAndDeletedAtIsNullAndIdNot(numeroTelefono, idExcluido)) {
             log.warn("No se pudo actualizar el paciente: número de teléfono {} ya existe en otro paciente", numeroTelefono);
             throw new ReglaNegocioException(getClass(), "PACIENTE_NUMERO_TELEFONO_DUPLICADO",
-                    "Ya existe otro paciente activo con el número de teléfono " + numeroTelefono);
+                    "Ya existe otro paciente con el número de teléfono " + numeroTelefono + ".");
         }
 
     }
@@ -147,7 +147,7 @@ public class PacienteDomainService {
         if (pacienteRepository.existsByEmailAndDeletedAtIsNull(email)) {
             log.warn("No se pudo crear el paciente: email {} ya existe", email);
             throw new ReglaNegocioException(getClass(), "PACIENTE_EMAIL_DUPLICADO",
-                    "Ya existe un paciente activo con el email " + email);
+                    "Ya existe un paciente con el email " + email + ".");
         }
 
     }
@@ -166,7 +166,7 @@ public class PacienteDomainService {
         if (pacienteRepository.existsByEmailAndDeletedAtIsNullAndIdNot(email, idExcluido)) {
             log.warn("No se pudo actualizar el paciente: email {} ya existe en otro paciente", email);
             throw new ReglaNegocioException(getClass(), "PACIENTE_EMAIL_DUPLICADO",
-                    "Ya existe otro paciente activo con el email " + email);
+                    "Ya existe otro paciente con el email " + email + ".");
         }
 
     }

@@ -7,6 +7,7 @@ import com.accesmed.backend.Records.MedicoPrestacion.Request.AssignMedicoPrestac
 import com.accesmed.backend.Records.MedicoPrestacion.Request.UnassignMedicoPrestacionRequest;
 import com.accesmed.backend.Records.MedicoPrestacion.Response.GetMedicoPrestacionResponse;
 import com.accesmed.backend.Records.MedicoPrestacion.Response.UnassignMedicoPrestacionResponse;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
@@ -15,11 +16,14 @@ import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.Mappers.MedicoPrestacionMapper;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -41,6 +45,7 @@ public class MedicoPrestacionApp {
     private final MedicoDomainService medicoDomainService;
     private final PrestacionDomainService prestacionDomainService;
     private final TurnoDomainService turnoDomainService;
+    private final ClinicaDomainService clinicaDomainService;
     private final MedicoPrestacionMapper medicoPrestacionMapper;
 
     //endregion
@@ -68,9 +73,10 @@ public class MedicoPrestacionApp {
         Medico medicoExistente = medicoDomainService.findMedicoActivoById(assignMedicoPrestacionRequest.medicoId());
         Prestacion prestacionExistente = prestacionDomainService.findPrestacionActivaById(assignMedicoPrestacionRequest.prestacionId());
 
-        //Resolver la fecha de inicio de vigencia efectiva (ausente = ahora)
-        ZonedDateTime fechaInicioVigenciaEfectiva = assignMedicoPrestacionRequest.fechaInicioVigencia() != null
-                ? assignMedicoPrestacionRequest.fechaInicioVigencia() : ZonedDateTime.now();
+        //Resolver la fecha de inicio de vigencia efectiva (ausente = hoy, en la zona horaria de la clínica)
+        ZoneId zonaHorariaClinica = clinicaDomainService.findZonaHorariaClinica();
+        LocalDate fechaInicioVigenciaEfectiva = assignMedicoPrestacionRequest.fechaInicioVigencia() != null
+                ? assignMedicoPrestacionRequest.fechaInicioVigencia() : LocalDate.now(zonaHorariaClinica);
 
         //Validar especialidad coincidente y que el período no se solape con una vigencia existente
         medicoPrestacionDomainService.validateEspecialidadCoincide(medicoExistente, prestacionExistente);
@@ -107,22 +113,26 @@ public class MedicoPrestacionApp {
 
         log.info("Desasignación de prestación de médico iniciada: id={}", unassignMedicoPrestacionRequest.id());
 
-        //Buscar la asignación vigente
-        MedicoPrestacion medicoPrestacionExistente = medicoPrestacionDomainService.findMedicoPrestacionVigenteById(unassignMedicoPrestacionRequest.id(), ZonedDateTime.now());
+        //Buscar la asignación vigente (hoy según la zona horaria de la clínica)
+        ZoneId zonaHorariaClinica = clinicaDomainService.findZonaHorariaClinica();
+        LocalDate hoy = LocalDate.now(zonaHorariaClinica);
+        MedicoPrestacion medicoPrestacionExistente = medicoPrestacionDomainService.findMedicoPrestacionVigenteById(unassignMedicoPrestacionRequest.id(), hoy);
 
-        //Resolver la fecha de corte efectiva (ausente = ahora)
-        ZonedDateTime fechaFinVigenciaEfectiva = unassignMedicoPrestacionRequest.fechaFinVigencia() != null
-                ? unassignMedicoPrestacionRequest.fechaFinVigencia() : ZonedDateTime.now();
+        //Resolver la fecha de corte efectiva (ausente = hoy)
+        LocalDate fechaFinVigenciaEfectiva = unassignMedicoPrestacionRequest.fechaFinVigencia() != null
+                ? unassignMedicoPrestacionRequest.fechaFinVigencia() : hoy;
 
-        //Piso duro: la fecha de corte no puede ser anterior al inicio de ningún turno vivo del par
+        //Piso duro: el último día de vigencia no puede ser anterior al día de ningún turno vivo del par
         Optional<ZonedDateTime> fechaMaximaTurnoVivo = turnoDomainService.findMaxFechaHoraInicioTurnoVivo(
                 medicoPrestacionExistente.getMedico().getId(), medicoPrestacionExistente.getPrestacion().getId());
-        if (fechaMaximaTurnoVivo.isPresent() && fechaFinVigenciaEfectiva.isBefore(fechaMaximaTurnoVivo.get())) {
+        Optional<LocalDate> diaMaximoTurnoVivo = fechaMaximaTurnoVivo
+                .map(fechaHora -> fechaHora.withZoneSameInstant(zonaHorariaClinica).toLocalDate());
+        if (diaMaximoTurnoVivo.isPresent() && fechaFinVigenciaEfectiva.isBefore(diaMaximoTurnoVivo.get())) {
             log.warn("No se pudo cerrar la vigencia {}: fecha de corte {} anterior al turno vivo más lejano {}",
                     unassignMedicoPrestacionRequest.id(), fechaFinVigenciaEfectiva, fechaMaximaTurnoVivo.get());
             throw new ReglaNegocioException(getClass(), "MEDICO_PRESTACION_CORTE_ANTERIOR_A_TURNO",
-                    "La fecha de corte no puede ser anterior al turno vivo más lejano del par médico-prestación, el "
-                            + fechaMaximaTurnoVivo.get() + ".");
+                    "No se puede desasignar la prestación con esa fecha: el médico tiene turnos pendientes hasta el "
+                            + FormatoMensaje.fecha(diaMaximoTurnoVivo.get()) + ". Elegí esa fecha o una posterior.");
         }
 
         //Cerrar la vigencia

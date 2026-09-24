@@ -95,7 +95,7 @@ public class PacienteController {
         if (!id.equals(updatePacienteRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updatePacienteRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         //Invocar caso de uso

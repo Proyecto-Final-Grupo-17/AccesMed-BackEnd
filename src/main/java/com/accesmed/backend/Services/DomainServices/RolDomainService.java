@@ -79,7 +79,7 @@ public class RolDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró el rol activo: nombre={}", nombre);
                     return new RecursoNoEncontradoException(getClass(), "ROL_NO_ENCONTRADO",
-                            "No se encontró el rol de sistema '" + nombre + "'.");
+                            "No se encontró el rol del sistema \"" + nombre + "\". Contactá a soporte.");
                 });
 
     }
@@ -96,7 +96,7 @@ public class RolDomainService {
         if (rolRepository.existsByNombreAndDeletedAtIsNull(nombre)) {
             log.warn("No se pudo crear el rol: nombre {} ya existe", nombre);
             throw new ReglaNegocioException(getClass(), "ROL_NOMBRE_DUPLICADO",
-                    "Ya existe un rol activo con el nombre " + nombre);
+                    "Ya existe un rol con el nombre " + nombre + ".");
         }
 
     }
@@ -114,7 +114,7 @@ public class RolDomainService {
         if (Boolean.TRUE.equals(rol.getEsSistema())) {
             log.warn("No se puede modificar el rol de sistema: {}", rol.getNombre());
             throw new ReglaNegocioException(getClass(), "ROL_SISTEMA_NO_EDITABLE",
-                    "El rol '" + rol.getNombre() + "' es un rol de sistema y no puede modificarse ni darse de baja.");
+                    "El rol \"" + rol.getNombre() + "\" es un rol propio del sistema y no puede modificarse ni darse de baja.");
         }
 
     }

@@ -57,8 +57,8 @@ resolver manualmente los turnos ocupados antes de poder liberar esos horarios.
 
 **Flujo simplificado:**
 1. Valida que el médico exista y esté activo.
-2. Valida que el período (`fechaHoraInicioVigencia`/`fechaHoraFinVigencia`) no empiece en
-   el pasado y no se solape con otro período de agenda del mismo médico.
+2. Valida que el período (`fechaInicioVigencia`/`fechaFinVigencia`) no empiece
+   antes de hoy (según la zona horaria de la clínica) y no se solape con otro período de agenda del mismo médico.
 3. Expande el patrón semanal o los días sueltos a una lista de bloques con fecha concreta.
 4. Valida, para cada bloque: prestación publicada, `MedicoPrestacion` vigente en esa fecha,
    y las reglas de forma del slot (horario de clínica, divisibilidad, duración, superposición).
@@ -70,8 +70,8 @@ resolver manualmente los turnos ocupados antes de poder liberar esos horarios.
 | Campo | Tipo | Obligatorio | Notas |
 |-------|------|-------------|-------|
 | `medicoId` | UUID | Sí | Médico dueño de la agenda. |
-| `fechaHoraInicioVigencia` | Instant/ISO | Sí | No puede ser anterior a ahora. |
-| `fechaHoraFinVigencia` | Instant/ISO | Sí | Tiene que ser posterior al inicio. |
+| `fechaInicioVigencia` | Fecha (`AAAA-MM-DD`) | Sí | Primer día de la agenda. No puede ser anterior a hoy. |
+| `fechaFinVigencia` | Fecha (`AAAA-MM-DD`) | Sí | Último día de la agenda (inclusive). No puede ser anterior al inicio. |
 | `patronSemanal` | lista de `DiaPatronRequest` (`diaSemana` + `bloques`) | Uno de los dos | Excluyente con `diasSueltos`. |
 | `diasSueltos` | lista de `DiaSueltoRequest` (`fecha` + `bloques`) | Uno de los dos | Excluyente con `patronSemanal`. |
 
@@ -84,7 +84,7 @@ Cada bloque (`BloqueHorarioRequest`) lleva `horaDesde`, `horaHasta`, `prestacion
 |-------|------|--------------------------|
 | `id` | UUID | Identificador de la agenda recién creada, para navegar al detalle. |
 | `medicoId` | UUID | Confirmar contra qué médico se creó. |
-| `fechaHoraInicioVigencia` / `fechaHoraFinVigencia` | Instant/ISO | Mostrar el período vigente. |
+| `fechaInicioVigencia` / `fechaFinVigencia` | Fecha (`AAAA-MM-DD`) | Mostrar el período vigente. |
 | `dias` | lista de `DiaAgendaResponse` (fecha + `horarios`) | Pintar el calendario recién generado en el preview del wizard. |
 | `cantidadHorariosGenerados` | int | Mostrar el conteo total en la confirmación ("se generaron 48 turnos"). |
 
@@ -135,23 +135,23 @@ el backend lo rechaza como contradictorio (422) antes de tocar nada.
 | Campo | Tipo | Obligatorio | Notas |
 |-------|------|-------------|-------|
 | `id` | UUID | Sí | Tiene que ser el mismo que el de la URL. |
-| `fechaHoraInicioVigencia` | Instant/ISO | Al menos uno de los dos | `null`/ausente = no tocar. Solo se puede mover si la agenda no arrancó. |
-| `fechaHoraFinVigencia` | Instant/ISO | Al menos uno de los dos | `null`/ausente = no tocar. Adelantarlo es restrictivo (ver arriba). |
+| `fechaInicioVigencia` | Fecha (`AAAA-MM-DD`) | Al menos uno de los dos | `null`/ausente = no tocar. Solo se puede mover si la agenda no arrancó. |
+| `fechaFinVigencia` | Fecha (`AAAA-MM-DD`) | Al menos uno de los dos | `null`/ausente = no tocar. Adelantarlo es restrictivo (ver arriba). |
 
 **Response para el front — `UpdateVigenciaAgendaMedicoResponse`**
 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
 | `id` | UUID | Confirmar sobre qué agenda se aplicó el cambio. |
-| `fechaHoraInicioVigencia` / `fechaHoraFinVigencia` | Instant/ISO | Refrescar el período mostrado. |
+| `fechaInicioVigencia` / `fechaFinVigencia` | Fecha (`AAAA-MM-DD`) | Refrescar el período mostrado. |
 | `cantidadHorariosDadosDeBaja` | int | Avisar cuántos horarios se perdieron al adelantar el fin (0 si no se tocó el fin). |
 
 ### Listar agendas — `GET /accesmed-api/AgendaMedico/Agenda`
 
 Alimenta el selector de agendas del front. Filtrado dinámico estándar (ver
 `Docs/FILTRADO-DINAMICO.md`) sobre `id`, `medicoId`, `especialidadId`,
-`fechaHoraInicioVigencia`, `fechaHoraFinVigencia` y el derivado `vigenteAl`
-(`inicio <= vigenteAl < fin`, sin valor por defecto: hay que pedirlo explícitamente). El
+`fechaInicioVigencia`, `fechaFinVigencia` y el derivado `vigenteAl`
+(`inicio <= vigenteAl <= fin`, ambos extremos inclusivos; `vigenteAl` es una fecha, sin valor por defecto: hay que pedirlo explícitamente). El
 listado **no** filtra por vigencia automáticamente: incluye tanto los períodos vencidos
 como los programados a futuro.
 
@@ -161,7 +161,7 @@ como los programados a futuro.
 |-------|------|--------------------------|
 | `id` | UUID | Navegar al detalle de la agenda. |
 | `medicoId`, `medicoNombre`, `medicoApellido` | UUID/String | Mostrar de quién es la agenda sin otra consulta. |
-| `fechaHoraInicioVigencia` / `fechaHoraFinVigencia` | Instant/ISO | Mostrar el período. |
+| `fechaInicioVigencia` / `fechaFinVigencia` | Fecha (`AAAA-MM-DD`) | Mostrar el período. |
 | `cantidadDias` | long | Mostrar cuántos días tiene generados, sin expandir el detalle. |
 | `cantidadHorarios` | long | Mostrar cuántos slots tiene generados, sin expandir el detalle. |
 
@@ -177,7 +177,7 @@ objeto en vez de una página, y 404 si no matchea. Trae la agenda con sus días 
 | Campo | Tipo | Para qué lo usa el front |
 |-------|------|--------------------------|
 | `id`, `medicoId`, `medicoNombre`, `medicoApellido` | — | Encabezado del detalle. |
-| `fechaHoraInicioVigencia` / `fechaHoraFinVigencia` | Instant/ISO | Encabezado del detalle. |
+| `fechaInicioVigencia` / `fechaFinVigencia` | Fecha (`AAAA-MM-DD`) | Encabezado del detalle. |
 | `dias` | lista de `DiaAgendaResponse` (`fecha`, `horarios`) | Pintar el calendario completo de la agenda. |
 
 Cada horario anidado (`HorarioAgendaResponse`) trae `id`, `horaDesde`, `horaHasta`,
@@ -197,7 +197,7 @@ fija (no configurable por el front): solo horarios activos.
 | `id` | UUID | Referenciar el slot para excluirlo desde `updateAgendaMedico` (por id, o por fecha con `fechasAExcluir`). |
 | `fecha`, `horaDesde`, `horaHasta` | LocalDate/LocalTime | Ubicar el slot en el calendario. |
 | `medicoId`, `prestacionId`, `prestacionNombre` | — | Mostrar de qué prestación es cada celda. |
-| `fechaLimiteReserva` | Instant/ISO | Informativo: hasta cuándo se puede reservar ese slot. |
+| `fechaLimiteReserva` | Fecha (`AAAA-MM-DD`) | Informativo: hasta cuándo se puede reservar ese slot. |
 | `estaOcupada` | Boolean | Pintar el slot como libre u ocupado, y bloquear la exclusión si está ocupado. |
 
 ### Listar horarios disponibles (chatbot) — `GET /accesmed-api/AgendaMedico/HorariosDisponibles`
@@ -217,7 +217,7 @@ genuinamente reservables.
 | `medicoId`, `medicoNombre`, `medicoApellido` | — | Mostrarle al paciente con qué médico sería el turno. |
 | `prestacionId`, `prestacionNombre` | — | Mostrarle al paciente para qué prestación es el turno. |
 | `fecha`, `horaDesde`, `horaHasta` | LocalDate/LocalTime | Mostrarle al paciente cuándo sería el turno. |
-| `fechaLimiteReserva` | Instant/ISO | Informativo: plazo límite para confirmar la reserva. |
+| `fechaLimiteReserva` | Fecha (`AAAA-MM-DD`) | Informativo: plazo límite para confirmar la reserva. |
 
 ### Consulta relacionada: médicos sin agenda vigente (no es un endpoint propio)
 

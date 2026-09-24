@@ -63,7 +63,7 @@ public class PrestacionDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró la prestación: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "PRESTACION_NO_ENCONTRADA",
-                            "No existe una prestación con el id " + id);
+                            "No se encontró la prestación solicitada.");
                 });
 
     }
@@ -86,7 +86,7 @@ public class PrestacionDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró la prestación activa: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "PRESTACION_NO_ENCONTRADA",
-                            "No existe una prestación activa con el id " + id);
+                            "No se encontró la prestación solicitada, o está deshabilitada.");
                 });
 
     }
@@ -124,7 +124,7 @@ public class PrestacionDomainService {
         if (prestacionRepository.existsByCodigoAndEstadoVigenteNot(codigo, EstadoPrestacion.DESHABILITADA)) {
             log.warn("No se pudo crear la prestación: código {} ya existe", codigo);
             throw new ReglaNegocioException(getClass(), "PRESTACION_CODIGO_DUPLICADO",
-                    "Ya existe una prestación no deshabilitada con el código " + codigo);
+                    "Ya existe una prestación con el código " + codigo + ".");
         }
 
     }
@@ -141,7 +141,7 @@ public class PrestacionDomainService {
         if (prestacionRepository.existsByNombreAndEstadoVigenteNot(nombre, EstadoPrestacion.DESHABILITADA)) {
             log.warn("No se pudo crear la prestación: nombre {} ya existe", nombre);
             throw new ReglaNegocioException(getClass(), "PRESTACION_NOMBRE_DUPLICADO",
-                    "Ya existe una prestación no deshabilitada con el nombre " + nombre);
+                    "Ya existe una prestación con el nombre " + nombre + ".");
         }
 
     }
@@ -160,7 +160,7 @@ public class PrestacionDomainService {
         if (prestacionRepository.existsByNombreAndEstadoVigenteNotAndIdNot(nombre, EstadoPrestacion.DESHABILITADA, idExcluido)) {
             log.warn("No se pudo actualizar la prestación: nombre {} ya existe en otra prestación", nombre);
             throw new ReglaNegocioException(getClass(), "PRESTACION_NOMBRE_DUPLICADO",
-                    "Ya existe otra prestación no deshabilitada con el nombre " + nombre);
+                    "Ya existe otra prestación con el nombre " + nombre + ".");
         }
 
     }
@@ -263,7 +263,7 @@ public class PrestacionDomainService {
         if (prestacionRepository.existsByEspecialidadIdAndEstadoVigenteNot(especialidadId, EstadoPrestacion.DESHABILITADA)) {
             log.warn("No se pudo validar sin prestaciones activas para la especialidad {}: tiene prestaciones no deshabilitadas", especialidadId);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_CON_PRESTACIONES_ACTIVAS",
-                    "La especialidad " + especialidadId + " tiene prestaciones no deshabilitadas. No se puede dar de baja.");
+                    "No se puede dar de baja la especialidad porque tiene prestaciones asociadas.");
         }
 
     }

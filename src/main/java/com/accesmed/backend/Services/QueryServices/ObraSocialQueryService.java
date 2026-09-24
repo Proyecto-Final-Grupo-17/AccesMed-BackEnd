@@ -135,7 +135,7 @@ public class ObraSocialQueryService extends AbstractFiltroQueryService<ObraSocia
                 .orElseThrow(() -> {
                     log.warn("No se encontró ninguna obra social activa que cumpla el criteria: {}", criteria);
                     return new RecursoNoEncontradoException(getClass(), "OBRA_SOCIAL_NO_ENCONTRADA",
-                            "No existe una obra social activa que cumpla el criteria proporcionado.");
+                            "No se encontró ninguna obra social que coincida con la búsqueda.");
                 });
 
     }

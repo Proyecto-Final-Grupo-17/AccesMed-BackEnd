@@ -58,7 +58,7 @@ public class TipoIndicacionPrestacionDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró el tipo de indicación de prestación: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "TIPO_INDICACION_PRESTACION_NO_ENCONTRADO",
-                            "No existe un tipo de indicación de prestación activo con el id " + id);
+                            "No se encontró el tipo de indicación solicitado. Es posible que haya sido dado de baja.");
                 });
 
     }
@@ -75,7 +75,7 @@ public class TipoIndicacionPrestacionDomainService {
         if (tipoIndicacionPrestacionRepository.existsByCodigoAndDeletedAtIsNull(codigo)) {
             log.warn("No se pudo crear el tipo de indicación: código {} ya existe", codigo);
             throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_CODIGO_DUPLICADO",
-                    "Ya existe un tipo de indicación de prestación activo con el código " + codigo);
+                    "Ya existe un tipo de indicación con el código " + codigo + ".");
         }
 
     }
@@ -94,7 +94,7 @@ public class TipoIndicacionPrestacionDomainService {
         if (tipoIndicacionPrestacionRepository.existsByCodigoAndDeletedAtIsNullAndIdNot(codigo, idExcluido)) {
             log.warn("No se pudo actualizar el tipo de indicación: código {} ya existe en otro tipo", codigo);
             throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_CODIGO_DUPLICADO",
-                    "Ya existe otro tipo de indicación de prestación activo con el código " + codigo);
+                    "Ya existe otro tipo de indicación con el código " + codigo + ".");
         }
 
     }
@@ -111,7 +111,7 @@ public class TipoIndicacionPrestacionDomainService {
         if (tipoIndicacionPrestacionRepository.existsByNombreAndDeletedAtIsNull(nombre)) {
             log.warn("No se pudo crear el tipo de indicación: nombre {} ya existe", nombre);
             throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_NOMBRE_DUPLICADO",
-                    "Ya existe un tipo de indicación de prestación activo con el nombre " + nombre);
+                    "Ya existe un tipo de indicación con el nombre " + nombre + ".");
         }
 
     }
@@ -130,7 +130,7 @@ public class TipoIndicacionPrestacionDomainService {
         if (tipoIndicacionPrestacionRepository.existsByNombreAndDeletedAtIsNullAndIdNot(nombre, idExcluido)) {
             log.warn("No se pudo actualizar el tipo de indicación: nombre {} ya existe en otro tipo", nombre);
             throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_NOMBRE_DUPLICADO",
-                    "Ya existe otro tipo de indicación de prestación activo con el nombre " + nombre);
+                    "Ya existe otro tipo de indicación con el nombre " + nombre + ".");
         }
 
     }

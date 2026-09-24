@@ -80,13 +80,13 @@ public class RefreshTokenDomainService {
                 .orElseThrow(() -> {
                     log.warn("Refresh token no encontrado o revocado");
                     return new RecursoNoEncontradoException(getClass(), "REFRESH_TOKEN_NO_ENCONTRADO",
-                            "El refresh token no existe, expiró o fue revocado.");
+                            "La sesión venció o ya no es válida. Iniciá sesión nuevamente.");
                 });
 
         if (refreshToken.getExpiresAt().isBefore(Instant.now())) {
             log.warn("Refresh token expirado: id={}", refreshToken.getId());
             throw new RecursoNoEncontradoException(getClass(), "REFRESH_TOKEN_EXPIRADO",
-                    "El refresh token no existe, expiró o fue revocado.");
+                    "La sesión venció o ya no es válida. Iniciá sesión nuevamente.");
         }
 
         return refreshToken;

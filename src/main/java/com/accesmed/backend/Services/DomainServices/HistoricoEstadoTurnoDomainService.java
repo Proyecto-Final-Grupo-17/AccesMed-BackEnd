@@ -5,6 +5,7 @@ import com.accesmed.backend.Domain.HistoricoEstadoTurno;
 import com.accesmed.backend.Domain.Turno;
 import com.accesmed.backend.Repositories.HistoricoEstadoTurnoRepository;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -111,7 +112,7 @@ public class HistoricoEstadoTurnoDomainService {
         if (estadoVigente != EstadoTurno.ESPERA_VALIDACION) {
             log.warn("No se pudo transicionar turno {}: estado vigente {} no es ESPERA_VALIDACION", turno.getId(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
-                    "El turno no está en estado ESPERA_VALIDACION");
+                    "Esta acción solo se puede realizar sobre un turno en espera de validación. El turno está " + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         cerrarYAbrirTramo(turno, EstadoTurno.PENDIENTE);
@@ -135,7 +136,7 @@ public class HistoricoEstadoTurnoDomainService {
         if (estadoVigente != EstadoTurno.ESPERA_VALIDACION) {
             log.warn("No se pudo transicionar turno {}: estado vigente {} no es ESPERA_VALIDACION", turno.getId(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
-                    "El turno no está en estado ESPERA_VALIDACION");
+                    "Esta acción solo se puede realizar sobre un turno en espera de validación. El turno está " + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         cerrarYAbrirTramo(turno, EstadoTurno.CANCELADO);
@@ -159,7 +160,7 @@ public class HistoricoEstadoTurnoDomainService {
         if (estadoVigente != EstadoTurno.PENDIENTE && estadoVigente != EstadoTurno.CONFIRMADO) {
             log.warn("No se pudo transicionar turno {}: estado vigente {} no es PENDIENTE ni CONFIRMADO", turno.getId(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
-                    "El turno no está en estado PENDIENTE ni CONFIRMADO");
+                    "Esta acción solo se puede realizar sobre un turno pendiente o confirmado. El turno está " + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         cerrarYAbrirTramo(turno, EstadoTurno.REPROGRAMADO);
@@ -183,7 +184,7 @@ public class HistoricoEstadoTurnoDomainService {
         if (estadoVigente.esFinal()) {
             log.warn("No se pudo transicionar turno {}: estado vigente {} es final", turno.getId(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
-                    "El turno está en un estado final y no puede ser cancelado");
+                    "El turno está " + FormatoMensaje.estado(estadoVigente) + " y ya no puede cancelarse.");
         }
 
         cerrarYAbrirTramo(turno, EstadoTurno.CANCELADO);
@@ -207,7 +208,7 @@ public class HistoricoEstadoTurnoDomainService {
         if (estadoVigente != EstadoTurno.PENDIENTE) {
             log.warn("No se pudo transicionar turno {}: estado vigente {} no es PENDIENTE", turno.getId(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
-                    "El turno no está en estado PENDIENTE");
+                    "Esta acción solo se puede realizar sobre un turno pendiente. El turno está " + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         cerrarYAbrirTramo(turno, EstadoTurno.CONFIRMADO);
@@ -231,7 +232,7 @@ public class HistoricoEstadoTurnoDomainService {
         if (estadoVigente != EstadoTurno.CONFIRMADO) {
             log.warn("No se pudo transicionar turno {}: estado vigente {} no es CONFIRMADO", turno.getId(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
-                    "El turno no está en estado CONFIRMADO");
+                    "Esta acción solo se puede realizar sobre un turno confirmado. El turno está " + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         cerrarYAbrirTramo(turno, EstadoTurno.EN_SALA_DE_ESPERA);
@@ -255,7 +256,7 @@ public class HistoricoEstadoTurnoDomainService {
         if (estadoVigente != EstadoTurno.EN_SALA_DE_ESPERA) {
             log.warn("No se pudo transicionar turno {}: estado vigente {} no es EN_SALA_DE_ESPERA", turno.getId(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
-                    "El turno no está en estado EN_SALA_DE_ESPERA");
+                    "Esta acción solo se puede realizar sobre un turno que está en sala de espera. El turno está " + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         cerrarYAbrirTramo(turno, EstadoTurno.EN_CURSO);
@@ -279,7 +280,7 @@ public class HistoricoEstadoTurnoDomainService {
         if (estadoVigente != EstadoTurno.EN_CURSO) {
             log.warn("No se pudo transicionar turno {}: estado vigente {} no es EN_CURSO", turno.getId(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
-                    "El turno no está en estado EN_CURSO");
+                    "Esta acción solo se puede realizar sobre un turno que está en curso. El turno está " + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         cerrarYAbrirTramo(turno, EstadoTurno.FINALIZADO);
@@ -305,7 +306,7 @@ public class HistoricoEstadoTurnoDomainService {
         if (estadoVigente != EstadoTurno.CONFIRMADO) {
             log.warn("No se pudo transicionar turno {}: estado vigente {} no es CONFIRMADO", turno.getId(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
-                    "El turno no está en estado CONFIRMADO");
+                    "Esta acción solo se puede realizar sobre un turno confirmado. El turno está " + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         cerrarYAbrirTramo(turno, EstadoTurno.AUSENTE);

@@ -58,7 +58,7 @@ public class ObraSocialDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró la obra social: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "OBRA_SOCIAL_NO_ENCONTRADA",
-                            "No existe una obra social activa con el id " + id);
+                            "No se encontró la obra social solicitada. Es posible que haya sido dada de baja.");
                 });
 
     }
@@ -75,7 +75,7 @@ public class ObraSocialDomainService {
         if (obraSocialRepository.existsByCodigoAndDeletedAtIsNull(codigo)) {
             log.warn("No se pudo crear la obra social: código {} ya existe", codigo);
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_CODIGO_DUPLICADO",
-                    "Ya existe una obra social activa con el código " + codigo);
+                    "Ya existe una obra social con el código " + codigo + ".");
         }
 
     }
@@ -94,7 +94,7 @@ public class ObraSocialDomainService {
         if (obraSocialRepository.existsByCodigoAndDeletedAtIsNullAndIdNot(codigo, idExcluido)) {
             log.warn("No se pudo actualizar la obra social: código {} ya existe en otra obra social", codigo);
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_CODIGO_DUPLICADO",
-                    "Ya existe otra obra social activa con el código " + codigo);
+                    "Ya existe otra obra social con el código " + codigo + ".");
         }
 
     }
@@ -111,7 +111,7 @@ public class ObraSocialDomainService {
         if (obraSocialRepository.existsByNombreAndDeletedAtIsNull(nombre)) {
             log.warn("No se pudo crear la obra social: nombre {} ya existe", nombre);
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_NOMBRE_DUPLICADO",
-                    "Ya existe una obra social activa con el nombre " + nombre);
+                    "Ya existe una obra social con el nombre " + nombre + ".");
         }
 
     }
@@ -130,7 +130,7 @@ public class ObraSocialDomainService {
         if (obraSocialRepository.existsByNombreAndDeletedAtIsNullAndIdNot(nombre, idExcluido)) {
             log.warn("No se pudo actualizar la obra social: nombre {} ya existe en otra obra social", nombre);
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_NOMBRE_DUPLICADO",
-                    "Ya existe otra obra social activa con el nombre " + nombre);
+                    "Ya existe otra obra social con el nombre " + nombre + ".");
         }
 
     }

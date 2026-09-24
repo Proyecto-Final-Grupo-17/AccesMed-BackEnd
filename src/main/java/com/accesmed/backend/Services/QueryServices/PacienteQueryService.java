@@ -89,7 +89,7 @@ public class PacienteQueryService extends AbstractFiltroQueryService<Paciente, P
                 .orElseThrow(() -> {
                     log.warn("No se encontró ningún paciente activo que cumpla el criteria: {}", criteria);
                     return new RecursoNoEncontradoException(getClass(), "PACIENTE_NO_ENCONTRADO",
-                            "No existe un paciente activo que cumpla el criteria proporcionado.");
+                            "No se encontró ningún paciente que coincida con la búsqueda.");
                 });
 
         //Traer las coberturas de obra social anidadas

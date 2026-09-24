@@ -1,6 +1,6 @@
 package com.accesmed.backend.Records.AgendaMedico.Response;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -9,15 +9,15 @@ import java.util.UUID;
  * porque el endpoint lo necesita igual que los demás.
  *
  * @param id {@code UUID} identificador de la agenda
- * @param fechaHoraInicioVigencia {@code ZonedDateTime} inicio de vigencia vigente tras la actualización
- * @param fechaHoraFinVigencia {@code ZonedDateTime} fin de vigencia vigente tras la actualización
+ * @param fechaInicioVigencia {@code LocalDate} inicio de vigencia vigente tras la actualización
+ * @param fechaFinVigencia {@code LocalDate} fin de vigencia vigente tras la actualización
  * @param cantidadHorariosDadosDeBaja {@code int} cantidad de {@code AgendaHorariosDia} posteriores
  *        dados de baja al adelantar el fin (0 si no se adelantó el fin)
  */
 public record UpdateVigenciaAgendaMedicoResponse(
         UUID id,
-        ZonedDateTime fechaHoraInicioVigencia,
-        ZonedDateTime fechaHoraFinVigencia,
+        LocalDate fechaInicioVigencia,
+        LocalDate fechaFinVigencia,
         int cantidadHorariosDadosDeBaja
 ) {
 

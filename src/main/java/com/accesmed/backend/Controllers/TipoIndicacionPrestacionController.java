@@ -95,7 +95,7 @@ public class TipoIndicacionPrestacionController {
         if (!id.equals(updateTipoIndicacionPrestacionRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updateTipoIndicacionPrestacionRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         UpdateTipoIndicacionPrestacionResponse updateTipoIndicacionPrestacionResponse = tipoIndicacionPrestacionApp

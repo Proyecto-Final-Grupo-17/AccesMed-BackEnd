@@ -75,7 +75,7 @@ public class PlanDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró el plan activo: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "PLAN_NO_ENCONTRADO",
-                            "No existe un plan activo con el id " + id);
+                            "No se encontró el plan solicitado, o está deshabilitado.");
                 });
 
     }
@@ -94,7 +94,7 @@ public class PlanDomainService {
         if (planRepository.existsByObraSocialIdAndCodigoAndEstadoVigenteNot(obraSocialId, codigo, EstadoPlan.DESHABILITADO)) {
             log.warn("No se pudo crear el plan: código {} ya existe en la obra social {}", codigo, obraSocialId);
             throw new ReglaNegocioException(getClass(), "PLAN_CODIGO_DUPLICADO",
-                    "Ya existe un plan no deshabilitado con el código " + codigo + " en esta obra social.");
+                    "Ya existe un plan con el código " + codigo + " en esta obra social.");
         }
 
     }
@@ -113,7 +113,7 @@ public class PlanDomainService {
         if (planRepository.existsByObraSocialIdAndNombreAndEstadoVigenteNot(obraSocialId, nombre, EstadoPlan.DESHABILITADO)) {
             log.warn("No se pudo crear el plan: nombre {} ya existe en la obra social {}", nombre, obraSocialId);
             throw new ReglaNegocioException(getClass(), "PLAN_NOMBRE_DUPLICADO",
-                    "Ya existe un plan no deshabilitado con el nombre " + nombre + " en esta obra social.");
+                    "Ya existe un plan con el nombre " + nombre + " en esta obra social.");
         }
 
     }
@@ -133,7 +133,7 @@ public class PlanDomainService {
         if (planRepository.existsByObraSocialIdAndNombreAndEstadoVigenteNotAndIdNot(obraSocialId, nombre, EstadoPlan.DESHABILITADO, idExcluido)) {
             log.warn("No se pudo actualizar el plan: nombre {} ya existe en otro plan de la obra social {}", nombre, obraSocialId);
             throw new ReglaNegocioException(getClass(), "PLAN_NOMBRE_DUPLICADO",
-                    "Ya existe otro plan no deshabilitado con el nombre " + nombre + " en esta obra social.");
+                    "Ya existe otro plan con el nombre " + nombre + " en esta obra social.");
         }
 
     }

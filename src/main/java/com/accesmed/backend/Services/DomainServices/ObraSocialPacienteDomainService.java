@@ -62,7 +62,7 @@ public class ObraSocialPacienteDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró la cobertura de obra social activa: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "OBRA_SOCIAL_PACIENTE_NO_ENCONTRADA",
-                            "No existe una cobertura de obra social activa con el id " + id);
+                            "No se encontró la cobertura de obra social solicitada.");
                 });
 
     }
@@ -94,7 +94,7 @@ public class ObraSocialPacienteDomainService {
         if (obraSocialPacienteRepository.existsByPaciente_IdAndPlan_IdAndDeletedAtIsNull(pacienteId, planId)) {
             log.warn("No se pudo asignar el plan {} al paciente {}: ya existe una cobertura activa", planId, pacienteId);
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_PACIENTE_YA_ASIGNADA",
-                    "El paciente " + pacienteId + " ya tiene asignado el plan " + planId + ".");
+                    "El paciente ya tiene asignado ese plan.");
         }
 
     }
@@ -112,7 +112,7 @@ public class ObraSocialPacienteDomainService {
             log.warn("No se pudo asignar el plan {}: pertenece a la obra social {}, no a la obra social {}",
                     plan.getId(), plan.getObraSocial().getId(), obraSocialId);
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_PACIENTE_PLAN_NO_PERTENECE",
-                    "El plan " + plan.getId() + " no pertenece a la obra social " + obraSocialId + ".");
+                    "El plan seleccionado no pertenece a la obra social indicada.");
         }
 
     }

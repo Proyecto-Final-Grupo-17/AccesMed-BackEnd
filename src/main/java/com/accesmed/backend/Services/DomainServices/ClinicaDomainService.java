@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -61,7 +62,7 @@ public class ClinicaDomainService {
         if (clinicas.isEmpty()) {
             log.warn("No se encontró la fila de configuración de la clínica");
             throw new RecursoNoEncontradoException(getClass(), "CLINICA_NO_ENCONTRADA",
-                    "No existe la fila de configuración de la clínica.");
+                    "Falta la configuración de la clínica. Contactá a soporte.");
         }
 
         return clinicas.get(0);
@@ -100,7 +101,7 @@ public class ClinicaDomainService {
         if (!ZoneId.getAvailableZoneIds().contains(zonaHoraria)) {
             log.warn("No se pudo actualizar la clínica: zona horaria {} desconocida", zonaHoraria);
             throw new ReglaNegocioException(getClass(), "CLINICA_ZONA_HORARIA_INVALIDA",
-                    "La zona horaria " + zonaHoraria + " no es un identificador IANA válido.");
+                    "La zona horaria \"" + zonaHoraria + "\" no es válida. Usá el formato región/ciudad, por ejemplo America/Argentina/Buenos_Aires.");
         }
 
     }
@@ -115,6 +116,19 @@ public class ClinicaDomainService {
 
         ZoneId zonaHorariaClinica = ZoneId.of(findClinica().getZonaHoraria());
         return zonaHorariaClinica;
+
+    }
+
+    /**
+     * Resuelve la fecha de hoy según la zona horaria de la clínica (no la del servidor ni la
+     * del cliente), que es la que define qué día es "hoy" para las vigencias.
+     *
+     * @return {@code LocalDate} fecha actual en la zona horaria de la clínica
+     */
+    public LocalDate findFechaActualClinica() {
+
+        LocalDate fechaActualClinica = LocalDate.now(findZonaHorariaClinica());
+        return fechaActualClinica;
 
     }
 

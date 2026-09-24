@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -39,10 +39,10 @@ public record AssignMedicoPrestacionRequest(
         BigDecimal precioParticular,
 
         /**
-         * Fecha de inicio de vigencia de la asignación ({@code ZonedDateTime}).
-         * {@code null} u ausente equivale a "ahora".
+         * Fecha de inicio de vigencia de la asignación ({@code LocalDate}).
+         * {@code null} u ausente equivale a hoy (zona horaria de la clínica).
          */
-        ZonedDateTime fechaInicioVigencia
+        LocalDate fechaInicioVigencia
 
 ) {
 }

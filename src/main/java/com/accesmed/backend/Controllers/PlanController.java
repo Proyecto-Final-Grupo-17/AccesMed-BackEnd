@@ -91,7 +91,7 @@ public class PlanController {
         if (!id.equals(updatePlanRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updatePlanRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         //Invocar caso de uso
@@ -158,7 +158,7 @@ public class PlanController {
         if (!id.equals(deshabilitarPlanRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, deshabilitarPlanRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         //Invocar caso de uso

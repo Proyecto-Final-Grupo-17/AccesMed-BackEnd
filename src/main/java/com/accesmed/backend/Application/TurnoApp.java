@@ -117,7 +117,7 @@ public class TurnoApp {
         if (estadoVigentePrestacion != EstadoPrestacion.PUBLICADA) {
             log.warn("No se pudo crear turno: prestación {} no está publicada, estado={}", createTurnoRequest.prestacionId(), estadoVigentePrestacion);
             throw new ReglaNegocioException(getClass(), "PRESTACION_NO_PUBLICADA",
-                    "La prestación no está publicada");
+                    "La prestación no está disponible para reservar turnos en este momento.");
         }
 
         //Buscar y validar slot disponible
@@ -127,13 +127,13 @@ public class TurnoApp {
         if (ahora.isAfter(slotDisponible.getFechaLimiteReserva())) {
             log.warn("No se pudo crear turno: slot {} tiene plazo vencido", createTurnoRequest.slotId());
             throw new ReglaNegocioException(getClass(), "AGENDA_HORARIO_FUERA_DE_PLAZO",
-                    "El plazo para reservar este horario ha vencido");
+                    "Ya pasó el plazo para reservar este horario. Elegí otro horario.");
         }
 
         //Validar que el médico atienda esa prestación en esa fecha (y obtener la entidad para el precio)
         var medicoPrestacionExistente = medicoPrestacionDomainService.findVigenteEnFecha(
                 createTurnoRequest.medicoId(), createTurnoRequest.prestacionId(),
-                slotDisponible.getFechaLimiteReserva());
+                slotDisponible.getFecha());
 
         //Buscar paciente
         var pacienteExistente = pacienteDomainService.findPacienteActivoById(createTurnoRequest.pacienteId());
@@ -252,7 +252,7 @@ public class TurnoApp {
         if (ahora.isAfter(turnoViejo.getFechaLimiteReprogramacion())) {
             log.warn("No se pudo reprogramar turno {}: plazo de reprogramación vencido", reprogramTurnoRequest.id());
             throw new ReglaNegocioException(getClass(), "TURNO_FUERA_DE_PLAZO_REPROGRAMACION",
-                    "El plazo para reprogramar este turno ha vencido");
+                    "Ya pasó el plazo para reprogramar este turno.");
         }
 
         //Validar el nuevo slot contra los mismos criterios que createTurno
@@ -262,13 +262,13 @@ public class TurnoApp {
             log.warn("No se pudo reprogramar turno {}: nuevo slot {} tiene plazo vencido",
                     reprogramTurnoRequest.id(), reprogramTurnoRequest.slotId());
             throw new ReglaNegocioException(getClass(), "AGENDA_HORARIO_FUERA_DE_PLAZO",
-                    "El plazo para reservar el nuevo horario ha vencido");
+                    "Ya pasó el plazo para reservar el nuevo horario. Elegí otro horario.");
         }
 
         //Revalidar que el médico siga atendiendo esa prestación en la nueva fecha (y obtener la entidad para el precio)
         var medicoPrestacionVigenteEnFecha = medicoPrestacionDomainService.findVigenteEnFecha(
                 turnoViejo.getMedico().getId(), turnoViejo.getPrestacion().getId(),
-                slotNuevo.getFechaLimiteReserva());
+                slotNuevo.getFecha());
 
         //Revalidar que la prestación siga publicada
         var estadoVigentePrestacion = historicoEstadoPrestacionDomainService.getEstadoVigente(turnoViejo.getPrestacion().getId());
@@ -276,7 +276,7 @@ public class TurnoApp {
             log.warn("No se pudo reprogramar turno {}: prestación {} no está publicada",
                     reprogramTurnoRequest.id(), turnoViejo.getPrestacion().getId());
             throw new ReglaNegocioException(getClass(), "PRESTACION_NO_PUBLICADA",
-                    "La prestación no está publicada");
+                    "La prestación no está disponible para reservar turnos en este momento.");
         }
 
         //Recalcular indicaciones (por si cambiaron)

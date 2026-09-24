@@ -1,6 +1,6 @@
 package com.accesmed.backend.Records.MedicoPrestacion.Response;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -14,9 +14,9 @@ public record UnassignMedicoPrestacionResponse(
         UUID id,
 
         /**
-         * Fecha de fin de vigencia con la que quedó la asignación ({@code ZonedDateTime}).
+         * Fecha de fin de vigencia con la que quedó la asignación ({@code LocalDate}).
          */
-        ZonedDateTime fechaFinVigencia
+        LocalDate fechaFinVigencia
 
 ) {
 }

@@ -102,7 +102,7 @@ public class PlanQueryService extends AbstractFiltroQueryService<Plan, PlanCrite
                 .orElseThrow(() -> {
                     log.warn("No se encontró ningún plan que cumpla el criteria: {}", criteria);
                     return new RecursoNoEncontradoException(getClass(), "PLAN_NO_ENCONTRADO",
-                            "No existe un plan que cumpla el criteria proporcionado.");
+                            "No se encontró ningún plan que coincida con la búsqueda.");
                 });
 
         List<GetPlanResponse> planesMapeados = mapPlanesConEstado(List.of(planEncontrado), tieneAuditoria);

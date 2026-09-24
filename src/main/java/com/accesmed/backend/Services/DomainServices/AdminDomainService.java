@@ -58,7 +58,7 @@ public class AdminDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró el admin activo: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "ADMIN_NO_ENCONTRADO",
-                            "No existe un admin activo con el id " + id);
+                            "No se encontró el administrador solicitado. Es posible que haya sido dado de baja.");
                 });
 
     }
@@ -75,7 +75,7 @@ public class AdminDomainService {
         if (adminRepository.existsByDniAndDeletedAtIsNull(dni)) {
             log.warn("No se pudo crear el admin: DNI {} ya existe", dni);
             throw new ReglaNegocioException(getClass(), "ADMIN_DNI_DUPLICADO",
-                    "Ya existe un admin activo con el DNI " + dni);
+                    "Ya existe un administrador con el DNI " + dni + ".");
         }
 
     }
@@ -92,7 +92,7 @@ public class AdminDomainService {
         if (adminRepository.existsByEmailAndDeletedAtIsNull(email)) {
             log.warn("No se pudo crear el admin: email {} ya existe", email);
             throw new ReglaNegocioException(getClass(), "ADMIN_EMAIL_DUPLICADO",
-                    "Ya existe un admin activo con el email " + email);
+                    "Ya existe un administrador con el email " + email + ".");
         }
 
     }

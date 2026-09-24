@@ -3,6 +3,7 @@ package com.accesmed.backend.Services.DomainServices;
 import com.accesmed.backend.Domain.EstadoTurno;
 import com.accesmed.backend.Repositories.TurnoRepository;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -50,8 +51,9 @@ public class TurnoDomainService {
             log.warn("No se pudo validar sin turnos vivos para la prestación {}: {} turno(s) vivo(s), fecha máxima {}",
                     prestacionId, turnosVivos, fechaMaxima);
             throw new ReglaNegocioException(getClass(), "PRESTACION_CON_TURNOS_VIVOS",
-                    "La prestación " + prestacionId + " tiene " + turnosVivos
-                            + " turno(s) vivo(s), el más lejano el " + fechaMaxima + ". No se puede deshabilitar.");
+                    "No se puede deshabilitar la prestación porque tiene " + turnosVivos
+                            + " turno(s) pendiente(s); el último es el " + FormatoMensaje.fechaHora(fechaMaxima)
+                            + ". Cancelá o reprogramá esos turnos primero.");
         }
 
     }
@@ -75,8 +77,8 @@ public class TurnoDomainService {
             log.warn("No se pudo validar sin turnos vivos para el plan {}: {} turno(s) vivo(s), fecha máxima {}",
                     planId, turnosVivos, fechaMaxima);
             throw new ReglaNegocioException(getClass(), "PLAN_CON_TURNOS_VIVOS",
-                    "El plan " + planId + " tiene " + turnosVivos + " turno(s) vivo(s), el más lejano el "
-                            + fechaMaxima + ". No se puede deshabilitar.");
+                    "No se puede deshabilitar el plan porque tiene " + turnosVivos + " turno(s) pendiente(s); el último es el "
+                            + FormatoMensaje.fechaHora(fechaMaxima) + ". Cancelá o reprogramá esos turnos primero.");
         }
 
     }
@@ -100,8 +102,9 @@ public class TurnoDomainService {
             log.warn("No se pudo validar sin turnos vivos para el médico {}: {} turno(s) vivo(s), fecha máxima {}",
                     medicoId, turnosVivos, fechaMaxima);
             throw new ReglaNegocioException(getClass(), "MEDICO_CON_TURNOS_VIVOS",
-                    "El médico " + medicoId + " tiene " + turnosVivos
-                            + " turno(s) vivo(s), el más lejano el " + fechaMaxima + ". No se puede dar de baja.");
+                    "No se puede dar de baja al médico porque tiene " + turnosVivos
+                            + " turno(s) pendiente(s); el último es el " + FormatoMensaje.fechaHora(fechaMaxima)
+                            + ". Cancelá o reprogramá esos turnos primero.");
         }
 
     }
@@ -125,8 +128,9 @@ public class TurnoDomainService {
             log.warn("No se pudo validar sin turnos vivos para el paciente {}: {} turno(s) vivo(s), fecha máxima {}",
                     pacienteId, turnosVivos, fechaMaxima);
             throw new ReglaNegocioException(getClass(), "PACIENTE_CON_TURNOS_VIVOS",
-                    "El paciente " + pacienteId + " tiene " + turnosVivos
-                            + " turno(s) vivo(s), el más lejano el " + fechaMaxima + ". No se puede dar de baja.");
+                    "No se puede dar de baja al paciente porque tiene " + turnosVivos
+                            + " turno(s) pendiente(s); el último es el " + FormatoMensaje.fechaHora(fechaMaxima)
+                            + ". Cancelá o reprogramá esos turnos primero.");
         }
 
     }
@@ -201,7 +205,7 @@ public class TurnoDomainService {
                     log.warn("Turno no encontrado: id={}", turnoId);
                     return new com.accesmed.backend.Services.Errors.RecursoNoEncontradoException(getClass(),
                             "TURNO_NO_ENCONTRADO",
-                            "No existe un turno con el identificador " + turnoId);
+                            "No se encontró el turno solicitado.");
                 });
 
     }

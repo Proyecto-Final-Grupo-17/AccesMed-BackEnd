@@ -107,7 +107,7 @@ public class TurnoController {
         if (!id.equals(reprogramTurnoRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, reprogramTurnoRequest.id());
             throw new ValidacionException(getClass(),
-                    java.util.List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    java.util.List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         ReprogramTurnoResponse reprogramTurnoResponse = turnoApp.reprogramTurno(reprogramTurnoRequest, usuarioDetails);
@@ -163,7 +163,7 @@ public class TurnoController {
         if (!id.equals(validateTurnoRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, validateTurnoRequest.id());
             throw new ValidacionException(getClass(),
-                    java.util.List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    java.util.List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         ValidateTurnoResponse validateTurnoResponse = turnoApp.validateTurno(validateTurnoRequest);

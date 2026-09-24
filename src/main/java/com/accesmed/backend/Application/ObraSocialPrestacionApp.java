@@ -15,6 +15,7 @@ import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.ObraSocialPlanPrestacionMapper;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -137,8 +138,8 @@ public class ObraSocialPrestacionApp {
             log.warn("No se pudo desasignar la cobertura {}: hay turnos vivos del par plan={}, prestación={}, el más lejano el {}",
                     id, planId, prestacionId, fechaMaximaTurnoVivo.get());
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_PLAN_PRESTACION_CON_TURNOS_VIVOS",
-                    "El par plan-prestación tiene turnos vivos, el más lejano el " + fechaMaximaTurnoVivo.get()
-                            + ". No se puede desasignar.");
+                    "No se puede quitar la prestación del plan porque hay turnos pendientes con esa cobertura; el último es el "
+                            + FormatoMensaje.fechaHora(fechaMaximaTurnoVivo.get()) + ". Cancelá o reprogramá esos turnos primero.");
         }
 
         //Dar de baja

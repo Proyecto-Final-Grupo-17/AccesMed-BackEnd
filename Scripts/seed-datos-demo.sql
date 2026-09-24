@@ -128,15 +128,15 @@ INSERT INTO historico_estado_prestacion (id, fecha_hora_inicio, fecha_hora_fin, 
 --    todas vigentes (fecha_fin_vigencia NULL) y con atención particular.
 -- ====================================================================
 INSERT INTO medico_prestacion (id, atiende_particular, precio_particular, fecha_inicio_vigencia, fecha_fin_vigencia, medico_id, prestacion_id, created_at, created_by) VALUES
-    ('40000000-0000-4000-8000-000000000001', true, 18000.00, now() - interval '90 days', NULL, '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', now(), 'seed-script'), -- Juan Pérez → Consulta Cardiológica
-    ('40000000-0000-4000-8000-000000000002', true, 35000.00, now() - interval '90 days', NULL, '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002', now(), 'seed-script'), -- Juan Pérez → Ergometría
-    ('40000000-0000-4000-8000-000000000003', true, 16000.00, now() - interval '90 days', NULL, '20000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000003', now(), 'seed-script'), -- Lucía Gómez → Consulta Clínica Médica
-    ('40000000-0000-4000-8000-000000000004', true, 16000.00, now() - interval '90 days', NULL, '20000000-0000-4000-8000-000000000003', '30000000-0000-4000-8000-000000000003', now(), 'seed-script'), -- Martín Ibarra → Consulta Clínica Médica
-    ('40000000-0000-4000-8000-000000000005', true, 17000.00, now() - interval '90 days', NULL, '20000000-0000-4000-8000-000000000004', '30000000-0000-4000-8000-000000000004', now(), 'seed-script'), -- Sofía Ramírez → Consulta Pediátrica
-    ('40000000-0000-4000-8000-000000000006', true, 17500.00, now() - interval '90 days', NULL, '20000000-0000-4000-8000-000000000005', '30000000-0000-4000-8000-000000000005', now(), 'seed-script'), -- Federico Suárez → Consulta Dermatológica
-    ('40000000-0000-4000-8000-000000000007', true, 32000.00, now() - interval '90 days', NULL, '20000000-0000-4000-8000-000000000005', '30000000-0000-4000-8000-000000000006', now(), 'seed-script'), -- Federico Suárez → Crioterapia
-    ('40000000-0000-4000-8000-000000000008', true, 18500.00, now() - interval '90 days', NULL, '20000000-0000-4000-8000-000000000006', '30000000-0000-4000-8000-000000000007', now(), 'seed-script'), -- Valentina Castro → Consulta Traumatológica
-    ('40000000-0000-4000-8000-000000000009', true, 40000.00, now() - interval '90 days', NULL, '20000000-0000-4000-8000-000000000006', '30000000-0000-4000-8000-000000000008', now(), 'seed-script'); -- Valentina Castro → Infiltración
+    ('40000000-0000-4000-8000-000000000001', true, 18000.00, current_date - 90, NULL, '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', now(), 'seed-script'), -- Juan Pérez → Consulta Cardiológica
+    ('40000000-0000-4000-8000-000000000002', true, 35000.00, current_date - 90, NULL, '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002', now(), 'seed-script'), -- Juan Pérez → Ergometría
+    ('40000000-0000-4000-8000-000000000003', true, 16000.00, current_date - 90, NULL, '20000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000003', now(), 'seed-script'), -- Lucía Gómez → Consulta Clínica Médica
+    ('40000000-0000-4000-8000-000000000004', true, 16000.00, current_date - 90, NULL, '20000000-0000-4000-8000-000000000003', '30000000-0000-4000-8000-000000000003', now(), 'seed-script'), -- Martín Ibarra → Consulta Clínica Médica
+    ('40000000-0000-4000-8000-000000000005', true, 17000.00, current_date - 90, NULL, '20000000-0000-4000-8000-000000000004', '30000000-0000-4000-8000-000000000004', now(), 'seed-script'), -- Sofía Ramírez → Consulta Pediátrica
+    ('40000000-0000-4000-8000-000000000006', true, 17500.00, current_date - 90, NULL, '20000000-0000-4000-8000-000000000005', '30000000-0000-4000-8000-000000000005', now(), 'seed-script'), -- Federico Suárez → Consulta Dermatológica
+    ('40000000-0000-4000-8000-000000000007', true, 32000.00, current_date - 90, NULL, '20000000-0000-4000-8000-000000000005', '30000000-0000-4000-8000-000000000006', now(), 'seed-script'), -- Federico Suárez → Crioterapia
+    ('40000000-0000-4000-8000-000000000008', true, 18500.00, current_date - 90, NULL, '20000000-0000-4000-8000-000000000006', '30000000-0000-4000-8000-000000000007', now(), 'seed-script'), -- Valentina Castro → Consulta Traumatológica
+    ('40000000-0000-4000-8000-000000000009', true, 40000.00, current_date - 90, NULL, '20000000-0000-4000-8000-000000000006', '30000000-0000-4000-8000-000000000008', now(), 'seed-script'); -- Valentina Castro → Infiltración
 
 -- ====================================================================
 -- 6) ObraSocial

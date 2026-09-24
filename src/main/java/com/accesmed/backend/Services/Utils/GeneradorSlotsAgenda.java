@@ -101,16 +101,16 @@ public class GeneradorSlotsAgenda {
 
         for (BloqueAGenerar bloque : bloques) {
 
-            String descripcionBloque = bloque.fecha() + " " + bloque.horaDesde() + "-" + bloque.horaHasta();
+            String descripcionBloque = "del " + FormatoMensaje.fecha(bloque.fecha()) + " de " + bloque.horaDesde() + " a " + bloque.horaHasta();
 
             if (!bloque.horaDesde().isBefore(bloque.horaHasta())) {
-                errores.add("Bloque " + descripcionBloque + ": la hora desde debe ser anterior a la hora hasta.");
+                errores.add("El horario " + descripcionBloque + " no es válido: la hora de inicio debe ser anterior a la hora de fin.");
                 continue;
             }
 
             if (bloque.horaDesde().isBefore(horarioInicioAtencion) || bloque.horaHasta().isAfter(horarioFinAtencion)) {
-                errores.add("Bloque " + descripcionBloque + ": debe caer dentro del horario de atención de la clínica ("
-                        + horarioInicioAtencion + "-" + horarioFinAtencion + ").");
+                errores.add("El horario " + descripcionBloque + " está fuera del horario de atención de la clínica (de "
+                        + horarioInicioAtencion + " a " + horarioFinAtencion + ").");
                 continue;
             }
 
@@ -118,15 +118,17 @@ public class GeneradorSlotsAgenda {
             long segundosTurno = bloque.duracionTurno().getSeconds();
 
             if (segundosTurno <= 0 || segundosBloque % segundosTurno != 0) {
-                errores.add("Bloque " + descripcionBloque + ": la duración del turno (" + bloque.duracionTurno()
-                        + ") no divide exactamente al bloque.");
+                errores.add("El horario " + descripcionBloque + " no se puede dividir en turnos de "
+                        + FormatoMensaje.duracion(bloque.duracionTurno()) + " sin que sobre tiempo. Ajustá la duración del turno o el horario.");
                 continue;
             }
 
             if (segundosTurno < bloque.prestacion().getDuracionMinima().getSeconds()
                     || segundosTurno > bloque.prestacion().getDuracionMaxima().getSeconds()) {
-                errores.add("Bloque " + descripcionBloque + ": la duración del turno (" + bloque.duracionTurno()
-                        + ") no está entre la duración mínima y máxima de la prestación " + bloque.prestacion().getId() + ".");
+                errores.add("El horario " + descripcionBloque + " usa turnos de " + FormatoMensaje.duracion(bloque.duracionTurno())
+                        + ", pero la prestación \"" + bloque.prestacion().getNombre() + "\" admite turnos de entre "
+                        + FormatoMensaje.duracion(bloque.prestacion().getDuracionMinima()) + " y "
+                        + FormatoMensaje.duracion(bloque.prestacion().getDuracionMaxima()) + ".");
                 continue;
             }
 
@@ -135,7 +137,7 @@ public class GeneradorSlotsAgenda {
                     bloque.horaDesde().isBefore(rango.horaHasta()) && rango.horaDesde().isBefore(bloque.horaHasta()));
 
             if (seSuperpone) {
-                errores.add("Bloque " + descripcionBloque + ": se superpone con otro bloque del mismo día.");
+                errores.add("El horario " + descripcionBloque + " se superpone con otro horario del mismo día.");
                 continue;
             }
 

@@ -6,6 +6,7 @@ import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Repositories.HistoricoEstadoPrestacionRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -55,7 +56,7 @@ public class HistoricoEstadoPrestacionDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró tramo de estado vigente para la prestación: id={}", prestacionId);
                     return new RecursoNoEncontradoException(getClass(), "PRESTACION_SIN_ESTADO_VIGENTE",
-                            "No existe un tramo de estado vigente para la prestación " + prestacionId);
+                            "No se pudo determinar el estado actual de la prestación. Contactá a soporte.");
                 })
                 .getEstado();
 
@@ -138,13 +139,15 @@ public class HistoricoEstadoPrestacionDomainService {
         if (estadoNuevo == EstadoPrestacion.PUBLICADA && estadoVigente != EstadoPrestacion.NO_PUBLICADA) {
             log.warn("No se pudo publicar la prestación {}: estado actual {}", prestacion.getCodigo(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "PRESTACION_NO_PUBLICABLE",
-                    "La prestación " + prestacion.getCodigo() + " no se puede publicar desde el estado " + estadoVigente + ".");
+                    "No se puede publicar la prestación " + prestacion.getCodigo() + ": solo se puede publicar una prestación no publicada y esta está "
+                            + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         if (estadoNuevo == EstadoPrestacion.NO_PUBLICADA && estadoVigente != EstadoPrestacion.PUBLICADA) {
             log.warn("No se pudo despublicar la prestación {}: estado actual {}", prestacion.getCodigo(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "PRESTACION_NO_DESPUBLICABLE",
-                    "La prestación " + prestacion.getCodigo() + " no se puede despublicar desde el estado " + estadoVigente + ".");
+                    "No se puede despublicar la prestación " + prestacion.getCodigo() + ": solo se puede despublicar una prestación publicada y esta está "
+                            + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         //Cerrar tramo vigente. saveAndFlush (no save): Hibernate agrupa las acciones del

@@ -7,7 +7,7 @@
 
     <!--
         MedicoPrestacion se rige por VIGENCIA, no por baja logica: se asigna abriendo un
-        periodo y se desasigna cerrando fecha_fin_vigencia. Reasignar es crear una fila
+        periodo y se desasigna cerrando fecha_fin_vigencia (ultimo dia vigente, inclusive). Reasignar es crear una fila
         nueva, nunca reabrir la vieja. Por eso no hay deleted_at ni unicidad del par:
         la regla es que los periodos del mismo par medico-prestacion no se solapen.
     -->
@@ -24,10 +24,10 @@
                 <constraints nullable="false"/>
             </column>
             <!-- ====== Columnas de vigencia ====== -->
-            <column name="fecha_inicio_vigencia" type="timestamptz">
+            <column name="fecha_inicio_vigencia" type="date">
                 <constraints nullable="false"/>
             </column>
-            <column name="fecha_fin_vigencia" type="timestamptz"/>
+            <column name="fecha_fin_vigencia" type="date"/>
             <!-- ====== Relaciones ====== -->
             <column name="medico_id" type="uuid">
                 <constraints nullable="false" foreignKeyName="fk_medico_prestacion_medico" references="medico(id)"/>
@@ -45,7 +45,7 @@
         </createTable>
 
         <sql>ALTER TABLE medico_prestacion ADD CONSTRAINT ck_medico_prestacion_precio_particular CHECK (precio_particular > 0);</sql>
-        <sql>ALTER TABLE medico_prestacion ADD CONSTRAINT ck_medico_prestacion_vigencia CHECK (fecha_fin_vigencia IS NULL OR fecha_inicio_vigencia &lt; fecha_fin_vigencia);</sql>
+        <sql>ALTER TABLE medico_prestacion ADD CONSTRAINT ck_medico_prestacion_vigencia CHECK (fecha_fin_vigencia IS NULL OR fecha_inicio_vigencia &lt;= fecha_fin_vigencia);</sql>
 
         <!-- No solapamiento de periodos del mismo par medico-prestacion. Requiere btree_gist (Infraestructura). -->
         <sql>
@@ -53,7 +53,7 @@
             EXCLUDE USING gist (
                 medico_id WITH =,
                 prestacion_id WITH =,
-                tstzrange(fecha_inicio_vigencia, fecha_fin_vigencia) WITH &amp;&amp;
+                daterange(fecha_inicio_vigencia, fecha_fin_vigencia, '[]') WITH &amp;&amp;
             );
         </sql>
 

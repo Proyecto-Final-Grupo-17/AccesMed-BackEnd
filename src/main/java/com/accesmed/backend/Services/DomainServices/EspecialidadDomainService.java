@@ -58,7 +58,7 @@ public class EspecialidadDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró la especialidad activa: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "ESPECIALIDAD_NO_ENCONTRADA",
-                            "No existe una especialidad activa con el id " + id);
+                            "No se encontró la especialidad solicitada. Es posible que haya sido dada de baja.");
                 });
 
     }
@@ -75,7 +75,7 @@ public class EspecialidadDomainService {
         if (especialidadRepository.existsByCodigoAndDeletedAtIsNull(codigo)) {
             log.warn("No se pudo crear la especialidad: código {} ya existe", codigo);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_CODIGO_DUPLICADO",
-                    "Ya existe una especialidad activa con el código " + codigo);
+                    "Ya existe una especialidad con el código " + codigo + ".");
         }
 
     }
@@ -94,7 +94,7 @@ public class EspecialidadDomainService {
         if (especialidadRepository.existsByCodigoAndDeletedAtIsNullAndIdNot(codigo, idExcluido)) {
             log.warn("No se pudo actualizar la especialidad: código {} ya existe en otra especialidad", codigo);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_CODIGO_DUPLICADO",
-                    "Ya existe otra especialidad activa con el código " + codigo);
+                    "Ya existe otra especialidad con el código " + codigo + ".");
         }
 
     }
@@ -111,7 +111,7 @@ public class EspecialidadDomainService {
         if (especialidadRepository.existsByNombreAndDeletedAtIsNull(nombre)) {
             log.warn("No se pudo crear la especialidad: nombre {} ya existe", nombre);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_NOMBRE_DUPLICADO",
-                    "Ya existe una especialidad activa con el nombre " + nombre);
+                    "Ya existe una especialidad con el nombre " + nombre + ".");
         }
 
     }
@@ -130,7 +130,7 @@ public class EspecialidadDomainService {
         if (especialidadRepository.existsByNombreAndDeletedAtIsNullAndIdNot(nombre, idExcluido)) {
             log.warn("No se pudo actualizar la especialidad: nombre {} ya existe en otra especialidad", nombre);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_NOMBRE_DUPLICADO",
-                    "Ya existe otra especialidad activa con el nombre " + nombre);
+                    "Ya existe otra especialidad con el nombre " + nombre + ".");
         }
 
     }

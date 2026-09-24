@@ -174,7 +174,7 @@ public class AgendaHorariosDiaQueryService extends AbstractFiltroQueryService<Ag
                 .orElseThrow(() -> {
                     log.warn("No se encontró la fila de configuración de la clínica");
                     return new RecursoNoEncontradoException(getClass(), "CLINICA_NO_ENCONTRADA",
-                            "No existe la fila de configuración de la clínica.");
+                            "Falta la configuración de la clínica. Contactá a soporte.");
                 })
                 .getDiasMaximosAnticipacionReserva();
         ZonedDateTime ahora = ZonedDateTime.now();

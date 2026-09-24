@@ -7,11 +7,12 @@ import com.accesmed.backend.Repositories.MedicoPrestacionRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -54,12 +55,12 @@ public class MedicoPrestacionDomainService {
      * identificador.
      *
      * @param id {@code UUID} identificador de la asignación
-     * @param fecha {@code ZonedDateTime} instante contra el cual evaluar la vigencia
+     * @param fecha {@code LocalDate} fecha contra la cual evaluar la vigencia
      * @return {@code MedicoPrestacion} la asignación vigente correspondiente al id
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe
      *         una asignación vigente con ese id en esa fecha
      */
-    public MedicoPrestacion findMedicoPrestacionVigenteById(UUID id, ZonedDateTime fecha) {
+    public MedicoPrestacion findMedicoPrestacionVigenteById(UUID id, LocalDate fecha) {
 
         log.debug("Buscando asignación médico-prestación vigente por id: {}, fecha: {}", id, fecha);
 
@@ -67,7 +68,7 @@ public class MedicoPrestacionDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró la asignación médico-prestación vigente: id={}, fecha={}", id, fecha);
                     return new RecursoNoEncontradoException(getClass(), "MEDICO_PRESTACION_NO_ENCONTRADA",
-                            "No existe una asignación médico-prestación vigente con el id " + id);
+                            "No se encontró la asignación de prestación solicitada, o ya no está vigente.");
                 });
 
     }
@@ -79,12 +80,12 @@ public class MedicoPrestacionDomainService {
      *
      * @param medicoId {@code UUID} identificador del médico
      * @param prestacionId {@code UUID} identificador de la prestación
-     * @param fecha {@code ZonedDateTime} instante contra el cual evaluar la vigencia
-     * @return {@code MedicoPrestacion} la asignación vigente entre ambos en ese instante
+     * @param fecha {@code LocalDate} fecha contra la cual evaluar la vigencia
+     * @return {@code MedicoPrestacion} la asignación vigente entre ambos en esa fecha
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe
      *         una asignación vigente entre ese médico y esa prestación en esa fecha
      */
-    public MedicoPrestacion findVigenteEnFecha(UUID medicoId, UUID prestacionId, ZonedDateTime fecha) {
+    public MedicoPrestacion findVigenteEnFecha(UUID medicoId, UUID prestacionId, LocalDate fecha) {
 
         log.debug("Buscando asignación médico-prestación vigente: médico={}, prestación={}, fecha={}", medicoId, prestacionId, fecha);
 
@@ -93,8 +94,7 @@ public class MedicoPrestacionDomainService {
                     log.warn("No se encontró asignación médico-prestación vigente: médico={}, prestación={}, fecha={}",
                             medicoId, prestacionId, fecha);
                     return new RecursoNoEncontradoException(getClass(), "MEDICO_PRESTACION_NO_ENCONTRADA",
-                            "No existe una asignación vigente entre el médico " + medicoId
-                                    + " y la prestación " + prestacionId + " en la fecha " + fecha);
+                            "El médico no tiene asignada esa prestación el " + FormatoMensaje.fecha(fecha) + ".");
                 });
 
     }
@@ -103,10 +103,10 @@ public class MedicoPrestacionDomainService {
      * Busca las asignaciones vigentes en una fecha dada de un médico.
      *
      * @param medicoId {@code UUID} identificador del médico
-     * @param fecha {@code ZonedDateTime} instante contra el cual evaluar la vigencia
+     * @param fecha {@code LocalDate} fecha contra la cual evaluar la vigencia
      * @return {@code List<MedicoPrestacion>} las asignaciones vigentes de ese médico
      */
-    public List<MedicoPrestacion> findAsignacionesVigentesByMedico(UUID medicoId, ZonedDateTime fecha) {
+    public List<MedicoPrestacion> findAsignacionesVigentesByMedico(UUID medicoId, LocalDate fecha) {
 
         log.debug("Buscando asignaciones vigentes del médico: {}, fecha: {}", medicoId, fecha);
 
@@ -115,24 +115,23 @@ public class MedicoPrestacionDomainService {
     }
 
     /**
-     * Valida que el período {@code [desde, hasta)} indicado no se solape con ninguna
+     * Valida que el período {@code [desde, hasta]} (ambos extremos inclusivos) indicado no se solape con ninguna
      * vigencia ya existente entre el médico y la prestación indicados.
      *
      * @param medicoId {@code UUID} identificador del médico
      * @param prestacionId {@code UUID} identificador de la prestación
-     * @param desde {@code ZonedDateTime} inicio del período a validar
-     * @param hasta {@code ZonedDateTime} fin del período a validar, o {@code null} si es abierto
+     * @param desde {@code LocalDate} inicio del período a validar
+     * @param hasta {@code LocalDate} fin del período a validar, o {@code null} si es abierto
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el período se solapa con
      *         una vigencia existente entre ambos
      */
-    public void validateSinSolapamiento(UUID medicoId, UUID prestacionId, ZonedDateTime desde, ZonedDateTime hasta) {
+    public void validateSinSolapamiento(UUID medicoId, UUID prestacionId, LocalDate desde, LocalDate hasta) {
 
         if (medicoPrestacionRepository.existsSolapamiento(medicoId, prestacionId, desde, hasta)) {
-            log.warn("No se pudo asignar la prestación {} al médico {}: el período [{}, {}) se solapa con una vigencia existente",
+            log.warn("No se pudo asignar la prestación {} al médico {}: el período [{}, {}] se solapa con una vigencia existente",
                     prestacionId, medicoId, desde, hasta);
             throw new ReglaNegocioException(getClass(), "MEDICO_PRESTACION_SOLAPADA",
-                    "El período indicado se solapa con una asignación vigente entre el médico " + medicoId
-                            + " y la prestación " + prestacionId + ".");
+                    "El médico ya tiene asignada esa prestación en un período que se superpone con el indicado. Elegí fechas que no se pisen.");
         }
 
     }
@@ -151,8 +150,7 @@ public class MedicoPrestacionDomainService {
             log.warn("No se pudo asignar la prestación {} al médico {}: especialidad de la prestación ({}) distinta a la del médico ({})",
                     prestacion.getId(), medico.getId(), prestacion.getEspecialidad().getId(), medico.getEspecialidad().getId());
             throw new ReglaNegocioException(getClass(), "MEDICO_PRESTACION_ESPECIALIDAD_DISTINTA",
-                    "La especialidad de la prestación " + prestacion.getId()
-                            + " no coincide con la especialidad del médico " + medico.getId() + ".");
+                    "No se puede asignar la prestación: su especialidad no coincide con la del médico.");
         }
 
     }
@@ -164,17 +162,18 @@ public class MedicoPrestacionDomainService {
      * {@code TurnoDomainService}), no acá.
      *
      * @param medicoPrestacion {@code MedicoPrestacion} asignación a cerrar
-     * @param fechaFinVigencia {@code ZonedDateTime} fecha en la que deja de estar vigente
-     * @throws ValidacionException {@code ValidacionException} si {@code fechaFinVigencia} no es
-     *         posterior a {@code fechaInicioVigencia}
+     * @param fechaFinVigencia {@code LocalDate} último día en que está vigente (inclusive)
+     * @throws ValidacionException {@code ValidacionException} si {@code fechaFinVigencia} es
+     *         anterior a {@code fechaInicioVigencia}
      */
-    public void cerrarVigenciaMedicoPrestacion(MedicoPrestacion medicoPrestacion, ZonedDateTime fechaFinVigencia) {
+    public void cerrarVigenciaMedicoPrestacion(MedicoPrestacion medicoPrestacion, LocalDate fechaFinVigencia) {
 
-        if (!fechaFinVigencia.isAfter(medicoPrestacion.getFechaInicioVigencia())) {
-            log.warn("No se pudo cerrar la vigencia de la asignación médico-prestación: fechaFinVigencia {} no es posterior a fechaInicioVigencia {}",
-                    fechaFinVigencia, medicoPrestacion.getFechaInicioVigencia());
+        if (fechaFinVigencia.isBefore(medicoPrestacion.getFechaInicioVigencia())) {
+            log.warn("No se pudo cerrar la vigencia de la asignación médico-prestación {}: fechaFinVigencia {} es anterior a fechaInicioVigencia {}",
+                    medicoPrestacion.getId(), fechaFinVigencia, medicoPrestacion.getFechaInicioVigencia());
             throw new ValidacionException(getClass(),
-                    List.of("La fecha de fin de vigencia debe ser posterior a la fecha de inicio de vigencia."));
+                    List.of("La fecha de fin de la asignación no puede ser anterior a su fecha de inicio ("
+                            + FormatoMensaje.fecha(medicoPrestacion.getFechaInicioVigencia()) + ")."));
         }
 
         log.debug("Cerrando vigencia de asignación médico-prestación: id={}, fechaFinVigencia={}",
@@ -194,10 +193,10 @@ public class MedicoPrestacionDomainService {
      *
      * @param medicoId {@code UUID} identificador del médico
      * @param prestacionId {@code UUID} identificador de la prestación
-     * @param fecha {@code ZonedDateTime} instante contra el cual evaluar la vigencia
-     * @return {@code boolean} {@code true} si existe una asignación vigente entre ambos en ese instante
+     * @param fecha {@code LocalDate} fecha contra la cual evaluar la vigencia
+     * @return {@code boolean} {@code true} si existe una asignación vigente entre ambos en esa fecha
      */
-    public boolean existsVigenteEnFecha(UUID medicoId, UUID prestacionId, ZonedDateTime fecha) {
+    public boolean existsVigenteEnFecha(UUID medicoId, UUID prestacionId, LocalDate fecha) {
 
         log.debug("Verificando vigencia médico-prestación: médico={}, prestación={}, fecha={}", medicoId, prestacionId, fecha);
 
@@ -231,9 +230,9 @@ public class MedicoPrestacionDomainService {
      * prestación. Utilizada cuando se deshabilita la prestación (A4, paso 1).
      *
      * @param prestacionId {@code UUID} identificador de la prestación
-     * @param fechaFinVigencia {@code ZonedDateTime} fecha en la que dejan de estar vigentes
+     * @param fechaFinVigencia {@code LocalDate} último día en que están vigentes (inclusive)
      */
-    public void cerrarVigenciasByPrestacion(UUID prestacionId, ZonedDateTime fechaFinVigencia) {
+    public void cerrarVigenciasByPrestacion(UUID prestacionId, LocalDate fechaFinVigencia) {
 
         log.debug("Cerrando vigencia de todas las asignaciones médico-prestación de la prestación: {}", prestacionId);
 

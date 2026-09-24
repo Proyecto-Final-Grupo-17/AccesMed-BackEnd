@@ -83,13 +83,13 @@ public class CambioMailTokenDomainService {
                 .orElseThrow(() -> {
                     log.warn("Cambio mail token no encontrado o usado");
                     return new RecursoNoEncontradoException(getClass(), "CAMBIO_MAIL_TOKEN_NO_ENCONTRADO",
-                            "El token de cambio de mail no existe, expiró o ya fue usado.");
+                            "El enlace para confirmar el cambio de mail no es válido, venció o ya fue usado.");
                 });
 
         if (cambioMailToken.getExpiresAt().isBefore(Instant.now())) {
             log.warn("Cambio mail token expirado: id={}", cambioMailToken.getId());
             throw new RecursoNoEncontradoException(getClass(), "CAMBIO_MAIL_TOKEN_EXPIRADO",
-                    "El token de cambio de mail no existe, expiró o ya fue usado.");
+                    "El enlace para confirmar el cambio de mail no es válido, venció o ya fue usado.");
         }
 
         return cambioMailToken;

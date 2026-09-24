@@ -82,7 +82,7 @@ public class IndicacionPrestacionTurnoQueryService
                 .orElseThrow(() -> {
                     log.warn("No se encontró ninguna indicación de prestación de turno que cumpla el criteria: {}", criteria);
                     return new RecursoNoEncontradoException(getClass(), "INDICACION_PRESTACION_TURNO_NO_ENCONTRADA",
-                            "No existe una indicación de prestación de turno que cumpla el criteria proporcionado.");
+                            "No se encontró ninguna indicación del turno que coincida con la búsqueda.");
                 });
 
         GetIndicacionPrestacionTurnoResponse getIndicacionPrestacionTurnoResponse = indicacionPrestacionTurnoMapper.toGetResponse(

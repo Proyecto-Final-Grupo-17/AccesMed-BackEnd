@@ -93,7 +93,7 @@ public class PrestacionController {
         if (!id.equals(updatePrestacionRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updatePrestacionRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         //Invocar caso de uso.
@@ -164,7 +164,7 @@ public class PrestacionController {
         if (!id.equals(deshabilitarPrestacionRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, deshabilitarPrestacionRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         //Invocar caso de uso.

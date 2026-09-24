@@ -66,7 +66,7 @@ Fuente de verdad estructural: `modelo_acces_med.json` y `modelo_dte_turno.json`.
 
 ### Agenda
 
-- **AgendaMedico** — período de vigencia de la agenda de un médico. **No tiene baja lógica**: se gestiona adelantando `fechaHoraFinVigencia`. **Su duración es libre**: puede ser de un día, para un suplente, o de un semestre.
+- **AgendaMedico** — período de vigencia de la agenda de un médico. **No tiene baja lógica**: se gestiona adelantando `fechaFinVigencia`. **Su duración es libre**: puede ser de un día, para un suplente, o de un semestre.
 - **AgendaHorariosDia** — el slot reservable. Pertenece directamente a una `AgendaMedico` y a una `Prestacion`, y lleva su propia `fecha`: no hay un nivel intermedio de "día" como entidad separada. Excluir una fecha entera (feriado, licencia) es dar de baja todos sus `AgendaHorariosDia` activos. **No hace falta cubrir el período completo**: las fechas sin ningún `AgendaHorariosDia` simplemente no tienen atención. Su duración planificada se **deriva** de `horaHasta - horaDesde`; no se persiste.
 
 ### Pacientes y financiadores
@@ -217,8 +217,8 @@ Todos los montos son `BigDecimal` con escala 2. Nunca `double`.
 | Campo | Regla |
 |---|---|
 | `Paciente.fechaNacimiento` | anterior a hoy (`@Past`) |
-| `AgendaMedico.fechaHoraInicioVigencia` | igual o posterior a ahora al darla de alta |
-| `AgendaMedico.fechaHoraFinVigencia` | posterior a `fechaHoraInicioVigencia` |
+| `AgendaMedico.fechaInicioVigencia` | igual o posterior a hoy (zona horaria de la clínica) al darla de alta |
+| `AgendaMedico.fechaFinVigencia` | igual o posterior a `fechaInicioVigencia` (ambos extremos inclusivos) |
 | `AgendaHorariosDia.fecha` | comprendida en el período de vigencia de su `AgendaMedico` |
 | `AgendaHorariosDia.horaDesde` / `horaHasta` | `horaDesde < horaHasta`, ambas dentro del horario de atención de la clínica |
 | `HistoricoEstadoTurno.fechaHoraFin` | vacío, o posterior a `fechaHoraInicio` |
@@ -478,7 +478,7 @@ Los períodos del par `(prestacion, nombre)` no se solapan, así que el relevo e
 
 ### AGEN — Agenda
 
-- Una agenda está **vigente** cuando hoy cae entre `fechaHoraInicioVigencia` y `fechaHoraFinVigencia`. Queda derogada la regla anterior de "agenda activa = `fechaHoraFinVigencia` vacía".
+- Una agenda está **vigente** cuando hoy cae entre `fechaInicioVigencia` y `fechaFinVigencia`. Queda derogada la regla anterior de "agenda activa = `fechaFinVigencia` vacía".
 - **La duración del período es libre.** Un día para un suplente, un semestre para un médico de planta. La restricción entre `diasMinimosVigenciaAgenda` y `diasMaximosVigenciaAgenda` quedó derogada y esos dos parámetros ya no existen.
 - Los períodos de un mismo médico no se solapan. Con la restricción de duración fuera, **esta es la única regla estructural que le queda al período**, así que pasa a ser la que más importa validar.
 - **El período se puede extender más allá del horizonte de reserva.** Los slots existen desde que se generan, pero solo son reservables cuando el horizonte móvil los alcanza.
@@ -627,7 +627,7 @@ Restrictiva. No se da de baja si existe alguna `Prestacion` no deshabilitada o a
 No se opera sobre el médico: se opera sobre la agenda.
 
 - Si la salida coincide con el fin de vigencia actual: no hacer nada, dejar vencer.
-- Si se va antes: adelantar `fechaHoraFinVigencia`, dar de baja los `AgendaHorariosDia` posteriores a la fecha de corte, y resolver los turnos que caigan después del nuevo corte.
+- Si se va antes: adelantar `fechaFinVigencia`, dar de baja los `AgendaHorariosDia` posteriores a la fecha de corte, y resolver los turnos que caigan después del nuevo corte.
 - El día siguiente al último turno, ya sin turnos vivos pendientes, se ejecuta la baja del `Medico` (ver más abajo), que solo arrastra `MedicoPrestacion`.
 
 **No existe fecha de baja futura como atributo.** `deletedAt` distinto de vacío significa siempre "ya está de baja".
@@ -809,7 +809,7 @@ cascada (ver §5 USER y AUTZ), así que ya no es un caso que dependa de navegabi
 | `configurarAgendaMedico` | Crea `AgendaMedico` + N `AgendaHorariosDia`. Admite patrón semanal o días sueltos |
 | `modificarAgendaVigente` | Da de baja `AgendaHorariosDia` libres y genera nuevos. Permite agregar fechas nuevas directamente, sin entidad de día intermedia |
 | `excluirDiaAgenda` | Baja de los `AgendaHorariosDia` de la fecha + cancelación de turnos del día |
-| `adelantarFinVigenciaAgenda` | Corta `fechaHoraFinVigencia` + baja de días posteriores + cancelaciones |
+| `adelantarFinVigenciaAgenda` | Corta `fechaFinVigencia` + baja de días posteriores + cancelaciones |
 | `consultarAgendaMedico` | Consulta de días, horarios y turnos en un rango |
 | `consultarTurnosDisponibles` | Slots libres para prestación / médico / franja / rango, **dentro del horizonte de reserva** |
 | `consultarMedicosSinAgendaVigente` | Médicos activos sin agenda o con agenda por vencer |

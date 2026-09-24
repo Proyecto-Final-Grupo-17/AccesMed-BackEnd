@@ -93,7 +93,7 @@ public class RolApp {
         if (!id.equals(updateRolRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updateRolRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         //Buscar el rol activo
@@ -162,7 +162,7 @@ public class RolApp {
                 .orElseThrow(() -> {
                     log.warn("No se encontró el usuario activo: id={}", asignarRolRequest.usuarioId());
                     return new RecursoNoEncontradoException(getClass(), "USUARIO_NO_ENCONTRADO",
-                            "No existe un usuario activo con el id proporcionado.");
+                            "No se encontró el usuario indicado, o está dado de baja.");
                 });
 
         //Buscar el rol
@@ -207,7 +207,7 @@ public class RolApp {
                 .orElseThrow(() -> {
                     log.warn("No se encontró la asignación de rol: rolId={}, usuarioId={}", rolId, usuarioId);
                     return new RecursoNoEncontradoException(getClass(), "ASIGNACION_ROL_NO_ENCONTRADA",
-                            "No existe una asignación vigente de este rol para el usuario.");
+                            "El usuario no tiene asignado ese rol.");
                 });
 
         //Revocar

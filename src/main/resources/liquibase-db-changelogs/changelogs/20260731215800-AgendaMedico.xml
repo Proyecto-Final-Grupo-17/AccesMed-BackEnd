@@ -12,10 +12,10 @@
             <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
                 <constraints primaryKey="true" primaryKeyName="pk_agenda_medico"/>
             </column>
-            <column name="fecha_hora_inicio_vigencia" type="timestamptz">
+            <column name="fecha_inicio_vigencia" type="date">
                 <constraints nullable="false"/>
             </column>
-            <column name="fecha_hora_fin_vigencia" type="timestamptz">
+            <column name="fecha_fin_vigencia" type="date">
                 <constraints nullable="false"/>
             </column>
             <!-- ====== Relaciones ====== -->
@@ -31,14 +31,14 @@
             <column name="updated_by" type="varchar(255)"/>
         </createTable>
 
-        <sql>ALTER TABLE agenda_medico ADD CONSTRAINT ck_agenda_medico_vigencia CHECK (fecha_hora_inicio_vigencia &lt; fecha_hora_fin_vigencia);</sql>
+        <sql>ALTER TABLE agenda_medico ADD CONSTRAINT ck_agenda_medico_vigencia CHECK (fecha_inicio_vigencia &lt;= fecha_fin_vigencia);</sql>
 
-        <!-- No solapamiento de periodos del mismo medico. -->
+        <!-- No solapamiento de periodos del mismo medico. La vigencia es un rango de fechas con ambos extremos inclusivos. -->
         <sql>
             ALTER TABLE agenda_medico ADD CONSTRAINT ex_agenda_medico_no_solapamiento
             EXCLUDE USING gist (
                 medico_id WITH =,
-                tstzrange(fecha_hora_inicio_vigencia, fecha_hora_fin_vigencia) WITH &amp;&amp;
+                daterange(fecha_inicio_vigencia, fecha_fin_vigencia, '[]') WITH &amp;&amp;
             );
         </sql>
 

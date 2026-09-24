@@ -58,7 +58,7 @@ public class MedicoDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró el médico activo: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "MEDICO_NO_ENCONTRADO",
-                            "No existe un médico activo con el id " + id);
+                            "No se encontró el médico solicitado. Es posible que haya sido dado de baja.");
                 });
 
     }
@@ -75,7 +75,7 @@ public class MedicoDomainService {
         if (medicoRepository.existsByMatriculaAndDeletedAtIsNull(matricula)) {
             log.warn("No se pudo crear el médico: matrícula {} ya existe", matricula);
             throw new ReglaNegocioException(getClass(), "MEDICO_MATRICULA_DUPLICADA",
-                    "Ya existe un médico activo con la matrícula " + matricula);
+                    "Ya existe un médico con la matrícula " + matricula + ".");
         }
 
     }
@@ -94,7 +94,7 @@ public class MedicoDomainService {
         if (medicoRepository.existsByMatriculaAndDeletedAtIsNullAndIdNot(matricula, idExcluido)) {
             log.warn("No se pudo actualizar el médico: matrícula {} ya existe en otro médico", matricula);
             throw new ReglaNegocioException(getClass(), "MEDICO_MATRICULA_DUPLICADA",
-                    "Ya existe otro médico activo con la matrícula " + matricula);
+                    "Ya existe otro médico con la matrícula " + matricula + ".");
         }
 
     }
@@ -111,7 +111,7 @@ public class MedicoDomainService {
         if (medicoRepository.existsByDniAndDeletedAtIsNull(dni)) {
             log.warn("No se pudo crear el médico: DNI {} ya existe", dni);
             throw new ReglaNegocioException(getClass(), "MEDICO_DNI_DUPLICADO",
-                    "Ya existe un médico activo con el DNI " + dni);
+                    "Ya existe un médico con el DNI " + dni + ".");
         }
 
     }
@@ -130,7 +130,7 @@ public class MedicoDomainService {
         if (medicoRepository.existsByDniAndDeletedAtIsNullAndIdNot(dni, idExcluido)) {
             log.warn("No se pudo actualizar el médico: DNI {} ya existe en otro médico", dni);
             throw new ReglaNegocioException(getClass(), "MEDICO_DNI_DUPLICADO",
-                    "Ya existe otro médico activo con el DNI " + dni);
+                    "Ya existe otro médico con el DNI " + dni + ".");
         }
 
     }
@@ -147,7 +147,7 @@ public class MedicoDomainService {
         if (medicoRepository.existsByEmailAndDeletedAtIsNull(email)) {
             log.warn("No se pudo crear el médico: email {} ya existe", email);
             throw new ReglaNegocioException(getClass(), "MEDICO_EMAIL_DUPLICADO",
-                    "Ya existe un médico activo con el email " + email);
+                    "Ya existe un médico con el email " + email + ".");
         }
 
     }
@@ -166,7 +166,7 @@ public class MedicoDomainService {
         if (medicoRepository.existsByEmailAndDeletedAtIsNullAndIdNot(email, idExcluido)) {
             log.warn("No se pudo actualizar el médico: email {} ya existe en otro médico", email);
             throw new ReglaNegocioException(getClass(), "MEDICO_EMAIL_DUPLICADO",
-                    "Ya existe otro médico activo con el email " + email);
+                    "Ya existe otro médico con el email " + email + ".");
         }
 
     }
@@ -202,7 +202,7 @@ public class MedicoDomainService {
         if (medicoRepository.existsByEspecialidadIdAndDeletedAtIsNull(especialidadId)) {
             log.warn("No se pudo validar sin médicos activos para la especialidad {}: tiene médicos activos", especialidadId);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_CON_MEDICOS_ACTIVOS",
-                    "La especialidad " + especialidadId + " tiene médicos activos. No se puede dar de baja.");
+                    "No se puede dar de baja la especialidad porque tiene médicos activos asignados.");
         }
 
     }

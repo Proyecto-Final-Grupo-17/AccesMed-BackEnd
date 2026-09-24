@@ -1,7 +1,7 @@
 package com.accesmed.backend.Records.MedicoPrestacion.Response;
 
 import java.math.BigDecimal;
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -45,15 +45,15 @@ public record GetMedicoPrestacionResponse(
         BigDecimal precioParticular,
 
         /**
-         * Fecha de inicio de vigencia de la asignación ({@code ZonedDateTime}).
+         * Fecha de inicio de vigencia de la asignación ({@code LocalDate}).
          */
-        ZonedDateTime fechaInicioVigencia,
+        LocalDate fechaInicioVigencia,
 
         /**
-         * Fecha de fin de vigencia de la asignación ({@code ZonedDateTime}).
+         * Fecha de fin de vigencia de la asignación ({@code LocalDate}).
          * {@code null} significa vigente sin corte programado.
          */
-        ZonedDateTime fechaFinVigencia
+        LocalDate fechaFinVigencia
 
 ) {
 }

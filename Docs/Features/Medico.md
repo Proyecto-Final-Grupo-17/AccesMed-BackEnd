@@ -55,7 +55,7 @@
 | `prestacionId` | UUID | Sí | Debe ser una prestación existente y no deshabilitada, con la misma especialidad que el médico. |
 | `atiendeParticular` | Boolean | Sí | Para mostrar el ícono/badge de atención particular. |
 | `precioParticular` | BigDecimal (> 0) | Sí | Para mostrar el precio particular de esa prestación con este médico. |
-| `fechaInicioVigencia` | ZonedDateTime | No | Desde cuándo rige la asignación. Ausente = el instante del alta. |
+| `fechaInicioVigencia` | Fecha (`AAAA-MM-DD`) | No | Primer día en que rige la asignación. Ausente = hoy (zona horaria de la clínica). |
 
 **Response para el front — `CreateMedicoResponse`**
 
@@ -159,7 +159,7 @@ médico ya creado, fuera del alta atómica.
 | `prestacionId` | UUID | Sí | Prestación existente y no deshabilitada, con la misma especialidad que el médico. |
 | `atiendeParticular` | Boolean | Sí | |
 | `precioParticular` | BigDecimal (> 0) | Sí | |
-| `fechaInicioVigencia` | ZonedDateTime | No | Desde cuándo rige la asignación. Ausente = ahora. Admite fecha futura: así se programa un alta. |
+| `fechaInicioVigencia` | Fecha (`AAAA-MM-DD`) | No | Primer día en que rige la asignación. Ausente = hoy. Admite fecha futura: así se programa un alta. |
 
 **Response para el front — `GetMedicoPrestacionResponse`**
 
@@ -169,8 +169,8 @@ médico ya creado, fuera del alta atómica.
 | `medicoId`, `prestacionId` | UUID | Para relacionar la asignación con médico y prestación. |
 | `prestacionCodigo`, `prestacionNombre` | String | Para mostrar sin otra consulta. |
 | `atiendeParticular`, `precioParticular` | Boolean / BigDecimal | Para mostrar las condiciones particulares. |
-| `fechaInicioVigencia` | ZonedDateTime | Desde cuándo rige. |
-| `fechaFinVigencia` | ZonedDateTime \| null | Hasta cuándo. `null` = vigente sin corte. |
+| `fechaInicioVigencia` | Fecha (`AAAA-MM-DD`) | Primer día de vigencia. |
+| `fechaFinVigencia` | Fecha (`AAAA-MM-DD`) \| null | Último día de vigencia (inclusive). `null` = vigente sin corte. |
 
 **Errores posibles:**
 - `MEDICO_PRESTACION_ESPECIALIDAD_DISTINTA` (422): la especialidad de la prestación no coincide con la del médico.
@@ -187,7 +187,7 @@ Médico). **No borra nada**: la fila queda con su `fechaFinVigencia` puesta.
 | Campo | Tipo | Obligatorio | Notas |
 |-------|------|-------------|-------|
 | `id` | UUID | Sí | Debe coincidir con el `id` de la ruta. |
-| `fechaFinVigencia` | ZonedDateTime | No | Fecha de corte. Ausente = ahora. Admite fecha futura: así se programa la baja. |
+| `fechaFinVigencia` | Fecha (`AAAA-MM-DD`) | No | Último día en que la asignación sigue vigente (inclusive). Ausente = hoy. Admite fecha futura: así se programa la baja. |
 
 Responde con `UnassignMedicoPrestacionResponse` (`id`, `fechaFinVigencia`).
 

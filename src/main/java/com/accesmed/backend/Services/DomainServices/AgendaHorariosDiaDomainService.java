@@ -3,6 +3,7 @@ package com.accesmed.backend.Services.DomainServices;
 import com.accesmed.backend.Domain.AgendaHorariosDia;
 import com.accesmed.backend.Repositories.AgendaHorariosDiaRepository;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -54,7 +55,7 @@ public class AgendaHorariosDiaDomainService {
                 prestacionId, LocalDate.now())) {
             log.warn("No se pudo validar sin agenda futura ocupada para la prestación {}: tiene horarios de agenda futuros ocupados", prestacionId);
             throw new ReglaNegocioException(getClass(), "PRESTACION_CON_AGENDA_OCUPADA",
-                    "La prestación " + prestacionId + " tiene horarios de agenda futuros ocupados. No se puede deshabilitar.");
+                    "No se puede deshabilitar la prestación porque tiene horarios de agenda futuros ya reservados por pacientes.");
         }
 
     }
@@ -225,8 +226,8 @@ public class AgendaHorariosDiaDomainService {
             log.warn("No se pudo aplicar la operación sobre la agenda: {} horario(s) ocupado(s), fecha máxima {}",
                     cantidadOcupados, fechaMaxima);
             throw new ReglaNegocioException(getClass(), "AGENDA_HORARIOS_CON_OCUPADOS",
-                    "La operación arrastra " + cantidadOcupados + " horario(s) ocupado(s), el más lejano el "
-                            + fechaMaxima + ". No se puede aplicar.");
+                    "No se puede aplicar el cambio: hay " + cantidadOcupados + " horario(s) ya reservado(s) por pacientes, el último el "
+                            + FormatoMensaje.fecha(fechaMaxima) + ". Cancelá o reprogramá esos turnos primero.");
         }
 
     }
@@ -387,7 +388,7 @@ public class AgendaHorariosDiaDomainService {
                     log.warn("Horario no disponible: id={}, médico={}, prestación={}", slotId, medicoId, prestacionId);
                     return new com.accesmed.backend.Services.Errors.RecursoNoEncontradoException(getClass(),
                             "AGENDA_HORARIO_NO_DISPONIBLE",
-                            "El horario indicado no está disponible (no existe, está ocupado o está dado de baja)");
+                            "El horario elegido ya no está disponible. Elegí otro horario.");
                 });
 
     }

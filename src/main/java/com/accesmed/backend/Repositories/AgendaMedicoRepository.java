@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -21,20 +21,20 @@ public interface AgendaMedicoRepository extends JpaRepository<AgendaMedico, UUID
         JpaSpecificationExecutor<AgendaMedico> {
 
     /**
-     * Verifica si el período {@code [desde, hasta)} indicado se solapa con algún período de
+     * Verifica si el período {@code [desde, hasta]} (ambos extremos inclusivos) indicado se solapa con algún período de
      * vigencia ya existente del médico. Excluye la propia agenda cuando se valida un
      * update ({@code excludeId} distinto de {@code null}).
      *
      * @param medicoId {@code UUID} identificador del médico
-     * @param desde {@code ZonedDateTime} inicio del período a validar
-     * @param hasta {@code ZonedDateTime} fin del período a validar
+     * @param desde {@code LocalDate} inicio del período a validar
+     * @param hasta {@code LocalDate} fin del período a validar
      * @param excludeId {@code UUID} identificador de agenda a excluir de la comparación, o {@code null}
      * @return {@code boolean} {@code true} si el período se solapa con un período existente del médico
      */
     @Query("SELECT COUNT(a) > 0 FROM AgendaMedico a WHERE a.medico.id = :medicoId "
             + "AND (:excludeId IS NULL OR a.id <> :excludeId) "
-            + "AND a.fechaHoraInicioVigencia < :hasta AND a.fechaHoraFinVigencia > :desde")
-    boolean existsSolapamiento(@Param("medicoId") UUID medicoId, @Param("desde") ZonedDateTime desde,
-            @Param("hasta") ZonedDateTime hasta, @Param("excludeId") UUID excludeId);
+            + "AND a.fechaInicioVigencia <= :hasta AND a.fechaFinVigencia >= :desde")
+    boolean existsSolapamiento(@Param("medicoId") UUID medicoId, @Param("desde") LocalDate desde,
+            @Param("hasta") LocalDate hasta, @Param("excludeId") UUID excludeId);
 
 }

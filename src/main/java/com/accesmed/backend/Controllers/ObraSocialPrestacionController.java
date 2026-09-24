@@ -93,7 +93,7 @@ public class ObraSocialPrestacionController {
         if (!id.equals(updateObraSocialPrestacionRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updateObraSocialPrestacionRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         UpdateObraSocialPrestacionResponse updateObraSocialPrestacionResponse =

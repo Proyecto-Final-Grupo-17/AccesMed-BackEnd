@@ -97,7 +97,7 @@ public class IndicacionPrestacionController {
         if (!id.equals(updateIndicacionPrestacionRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updateIndicacionPrestacionRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         UpdateIndicacionPrestacionResponse updateIndicacionPrestacionResponse = indicacionPrestacionApp
@@ -128,7 +128,7 @@ public class IndicacionPrestacionController {
         if (!id.equals(scheduleBajaIndicacionPrestacionRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, scheduleBajaIndicacionPrestacionRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         ScheduleBajaIndicacionPrestacionResponse scheduleBajaIndicacionPrestacionResponse = indicacionPrestacionApp

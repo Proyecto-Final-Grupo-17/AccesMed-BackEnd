@@ -80,13 +80,13 @@ public class PasswordResetTokenDomainService {
                 .orElseThrow(() -> {
                     log.warn("Password reset token no encontrado o usado");
                     return new RecursoNoEncontradoException(getClass(), "PASSWORD_RESET_TOKEN_NO_ENCONTRADO",
-                            "El token de reset no existe, expiró o ya fue usado.");
+                            "El enlace para restablecer la contraseña no es válido, venció o ya fue usado.");
                 });
 
         if (passwordResetToken.getExpiresAt().isBefore(Instant.now())) {
             log.warn("Password reset token expirado: id={}", passwordResetToken.getId());
             throw new RecursoNoEncontradoException(getClass(), "PASSWORD_RESET_TOKEN_EXPIRADO",
-                    "El token de reset no existe, expiró o ya fue usado.");
+                    "El enlace para restablecer la contraseña no es válido, venció o ya fue usado.");
         }
 
         return passwordResetToken;

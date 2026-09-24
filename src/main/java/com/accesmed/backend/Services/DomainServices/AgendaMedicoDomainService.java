@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -60,30 +60,30 @@ public class AgendaMedicoDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró la agenda médica: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "AGENDA_MEDICO_NO_ENCONTRADA",
-                            "No existe una agenda médica con el id " + id);
+                            "No se encontró la agenda solicitada.");
                 });
 
     }
 
     /**
-     * Valida que el período {@code [desde, hasta)} indicado no se solape con ningún otro
+     * Valida que el período {@code [desde, hasta]} (ambos extremos inclusivos) indicado no se solape con ningún otro
      * período de vigencia ya existente del médico.
      *
      * @param medicoId {@code UUID} identificador del médico
-     * @param desde {@code ZonedDateTime} inicio del período a validar
-     * @param hasta {@code ZonedDateTime} fin del período a validar
+     * @param desde {@code LocalDate} inicio del período a validar
+     * @param hasta {@code LocalDate} fin del período a validar
      * @param excludeId {@code UUID} identificador de agenda a excluir de la comparación
      *        (la propia agenda, en un update), o {@code null} en un alta
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el período se solapa con
      *         un período ya existente del médico
      */
-    public void validateSinSolapamiento(UUID medicoId, ZonedDateTime desde, ZonedDateTime hasta, UUID excludeId) {
+    public void validateSinSolapamiento(UUID medicoId, LocalDate desde, LocalDate hasta, UUID excludeId) {
 
         if (agendaMedicoRepository.existsSolapamiento(medicoId, desde, hasta, excludeId)) {
-            log.warn("No se pudo guardar la agenda del médico {}: el período [{}, {}) se solapa con un período existente",
+            log.warn("No se pudo guardar la agenda del médico {}: el período [{}, {}] se solapa con un período existente",
                     medicoId, desde, hasta);
             throw new ReglaNegocioException(getClass(), "AGENDA_MEDICO_SOLAPADA",
-                    "El período indicado se solapa con un período de agenda ya existente del médico " + medicoId + ".");
+                    "El período indicado se superpone con otra agenda ya cargada para este médico. Elegí fechas que no se pisen.");
         }
 
     }

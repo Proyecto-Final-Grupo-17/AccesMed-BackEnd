@@ -73,7 +73,7 @@ public class IndicacionPrestacionDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró la indicación de prestación: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "INDICACION_PRESTACION_NO_ENCONTRADA",
-                            "No existe una indicación de prestación vigente con el id " + id);
+                            "No se encontró la indicación solicitada, o ya no está vigente.");
                 });
 
     }

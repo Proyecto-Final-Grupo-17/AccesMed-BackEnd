@@ -4,7 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -15,8 +15,8 @@ import java.util.UUID;
  * a {@code AgendaHorariosDia} y descarta el patrón.
  *
  * @param medicoId {@code UUID} identificador del médico dueño de la agenda
- * @param fechaHoraInicioVigencia {@code ZonedDateTime} inicio del período de vigencia
- * @param fechaHoraFinVigencia {@code ZonedDateTime} fin del período de vigencia
+ * @param fechaInicioVigencia {@code LocalDate} inicio del período de vigencia
+ * @param fechaFinVigencia {@code LocalDate} fin del período de vigencia
  * @param patronSemanal {@code List<DiaPatronRequest>} patrón semanal a repetir, o {@code null}
  *        si se usa {@code diasSueltos}
  * @param diasSueltos {@code List<DiaSueltoRequest>} fechas concretas, o {@code null} si se
@@ -24,8 +24,8 @@ import java.util.UUID;
  */
 public record CreateAgendaMedicoRequest(
         @NotNull UUID medicoId,
-        @NotNull ZonedDateTime fechaHoraInicioVigencia,
-        @NotNull ZonedDateTime fechaHoraFinVigencia,
+        @NotNull LocalDate fechaInicioVigencia,
+        @NotNull LocalDate fechaFinVigencia,
         List<@Valid DiaPatronRequest> patronSemanal,
         List<@Valid DiaSueltoRequest> diasSueltos
 ) {

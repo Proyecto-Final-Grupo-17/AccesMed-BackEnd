@@ -301,7 +301,7 @@ public class PrestacionApp {
         indicacionPrestacionDomainService.cerrarVigenciaIndicacionesPrestacionByPrestacion(id, ahora);
 
         //Cerrar la vigencia de las MedicoPrestacion vigentes de la prestación (A4, paso 1)
-        medicoPrestacionDomainService.cerrarVigenciasByPrestacion(id, ahora);
+        medicoPrestacionDomainService.cerrarVigenciasByPrestacion(id, LocalDate.now());
 
         //Dar de baja los AgendaHorariosDia futuros libres de la prestación (A4, paso 2). Los
         //ocupados no se tocan: ya se validó arriba que no hay agenda futura ocupada.

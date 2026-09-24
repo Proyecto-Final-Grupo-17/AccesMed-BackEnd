@@ -80,7 +80,7 @@ public class TipoIndicacionPrestacionQueryService extends AbstractFiltroQuerySer
                 .orElseThrow(() -> {
                     log.warn("No se encontró ningún tipo de indicación activo que cumpla el criteria: {}", criteria);
                     return new RecursoNoEncontradoException(getClass(), "TIPO_INDICACION_PRESTACION_NO_ENCONTRADO",
-                            "No existe un tipo de indicación de prestación activo que cumpla el criteria proporcionado.");
+                            "No se encontró ningún tipo de indicación que coincida con la búsqueda.");
                 });
 
         //Mapear y devolver la respuesta

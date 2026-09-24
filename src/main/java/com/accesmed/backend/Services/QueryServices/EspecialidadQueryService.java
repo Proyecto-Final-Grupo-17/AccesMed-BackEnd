@@ -80,7 +80,7 @@ public class EspecialidadQueryService extends AbstractFiltroQueryService<Especia
                 .orElseThrow(() -> {
                     log.warn("No se encontró ninguna especialidad activa que cumpla el criteria: {}", criteria);
                     return new RecursoNoEncontradoException(getClass(), "ESPECIALIDAD_NO_ENCONTRADA",
-                            "No existe una especialidad activa que cumpla el criteria proporcionado.");
+                            "No se encontró ninguna especialidad que coincida con la búsqueda.");
                 });
 
         GetEspecialidadResponse getEspecialidadResponse = especialidadMapper.toGetResponse(especialidadExistente,

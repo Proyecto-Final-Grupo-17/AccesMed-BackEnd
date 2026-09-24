@@ -102,7 +102,7 @@ public class AgendaMedicoController {
         if (!id.equals(updateAgendaMedicoRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updateAgendaMedicoRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         UpdateAgendaMedicoResponse updateAgendaMedicoResponse = agendaMedicoApp.updateAgendaMedico(updateAgendaMedicoRequest, usuarioDetails);
@@ -132,7 +132,7 @@ public class AgendaMedicoController {
         if (!id.equals(updateVigenciaAgendaMedicoRequest.id())) {
             log.warn("Id de ruta ({}) distinto al del body ({})", id, updateVigenciaAgendaMedicoRequest.id());
             throw new ValidacionException(getClass(),
-                    List.of("El id de la ruta no coincide con el id enviado en el cuerpo del request."));
+                    List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
         UpdateVigenciaAgendaMedicoResponse updateVigenciaAgendaMedicoResponse =

@@ -9,6 +9,12 @@ spring:
   # Ver `.env.example` para la plantilla.
   config:
     import: optional:file:.env[.properties]
+  # Locale fijo en español: los mensajes por defecto de Bean Validation (@NotNull, @Size,
+  # etc.) salen en el idioma de la JVM; sin esto, en un servidor en inglés llegarían en
+  # inglés al front.
+  web:
+    locale: es-AR
+    locale-resolver: fixed
   liquibase:
     change-log: classpath:liquibase-db-changelogs/master.xml
   jpa:

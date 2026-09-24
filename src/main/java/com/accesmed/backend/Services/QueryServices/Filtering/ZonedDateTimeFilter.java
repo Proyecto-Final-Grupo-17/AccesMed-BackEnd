@@ -4,9 +4,8 @@ import java.time.ZonedDateTime;
 
 /**
  * {@link RangeFilter} reificado para instantes con zona horaria {@link ZonedDateTime} (ej.
- * {@code AgendaMedico.fechaHoraInicioVigencia}/{@code fechaHoraFinVigencia}). No estaba en
- * la lista original de filtros de la Fase B: los campos de vigencia de {@code AgendaMedico}
- * son {@code ZonedDateTime}, no {@code Instant}, así que {@link InstantFilter} no aplica.
+ * {@code Turno.fechaHoraInicio}). No estaba en la lista original de filtros de la Fase B;
+ * {@link InstantFilter} no aplica cuando el campo del dominio es {@code ZonedDateTime}.
  */
 public class ZonedDateTimeFilter extends RangeFilter<ZonedDateTime> {
 

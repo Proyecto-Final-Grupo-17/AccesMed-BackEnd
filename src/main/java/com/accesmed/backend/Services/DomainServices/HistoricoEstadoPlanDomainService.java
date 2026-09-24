@@ -6,6 +6,7 @@ import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Repositories.HistoricoEstadoPlanRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -55,7 +56,7 @@ public class HistoricoEstadoPlanDomainService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró tramo de estado vigente para el plan: id={}", planId);
                     return new RecursoNoEncontradoException(getClass(), "PLAN_SIN_ESTADO_VIGENTE",
-                            "No existe un tramo de estado vigente para el plan " + planId);
+                            "No se pudo determinar el estado actual del plan. Contactá a soporte.");
                 })
                 .getEstado();
 
@@ -138,13 +139,15 @@ public class HistoricoEstadoPlanDomainService {
         if (estadoNuevo == EstadoPlan.PUBLICADO && estadoVigente != EstadoPlan.NO_PUBLICADO) {
             log.warn("No se pudo publicar el plan {}: estado actual {}", plan.getCodigo(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "PLAN_NO_PUBLICABLE",
-                    "El plan " + plan.getCodigo() + " no se puede publicar desde el estado " + estadoVigente + ".");
+                    "No se puede publicar el plan " + plan.getCodigo() + ": solo se puede publicar un plan no publicado y este está "
+                            + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         if (estadoNuevo == EstadoPlan.NO_PUBLICADO && estadoVigente != EstadoPlan.PUBLICADO) {
             log.warn("No se pudo despublicar el plan {}: estado actual {}", plan.getCodigo(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "PLAN_NO_DESPUBLICABLE",
-                    "El plan " + plan.getCodigo() + " no se puede despublicar desde el estado " + estadoVigente + ".");
+                    "No se puede despublicar el plan " + plan.getCodigo() + ": solo se puede despublicar un plan publicado y este está "
+                            + FormatoMensaje.estado(estadoVigente) + ".");
         }
 
         //Cerrar tramo vigente. saveAndFlush (no save): Hibernate agrupa las acciones del

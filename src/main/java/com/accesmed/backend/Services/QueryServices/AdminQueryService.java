@@ -55,7 +55,7 @@ public class AdminQueryService {
                 .orElseThrow(() -> {
                     log.warn("No se encontró el admin activo: id={}", id);
                     return new RecursoNoEncontradoException(getClass(), "ADMIN_NO_ENCONTRADO",
-                            "No se encontró el admin solicitado.");
+                            "No se encontró el administrador solicitado.");
                 });
 
         return adminMapper.toGetResponse(adminExistente,

@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
-import java.time.ZonedDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -32,10 +32,10 @@ public record AsignarPrestacionAnidadaRequest(
         BigDecimal precioParticular,
 
         /**
-         * Momento desde el que rige la asignación ({@code ZonedDateTime}). Opcional: si no
+         * Momento desde el que rige la asignación ({@code LocalDate}). Opcional: si no
          * viene, la asignación arranca en el instante del alta.
          */
-        ZonedDateTime fechaInicioVigencia
+        LocalDate fechaInicioVigencia
 
 ) {
 }
