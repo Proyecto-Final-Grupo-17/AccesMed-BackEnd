@@ -63,3 +63,7 @@ accesmed:
   jwt:
     secret: ${ACCESMED_JWT_SECRET}
     expiration-minutes: ${ACCESMED_JWT_EXPIRATION_MINUTES:30}
+  # Bootstrap del primer SuperAdmin (ver SuperAdminInicializador). Sin contraseña no se crea.
+  superadmin:
+    mail: ${ACCESMED_SUPERADMIN_MAIL:superadmin@accesmed.com}
+    password: ${ACCESMED_SUPERADMIN_PASSWORD:}

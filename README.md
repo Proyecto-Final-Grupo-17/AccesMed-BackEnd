@@ -62,6 +62,13 @@ Detalle completo, criterios y fuentes en [`Docs/STACK.md`](Docs/STACK.md).
    valor, que es lo que usan `staging`/`prod`: ahí las mismas variables llegan por
    entorno real y el import —marcado `optional:`— simplemente se ignora.
 
+   Además hay dos variables **opcionales** para el primer usuario `SuperAdmin`
+   (`ACCESMED_SUPERADMIN_MAIL`, con default, y `ACCESMED_SUPERADMIN_PASSWORD`, sin
+   default): al arrancar, la app crea ese usuario si todavía no existe. Sin contraseña
+   no lo crea y arranca igual, con un aviso en el log. Para cargar datos de demo
+   (médicos, prestaciones, agendas, pacientes y usuarios) ver
+   `Scripts/seed-datos-demo.sql`.
+
    `MAIL_PASSWORD` **no** es la contraseña de la cuenta de Google: es una
    *contraseña de aplicación* de 16 caracteres, y requiere verificación en dos pasos
    activada en la cuenta. Detalle de cada variable en `.env.example`. No confundir

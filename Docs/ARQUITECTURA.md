@@ -443,7 +443,8 @@ accesmed-backend/
     │   │   │   │   ├── UsuarioDetails.java       # adapter de Usuario a UserDetails
     │   │   │   │   └── UsuarioDetailsService.java
     │   │   │   └── Config/
-    │   │   │       └── SecurityFilterChainConfig.java
+    │   │   │       ├── SecurityFilterChainConfig.java
+    │   │   │       └── SuperAdminInicializador.java   # ApplicationRunner: crea el primer SuperAdmin al arrancar
     │   │   │
     │   │   └── Agente/
     │   │       ├── Controllers/

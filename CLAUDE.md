@@ -156,7 +156,10 @@ Activar con `SPRING_PROFILES_ACTIVE`. Config en `application-<perfil>.yml`.
 como variables de entorno reales, que le ganan al archivo. Al agregar una property
 obligatoria nueva hay que sumarla a `.env.example` y a
 `src/test/resources/application-test.yml`, o se rompen el arranque local y el test
-de contexto.
+de contexto. `ACCESMED_SUPERADMIN_MAIL` / `ACCESMED_SUPERADMIN_PASSWORD` son
+opcionales (`SuperAdminInicializador` crea el SuperAdmin solo si hay contraseña), por
+eso no están en `application-test.yml`. Los datos de demo se cargan con
+`Scripts/seed-datos-demo.sql`, que no contiene contraseñas escritas, solo hashes bcrypt.
 
 ## Ramas
 

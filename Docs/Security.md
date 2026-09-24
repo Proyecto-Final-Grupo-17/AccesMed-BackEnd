@@ -357,6 +357,22 @@ public AuthenticationManager authenticationManager(AuthenticationConfiguration a
   necesario exponerlo como bean porque `AuthApp` lo necesita inyectado (`@RequiredArgsConstructor`
   no lo encuentra si no es un bean explícito).
 
+#### `SuperAdminInicializador`
+
+`@Component` que implementa `ApplicationRunner`: corre una vez por arranque, después de
+Liquibase, y crea el primer `SuperAdmin`. Hace falta porque el rol de sistema `SuperAdmin`
+lo siembra Liquibase pero **ningún flujo de la app puede asignarlo**
+(`UsuarioRolDomainService.validateAsignacionRol`), y `AdminController.createAdmin` exige
+`USER_ALTA`, que nadie tiene sin loguearse antes.
+
+- **Idempotente**: si ya existe un usuario activo con el mail configurado, no hace nada.
+- **Crea en una transacción** un `Admin` (`Super Admin`, DNI `00000001`), su `Usuario` (contraseña
+  hasheada con el `PasswordEncoder` real) y el `UsuarioRol` del rol `SuperAdmin`.
+- **La contraseña nunca está en el código**: sale de `accesmed.superadmin.password`
+  (`ACCESMED_SUPERADMIN_PASSWORD`, sin default). Si falta, no se crea el usuario y el arranque
+  sigue con un `log.warn`. El mail sale de `ACCESMED_SUPERADMIN_MAIL` (default
+  `superadmin@accesmed.com`); el login es **por mail**, no por nombre de usuario.
+
 ### 3.4 `Application/` y `Controllers/` — el flujo de Auth
 
 #### `AuthApp`
