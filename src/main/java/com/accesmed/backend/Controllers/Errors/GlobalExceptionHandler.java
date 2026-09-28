@@ -9,6 +9,8 @@ import jakarta.validation.Path;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
+import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -302,6 +304,54 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AccesMedError.of(
                 HttpStatus.NOT_FOUND.value(), "RUTA_NO_ENCONTRADA", mensajeError, List.of(mensajeError),
+                request.getRequestURI()));
+
+    }
+
+    /**
+     * Traduce un {@code sort} por un campo que la entidad no tiene (ej. {@code sort=noExiste,asc}).
+     * Sin este handler llegaba como error inesperado (500).
+     *
+     * @param propertyReferenceException {@code PropertyReferenceException} excepción lanzada por Spring Data
+     * @param request {@code HttpServletRequest} request HTTP que disparó el error
+     * @return {@code ResponseEntity<AccesMedError>} el error 400 traducido
+     */
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<AccesMedError> handlePropertyReference(PropertyReferenceException propertyReferenceException,
+                                                                   HttpServletRequest request) {
+
+        log.warn("Orden o filtro por un campo inexistente en {}: {}", request.getRequestURI(), propertyReferenceException.getMessage());
+
+        String mensajeError = "No se puede ordenar por el campo '" + propertyReferenceException.getPropertyName()
+                + "': no existe en este listado.";
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(AccesMedError.of(
+                HttpStatus.BAD_REQUEST.value(), "ORDEN_INVALIDO", mensajeError, List.of(mensajeError),
+                request.getRequestURI()));
+
+    }
+
+    /**
+     * Traduce una búsqueda puntual ({@code /Buscar}) cuyo criteria coincide con más de un
+     * registro (típicamente, un {@code /Buscar} sin ningún filtro). Sin este handler llegaba
+     * como error inesperado (500).
+     *
+     * @param incorrectResultSizeDataAccessException {@code IncorrectResultSizeDataAccessException}
+     *        excepción lanzada por Spring Data
+     * @param request {@code HttpServletRequest} request HTTP que disparó el error
+     * @return {@code ResponseEntity<AccesMedError>} el error 400 traducido
+     */
+    @ExceptionHandler(IncorrectResultSizeDataAccessException.class)
+    public ResponseEntity<AccesMedError> handleIncorrectResultSize(IncorrectResultSizeDataAccessException incorrectResultSizeDataAccessException,
+                                                                     HttpServletRequest request) {
+
+        log.warn("Búsqueda puntual con más de un resultado en {}: {}", request.getRequestURI(),
+                incorrectResultSizeDataAccessException.getMessage());
+
+        String mensajeError = "La búsqueda coincide con más de un registro. Indicá un criterio que identifique uno solo (por ejemplo, su id).";
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(AccesMedError.of(
+                HttpStatus.BAD_REQUEST.value(), "BUSQUEDA_NO_UNICA", mensajeError, List.of(mensajeError),
                 request.getRequestURI()));
 
     }

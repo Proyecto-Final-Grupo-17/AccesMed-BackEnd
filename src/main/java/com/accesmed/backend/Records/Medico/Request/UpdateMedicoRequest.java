@@ -2,6 +2,7 @@ package com.accesmed.backend.Records.Medico.Request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.util.UUID;
@@ -33,6 +34,7 @@ public record UpdateMedicoRequest(
          * {@code null} deja el DNI sin tocar.
          */
         @Size(max = 15, message = "El DNI no puede exceder 15 caracteres.")
+        @Pattern(regexp = "\\d{7,9}", message = "El DNI debe tener entre 7 y 9 dígitos, sin puntos ni letras.")
         String dni,
 
         /**
@@ -62,6 +64,7 @@ public record UpdateMedicoRequest(
          * {@code null} deja el número de teléfono sin tocar.
          */
         @Size(max = 30, message = "El número de teléfono no puede exceder 30 caracteres.")
+        @Pattern(regexp = "\\+?\\d[\\d ()-]{5,28}\\d", message = "El número de teléfono solo puede tener dígitos, espacios, guiones, paréntesis y un + inicial.")
         String numeroTelefono,
 
         /**

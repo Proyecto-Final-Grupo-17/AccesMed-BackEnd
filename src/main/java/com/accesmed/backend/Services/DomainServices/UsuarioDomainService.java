@@ -121,7 +121,10 @@ public class UsuarioDomainService {
         usuario.setDeletedAt(Instant.now());
         usuario.setDeletedReason(motivo);
 
-        saveUsuario(usuario);
+        // Flush inmediato: al reasignar, el usuario nuevo del mismo médico/admin (o con el mismo
+        // mail) se inserta en la misma transacción, y Hibernate ejecuta los INSERT antes que los
+        // UPDATE — sin esto el índice único de usuarios activos vería dos filas activas.
+        usuarioRepository.saveAndFlush(usuario);
 
     }
 

@@ -2,6 +2,7 @@ package com.accesmed.backend.Records.Admin.Request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -24,6 +25,7 @@ public record CreateAdminRequest(
 
         @NotBlank(message = "El DNI del admin es requerido")
         @Size(max = 15, message = "El DNI del admin no puede exceder 15 caracteres")
+        @Pattern(regexp = "\\d{7,9}", message = "El DNI debe tener entre 7 y 9 dígitos, sin puntos ni letras.")
         String dni,
 
         @NotBlank(message = "El email del admin es requerido")

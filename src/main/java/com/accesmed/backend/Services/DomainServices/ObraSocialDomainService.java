@@ -72,7 +72,7 @@ public class ObraSocialDomainService {
      */
     public void validateCodigoObraSocialIsUnique(String codigo) {
 
-        if (obraSocialRepository.existsByCodigoAndDeletedAtIsNull(codigo)) {
+        if (obraSocialRepository.existsByCodigoIgnoreCaseAndDeletedAtIsNull(codigo)) {
             log.warn("No se pudo crear la obra social: código {} ya existe", codigo);
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_CODIGO_DUPLICADO",
                     "Ya existe una obra social con el código " + codigo + ".");
@@ -91,7 +91,7 @@ public class ObraSocialDomainService {
      */
     public void validateCodigoObraSocialIsUnique(String codigo, UUID idExcluido) {
 
-        if (obraSocialRepository.existsByCodigoAndDeletedAtIsNullAndIdNot(codigo, idExcluido)) {
+        if (obraSocialRepository.existsByCodigoIgnoreCaseAndDeletedAtIsNullAndIdNot(codigo, idExcluido)) {
             log.warn("No se pudo actualizar la obra social: código {} ya existe en otra obra social", codigo);
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_CODIGO_DUPLICADO",
                     "Ya existe otra obra social con el código " + codigo + ".");
@@ -108,7 +108,7 @@ public class ObraSocialDomainService {
      */
     public void validateNombreObraSocialIsUnique(String nombre) {
 
-        if (obraSocialRepository.existsByNombreAndDeletedAtIsNull(nombre)) {
+        if (obraSocialRepository.existsByNombreIgnoreCaseAndDeletedAtIsNull(nombre)) {
             log.warn("No se pudo crear la obra social: nombre {} ya existe", nombre);
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_NOMBRE_DUPLICADO",
                     "Ya existe una obra social con el nombre " + nombre + ".");
@@ -127,7 +127,7 @@ public class ObraSocialDomainService {
      */
     public void validateNombreObraSocialIsUnique(String nombre, UUID idExcluido) {
 
-        if (obraSocialRepository.existsByNombreAndDeletedAtIsNullAndIdNot(nombre, idExcluido)) {
+        if (obraSocialRepository.existsByNombreIgnoreCaseAndDeletedAtIsNullAndIdNot(nombre, idExcluido)) {
             log.warn("No se pudo actualizar la obra social: nombre {} ya existe en otra obra social", nombre);
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_NOMBRE_DUPLICADO",
                     "Ya existe otra obra social con el nombre " + nombre + ".");

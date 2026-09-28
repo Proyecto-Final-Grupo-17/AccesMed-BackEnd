@@ -80,7 +80,7 @@ public interface PlanRepository extends JpaRepository<Plan, UUID>, JpaSpecificat
     @Query("SELECT COUNT(h) > 0 FROM HistoricoEstadoPlan h "
             + "WHERE h.plan.obraSocial.id = :obraSocialId AND h.plan.codigo = :codigo "
             + "AND h.fechaHoraFin IS NULL AND h.estado <> :estado")
-    boolean existsByObraSocialIdAndCodigoAndEstadoVigenteNot(UUID obraSocialId, String codigo, EstadoPlan estado);
+    boolean existsByObraSocialIdAndCodigoIgnoreCaseAndEstadoVigenteNot(UUID obraSocialId, String codigo, EstadoPlan estado);
 
     /**
      * Verifica si existe un plan con el nombre especificado dentro de una obra social cuyo
@@ -95,7 +95,7 @@ public interface PlanRepository extends JpaRepository<Plan, UUID>, JpaSpecificat
     @Query("SELECT COUNT(h) > 0 FROM HistoricoEstadoPlan h "
             + "WHERE h.plan.obraSocial.id = :obraSocialId AND h.plan.nombre = :nombre "
             + "AND h.fechaHoraFin IS NULL AND h.estado <> :estado")
-    boolean existsByObraSocialIdAndNombreAndEstadoVigenteNot(UUID obraSocialId, String nombre, EstadoPlan estado);
+    boolean existsByObraSocialIdAndNombreIgnoreCaseAndEstadoVigenteNot(UUID obraSocialId, String nombre, EstadoPlan estado);
 
     /**
      * Verifica si existe un plan con el nombre especificado dentro de una obra social cuyo
@@ -111,6 +111,6 @@ public interface PlanRepository extends JpaRepository<Plan, UUID>, JpaSpecificat
     @Query("SELECT COUNT(h) > 0 FROM HistoricoEstadoPlan h "
             + "WHERE h.plan.obraSocial.id = :obraSocialId AND h.plan.nombre = :nombre "
             + "AND h.fechaHoraFin IS NULL AND h.estado <> :estado AND h.plan.id <> :id")
-    boolean existsByObraSocialIdAndNombreAndEstadoVigenteNotAndIdNot(UUID obraSocialId, String nombre, EstadoPlan estado, UUID id);
+    boolean existsByObraSocialIdAndNombreIgnoreCaseAndEstadoVigenteNotAndIdNot(UUID obraSocialId, String nombre, EstadoPlan estado, UUID id);
 
 }

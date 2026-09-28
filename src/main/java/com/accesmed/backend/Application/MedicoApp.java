@@ -34,6 +34,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Caso de uso de Médico. Orquesta el flujo completo de los endpoints (creación atómica
@@ -160,6 +161,25 @@ public class MedicoApp {
         }
         if (updateMedicoRequest.email() != null) {
             medicoDomainService.validateEmailMedicoIsUnique(updateMedicoRequest.email(), id);
+        }
+
+        //Validar el cambio de especialidad: el médico solo puede atender prestaciones de su
+        //especialidad, así que no se le puede cambiar mientras tenga asignadas de la actual
+        boolean cambiaEspecialidad = updateMedicoRequest.especialidadId() != null
+                && !updateMedicoRequest.especialidadId().equals(medicoExistente.getEspecialidad().getId());
+        if (cambiaEspecialidad) {
+            List<MedicoPrestacion> asignacionesVigentes = medicoPrestacionDomainService
+                    .findAsignacionesVigentesByMedico(id, clinicaDomainService.findFechaActualClinica());
+            if (!asignacionesVigentes.isEmpty()) {
+                String prestaciones = asignacionesVigentes.stream()
+                        .map(asignacion -> asignacion.getPrestacion().getNombre())
+                        .distinct()
+                        .collect(Collectors.joining(", "));
+                log.warn("No se pudo cambiar la especialidad del médico {}: tiene prestaciones vigentes {}", id, prestaciones);
+                throw new ReglaNegocioException(getClass(), "MEDICO_CAMBIO_ESPECIALIDAD_CON_PRESTACIONES",
+                        "No se puede cambiar la especialidad: el médico todavía atiende prestaciones de la especialidad actual ("
+                                + prestaciones + "). Desasignalas primero desde su ficha.");
+            }
         }
 
         //Aplicar los cambios, resolver la especialidad si vino, y guardar

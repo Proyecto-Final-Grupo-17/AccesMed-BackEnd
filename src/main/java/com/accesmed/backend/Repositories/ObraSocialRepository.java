@@ -31,7 +31,7 @@ public interface ObraSocialRepository extends JpaRepository<ObraSocial, UUID>, J
      * @param codigo {@code String} código a verificar
      * @return {@code boolean} {@code true} si existe una obra social activa con ese código
      */
-    boolean existsByCodigoAndDeletedAtIsNull(String codigo);
+    boolean existsByCodigoIgnoreCaseAndDeletedAtIsNull(String codigo);
 
     /**
      * Verifica si existe una obra social activa con el código especificado, excluyendo
@@ -41,7 +41,7 @@ public interface ObraSocialRepository extends JpaRepository<ObraSocial, UUID>, J
      * @param id {@code UUID} id a excluir de la búsqueda
      * @return {@code boolean} {@code true} si existe otra obra social activa con ese código
      */
-    boolean existsByCodigoAndDeletedAtIsNullAndIdNot(String codigo, UUID id);
+    boolean existsByCodigoIgnoreCaseAndDeletedAtIsNullAndIdNot(String codigo, UUID id);
 
     /**
      * Verifica si existe una obra social activa con el nombre especificado.
@@ -49,7 +49,7 @@ public interface ObraSocialRepository extends JpaRepository<ObraSocial, UUID>, J
      * @param nombre {@code String} nombre a verificar
      * @return {@code boolean} {@code true} si existe una obra social activa con ese nombre
      */
-    boolean existsByNombreAndDeletedAtIsNull(String nombre);
+    boolean existsByNombreIgnoreCaseAndDeletedAtIsNull(String nombre);
 
     /**
      * Verifica si existe una obra social activa con el nombre especificado, excluyendo
@@ -59,6 +59,6 @@ public interface ObraSocialRepository extends JpaRepository<ObraSocial, UUID>, J
      * @param id {@code UUID} id a excluir de la búsqueda
      * @return {@code boolean} {@code true} si existe otra obra social activa con ese nombre
      */
-    boolean existsByNombreAndDeletedAtIsNullAndIdNot(String nombre, UUID id);
+    boolean existsByNombreIgnoreCaseAndDeletedAtIsNullAndIdNot(String nombre, UUID id);
 
 }

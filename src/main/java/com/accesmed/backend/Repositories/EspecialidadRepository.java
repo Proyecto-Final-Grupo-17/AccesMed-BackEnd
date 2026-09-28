@@ -32,7 +32,7 @@ public interface EspecialidadRepository extends JpaRepository<Especialidad, UUID
      * @param codigo {@code String} código a verificar
      * @return {@code boolean} {@code true} si existe una especialidad activa con ese código
      */
-    boolean existsByCodigoAndDeletedAtIsNull(String codigo);
+    boolean existsByCodigoIgnoreCaseAndDeletedAtIsNull(String codigo);
 
     /**
      * Verifica si existe una especialidad activa con el código especificado, excluyendo
@@ -42,7 +42,7 @@ public interface EspecialidadRepository extends JpaRepository<Especialidad, UUID
      * @param id {@code UUID} id a excluir de la búsqueda
      * @return {@code boolean} {@code true} si existe otra especialidad activa con ese código
      */
-    boolean existsByCodigoAndDeletedAtIsNullAndIdNot(String codigo, UUID id);
+    boolean existsByCodigoIgnoreCaseAndDeletedAtIsNullAndIdNot(String codigo, UUID id);
 
     /**
      * Verifica si existe una especialidad activa con el nombre especificado.
@@ -50,7 +50,7 @@ public interface EspecialidadRepository extends JpaRepository<Especialidad, UUID
      * @param nombre {@code String} nombre a verificar
      * @return {@code boolean} {@code true} si existe una especialidad activa con ese nombre
      */
-    boolean existsByNombreAndDeletedAtIsNull(String nombre);
+    boolean existsByNombreIgnoreCaseAndDeletedAtIsNull(String nombre);
 
     /**
      * Verifica si existe una especialidad activa con el nombre especificado, excluyendo
@@ -60,6 +60,6 @@ public interface EspecialidadRepository extends JpaRepository<Especialidad, UUID
      * @param id {@code UUID} id a excluir de la búsqueda
      * @return {@code boolean} {@code true} si existe otra especialidad activa con ese nombre
      */
-    boolean existsByNombreAndDeletedAtIsNullAndIdNot(String nombre, UUID id);
+    boolean existsByNombreIgnoreCaseAndDeletedAtIsNullAndIdNot(String nombre, UUID id);
 
 }

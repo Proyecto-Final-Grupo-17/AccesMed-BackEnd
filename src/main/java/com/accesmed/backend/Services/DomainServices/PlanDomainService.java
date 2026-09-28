@@ -91,7 +91,7 @@ public class PlanDomainService {
      */
     public void validateCodigoPlanIsUnique(UUID obraSocialId, String codigo) {
 
-        if (planRepository.existsByObraSocialIdAndCodigoAndEstadoVigenteNot(obraSocialId, codigo, EstadoPlan.DESHABILITADO)) {
+        if (planRepository.existsByObraSocialIdAndCodigoIgnoreCaseAndEstadoVigenteNot(obraSocialId, codigo, EstadoPlan.DESHABILITADO)) {
             log.warn("No se pudo crear el plan: código {} ya existe en la obra social {}", codigo, obraSocialId);
             throw new ReglaNegocioException(getClass(), "PLAN_CODIGO_DUPLICADO",
                     "Ya existe un plan con el código " + codigo + " en esta obra social.");
@@ -110,7 +110,7 @@ public class PlanDomainService {
      */
     public void validateNombrePlanIsUnique(UUID obraSocialId, String nombre) {
 
-        if (planRepository.existsByObraSocialIdAndNombreAndEstadoVigenteNot(obraSocialId, nombre, EstadoPlan.DESHABILITADO)) {
+        if (planRepository.existsByObraSocialIdAndNombreIgnoreCaseAndEstadoVigenteNot(obraSocialId, nombre, EstadoPlan.DESHABILITADO)) {
             log.warn("No se pudo crear el plan: nombre {} ya existe en la obra social {}", nombre, obraSocialId);
             throw new ReglaNegocioException(getClass(), "PLAN_NOMBRE_DUPLICADO",
                     "Ya existe un plan con el nombre " + nombre + " en esta obra social.");
@@ -130,7 +130,7 @@ public class PlanDomainService {
      */
     public void validateNombrePlanIsUnique(UUID obraSocialId, String nombre, UUID idExcluido) {
 
-        if (planRepository.existsByObraSocialIdAndNombreAndEstadoVigenteNotAndIdNot(obraSocialId, nombre, EstadoPlan.DESHABILITADO, idExcluido)) {
+        if (planRepository.existsByObraSocialIdAndNombreIgnoreCaseAndEstadoVigenteNotAndIdNot(obraSocialId, nombre, EstadoPlan.DESHABILITADO, idExcluido)) {
             log.warn("No se pudo actualizar el plan: nombre {} ya existe en otro plan de la obra social {}", nombre, obraSocialId);
             throw new ReglaNegocioException(getClass(), "PLAN_NOMBRE_DUPLICADO",
                     "Ya existe otro plan con el nombre " + nombre + " en esta obra social.");

@@ -5,6 +5,8 @@ import com.accesmed.backend.Domain.Medico;
 import com.accesmed.backend.Domain.Rol;
 import com.accesmed.backend.Domain.Usuario;
 import com.accesmed.backend.Domain.UsuarioRol;
+import com.accesmed.backend.Services.DomainServices.AdminDomainService;
+import com.accesmed.backend.Services.DomainServices.MedicoDomainService;
 import com.accesmed.backend.Services.DomainServices.RolDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioRolDomainService;
@@ -36,6 +38,8 @@ public class UsuarioApp {
     private final UsuarioDomainService usuarioDomainService;
     private final UsuarioRolDomainService usuarioRolDomainService;
     private final RolDomainService rolDomainService;
+    private final MedicoDomainService medicoDomainService;
+    private final AdminDomainService adminDomainService;
     private final PasswordEncoder passwordEncoder;
 
     //endregion
@@ -58,11 +62,31 @@ public class UsuarioApp {
 
         log.info("Creación de usuario iniciada: medicoId={}, adminId={}", medicoId, adminId);
 
-        // Dar de baja el usuario anterior de ese médico/admin, si tenía uno activo
+        // Validar que el médico/admin exista y esté activo: 404 claro en vez de un error de
+        // integridad de la base
+        if (medicoId != null) {
+            medicoDomainService.findMedicoActivoById(medicoId);
+        } else {
+            adminDomainService.findAdminActivoById(adminId);
+        }
+
         Usuario usuarioAnterior = medicoId != null
                 ? usuarioDomainService.findUsuarioActivoByMedicoId(medicoId).orElse(null)
                 : usuarioDomainService.findUsuarioActivoByAdminId(adminId).orElse(null);
 
+        // Validar el mail de login: no puede usarlo otro usuario activo
+        usuarioDomainService.findUsuarioActivoByMail(mail).ifPresent(usuarioConEseMail -> {
+            if (usuarioAnterior != null && usuarioConEseMail.getId().equals(usuarioAnterior.getId())) {
+                log.warn("No se pudo crear el usuario: ya tiene uno activo con el mail {}", mail);
+                throw new ReglaNegocioException(getClass(), "USUARIO_YA_ASIGNADO",
+                        "Ya tiene un usuario activo con el mail " + mail + ". Para cambiarlo, indicá un mail distinto.");
+            }
+            log.warn("No se pudo crear el usuario: el mail {} ya lo usa otro usuario", mail);
+            throw new ReglaNegocioException(getClass(), "USUARIO_MAIL_EN_USO",
+                    "El mail " + mail + " ya lo usa otro usuario del sistema.");
+        });
+
+        // Dar de baja el usuario anterior de ese médico/admin, si tenía uno activo
         if (usuarioAnterior != null) {
             usuarioDomainService.softDeleteUsuario(usuarioAnterior, "Reemplazado por una nueva asignación de usuario.");
         }
