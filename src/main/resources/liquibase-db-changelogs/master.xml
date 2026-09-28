@@ -41,4 +41,7 @@
     <include file="changelogs/20260731220900-PasswordResetToken.xml" relativeToChangelogFile="true"/>
     <include file="changelogs/20260915120000-CambioMailToken.xml" relativeToChangelogFile="true"/>
 
+    <!-- ====== Correcciones E2E ====== -->
+    <include file="changelogs/20260927120000-FixesE2E.xml" relativeToChangelogFile="true"/>
+
 </databaseChangeLog>

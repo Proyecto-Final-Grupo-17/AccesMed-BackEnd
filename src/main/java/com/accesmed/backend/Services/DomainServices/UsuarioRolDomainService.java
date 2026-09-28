@@ -61,8 +61,9 @@ public class UsuarioRolDomainService {
 
     /**
      * Valida las precondiciones de negocio para asignar un rol a un usuario.
-     * Aplica dos guardas en orden:
+     * Aplica las guardas en orden:
      * <ol>
+     *   <li>El usuario no puede tener ya ese rol vigente (evita asignaciones duplicadas).</li>
      *   <li>El rol SuperAdmin no puede asignarse mediante la aplicación (incondicional).</li>
      *   <li>Si el rol es "Medico", el usuario debe tener un médico vinculado.</li>
      *   <li>Si el rol es otro (distinto de "Medico"), el usuario debe tener un admin vinculado.</li>
@@ -73,6 +74,15 @@ public class UsuarioRolDomainService {
      * @throws ReglaNegocioException {@code ReglaNegocioException} si alguna validación falla
      */
     public void validateAsignacionRol(Usuario usuario, Rol rol) {
+
+        // Guarda 0: no asignar un rol que el usuario ya tiene vigente. Un usuario recién creado
+        // (sin id todavía persistido en otra transacción) no tiene asignaciones.
+        if (usuario.getId() != null && findVigentesByUsuarioId(usuario.getId()).stream()
+                .anyMatch(asignacion -> asignacion.getRol().getId().equals(rol.getId()))) {
+            log.warn("No se puede asignar el rol {}: el usuario {} ya lo tiene", rol.getNombre(), usuario.getId());
+            throw new ReglaNegocioException(getClass(), "ROL_YA_ASIGNADO",
+                    "El usuario ya tiene asignado el rol \"" + rol.getNombre() + "\".");
+        }
 
         // Guarda 1: SuperAdmin no es asignable
         if ("SuperAdmin".equals(rol.getNombre())) {

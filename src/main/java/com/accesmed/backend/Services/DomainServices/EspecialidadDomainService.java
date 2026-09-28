@@ -72,7 +72,7 @@ public class EspecialidadDomainService {
      */
     public void validateCodigoEspecialidadIsUnique(String codigo) {
 
-        if (especialidadRepository.existsByCodigoAndDeletedAtIsNull(codigo)) {
+        if (especialidadRepository.existsByCodigoIgnoreCaseAndDeletedAtIsNull(codigo)) {
             log.warn("No se pudo crear la especialidad: código {} ya existe", codigo);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_CODIGO_DUPLICADO",
                     "Ya existe una especialidad con el código " + codigo + ".");
@@ -91,7 +91,7 @@ public class EspecialidadDomainService {
      */
     public void validateCodigoEspecialidadIsUnique(String codigo, UUID idExcluido) {
 
-        if (especialidadRepository.existsByCodigoAndDeletedAtIsNullAndIdNot(codigo, idExcluido)) {
+        if (especialidadRepository.existsByCodigoIgnoreCaseAndDeletedAtIsNullAndIdNot(codigo, idExcluido)) {
             log.warn("No se pudo actualizar la especialidad: código {} ya existe en otra especialidad", codigo);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_CODIGO_DUPLICADO",
                     "Ya existe otra especialidad con el código " + codigo + ".");
@@ -108,7 +108,7 @@ public class EspecialidadDomainService {
      */
     public void validateNombreEspecialidadIsUnique(String nombre) {
 
-        if (especialidadRepository.existsByNombreAndDeletedAtIsNull(nombre)) {
+        if (especialidadRepository.existsByNombreIgnoreCaseAndDeletedAtIsNull(nombre)) {
             log.warn("No se pudo crear la especialidad: nombre {} ya existe", nombre);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_NOMBRE_DUPLICADO",
                     "Ya existe una especialidad con el nombre " + nombre + ".");
@@ -127,7 +127,7 @@ public class EspecialidadDomainService {
      */
     public void validateNombreEspecialidadIsUnique(String nombre, UUID idExcluido) {
 
-        if (especialidadRepository.existsByNombreAndDeletedAtIsNullAndIdNot(nombre, idExcluido)) {
+        if (especialidadRepository.existsByNombreIgnoreCaseAndDeletedAtIsNullAndIdNot(nombre, idExcluido)) {
             log.warn("No se pudo actualizar la especialidad: nombre {} ya existe en otra especialidad", nombre);
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_NOMBRE_DUPLICADO",
                     "Ya existe otra especialidad con el nombre " + nombre + ".");

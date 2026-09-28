@@ -79,11 +79,11 @@ public abstract class AbstractFiltroQueryService<ENTIDAD, CRITERIA> {
      * @param filter {@code Filter<X>} filtro con los operadores a aplicar, o {@code null}
      * @param field {@code SingularAttribute<? super ENTIDAD, X>} campo del metamodelo
      * @param <X> tipo del campo filtrado
-     * @return {@code Specification<ENTIDAD>} fragmento resultante, o {@code null} si el filtro es nulo
+     * @return {@code Specification<ENTIDAD>} fragmento resultante (sin restricción si el filtro es nulo o vacío)
      */
     protected <X> Specification<ENTIDAD> buildSpecification(Filter<X> filter, SingularAttribute<? super ENTIDAD, X> field) {
 
-        return filter == null ? null : buildSpecification(filter, root -> root.get(field));
+        return filter == null ? Specification.unrestricted() : buildSpecification(filter, root -> root.get(field));
 
     }
 
@@ -94,12 +94,12 @@ public abstract class AbstractFiltroQueryService<ENTIDAD, CRITERIA> {
      * @param filter {@code Filter<X>} filtro con los operadores a aplicar, o {@code null}
      * @param path {@code Function<Root<ENTIDAD>, Expression<X>>} cómo llegar al campo desde el root
      * @param <X> tipo del campo filtrado
-     * @return {@code Specification<ENTIDAD>} fragmento resultante, o {@code null} si el filtro es nulo
+     * @return {@code Specification<ENTIDAD>} fragmento resultante (sin restricción si el filtro es nulo o vacío)
      */
     protected <X> Specification<ENTIDAD> buildSpecification(Filter<X> filter, Function<Root<ENTIDAD>, Expression<X>> path) {
 
         if (filter == null) {
-            return null;
+            return Specification.unrestricted();
         }
 
         Specification<ENTIDAD> specification = null;
@@ -122,7 +122,7 @@ public abstract class AbstractFiltroQueryService<ENTIDAD, CRITERIA> {
                     : (root, query, cb) -> cb.isNull(path.apply(root)));
         }
 
-        return specification;
+        return sinRestriccionSiVacio(specification);
 
     }
 
@@ -134,12 +134,12 @@ public abstract class AbstractFiltroQueryService<ENTIDAD, CRITERIA> {
      * @param filter {@code RangeFilter<X>} filtro con los operadores a aplicar, o {@code null}
      * @param field {@code SingularAttribute<? super ENTIDAD, X>} campo del metamodelo
      * @param <X> tipo del campo filtrado, debe ser {@link Comparable}
-     * @return {@code Specification<ENTIDAD>} fragmento resultante, o {@code null} si el filtro es nulo
+     * @return {@code Specification<ENTIDAD>} fragmento resultante (sin restricción si el filtro es nulo o vacío)
      */
     protected <X extends Comparable<? super X>> Specification<ENTIDAD> buildRangeSpecification(
             RangeFilter<X> filter, SingularAttribute<? super ENTIDAD, X> field) {
 
-        return filter == null ? null : buildRangeSpecification(filter, root -> root.get(field));
+        return filter == null ? Specification.unrestricted() : buildRangeSpecification(filter, root -> root.get(field));
 
     }
 
@@ -150,13 +150,13 @@ public abstract class AbstractFiltroQueryService<ENTIDAD, CRITERIA> {
      * @param filter {@code RangeFilter<X>} filtro con los operadores a aplicar, o {@code null}
      * @param path {@code Function<Root<ENTIDAD>, Expression<X>>} cómo llegar al campo desde el root
      * @param <X> tipo del campo filtrado, debe ser {@link Comparable}
-     * @return {@code Specification<ENTIDAD>} fragmento resultante, o {@code null} si el filtro es nulo
+     * @return {@code Specification<ENTIDAD>} fragmento resultante (sin restricción si el filtro es nulo o vacío)
      */
     protected <X extends Comparable<? super X>> Specification<ENTIDAD> buildRangeSpecification(
             RangeFilter<X> filter, Function<Root<ENTIDAD>, Expression<X>> path) {
 
         if (filter == null) {
-            return null;
+            return Specification.unrestricted();
         }
 
         Specification<ENTIDAD> specification = buildSpecification(filter, path);
@@ -174,40 +174,53 @@ public abstract class AbstractFiltroQueryService<ENTIDAD, CRITERIA> {
             specification = and(specification, (root, query, cb) -> cb.lessThanOrEqualTo(path.apply(root), filter.getLessThanOrEqual()));
         }
 
-        return specification;
+        return sinRestriccionSiVacio(specification);
 
     }
 
     /**
      * Arma la {@link Specification} de un campo de texto, agregando {@code contains}
-     * (contención, sin distinguir mayúsculas/minúsculas) a los operadores heredados de
-     * {@link Filter}.
+     * (contención, sin distinguir mayúsculas/minúsculas ni acentos: "perez" encuentra
+     * "Pérez") a los operadores heredados de {@link Filter}. Usa la función {@code unaccent}
+     * de Postgres (extensión creada por Liquibase).
      *
      * @param filter {@code StringFilter} filtro con los operadores a aplicar, o {@code null}
      * @param field {@code SingularAttribute<? super ENTIDAD, String>} campo del metamodelo
-     * @return {@code Specification<ENTIDAD>} fragmento resultante, o {@code null} si el filtro es nulo
+     * @return {@code Specification<ENTIDAD>} fragmento resultante (sin restricción si el filtro es nulo o vacío)
      */
     protected Specification<ENTIDAD> buildStringSpecification(StringFilter filter, SingularAttribute<? super ENTIDAD, String> field) {
 
         if (filter == null) {
-            return null;
+            return Specification.unrestricted();
         }
 
         Function<Root<ENTIDAD>, Expression<String>> path = root -> root.get(field);
         Specification<ENTIDAD> specification = buildSpecification(filter, path);
 
-        if (filter.getContains() != null) {
-            specification = and(specification, (root, query, cb) ->
-                    cb.like(cb.lower(path.apply(root)), "%" + filter.getContains().toLowerCase() + "%"));
+        if (filter.getContains() != null && !filter.getContains().isBlank()) {
+            specification = and(specification, (root, query, cb) -> cb.like(
+                    cb.lower(cb.function("unaccent", String.class, path.apply(root))),
+                    cb.lower(cb.function("unaccent", String.class, cb.literal("%" + filter.getContains().trim() + "%")))));
         }
 
-        return specification;
+        return sinRestriccionSiVacio(specification);
 
     }
 
     private Specification<ENTIDAD> and(Specification<ENTIDAD> base, Specification<ENTIDAD> extra) {
 
         return base == null ? Specification.where(extra) : base.and(extra);
+
+    }
+
+    /**
+     * Un filtro que llega sin ningún operador con valor (ej. {@code prestacionId.equals=}
+     * vacío en la URL) no restringe nada. Devolver {@code null} en ese caso hacía fallar con
+     * 500 el {@code specification.and(...)} de las subclases.
+     */
+    private Specification<ENTIDAD> sinRestriccionSiVacio(Specification<ENTIDAD> specification) {
+
+        return specification == null ? Specification.unrestricted() : specification;
 
     }
 

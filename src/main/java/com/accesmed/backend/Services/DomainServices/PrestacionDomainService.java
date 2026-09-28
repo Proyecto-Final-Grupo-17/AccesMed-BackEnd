@@ -121,7 +121,7 @@ public class PrestacionDomainService {
      */
     public void validateCodigoPrestacionIsUnique(String codigo) {
 
-        if (prestacionRepository.existsByCodigoAndEstadoVigenteNot(codigo, EstadoPrestacion.DESHABILITADA)) {
+        if (prestacionRepository.existsByCodigoIgnoreCaseAndEstadoVigenteNot(codigo, EstadoPrestacion.DESHABILITADA)) {
             log.warn("No se pudo crear la prestación: código {} ya existe", codigo);
             throw new ReglaNegocioException(getClass(), "PRESTACION_CODIGO_DUPLICADO",
                     "Ya existe una prestación con el código " + codigo + ".");
@@ -138,7 +138,7 @@ public class PrestacionDomainService {
      */
     public void validateNombrePrestacionIsUnique(String nombre) {
 
-        if (prestacionRepository.existsByNombreAndEstadoVigenteNot(nombre, EstadoPrestacion.DESHABILITADA)) {
+        if (prestacionRepository.existsByNombreIgnoreCaseAndEstadoVigenteNot(nombre, EstadoPrestacion.DESHABILITADA)) {
             log.warn("No se pudo crear la prestación: nombre {} ya existe", nombre);
             throw new ReglaNegocioException(getClass(), "PRESTACION_NOMBRE_DUPLICADO",
                     "Ya existe una prestación con el nombre " + nombre + ".");
@@ -157,7 +157,7 @@ public class PrestacionDomainService {
      */
     public void validateNombrePrestacionIsUnique(String nombre, UUID idExcluido) {
 
-        if (prestacionRepository.existsByNombreAndEstadoVigenteNotAndIdNot(nombre, EstadoPrestacion.DESHABILITADA, idExcluido)) {
+        if (prestacionRepository.existsByNombreIgnoreCaseAndEstadoVigenteNotAndIdNot(nombre, EstadoPrestacion.DESHABILITADA, idExcluido)) {
             log.warn("No se pudo actualizar la prestación: nombre {} ya existe en otra prestación", nombre);
             throw new ReglaNegocioException(getClass(), "PRESTACION_NOMBRE_DUPLICADO",
                     "Ya existe otra prestación con el nombre " + nombre + ".");

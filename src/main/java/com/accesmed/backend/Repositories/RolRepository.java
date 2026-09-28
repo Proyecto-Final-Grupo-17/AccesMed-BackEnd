@@ -38,6 +38,15 @@ public interface RolRepository extends JpaRepository<Rol, UUID> {
      * @param nombre {@code String} nombre a verificar
      * @return {@code boolean} {@code true} si existe un rol activo con ese nombre
      */
-    boolean existsByNombreAndDeletedAtIsNull(String nombre);
+    boolean existsByNombreIgnoreCaseAndDeletedAtIsNull(String nombre);
+
+    /**
+     * Verifica si existe otro rol activo con el nombre especificado, excluyendo un id.
+     *
+     * @param nombre {@code String} nombre a verificar
+     * @param id {@code UUID} id del rol a excluir (el propio, en una actualización)
+     * @return {@code boolean} {@code true} si existe otro rol activo con ese nombre
+     */
+    boolean existsByNombreIgnoreCaseAndDeletedAtIsNullAndIdNot(String nombre, UUID id);
 
 }

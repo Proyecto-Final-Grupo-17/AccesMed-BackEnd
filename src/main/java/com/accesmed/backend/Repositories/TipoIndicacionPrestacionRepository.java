@@ -24,7 +24,7 @@ public interface TipoIndicacionPrestacionRepository extends JpaRepository<TipoIn
      * @return {@code boolean} {@code true} si existe un tipo activo con ese código,
      *         {@code false} en caso contrario
      */
-    boolean existsByCodigoAndDeletedAtIsNull(String codigo);
+    boolean existsByCodigoIgnoreCaseAndDeletedAtIsNull(String codigo);
 
     /**
      * Verifica si existe un tipo de indicación activo con el código especificado,
@@ -35,7 +35,7 @@ public interface TipoIndicacionPrestacionRepository extends JpaRepository<TipoIn
      * @return {@code boolean} {@code true} si existe otro tipo activo con ese código,
      *         {@code false} en caso contrario
      */
-    boolean existsByCodigoAndDeletedAtIsNullAndIdNot(String codigo, UUID id);
+    boolean existsByCodigoIgnoreCaseAndDeletedAtIsNullAndIdNot(String codigo, UUID id);
 
     /**
      * Verifica si existe un tipo de indicación activo con el nombre especificado.
@@ -44,7 +44,7 @@ public interface TipoIndicacionPrestacionRepository extends JpaRepository<TipoIn
      * @return {@code boolean} {@code true} si existe un tipo activo con ese nombre,
      *         {@code false} en caso contrario
      */
-    boolean existsByNombreAndDeletedAtIsNull(String nombre);
+    boolean existsByNombreIgnoreCaseAndDeletedAtIsNull(String nombre);
 
     /**
      * Verifica si existe un tipo de indicación activo con el nombre especificado,
@@ -55,7 +55,7 @@ public interface TipoIndicacionPrestacionRepository extends JpaRepository<TipoIn
      * @return {@code boolean} {@code true} si existe otro tipo activo con ese nombre,
      *         {@code false} en caso contrario
      */
-    boolean existsByNombreAndDeletedAtIsNullAndIdNot(String nombre, UUID id);
+    boolean existsByNombreIgnoreCaseAndDeletedAtIsNullAndIdNot(String nombre, UUID id);
 
     /**
      * Busca un tipo de indicación activo por su identificador.

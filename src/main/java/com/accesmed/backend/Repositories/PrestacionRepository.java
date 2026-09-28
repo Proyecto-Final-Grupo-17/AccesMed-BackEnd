@@ -38,7 +38,7 @@ public interface PrestacionRepository extends JpaRepository<Prestacion, UUID>, J
      */
     @Query("SELECT COUNT(h) > 0 FROM HistoricoEstadoPrestacion h "
             + "WHERE h.prestacion.codigo = :codigo AND h.fechaHoraFin IS NULL AND h.estado <> :estado")
-    boolean existsByCodigoAndEstadoVigenteNot(String codigo, EstadoPrestacion estado);
+    boolean existsByCodigoIgnoreCaseAndEstadoVigenteNot(String codigo, EstadoPrestacion estado);
 
     /**
      * Verifica si existe una prestación con el nombre especificado cuyo estado vigente no
@@ -52,7 +52,7 @@ public interface PrestacionRepository extends JpaRepository<Prestacion, UUID>, J
      */
     @Query("SELECT COUNT(h) > 0 FROM HistoricoEstadoPrestacion h "
             + "WHERE h.prestacion.nombre = :nombre AND h.fechaHoraFin IS NULL AND h.estado <> :estado")
-    boolean existsByNombreAndEstadoVigenteNot(String nombre, EstadoPrestacion estado);
+    boolean existsByNombreIgnoreCaseAndEstadoVigenteNot(String nombre, EstadoPrestacion estado);
 
     /**
      * Verifica si existe una prestación con el nombre especificado cuyo estado vigente no
@@ -66,7 +66,7 @@ public interface PrestacionRepository extends JpaRepository<Prestacion, UUID>, J
      */
     @Query("SELECT COUNT(h) > 0 FROM HistoricoEstadoPrestacion h "
             + "WHERE h.prestacion.nombre = :nombre AND h.fechaHoraFin IS NULL AND h.estado <> :estado AND h.prestacion.id <> :id")
-    boolean existsByNombreAndEstadoVigenteNotAndIdNot(String nombre, EstadoPrestacion estado, UUID id);
+    boolean existsByNombreIgnoreCaseAndEstadoVigenteNotAndIdNot(String nombre, EstadoPrestacion estado, UUID id);
 
     /**
      * Busca una prestación por su identificador.

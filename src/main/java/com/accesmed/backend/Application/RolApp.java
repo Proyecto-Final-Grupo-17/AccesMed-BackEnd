@@ -102,8 +102,8 @@ public class RolApp {
         //Validar que no sea un rol de sistema
         rolDomainService.validateRolEditable(rolExistente);
 
-        //Validar unicidad del nombre
-        rolDomainService.validateNombreRolIsUnique(updateRolRequest.nombre());
+        //Validar unicidad del nombre, excluyendo el propio rol (puede conservar su nombre)
+        rolDomainService.validateNombreRolIsUnique(updateRolRequest.nombre(), id);
 
         //Aplicar cambios y guardar
         rolMapper.update(rolExistente, updateRolRequest);
@@ -198,20 +198,20 @@ public class RolApp {
 
         log.info("Revocación de rol iniciada: rolId={}, usuarioId={}", rolId, usuarioId);
 
-        //Buscar la asignación vigente
-        List<UsuarioRol> asignacionesVigentes = usuarioRolDomainService.findVigentesByUsuarioId(usuarioId);
-
-        UsuarioRol asignacionARevoca = asignacionesVigentes.stream()
+        //Buscar las asignaciones vigentes de ese rol (puede haber más de una si quedaron
+        //duplicadas de antes de validar la asignación repetida: se revocan todas)
+        List<UsuarioRol> asignacionesARevocar = usuarioRolDomainService.findVigentesByUsuarioId(usuarioId).stream()
                 .filter(ur -> ur.getRol().getId().equals(rolId))
-                .findFirst()
-                .orElseThrow(() -> {
-                    log.warn("No se encontró la asignación de rol: rolId={}, usuarioId={}", rolId, usuarioId);
-                    return new RecursoNoEncontradoException(getClass(), "ASIGNACION_ROL_NO_ENCONTRADA",
-                            "El usuario no tiene asignado ese rol.");
-                });
+                .toList();
+
+        if (asignacionesARevocar.isEmpty()) {
+            log.warn("No se encontró la asignación de rol: rolId={}, usuarioId={}", rolId, usuarioId);
+            throw new RecursoNoEncontradoException(getClass(), "ASIGNACION_ROL_NO_ENCONTRADA",
+                    "El usuario no tiene asignado ese rol.");
+        }
 
         //Revocar
-        usuarioRolDomainService.revocarUsuarioRol(asignacionARevoca);
+        asignacionesARevocar.forEach(usuarioRolDomainService::revocarUsuarioRol);
 
         log.info("Rol revocado: rolId={}, usuarioId={}", rolId, usuarioId);
 

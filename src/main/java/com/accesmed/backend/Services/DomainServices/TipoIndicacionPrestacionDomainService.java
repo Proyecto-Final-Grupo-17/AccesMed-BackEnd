@@ -72,7 +72,7 @@ public class TipoIndicacionPrestacionDomainService {
      */
     public void validateCodigoTipoIndicacionPrestacionIsUnique(String codigo) {
 
-        if (tipoIndicacionPrestacionRepository.existsByCodigoAndDeletedAtIsNull(codigo)) {
+        if (tipoIndicacionPrestacionRepository.existsByCodigoIgnoreCaseAndDeletedAtIsNull(codigo)) {
             log.warn("No se pudo crear el tipo de indicación: código {} ya existe", codigo);
             throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_CODIGO_DUPLICADO",
                     "Ya existe un tipo de indicación con el código " + codigo + ".");
@@ -91,7 +91,7 @@ public class TipoIndicacionPrestacionDomainService {
      */
     public void validateCodigoTipoIndicacionPrestacionIsUnique(String codigo, UUID idExcluido) {
 
-        if (tipoIndicacionPrestacionRepository.existsByCodigoAndDeletedAtIsNullAndIdNot(codigo, idExcluido)) {
+        if (tipoIndicacionPrestacionRepository.existsByCodigoIgnoreCaseAndDeletedAtIsNullAndIdNot(codigo, idExcluido)) {
             log.warn("No se pudo actualizar el tipo de indicación: código {} ya existe en otro tipo", codigo);
             throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_CODIGO_DUPLICADO",
                     "Ya existe otro tipo de indicación con el código " + codigo + ".");
@@ -108,7 +108,7 @@ public class TipoIndicacionPrestacionDomainService {
      */
     public void validateNombreTipoIndicacionPrestacionIsUnique(String nombre) {
 
-        if (tipoIndicacionPrestacionRepository.existsByNombreAndDeletedAtIsNull(nombre)) {
+        if (tipoIndicacionPrestacionRepository.existsByNombreIgnoreCaseAndDeletedAtIsNull(nombre)) {
             log.warn("No se pudo crear el tipo de indicación: nombre {} ya existe", nombre);
             throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_NOMBRE_DUPLICADO",
                     "Ya existe un tipo de indicación con el nombre " + nombre + ".");
@@ -127,7 +127,7 @@ public class TipoIndicacionPrestacionDomainService {
      */
     public void validateNombreTipoIndicacionPrestacionIsUnique(String nombre, UUID idExcluido) {
 
-        if (tipoIndicacionPrestacionRepository.existsByNombreAndDeletedAtIsNullAndIdNot(nombre, idExcluido)) {
+        if (tipoIndicacionPrestacionRepository.existsByNombreIgnoreCaseAndDeletedAtIsNullAndIdNot(nombre, idExcluido)) {
             log.warn("No se pudo actualizar el tipo de indicación: nombre {} ya existe en otro tipo", nombre);
             throw new ReglaNegocioException(getClass(), "TIPO_INDICACION_PRESTACION_NOMBRE_DUPLICADO",
                     "Ya existe otro tipo de indicación con el nombre " + nombre + ".");

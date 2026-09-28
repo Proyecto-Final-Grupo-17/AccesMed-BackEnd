@@ -6,7 +6,7 @@ import lombok.ToString;
 
 /**
  * Filtro de texto: agrega búsqueda por contención ({@code LIKE '%valor%'}, sin distinguir
- * mayúsculas/minúsculas) a los operadores heredados de {@link Filter}.
+ * mayúsculas/minúsculas ni acentos) a los operadores heredados de {@link Filter}.
  */
 @Getter
 @Setter

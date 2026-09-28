@@ -93,10 +93,29 @@ public class RolDomainService {
      */
     public void validateNombreRolIsUnique(String nombre) {
 
-        if (rolRepository.existsByNombreAndDeletedAtIsNull(nombre)) {
+        if (rolRepository.existsByNombreIgnoreCaseAndDeletedAtIsNull(nombre)) {
             log.warn("No se pudo crear el rol: nombre {} ya existe", nombre);
             throw new ReglaNegocioException(getClass(), "ROL_NOMBRE_DUPLICADO",
                     "Ya existe un rol con el nombre " + nombre + ".");
+        }
+
+    }
+
+    /**
+     * Valida que el nombre del rol sea único entre los roles activos, excluyendo un id
+     * concreto. Útil para la actualización: el rol puede conservar su propio nombre.
+     *
+     * @param nombre {@code String} nombre a verificar
+     * @param idExcluido {@code UUID} id a excluir de la búsqueda
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si ya existe otro rol
+     *         activo con ese nombre
+     */
+    public void validateNombreRolIsUnique(String nombre, UUID idExcluido) {
+
+        if (rolRepository.existsByNombreIgnoreCaseAndDeletedAtIsNullAndIdNot(nombre, idExcluido)) {
+            log.warn("No se pudo actualizar el rol: nombre {} ya existe en otro rol", nombre);
+            throw new ReglaNegocioException(getClass(), "ROL_NOMBRE_DUPLICADO",
+                    "Ya existe otro rol con el nombre " + nombre + ".");
         }
 
     }
