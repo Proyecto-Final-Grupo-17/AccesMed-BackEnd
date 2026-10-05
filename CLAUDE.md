@@ -162,7 +162,10 @@ obligatoria nueva hay que sumarla a `.env.example` y a
 `src/test/resources/application-test.yml`, o se rompen el arranque local y el test
 de contexto. `ACCESMED_SUPERADMIN_MAIL` / `ACCESMED_SUPERADMIN_PASSWORD` son
 opcionales (`SuperAdminInicializador` crea el SuperAdmin solo si hay contraseña), por
-eso no están en `application-test.yml`. Los datos de demo se cargan con
+eso no están en `application-test.yml`. Swagger UI y `/v3/api-docs` piden HTTP Basic
+(`accesmed.docs.*`, cadena aparte en `SecurityFilterChainConfig`): `ACCESMED_DOCS_PASSWORD`
+es obligatoria en `staging`/`prod` y en `dev` vale `accesmed` por defecto; el health
+queda público porque lo usa el healthcheck del contenedor. Los datos de demo se cargan con
 `Scripts/seed-datos-demo.sql`, que no contiene contraseñas escritas, solo hashes bcrypt.
 
 ## Ramas

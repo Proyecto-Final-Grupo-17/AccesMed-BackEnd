@@ -73,3 +73,8 @@ accesmed:
   superadmin:
     mail: ${ACCESMED_SUPERADMIN_MAIL:superadmin@accesmed.com}
     password: ${ACCESMED_SUPERADMIN_PASSWORD:}
+  # Acceso a Swagger UI y /v3/api-docs (HTTP Basic, ver SecurityFilterChainConfig). Usuario
+  # propio de la documentación, no del sistema. Sin contraseña la app no arranca.
+  docs:
+    username: ${ACCESMED_DOCS_USERNAME:accesmed}
+    password: ${ACCESMED_DOCS_PASSWORD}

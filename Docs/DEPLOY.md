@@ -64,6 +64,18 @@ hay que volver a correr el workflow.
 El registry no necesita credenciales extra: el workflow usa el `GITHUB_TOKEN` del job,
 también para que el servidor haga `docker login` durante el deploy (y `logout` al final).
 
+## Qué es público y qué pide credenciales
+
+| Ruta | Acceso |
+|------|--------|
+| `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**` | HTTP Basic: `ACCESMED_DOCS_USERNAME` / `ACCESMED_DOCS_PASSWORD` del `.env` |
+| `/actuator/health` | Público (solo `{"status":"UP"}`; lo usa el healthcheck del contenedor) |
+| `/accesmed-api/Auth/{Login,Refresh,OlvideContrasena,RestablecerContrasena,ConfirmarCambioMail}` | Público |
+| Resto de `/accesmed-api/**` | JWT (`Authorization: Bearer ...`) |
+
+El usuario de la documentación no es un usuario del sistema: no existe en la base ni sirve
+contra la API. Si falta `ACCESMED_DOCS_PASSWORD`, el back no arranca.
+
 ## Operación
 
 ```bash

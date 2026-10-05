@@ -15,3 +15,6 @@ accesmed:
   jwt:
     secret: test-jwt-secret-solo-para-tests-no-usar-en-produccion-1234567890
     expiration-minutes: 30
+  docs:
+    username: docs-test
+    password: docs-test-password
