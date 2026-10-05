@@ -23,4 +23,19 @@
         </rollback>
     </changeSet>
 
+    <!--
+        Habilita btree_gist, que permite combinar operadores de igualdad (=) con
+        operadores de rango (&&) dentro de una misma constraint EXCLUDE USING gist.
+        Va aca y no en el changelog de la primera entidad que la usa porque la
+        necesitan varias tablas de distintas fases: las clases que se rigen por
+        vigencia y deben garantizar que sus periodos no se solapen
+        (medico_prestacion, agenda_medico, indicacion_prestacion, usuario_rol).
+    -->
+    <changeSet id="20260728222533-enabled-extension-btree-gist" author="claude">
+        <sql>CREATE EXTENSION IF NOT EXISTS btree_gist;</sql>
+        <rollback>
+            <sql>DROP EXTENSION IF EXISTS btree_gist;</sql>
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

@@ -33,14 +33,14 @@ Los tipos se "recuadran" (se muestran en monoespaciado) con la etiqueta inline
 /**
  * Crea una prestación nueva validando que su código no esté repetido.
  *
- * @param crearPrestacionRequest {@code CrearPrestacionRequest} datos de la prestación a crear
- * @return {@code CrearPrestacionResponse} la prestación creada, con su id asignado
+ * @param createPrestacionRequest {@code CreatePrestacionRequest} datos de la prestación a crear
+ * @return {@code CreatePrestacionResponse} la prestación creada, con su id asignado
  * @throws ReglaNegocioException {@code ReglaNegocioException} si ya existe una prestación
  *         activa con el mismo código
  * @throws ValidacionException {@code ValidacionException} si el request tiene errores de
  *         negocio acumulados
  */
-public CrearPrestacionResponse createPrestacion(CrearPrestacionRequest crearPrestacionRequest) {
+public CreatePrestacionResponse createPrestacion(CreatePrestacionRequest createPrestacionRequest) {
     ...
 }
 ```

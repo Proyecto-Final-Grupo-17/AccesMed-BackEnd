@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260731220600-added-table-HistoricoEstadoTurno" author="claude">
+        <createTable tableName="historico_estado_turno">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_historico_estado_turno"/>
+            </column>
+            <column name="fecha_hora_inicio" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_hora_fin" type="timestamptz"/>
+            <column name="estado" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- ====== Relaciones ====== -->
+            <column name="turno_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_historico_estado_turno_turno" references="turno(id)"/>
+            </column>
+            <!-- ====== Columnas auditoría (sin baja: HistoricoEstadoTurno no es bajable) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+        </createTable>
+
+        <sql>ALTER TABLE historico_estado_turno ADD CONSTRAINT ck_historico_estado_turno_fin_posterior CHECK (fecha_hora_fin IS NULL OR fecha_hora_fin > fecha_hora_inicio);</sql>
+        <sql>ALTER TABLE historico_estado_turno ADD CONSTRAINT ck_historico_estado_turno_estado CHECK (estado IN ('ESPERA_VALIDACION','PENDIENTE','CONFIRMADO','EN_SALA_DE_ESPERA','EN_CURSO','CANCELADO','REPROGRAMADO','AUSENTE','FINALIZADO'));</sql>
+
+        <!--
+            Indice unico parcial que garantiza el tramo vigente unico por turno: es la
+            defensa real contra la condicion de carrera entre el paciente confirmando por
+            WhatsApp y el scheduler. No omitir.
+        -->
+        <sql>CREATE UNIQUE INDEX uq_historico_estado_turno_vigente ON historico_estado_turno (turno_id) WHERE fecha_hora_fin IS NULL;</sql>
+
+        <sql>CREATE INDEX idx_historico_estado_turno_estado ON historico_estado_turno (estado);</sql>
+        <rollback>
+            <sql>ALTER TABLE historico_estado_turno DROP CONSTRAINT IF EXISTS ck_historico_estado_turno_fin_posterior;</sql>
+            <sql>ALTER TABLE historico_estado_turno DROP CONSTRAINT IF EXISTS ck_historico_estado_turno_estado;</sql>
+            <sql>DROP INDEX IF EXISTS uq_historico_estado_turno_vigente;</sql>
+            <sql>DROP INDEX IF EXISTS idx_historico_estado_turno_estado;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

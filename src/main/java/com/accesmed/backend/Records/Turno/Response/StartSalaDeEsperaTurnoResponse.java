@@ -1,0 +1,32 @@
+package com.accesmed.backend.Records.Turno.Response;
+
+import com.accesmed.backend.Domain.EstadoTurno;
+
+import java.math.BigDecimal;
+import java.time.ZonedDateTime;
+import java.util.UUID;
+
+/**
+ * Response con los datos del turno tras su ingreso a sala de espera.
+ *
+ * @param id identificador único del turno
+ * @param codigo código único del turno
+ * @param pacienteId identificador del paciente
+ * @param medicoId identificador del médico
+ * @param prestacionId identificador de la prestación
+ * @param fechaHoraInicio fecha y hora de inicio del turno
+ * @param montoAPagar monto a abonar por el turno
+ * @param tipoCobertura tipo de cobertura
+ * @param estadoActual estado vigente del turno (EN_SALA_DE_ESPERA)
+ */
+public record StartSalaDeEsperaTurnoResponse(
+        UUID id,
+        String codigo,
+        UUID pacienteId,
+        UUID medicoId,
+        UUID prestacionId,
+        ZonedDateTime fechaHoraInicio,
+        BigDecimal montoAPagar,
+        String tipoCobertura,
+        EstadoTurno estadoActual
+) {}

@@ -12,7 +12,7 @@ Todas las versiones son **estables (GA)**, sobre la línea **Spring Boot 4**.
 
 | Tecnología | Versión |
 |---|---|
-| Java | 25 (LTS) |
+| Java | 25 (LTS) — Oracle JDK |
 | Spring Boot | 4.1.0 |
 | Maven | 3.9.x (wrapper `./mvnw`) |
 | PostgreSQL | 16.x (`postgres:16-alpine`) |
@@ -25,13 +25,17 @@ Todas las versiones son **estables (GA)**, sobre la línea **Spring Boot 4**.
 | `lombok-mapstruct-binding` | 0.2.0 |
 | hibernate-processor | 7.4.x (metamodelo estático JPA; se llamaba `hibernate-jpamodelgen` hasta Hibernate 6) |
 | springdoc-openapi (Swagger) | 3.0.3 |
+| JaCoCo (cobertura) | 0.8.15 |
+| `sonar-maven-plugin` (análisis estático) | 5.7.0.6970 |
 
 Las dependencias gestionadas por el BOM de Spring Boot se declaran **sin `<version>`**.
-Detalle completo, criterios y fuentes en [`docs/STACK.md`](docs/STACK.md).
+Detalle completo, criterios y fuentes en [`Docs/STACK.md`](Docs/STACK.md).
 
 ## Requisitos
 
-- Java 25 (LTS)
+- **Oracle JDK 25 (LTS)** — es la distribución que usa el equipo y la misma que usa el
+  workflow de CI (`distribution: 'oracle'`). Cualquier JDK 25 compila igual, pero
+  mantenerse en la misma evita diferencias de comportamiento entre local y CI.
 - Maven 3.9+ (o el wrapper `./mvnw`)
 - Docker + Docker Compose
 
@@ -44,7 +48,34 @@ Detalle completo, criterios y fuentes en [`docs/STACK.md`](docs/STACK.md).
    cd docker/dev && docker compose up -d
    ```
 
-2. **Arrancar la app (perfil `dev`):**
+2. **Completar los secretos de la app:**
+
+   ```bash
+   cp .env.example .env   # y completar MAIL_PASSWORD
+   ```
+
+   Son las variables **sin default** (`MAIL_USERNAME`, `MAIL_PASSWORD`,
+   `ACCESMED_JWT_SECRET`): si falta alguna, el contexto no levanta. La app las lee
+   de ese `.env` de la raíz al arrancar (`spring.config.import` en
+   `application.yml`), así no hay que exportarlas en cada consola. El archivo no se
+   versiona (está en `.gitignore`) y una variable de entorno del shell le gana a su
+   valor, que es lo que usan `staging`/`prod`: ahí las mismas variables llegan por
+   entorno real y el import —marcado `optional:`— simplemente se ignora.
+
+   Además hay dos variables **opcionales** para el primer usuario `SuperAdmin`
+   (`ACCESMED_SUPERADMIN_MAIL`, con default, y `ACCESMED_SUPERADMIN_PASSWORD`, sin
+   default): al arrancar, la app crea ese usuario si todavía no existe. Sin contraseña
+   no lo crea y arranca igual, con un aviso en el log. Para cargar datos de demo
+   (médicos, prestaciones, agendas, pacientes y usuarios) ver
+   `Scripts/seed-datos-demo.sql`.
+
+   `MAIL_PASSWORD` **no** es la contraseña de la cuenta de Google: es una
+   *contraseña de aplicación* de 16 caracteres, y requiere verificación en dos pasos
+   activada en la cuenta. Detalle de cada variable en `.env.example`. No confundir
+   este archivo con `docker/dev/.env`, que es el de docker-compose (credenciales de
+   la Postgres local).
+
+3. **Arrancar la app (perfil `dev`):**
 
    ```bash
    SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
@@ -56,10 +87,15 @@ Detalle completo, criterios y fuentes en [`docs/STACK.md`](docs/STACK.md).
    $env:SPRING_PROFILES_ACTIVE="dev"; ./mvnw spring-boot:run
    ```
 
-3. **Verificar:**
+4. **Verificar:**
    - API: http://localhost:8080
    - Swagger UI: http://localhost:8080/swagger-ui.html
    - Health: http://localhost:8080/actuator/health
+
+   Si `MAIL_PASSWORD` está vacío o es inválido, la app **arranca igual** pero
+   `/actuator/health` responde `DOWN`: el `MailHealthIndicator` de Actuator abre una
+   conexión SMTP real en cada chequeo y falla la autenticación. Todo lo que no sea
+   mail funciona normal.
 
 Liquibase aplica las migraciones de esquema automáticamente al arrancar (`ddl-auto:
 validate`, nunca `update`/`create`: el esquema lo maneja Liquibase, no Hibernate).
@@ -119,6 +155,11 @@ el dropdown del IDE.
 ./mvnw clean install       # combinación típica antes de un PR: limpio + reconstruyo + testeo
 ```
 
+**Cobertura de tests:** `./mvnw verify` deja el reporte de JaCoCo en
+`target/site/jacoco/` — `index.html` para leerlo en el navegador y `jacoco.xml`, que es
+el que importa SonarQube Cloud. No hace falta un goal aparte: el plugin está enganchado
+a la fase `test`.
+
 **Tests específicos:**
 
 ```bash
@@ -139,14 +180,20 @@ compilado y detecta errores de compilación en los tests aunque no se ejecuten).
 `-Dmaven.test.skip=true` se reserva para casos puntuales (por ejemplo, un módulo de test
 roto que bloquea un build urgente).
 
-**`AccesMedApplicationTests` necesita Postgres local levantada:** ese test carga el
-contexto completo con el perfil `dev` (Liquibase valida el esquema real contra la base).
-Si `docker/dev` no está levantado (`docker compose up -d`), `./mvnw test`/`verify` falla
-con un error de conexión o de autenticación, no por un bug en el código. Las credenciales
-de `docker/dev/.env` tienen que coincidir con los defaults de `application-dev.yml`
-(`accesmed`/`accesmed`/`5432`) — si generás un `.env` con otra contraseña, además hay que
-exportarla como variable de entorno antes de correr Maven, porque Maven **no** lee
-`docker/dev/.env` (ese archivo solo lo lee `docker compose`).
+**`AccesMedApplicationTests` necesita Docker corriendo (Docker Desktop u otro daemon
+accesible), pero NO el `docker compose up -d` de dev:** el test levanta su propia Postgres
+16 efímera con Testcontainers (`TestcontainersConfiguration`, `@ServiceConnection`),
+aislada de la base de `docker/dev/docker-compose.yml` — Liquibase valida el esquema real
+contra ese contenedor descartable, no contra la base de desarrollo. Si Docker no está
+disponible, `./mvnw test`/`verify` falla con `Could not find a valid Docker environment`,
+no por un bug en el código.
+
+El test corre con `@ActiveProfiles("test")`, contra `src/test/resources/application-test.yml`.
+Ese perfil existe solo para aportar las properties que el contexto necesita y que viven
+únicamente en los perfiles `dev`/`staging`/`prod` (hoy, `accesmed.cors.allowed-origins`).
+El datasource NO se declara ahí: lo autoconfigura Testcontainers vía `@ServiceConnection`.
+Si se agrega una property obligatoria a un perfil, hay que sumarla también a este archivo
+o el test de contexto se rompe.
 
 **Warning de Lombok al compilar (`sun.misc.Unsafe` / `lombok.permit.Permit`):** en JDK 24+
 es un warning conocido y no bloqueante — Lombok todavía usa `Unsafe` internamente para
@@ -175,11 +222,16 @@ docker compose restart        # reiniciar el contenedor sin recrearlo
 | Perfil | Estado | Base de datos |
 |--------|--------|---------------|
 | `dev` | Activo | Postgres local (docker-compose) |
-| `staging` | Por definir | — |
-| `prod` | Por definir | — |
+| `staging` | Activo | Postgres en Docker en el servidor ([`Docs/DEPLOY.md`](Docs/DEPLOY.md)) |
+| `prod` | Activo | Postgres en Docker en el servidor ([`Docs/DEPLOY.md`](Docs/DEPLOY.md)) |
+| `test` | Activo | Postgres efímera de Testcontainers |
 
 Se selecciona con la variable de entorno `SPRING_PROFILES_ACTIVE`. Config en
 `application-<perfil>.yml`; lo común en `application.yml`.
+
+`test` es la excepción: no se activa por variable de entorno sino con
+`@ActiveProfiles("test")` en los tests, y su archivo vive en `src/test/resources/`, no
+en `src/main/resources/`.
 
 ### Ramas
 
@@ -202,31 +254,39 @@ Las features se ramifican desde `develop` como `feature/<Entidad o funcionalidad
 | Documento | Contenido |
 |-----------|-----------|
 | [`CLAUDE.md`](CLAUDE.md) | Contexto y convenciones para Claude Code |
-| [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Arquitectura, capas, estructura del repo, decisiones |
-| [`docs/STACK.md`](docs/STACK.md) | Stack tecnológico detallado, con versiones |
+| [`Docs/ARQUITECTURA.md`](Docs/ARQUITECTURA.md) | Arquitectura, capas, estructura del repo, decisiones |
+| [`Docs/STACK.md`](Docs/STACK.md) | Stack tecnológico detallado, con versiones |
+| [`Docs/DEPLOY.md`](Docs/DEPLOY.md) | Pipeline de deploy, estructura del servidor, operación y rollback |
 | [`.claude/plans/PLAN-SETUP-CLAUDE-CODE.md`](.claude/plans/PLAN-SETUP-CLAUDE-CODE.md) | Plan de setup paso a paso |
-| [`docs/FRONTEND-GUIA.md`](docs/FRONTEND-GUIA.md) | Contrato de API para el frontend |
+| [`Docs/FRONTEND-GUIA.md`](Docs/FRONTEND-GUIA.md) | Contrato de API para el frontend |
+| [`Docs/Security.md`](Docs/Security.md) | Cómo funciona Spring Security en este proyecto (JWT, filtros, autenticación y autorización) |
 
 ## Arquitectura en una línea
 
 `Controller → App (aplicación) → DomainService/QueryService → Repository`, con un
-`record` (DTO) por endpoint y un manejador global de errores que responde un `AccesMedError`
-único. Detalle en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).
+`record` (DTO) por endpoint —agrupados en `Records/<Entidad>/{Request,Response}`— y un
+manejador global de errores que responde un `AccesMedError` único. Los endpoints cuelgan de
+`/accesmed-api/<Entidad>` y cada método agrega su recurso (`POST /accesmed-api/Prestacion/Prestacion`).
+Detalle en [`Docs/ARQUITECTURA.md`](Docs/ARQUITECTURA.md).
 
 ## Estructura del repositorio
 
-Ver el árbol completo en [`docs/ARQUITECTURA.md §4`](docs/ARQUITECTURA.md). En corto:
+Ver el árbol completo en [`docs/ARQUITECTURA.md §4`](Docs/ARQUITECTURA.md). En corto:
 
 ```
 accesmed-backend/
 ├── CLAUDE.md
 ├── README.md
 ├── pom.xml
+├── .github/
+│   └── workflows/
+│       └── sonarcloud.yml   (análisis estático en cada push y PR)
 ├── docs/
 │   ├── ARQUITECTURA.md
 │   ├── STACK.md
 │   ├── PLAN-SETUP-CLAUDE-CODE.md
-│   └── FRONTEND-GUIA.md
+│   ├── FRONTEND-GUIA.md
+│   └── Security.md
 ├── docker/
 │   ├── Dockerfile
 │   └── dev/
@@ -242,17 +302,21 @@ accesmed-backend/
     ├── main/
     │   ├── java/com/accesmed/backend/
     │   │   ├── AccesMedApplication.java
-    │   │   ├── Config/
-    │   │   ├── Controllers/    (+ Errors/: GlobalExceptionHandler, AccesMedError)
+    │   │   ├── Config/         (transversal de infraestructura, sin seguridad: JpaAuditingConfig, SchedulingConfig)
+    │   │   ├── Controllers/    (+ Errors/: GlobalExceptionHandler, AccesMedError
+    │   │   │                    + ControllersConfig/: OpenApiConfig, CORS, interceptores)
     │   │   ├── Application/    (<Entidad>App)
     │   │   ├── Domain/         (entidades + Auditable)
     │   │   ├── Services/{DomainServices,QueryServices,Mappers,Errors,Utils}/
     │   │   ├── Repositories/
-    │   │   ├── Records/{Request,Response}/
-    │   │   ├── Security/       (slice vertical de auth, mismo patrón)
+    │   │   ├── Records/<Entidad>/{Request,Response}/
+    │   │   ├── Security/       (slice vertical de auth, mismo patrón; Config/SecurityFilterChainConfig.java arma el filter chain)
     │   │   └── Agente/         (entrada del agente; reutiliza el núcleo)
     │   └── resources/
     └── test/
+        ├── java/com/accesmed/backend/
+        └── resources/
+            └── application-test.yml  (perfil `test` de los tests de contexto)
 ```
 
 ## Skills de Claude Code

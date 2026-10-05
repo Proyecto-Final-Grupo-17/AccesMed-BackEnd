@@ -3,7 +3,7 @@
 Este plan arma **solo el esqueleto** del proyecto AccesMed: estructura de carpetas y las
 clases base que comparte todo el sistema (auditoría, errores, config). Pensado para
 dárselo a Claude Code paso a paso. Cada paso termina en algo verificable (compila /
-arranca / responde). Leé `../../CLAUDE.md` y `../../docs/ARQUITECTURA.md` antes de empezar: son las
+arranca / responde). Leé `../../CLAUDE.md` y `../../Docs/ARQUITECTURA.md` antes de empezar: son las
 reglas del proyecto.
 
 > **Regla de oro: este plan NO genera features.** Ni Prestación, ni Security (como slice
@@ -38,9 +38,9 @@ el plugin del IDE, con:
 Si el proyecto **ya fue generado** (pom.xml ya existe en el repo), **no volver a
 generarlo**: en su lugar, hacer el chequeo de abajo.
 
-### Chequeo del `../../pom.xml` contra `../../docs/STACK.md`
+### Chequeo del `../../pom.xml` contra `../../Docs/STACK.md`
 
-Comparar dependencia por dependencia el `../../pom.xml` real contra `../../docs/STACK.md` y
+Comparar dependencia por dependencia el `../../pom.xml` real contra `../../Docs/STACK.md` y
 `docs/ARQUITECTURA.md §7`:
 
 1. **Versión de Spring Boot**: confirmar que el `parent` sea `4.1.0` (o el patch más
@@ -49,8 +49,8 @@ Comparar dependencia por dependencia el `../../pom.xml` real contra `../../docs/
    preguntar cuál usar.
 2. **Dependencias faltantes**: si algo de la lista de `ARQUITECTURA.md §7` no está
    (MapStruct + processor + `lombok-mapstruct-binding`, `hibernate-jpamodelgen`,
-   springdoc-openapi, jjwt api/impl/jackson), agregarlas con la versión de `../../docs/STACK.md`.
-3. **Dependencias de más**: si Initializr agregó algo no listado en `../../docs/STACK.md` (por
+   springdoc-openapi, jjwt api/impl/jackson), agregarlas con la versión de `../../Docs/STACK.md`.
+3. **Dependencias de más**: si Initializr agregó algo no listado en `../../Docs/STACK.md` (por
    ejemplo `spring-boot-devtools`, o una versión de starter distinta a la esperada por el
    BOM), **no borrarlo automáticamente** — señalarlo y preguntar si se mantiene o se saca.
 4. **Versiones que no coinciden**: si alguna dependencia gestionada por el BOM aparece
@@ -59,7 +59,7 @@ Comparar dependencia por dependencia el `../../pom.xml` real contra `../../docs/
    a manejo por BOM (sin `<version>`).
 5. **Annotation processors**: confirmar que `maven-compiler-plugin` tenga declarado
    `annotationProcessorPaths` con Lombok → `lombok-mapstruct-binding` → MapStruct →
-   `hibernate-jpamodelgen`, en ese orden (ver `../../docs/STACK.md`).
+   `hibernate-jpamodelgen`, en ese orden (ver `../../Docs/STACK.md`).
 
 **Regla para cualquier discrepancia**: si hay un conflicto de versión o una dependencia
 que no coincide con lo documentado, **preguntar antes de tocar nada** — no asumir cuál
@@ -73,10 +73,12 @@ versión "gana". Si todo coincide, no hace falta preguntar nada.
 
 Crear los paquetes de `ARQUITECTURA.md §4` bajo `com.accesmed.backend` (mayúsculas,
 `Controllers`/`Services`/`Repositories` en plural, **sin carpeta `Shared`**):
-`Config`, `Controllers` (+ `Controllers/Errors`), `Application`, `Domain` (solo
+`Config`, `Controllers` (+ `Controllers/Errors` y `Controllers/ControllersConfig`),
+`Application`, `Domain` (solo
 `Auditable`, todavía sin entidades — esas las trae cada feature), `Services/DomainServices`,
 `Services/QueryServices`, `Services/Mappers`, `Services/Errors`, `Services/Utils`,
-`Repositories`, `Records/Request`, `Records/Response`. **No crear todavía** `Security/` ni
+`Repositories`, `Records` (los subpaquetes `Records/<Entidad>/{Request,Response}` los crea
+cada feature). **No crear todavía** `Security/` ni
 `Agente/`: son slices que arma su propia feature más adelante (ver nota al final).
 
 Dejar un `.gitkeep` o un package-info donde haga falta para versionarlos.
@@ -120,7 +122,7 @@ después) que lanza `ReglaNegocioException` devuelve el `AccesMedError` esperado
 1. `application.yml` (común): nombre de la app, config de Liquibase, `jpa.hibernate.ddl-auto: validate`, springdoc.
 2. `application-dev.yml`: datasource apuntando a la Postgres local (host, puerto, credenciales por env), `show-sql: true`.
 3. `application-staging.yml` / `application-prod.yml`: esqueleto mínimo (se completan luego).
-4. `Config/OpenApiConfig.java` — metadata de Swagger.
+4. `Controllers/ControllersConfig/OpenApiConfig.java` — metadata de Swagger (config de la capa web).
 5. `Config/SecurityConfig.java` — **mínimo de arranque, sin JWT todavía**: permitir
    `/swagger-ui/**` y `/actuator/health`, el resto autenticado con un `SecurityFilterChain`
    base (aunque no haya ningún endpoint propio protegido todavía). El JWT real, las

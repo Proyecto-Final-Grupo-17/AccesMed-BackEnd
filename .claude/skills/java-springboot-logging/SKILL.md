@@ -116,8 +116,8 @@ y campos no sensibles en `info`; si hace falta más detalle para diagnóstico, u
 (apagado por defecto en producción) en vez de subir el nivel de detalle en `info`.
 
 ```java
-log.info("Solicitud recibida: crear turno para paciente id={}", crearTurnoRequest.pacienteId());  // ✅
-log.info("Solicitud recibida: {}", crearTurnoRequest);  // ❌ si el record trae datos sensibles del paciente
+log.info("Solicitud recibida: crear turno para paciente id={}", createTurnoRequest.pacienteId());  // ✅
+log.info("Solicitud recibida: {}", createTurnoRequest);  // ❌ si el record trae datos sensibles del paciente
 ```
 
 ## 6. Formato del mensaje: placeholders, no concatenación
@@ -126,8 +126,8 @@ Usá los placeholders `{}` de SLF4J, no concatenación de strings — si el nive
 deshabilitado (ej. `debug` en producción), SLF4J no arma el mensaje, más performante.
 
 ```java
-log.info("Creación de prestación iniciada: código={}", crearPrestacionRequest.codigo());        // ✅
-log.info("Creación de prestación iniciada: código=" + crearPrestacionRequest.codigo());          // ❌
+log.info("Creación de prestación iniciada: código={}", createPrestacionRequest.codigo());        // ✅
+log.info("Creación de prestación iniciada: código=" + createPrestacionRequest.codigo());          // ❌
 ```
 
 Para errores, seguí el patrón "qué se intentó hacer + por qué falló", igual que las reglas

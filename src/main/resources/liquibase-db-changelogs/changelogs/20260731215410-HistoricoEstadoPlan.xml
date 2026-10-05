@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260731215410-added-table-HistoricoEstadoPlan" author="claude">
+        <createTable tableName="historico_estado_plan">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_historico_estado_plan"/>
+            </column>
+            <column name="fecha_hora_inicio" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fecha_hora_fin" type="timestamptz"/>
+            <column name="estado" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="motivo" type="varchar(500)"/>
+            <!-- ====== Relaciones ====== -->
+            <column name="plan_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_historico_estado_plan_plan" references="plan(id)"/>
+            </column>
+            <!-- ====== Columnas auditoría (sin baja: HistoricoEstadoPlan no es bajable) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+        </createTable>
+
+        <sql>ALTER TABLE historico_estado_plan ADD CONSTRAINT ck_historico_estado_plan_fin_posterior CHECK (fecha_hora_fin IS NULL OR fecha_hora_fin > fecha_hora_inicio);</sql>
+        <sql>ALTER TABLE historico_estado_plan ADD CONSTRAINT ck_historico_estado_plan_estado CHECK (estado IN ('NO_PUBLICADO','PUBLICADO','DESHABILITADO'));</sql>
+
+        <sql>CREATE UNIQUE INDEX uq_historico_estado_plan_vigente ON historico_estado_plan (plan_id) WHERE fecha_hora_fin IS NULL;</sql>
+
+        <sql>CREATE INDEX idx_historico_estado_plan_estado ON historico_estado_plan (estado);</sql>
+        <rollback>
+            <sql>ALTER TABLE historico_estado_plan DROP CONSTRAINT IF EXISTS ck_historico_estado_plan_fin_posterior;</sql>
+            <sql>ALTER TABLE historico_estado_plan DROP CONSTRAINT IF EXISTS ck_historico_estado_plan_estado;</sql>
+            <sql>DROP INDEX IF EXISTS uq_historico_estado_plan_vigente;</sql>
+            <sql>DROP INDEX IF EXISTS idx_historico_estado_plan_estado;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

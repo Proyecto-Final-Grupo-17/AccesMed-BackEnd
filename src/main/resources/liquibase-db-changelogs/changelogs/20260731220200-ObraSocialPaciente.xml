@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260731220200-added-table-ObraSocialPaciente" author="claude">
+        <createTable tableName="obra_social_paciente">
+            <!-- ====== Columnas ====== -->
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" primaryKeyName="pk_obra_social_paciente"/>
+            </column>
+            <column name="nro_socio" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- ====== Relaciones ====== -->
+            <column name="paciente_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_obra_social_paciente_paciente" references="paciente(id)"/>
+            </column>
+            <column name="plan_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_obra_social_paciente_plan" references="plan(id)"/>
+            </column>
+            <!-- ====== Columnas auditoría (incluye a la baja) ====== -->
+            <column name="created_at" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamptz"/>
+            <column name="created_by" type="varchar(255)"/>
+            <column name="updated_by" type="varchar(255)"/>
+            <column name="deleted_at" type="timestamptz"/>
+            <column name="deleted_by" type="uuid"/>
+            <column name="deleted_reason" type="varchar(500)"/>
+        </createTable>
+
+        <sql>CREATE UNIQUE INDEX uq_obra_social_paciente_paciente_plan ON obra_social_paciente (paciente_id, plan_id) WHERE deleted_at IS NULL;</sql>
+        <sql>CREATE INDEX idx_obra_social_paciente_plan ON obra_social_paciente (plan_id);</sql>
+        <rollback>
+            <sql>DROP INDEX IF EXISTS uq_obra_social_paciente_paciente_plan;</sql>
+            <sql>DROP INDEX IF EXISTS idx_obra_social_paciente_plan;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

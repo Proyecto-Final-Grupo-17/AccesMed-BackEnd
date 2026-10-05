@@ -21,7 +21,7 @@ public class ValidacionException extends AccesMedException {
      */
     public ValidacionException(Class<?> origen, List<String> errores) {
 
-        super(origen, "VALIDACION", "La solicitud tiene errores de validación.", 422);
+        super(origen, "VALIDACION", "Hay datos incompletos o incorrectos. Revisá los campos indicados.", 422);
 
         this.errores = errores;
 
