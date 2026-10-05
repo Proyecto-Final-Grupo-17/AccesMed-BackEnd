@@ -35,6 +35,7 @@ public class PasswordResetTokenDomainService {
     //region ========== Constantes ==========
 
     private static final long EXPIRATION_HORAS = 1L;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     //endregion
 
@@ -52,7 +53,7 @@ public class PasswordResetTokenDomainService {
         log.debug("Generando password reset token para usuario id={}", usuario.getId());
 
         byte[] bytesAleatorios = new byte[32];
-        new SecureRandom().nextBytes(bytesAleatorios);
+        SECURE_RANDOM.nextBytes(bytesAleatorios);
         String tokenPlano = Base64.getUrlEncoder().withoutPadding().encodeToString(bytesAleatorios);
 
         PasswordResetToken passwordResetToken = new PasswordResetToken();

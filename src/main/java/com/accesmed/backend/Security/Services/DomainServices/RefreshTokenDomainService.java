@@ -35,6 +35,7 @@ public class RefreshTokenDomainService {
     //region ========== Constantes ==========
 
     private static final long EXPIRATION_DIAS = 7L;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     //endregion
 
@@ -52,7 +53,7 @@ public class RefreshTokenDomainService {
         log.debug("Generando refresh token para usuario id={}", usuario.getId());
 
         byte[] bytesAleatorios = new byte[32];
-        new SecureRandom().nextBytes(bytesAleatorios);
+        SECURE_RANDOM.nextBytes(bytesAleatorios);
         String tokenPlano = Base64.getUrlEncoder().withoutPadding().encodeToString(bytesAleatorios);
 
         RefreshToken refreshToken = new RefreshToken();

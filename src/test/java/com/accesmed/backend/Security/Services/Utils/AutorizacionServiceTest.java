@@ -12,6 +12,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,7 +37,7 @@ class AutorizacionServiceTest {
     void requireAuthority_usuarioTienePermiso_noLanza() {
         doReturn(List.of(new SimpleGrantedAuthority(Permiso.USER_ALTA.name()))).when(usuarioDetails).getAuthorities();
 
-        autorizacionService.requireAuthority(usuarioDetails, Permiso.USER_ALTA);
+        assertDoesNotThrow(() -> autorizacionService.requireAuthority(usuarioDetails, Permiso.USER_ALTA));
     }
 
     @Test
