@@ -1,0 +1,11 @@
+# El Dockerfile solo copia pom.xml y src/, pero todo lo demás igual viaja como contexto
+# de build: se excluye para que el build sea más rápido y no arrastre secretos locales.
+.git
+.github
+.idea
+.claude
+.env
+target
+Docs
+Scripts
+docker/dev

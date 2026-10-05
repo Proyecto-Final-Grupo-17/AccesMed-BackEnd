@@ -146,8 +146,12 @@ gestiona el BOM de Spring Boot se declaran sin `<version>`.
 
 ## Perfiles
 
-`dev` (local, Postgres por docker-compose), `staging`, `prod` (se definen luego).
-Activar con `SPRING_PROFILES_ACTIVE`. Config en `application-<perfil>.yml`.
+`dev` (local, Postgres por docker-compose), `staging`, `prod` (contenedores en el
+servidor, desplegados por `.github/workflows/deploy.yml` al pushear a `staging`/`main`;
+detalle en `Docs/DEPLOY.md`). Activar con `SPRING_PROFILES_ACTIVE`. Config en
+`application-<perfil>.yml`. Una property obligatoria nueva en `staging`/`prod` también
+va en `docker/deploy/docker-compose.yml` y `docker/deploy/.env.example`, y en el `.env`
+del servidor.
 
 **Secretos**: las variables sin default (`MAIL_USERNAME`, `MAIL_PASSWORD`,
 `ACCESMED_JWT_SECRET`) nunca se committean. En local salen de un `.env` en la raíz

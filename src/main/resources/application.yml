@@ -49,6 +49,12 @@ management:
   endpoint:
     health:
       show-details: never
+  # El health dice si la app está viva (lo usa el HEALTHCHECK del contenedor y el deploy).
+  # Sin esto, Spring incluye el login al SMTP de Gmail: un corte de Gmail o una contraseña
+  # faltante dejaría el contenedor `unhealthy`, y cada chequeo sería un login a Gmail.
+  health:
+    mail:
+      enabled: false
 
 accesmed:
   scheduler:

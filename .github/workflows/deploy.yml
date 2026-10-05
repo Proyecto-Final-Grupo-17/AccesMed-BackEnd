@@ -1,0 +1,170 @@
+name: Deploy
+
+# Despliega el backend al servidor (ver Docs/DEPLOY.md):
+#  - push a `staging` → entorno staging (/root/docker/accesmed/staging/back)
+#  - push a `main`    → entorno prod    (/root/docker/accesmed/prod/back)
+# También se puede relanzar a mano desde Actions (workflow_dispatch) sobre esas ramas.
+on:
+  push:
+    branches:
+      - staging
+      - main
+  workflow_dispatch:
+
+# Un deploy por rama a la vez; si llega otro push mientras corre, espera en vez de cortar
+# uno a medio camino.
+concurrency:
+  group: deploy-backend-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/proyecto-final-grupo-17/accesmed-backend
+
+jobs:
+  # Traduce la rama al entorno. Cualquier otra rama (workflow_dispatch) se rechaza.
+  resolve-env:
+    name: Resolve environment
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.env.outputs.env }}
+    steps:
+      - id: env
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            main)    echo "env=prod"    >> "$GITHUB_OUTPUT" ;;
+            staging) echo "env=staging" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Solo se despliega desde main o staging (rama: ${GITHUB_REF_NAME})"; exit 1 ;;
+          esac
+
+  # Mismos tests que el análisis de Sonar: no se publica una imagen que no pasa `verify`.
+  test:
+    name: Test
+    needs: resolve-env
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          java-version: '25'
+          distribution: 'oracle'
+          cache: maven
+
+      - name: Verify
+        run: ./mvnw -B verify
+
+  # Construye la imagen con docker/Dockerfile y la sube a GHCR con dos tags:
+  #  - `<entorno>` (staging | prod): el que usa el servidor;
+  #  - `sha-<commit>`: inmutable, para rollback.
+  build:
+    name: Build and push image
+    needs: [resolve-env, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # Builder docker-container: necesario para exportar el cache de capas al registry,
+      # así las dependencias de Maven no se bajan de cero en cada build.
+      - name: Set up buildx
+        run: docker buildx create --use --driver docker-container
+
+      - name: Build and push
+        run: |
+          docker buildx build \
+            --file docker/Dockerfile \
+            --tag "$IMAGE:${{ needs.resolve-env.outputs.env }}" \
+            --tag "$IMAGE:sha-${GITHUB_SHA::7}" \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --cache-from "type=registry,ref=$IMAGE:buildcache" \
+            --cache-to "type=registry,ref=$IMAGE:buildcache,mode=max" \
+            --push \
+            .
+
+  # Copia el compose al servidor, baja la imagen nueva, recrea el contenedor y espera a
+  # que el healthcheck (actuator/health) dé `healthy`. Si no, muestra los logs y falla.
+  deploy:
+    name: Deploy to server
+    needs: [resolve-env, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      ACCESMED_ENV: ${{ needs.resolve-env.outputs.env }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Los secrets entran por env (no interpolados en el script) para que una clave
+      # multilínea o un carácter especial no rompa el shell.
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host accesmed
+            HostName $SSH_HOST
+            Port $SSH_PORT
+            User $SSH_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Upload compose file
+        run: |
+          ssh accesmed "mkdir -p /root/docker/accesmed/$ACCESMED_ENV/back && cat > /root/docker/accesmed/$ACCESMED_ENV/back/docker-compose.yml" \
+            < docker/deploy/docker-compose.yml
+
+      # El token del job vence al terminar el workflow; igual se hace logout al final.
+      - name: Log in to GHCR on server
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | ssh accesmed "docker login ghcr.io -u ${{ github.actor }} --password-stdin"
+
+      - name: Pull and restart
+        run: |
+          ssh accesmed bash -s -- "$ACCESMED_ENV" <<'EOF'
+          set -euo pipefail
+          ENV="$1"
+          cd "/root/docker/accesmed/$ENV/back"
+          test -f .env || { echo "::error::Falta /root/docker/accesmed/$ENV/back/.env (ver docker/deploy/.env.example)"; exit 1; }
+          docker network inspect "accesmed-$ENV" >/dev/null 2>&1 || docker network create "accesmed-$ENV"
+          docker compose pull back
+          docker compose up -d --remove-orphans
+          CONTAINER="accesmed-$ENV-back"
+          for i in $(seq 1 36); do
+            STATUS=$(docker inspect -f '{{.State.Health.Status}}' "$CONTAINER")
+            echo "[$i/36] $CONTAINER: $STATUS"
+            if [ "$STATUS" = "healthy" ]; then
+              docker image prune -f >/dev/null
+              exit 0
+            fi
+            [ "$STATUS" = "unhealthy" ] && break
+            sleep 5
+          done
+          echo "::error::$CONTAINER no quedó healthy"
+          docker logs --tail 150 "$CONTAINER"
+          exit 1
+          EOF
+
+      - name: Log out from GHCR on server
+        if: always()
+        run: ssh accesmed "docker logout ghcr.io" || true

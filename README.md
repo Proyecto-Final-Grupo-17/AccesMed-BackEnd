@@ -222,8 +222,8 @@ docker compose restart        # reiniciar el contenedor sin recrearlo
 | Perfil | Estado | Base de datos |
 |--------|--------|---------------|
 | `dev` | Activo | Postgres local (docker-compose) |
-| `staging` | Por definir | — |
-| `prod` | Por definir | — |
+| `staging` | Activo | Postgres en Docker en el servidor ([`Docs/DEPLOY.md`](Docs/DEPLOY.md)) |
+| `prod` | Activo | Postgres en Docker en el servidor ([`Docs/DEPLOY.md`](Docs/DEPLOY.md)) |
 | `test` | Activo | Postgres efímera de Testcontainers |
 
 Se selecciona con la variable de entorno `SPRING_PROFILES_ACTIVE`. Config en
@@ -256,6 +256,7 @@ Las features se ramifican desde `develop` como `feature/<Entidad o funcionalidad
 | [`CLAUDE.md`](CLAUDE.md) | Contexto y convenciones para Claude Code |
 | [`Docs/ARQUITECTURA.md`](Docs/ARQUITECTURA.md) | Arquitectura, capas, estructura del repo, decisiones |
 | [`Docs/STACK.md`](Docs/STACK.md) | Stack tecnológico detallado, con versiones |
+| [`Docs/DEPLOY.md`](Docs/DEPLOY.md) | Pipeline de deploy, estructura del servidor, operación y rollback |
 | [`.claude/plans/PLAN-SETUP-CLAUDE-CODE.md`](.claude/plans/PLAN-SETUP-CLAUDE-CODE.md) | Plan de setup paso a paso |
 | [`Docs/FRONTEND-GUIA.md`](Docs/FRONTEND-GUIA.md) | Contrato de API para el frontend |
 | [`Docs/Security.md`](Docs/Security.md) | Cómo funciona Spring Security en este proyecto (JWT, filtros, autenticación y autorización) |
