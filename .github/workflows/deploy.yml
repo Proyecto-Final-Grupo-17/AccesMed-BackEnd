@@ -114,6 +114,19 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
+          # Valida los secrets antes de usarlos: un error acá dice cuál falta o está mal,
+          # en vez del "Bad configuration option" de ssh. Host, puerto y usuario se limpian
+          # de espacios/saltos de línea que suelen colarse al pegarlos.
+          SSH_HOST="$(printf '%s' "$SSH_HOST" | tr -d '[:space:]')"
+          SSH_PORT="$(printf '%s' "$SSH_PORT" | tr -d '[:space:]')"
+          SSH_USER="$(printf '%s' "$SSH_USER" | tr -d '[:space:]')"
+          for SECRET in SSH_HOST SSH_PORT SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do
+            [ -n "${!SECRET}" ] || { echo "::error::Falta el secret $SECRET (o está vacío)"; exit 1; }
+          done
+          case "$SSH_PORT" in
+            *[!0-9]*) echo "::error::El secret SSH_PORT tiene que ser solo el número de puerto"; exit 1 ;;
+          esac
+
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
