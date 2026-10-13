@@ -30,6 +30,7 @@ import com.accesmed.backend.Notifications.TurnoNotificacionEvent;
 import com.accesmed.backend.Notifications.TipoNotificacionTurno;
 import com.accesmed.backend.Security.Jwt.UsuarioDetails;
 import com.accesmed.backend.Security.Services.Utils.AlcanceMedicoService;
+import com.accesmed.backend.Services.DomainServices.AdminDomainService;
 import com.accesmed.backend.Services.DomainServices.AgendaHorariosDiaDomainService;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoTurnoDomainService;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
@@ -70,6 +71,7 @@ public class TurnoApp {
     //region ========== Dependencias o inyecciones ==========
 
     private final TurnoDomainService turnoDomainService;
+    private final AdminDomainService adminDomainService;
     private final HistoricoEstadoTurnoDomainService historicoEstadoTurnoDomainService;
     private final AgendaHorariosDiaDomainService agendaHorariosDiaDomainService;
     private final MedicoDomainService medicoDomainService;
@@ -402,19 +404,23 @@ public class TurnoApp {
      * Valida (aprueba o rechaza) un turno en estado ESPERA_VALIDACION.
      *
      * @param validateTurnoRequest {@code ValidateTurnoRequest} id del turno y aprobado (boolean)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada (el admin que valida)
      * @return {@code ValidateTurnoResponse} el turno con su nuevo estado
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está
      *         en estado ESPERA_VALIDACION
      */
     @Transactional
-    public ValidateTurnoResponse validateTurno(ValidateTurnoRequest validateTurnoRequest) {
+    public ValidateTurnoResponse validateTurno(ValidateTurnoRequest validateTurnoRequest, UsuarioDetails usuarioDetails) {
 
         log.info("Validación de turno iniciada: turnoId={}, aprobado={}",
                 validateTurnoRequest.id(), validateTurnoRequest.aprobado());
 
         //Buscar el turno
         var turnoExistente = turnoDomainService.findTurnoById(validateTurnoRequest.id());
+
+        //Buscar el admin que realiza la validación
+        var adminValidador = adminDomainService.findAdminActivoById(usuarioDetails.getAdminId());
 
         EstadoTurno estadoResultante;
 
@@ -427,7 +433,7 @@ public class TurnoApp {
             historicoEstadoTurnoDomainService.transitionEsperaValidacionToPendienteTurno(turnoExistente);
             estadoResultante = EstadoTurno.PENDIENTE;
             //Marcar indicaciones como validadas
-            indicacionPrestacionTurnoDomainService.marcarValidadas(indicacionesTurno);
+            indicacionPrestacionTurnoDomainService.marcarValidadas(indicacionesTurno, adminValidador);
             // No se publica notificación: la tabla de eventos no mapea ningún NOTIF para "validación aprobada"
             // (el paciente ya recibió NOTIF-1 al crear el turno y todavía falta que confirme).
         } else {
@@ -438,7 +444,7 @@ public class TurnoApp {
             historicoEstadoTurnoDomainService.transitionEsperaValidacionToCanceladoTurno(turnoExistente);
             estadoResultante = EstadoTurno.CANCELADO;
             //Marcar indicaciones como validadas (aunque sea rechazado, se marca la validación)
-            indicacionPrestacionTurnoDomainService.marcarValidadas(indicacionesTurno);
+            indicacionPrestacionTurnoDomainService.marcarValidadas(indicacionesTurno, adminValidador);
             applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.NO_VALIDADO, turnoExistente));
         }
 

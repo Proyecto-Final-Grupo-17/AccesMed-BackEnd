@@ -13,6 +13,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 /**
  * Lógica transaccional para las transiciones automáticas de turnos, dispuestas por
  * {@code TurnoScheduler}. Cada método es {@code @Transactional} y resuelve la atomicidad
@@ -20,6 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
  * queda íntegro sin cambios. Se inyecta como un bean separado para que Spring intercepte
  * las transacciones — si se llama desde el propio bean scheduler vía {@code this.metodo()},
  * el proxy no se activa y la transacción no se abre de verdad.
+ * Recibe el {@code id} del turno (no la entidad) y la recarga dentro de la propia
+ * transacción: la lista que arma {@code TurnoScheduler} se consulta fuera de transacción
+ * (con {@code open-in-view: false}), así que el {@code Turno} llega detached y cualquier
+ * asociación lazy sin inicializar (p. ej. {@code agendaHorarios}) tira
+ * {@code LazyInitializationException} al tocarla desde esta transacción nueva.
  */
 @Slf4j
 @Service
@@ -40,14 +47,13 @@ public class TurnoSchedulerService {
     /**
      * Confirma automáticamente un turno que venció su plazo de confirmación manual.
      * Transiciona de {@code PENDIENTE} a {@code CONFIRMADO} y publica el evento de
-     * notificación correspondiente. El turno se pasa ya cargado desde el scheduler para
-     * minimizar consultas a BD; si la recarga de estado falla (concurrencia), la
-     * transacción lo rollback intacto.
+     * notificación correspondiente.
      *
-     * @param turno {@code Turno} turno a confirmar, ya persistido y cargado
+     * @param turnoId {@code UUID} identificador del turno a confirmar
      */
     @Transactional
-    public void confirmarTurno(Turno turno) {
+    public void confirmarTurno(UUID turnoId) {
+        var turno = turnoDomainService.findTurnoById(turnoId);
         historicoEstadoTurnoDomainService.transitionPendienteToConfirmadoTurno(turno);
         applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.CONFIRMADO, turno));
     }
@@ -56,12 +62,13 @@ public class TurnoSchedulerService {
      * Vence la validación de un turno que agotó su plazo de aprobación/rechazo.
      * Libera el slot de agenda, marca el turno con motivo {@code VALIDACION_VENCIDA},
      * transiciona a {@code CANCELADO} y publica el evento de rechazo. Compone varias
-     * operaciones que deben ser todo-o-nada. El turno se pasa ya cargado.
+     * operaciones que deben ser todo-o-nada.
      *
-     * @param turno {@code Turno} turno cuya validación vence, ya persistido y cargado
+     * @param turnoId {@code UUID} identificador del turno cuya validación vence
      */
     @Transactional
-    public void vencerValidacionTurno(Turno turno) {
+    public void vencerValidacionTurno(UUID turnoId) {
+        var turno = turnoDomainService.findTurnoById(turnoId);
         agendaHorariosDiaDomainService.releaseAgendaHorario(turno.getAgendaHorarios());
         turno.setMotivoCancelacion(MotivoCancelacion.VALIDACION_VENCIDA);
         turnoDomainService.saveTurno(turno);
@@ -72,12 +79,13 @@ public class TurnoSchedulerService {
     /**
      * Marca automáticamente un turno como ausente después de que agotó su plazo de
      * anuncio tardío. Transiciona de {@code CONFIRMADO} a {@code AUSENTE} y publica
-     * el evento correspondiente. El turno se pasa ya cargado.
+     * el evento correspondiente.
      *
-     * @param turno {@code Turno} turno a marcar como ausente, ya persistido y cargado
+     * @param turnoId {@code UUID} identificador del turno a marcar como ausente
      */
     @Transactional
-    public void marcarAusenteTurno(Turno turno) {
+    public void marcarAusenteTurno(UUID turnoId) {
+        var turno = turnoDomainService.findTurnoById(turnoId);
         historicoEstadoTurnoDomainService.transitionToAusenteTurno(turno);
         applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.AUSENTE, turno));
     }
@@ -85,12 +93,12 @@ public class TurnoSchedulerService {
     /**
      * Envía un recordatorio de confirmación al paciente de un turno que aún espera
      * confirmación. No transiciona estado: solo publica el evento de notificación.
-     * El turno se pasa ya cargado.
      *
-     * @param turno {@code Turno} turno para recordar confirmación, ya persistido y cargado
+     * @param turnoId {@code UUID} identificador del turno para recordar confirmación
      */
     @Transactional
-    public void recordarConfirmacionTurno(Turno turno) {
+    public void recordarConfirmacionTurno(UUID turnoId) {
+        var turno = turnoDomainService.findTurnoById(turnoId);
         applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.RECORDATORIO_CONFIRMACION, turno));
     }
 

@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests unitarios de {@link TurnoSchedulerService}:
@@ -65,13 +66,15 @@ class TurnoSchedulerServiceTest {
         Prestacion prestacion = new Prestacion();
         prestacion.setNombre("Test Prestacion");
         turno.setPrestacion(prestacion);
+
+        when(turnoDomainService.findTurnoById(turno.getId())).thenReturn(turno);
     }
 
     // region ========== confirmarTurno ==========
 
     @Test
     void confirmarTurno_ejecutaTransicionYPublicaEventoConfirmado() {
-        turnoSchedulerService.confirmarTurno(turno);
+        turnoSchedulerService.confirmarTurno(turno.getId());
 
         verify(historicoEstadoTurnoDomainService).transitionPendienteToConfirmadoTurno(turno);
 
@@ -90,7 +93,7 @@ class TurnoSchedulerServiceTest {
         AgendaHorariosDia agendaHorarios = new AgendaHorariosDia();
         turno.setAgendaHorarios(agendaHorarios);
 
-        turnoSchedulerService.vencerValidacionTurno(turno);
+        turnoSchedulerService.vencerValidacionTurno(turno.getId());
 
         verify(agendaHorariosDiaDomainService).releaseAgendaHorario(agendaHorarios);
         assertEquals(MotivoCancelacion.VALIDACION_VENCIDA, turno.getMotivoCancelacion());
@@ -109,7 +112,7 @@ class TurnoSchedulerServiceTest {
 
     @Test
     void marcarAusenteTurno_transicionaYPublicaEventoAusente() {
-        turnoSchedulerService.marcarAusenteTurno(turno);
+        turnoSchedulerService.marcarAusenteTurno(turno.getId());
 
         verify(historicoEstadoTurnoDomainService).transitionToAusenteTurno(turno);
 
@@ -125,7 +128,7 @@ class TurnoSchedulerServiceTest {
 
     @Test
     void recordarConfirmacionTurno_soloPublicaEventoSinTransicionar() {
-        turnoSchedulerService.recordarConfirmacionTurno(turno);
+        turnoSchedulerService.recordarConfirmacionTurno(turno.getId());
 
         verify(historicoEstadoTurnoDomainService, org.mockito.Mockito.never()).transitionPendienteToConfirmadoTurno(turno);
 

@@ -1,5 +1,6 @@
 package com.accesmed.backend.Services.DomainServices;
 
+import com.accesmed.backend.Domain.Admin;
 import com.accesmed.backend.Domain.IndicacionPrestacionTurno;
 import com.accesmed.backend.Repositories.IndicacionPrestacionTurnoRepository;
 import lombok.RequiredArgsConstructor;
@@ -58,13 +59,14 @@ public class IndicacionPrestacionTurnoDomainService {
 
     /**
      * Marca las indicaciones que requieren validación como validadas, estableciendo
-     * la fecha y hora actual de validación. Solo afecta a indicaciones donde
-     * {@code indicacionPrestacion.requiereValidacion} es {@code true} y
+     * la fecha y hora actual de validación y el admin que la realizó. Solo afecta a
+     * indicaciones donde {@code indicacionPrestacion.requiereValidacion} es {@code true} y
      * {@code fechaHoraValidacion} aún es {@code null}.
      *
      * @param indicaciones {@code List<IndicacionPrestacionTurno>} indicaciones a procesar
+     * @param admin {@code Admin} administrador que realiza la validación
      */
-    public void marcarValidadas(List<IndicacionPrestacionTurno> indicaciones) {
+    public void marcarValidadas(List<IndicacionPrestacionTurno> indicaciones, Admin admin) {
 
         log.debug("Marcando {} indicaciones como validadas", indicaciones.size());
 
@@ -75,6 +77,7 @@ public class IndicacionPrestacionTurnoDomainService {
 
         for (IndicacionPrestacionTurno indicacion : indicacionesAActualizar) {
             indicacion.setFechaHoraValidacion(ZonedDateTime.now());
+            indicacion.setValidadoPor(admin);
         }
 
         if (!indicacionesAActualizar.isEmpty()) {
