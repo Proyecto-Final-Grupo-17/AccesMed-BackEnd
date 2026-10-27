@@ -11,6 +11,7 @@ import com.accesmed.backend.Records.Turno.Response.ConfirmTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.FinishTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.StartAtencionTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.StartSalaDeEsperaTurnoResponse;
+import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 import com.accesmed.backend.Services.DomainServices.AgendaHorariosDiaDomainService;
@@ -42,6 +43,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -103,8 +105,14 @@ class TurnoAppTest {
         turnoExistente = new Turno();
         turnoExistente.setId(turnoId);
         turnoExistente.setCodigo("TURNO_12345678");
-        turnoExistente.setFechaHoraInicio(ZonedDateTime.now().plusDays(1));
+        turnoExistente.setFechaHoraInicio(ZonedDateTime.now().plusMinutes(15));
         turnoExistente.setMontoAPagar(BigDecimal.valueOf(100.00));
+
+        //Fechas límite coherentes con el horario del turno (now+15 min)
+        turnoExistente.setFechaLimiteConfirmacion(ZonedDateTime.now().plusHours(12));
+        turnoExistente.setFechaLimiteAnuncioTemprano(ZonedDateTime.now().minusMinutes(30));
+        turnoExistente.setFechaLimiteAnuncioTardio(ZonedDateTime.now().plusHours(1));
+        turnoExistente.setFechaLimiteCancelacion(ZonedDateTime.now().plusHours(6));
 
         Paciente paciente = new Paciente();
         paciente.setId(UUID.randomUUID());
@@ -249,6 +257,59 @@ class TurnoAppTest {
 
         verify(historicoEstadoTurnoDomainService).transitionEnCursoToFinalizadoTurno(turnoExistente);
         verify(applicationEventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
+    }
+
+    // region ========== Validaciones temporales (casos de error) ==========
+
+    @Test
+    void confirmTurno_plazoDeConfirmacionVencido_lanzaReglaNegocio() {
+        turnoExistente.setFechaLimiteConfirmacion(ZonedDateTime.now().minusHours(1));
+
+        when(turnoDomainService.findTurnoById(turnoId)).thenReturn(turnoExistente);
+
+        assertThrows(ReglaNegocioException.class, () -> turnoApp.confirmTurno(turnoId));
+
+        verify(historicoEstadoTurnoDomainService, never())
+                .transitionPendienteToConfirmadoTurno(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void startSalaDeEsperaTurno_llegadaAnticipada_lanzaReglaNegocio() {
+        turnoExistente.setFechaLimiteAnuncioTemprano(ZonedDateTime.now().plusHours(2));
+
+        when(turnoDomainService.findTurnoById(turnoId)).thenReturn(turnoExistente);
+
+        assertThrows(ReglaNegocioException.class,
+                () -> turnoApp.startSalaDeEsperaTurno(turnoId, usuarioDetails));
+
+        verify(historicoEstadoTurnoDomainService, never())
+                .transitionConfirmadoToEnSalaDeEsperaTurno(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void startSalaDeEsperaTurno_llegadaTardia_lanzaReglaNegocio() {
+        turnoExistente.setFechaLimiteAnuncioTardio(ZonedDateTime.now().minusHours(1));
+
+        when(turnoDomainService.findTurnoById(turnoId)).thenReturn(turnoExistente);
+
+        assertThrows(ReglaNegocioException.class,
+                () -> turnoApp.startSalaDeEsperaTurno(turnoId, usuarioDetails));
+
+        verify(historicoEstadoTurnoDomainService, never())
+                .transitionConfirmadoToEnSalaDeEsperaTurno(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void startAtencionTurno_llegadaAnticipada_lanzaReglaNegocio() {
+        turnoExistente.setFechaLimiteAnuncioTemprano(ZonedDateTime.now().plusHours(2));
+
+        when(turnoDomainService.findTurnoById(turnoId)).thenReturn(turnoExistente);
+
+        assertThrows(ReglaNegocioException.class,
+                () -> turnoApp.startAtencionTurno(turnoId, usuarioDetails));
+
+        verify(historicoEstadoTurnoDomainService, never())
+                .transitionEnSalaDeEsperaToEnCursoTurno(org.mockito.ArgumentMatchers.any());
     }
 
 }

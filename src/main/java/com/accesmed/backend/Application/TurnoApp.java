@@ -46,6 +46,7 @@ import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.TurnoMapper;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -364,8 +365,8 @@ public class TurnoApp {
      * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code CancelTurnoResponse} el turno cancelado
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno está en un
-     *         estado final y no puede ser cancelado
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno está en estado final,
+     *         o si el motivo es {@code SOLICITUD_DEL_PACIENTE} y el plazo de cancelación ya venció
      */
     @Transactional
     public CancelTurnoResponse cancelTurno(CancelTurnoRequest cancelTurnoRequest, UsuarioDetails usuarioDetails) {
@@ -378,12 +379,23 @@ public class TurnoApp {
         //Validar que el médico del turno pertenece al usuario autenticado (si es médico)
         alcanceMedicoService.validateMedicoPropietario(usuarioDetails, turnoExistente.getMedico().getId());
 
+        //Determinar motivo de cancelación (por defecto SOLICITUD_DEL_PACIENTE)
+        var motivoCancelacion = cancelTurnoRequest.motivo() != null
+                ? cancelTurnoRequest.motivo() : MotivoCancelacion.SOLICITUD_DEL_PACIENTE;
+
+        //Validar plazo de cancelación cuando la inicia el paciente
+        if (motivoCancelacion == MotivoCancelacion.SOLICITUD_DEL_PACIENTE) {
+            ZonedDateTime ahora = ZonedDateTime.now();
+            if (ahora.isAfter(turnoExistente.getFechaLimiteCancelacion())) {
+                log.warn("No se pudo cancelar turno {}: plazo de cancelación vencido", cancelTurnoRequest.id());
+                throw new ReglaNegocioException(getClass(), "TURNO_FUERA_DE_PLAZO_CANCELACION",
+                        "Ya pasó el plazo para cancelar este turno.");
+            }
+        }
+
         //Liberar el slot
         agendaHorariosDiaDomainService.releaseAgendaHorario(turnoExistente.getAgendaHorarios());
 
-        //Establecer motivo de cancelación (por defecto SOLICITUD_DEL_PACIENTE)
-        var motivoCancelacion = cancelTurnoRequest.motivo() != null
-                ? cancelTurnoRequest.motivo() : MotivoCancelacion.SOLICITUD_DEL_PACIENTE;
         turnoExistente.setMotivoCancelacion(motivoCancelacion);
         turnoDomainService.saveTurno(turnoExistente);
 
@@ -463,7 +475,7 @@ public class TurnoApp {
      * @return {@code ConfirmTurnoResponse} el turno confirmado
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está
-     *         en estado PENDIENTE
+     *         en estado {@code PENDIENTE} o el plazo de confirmación ya venció
      */
     @Transactional
     public ConfirmTurnoResponse confirmTurno(UUID id) {
@@ -471,6 +483,15 @@ public class TurnoApp {
         log.info("Confirmación de turno iniciada: turnoId={}", id);
 
         var turnoExistente = turnoDomainService.findTurnoById(id);
+
+        //Validar que el plazo de confirmación no haya vencido
+        ZonedDateTime ahora = ZonedDateTime.now();
+        if (ahora.isAfter(turnoExistente.getFechaLimiteConfirmacion())) {
+            log.warn("No se pudo confirmar turno {}: plazo de confirmación vencido", id);
+            throw new ReglaNegocioException(getClass(), "TURNO_FUERA_DE_PLAZO_CONFIRMACION",
+                    "Ya pasó el plazo para confirmar este turno.");
+        }
+
         historicoEstadoTurnoDomainService.transitionPendienteToConfirmadoTurno(turnoExistente);
         applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.CONFIRMADO, turnoExistente));
 
@@ -486,8 +507,9 @@ public class TurnoApp {
      * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code StartSalaDeEsperaTurnoResponse} el turno en sala de espera
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está
-     *         en estado CONFIRMADO
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está en estado
+     *         {@code CONFIRMADO}, la llegada es anterior a {@code fechaLimiteAnuncioTemprano}
+     *         o posterior a {@code fechaLimiteAnuncioTardio}
      */
     @Transactional
     public StartSalaDeEsperaTurnoResponse startSalaDeEsperaTurno(UUID id, UsuarioDetails usuarioDetails) {
@@ -498,6 +520,21 @@ public class TurnoApp {
 
         //Validar que el médico del turno pertenece al usuario autenticado (si es médico)
         alcanceMedicoService.validateMedicoPropietario(usuarioDetails, turnoExistente.getMedico().getId());
+
+        //Validar que la llegada esté dentro de la ventana de anuncio del turno
+        ZonedDateTime ahora = ZonedDateTime.now();
+        if (ahora.isBefore(turnoExistente.getFechaLimiteAnuncioTemprano())) {
+            log.warn("No se pudo registrar sala de espera para turno {}: llegada anticipada al horario del turno", id);
+            throw new ReglaNegocioException(getClass(), "TURNO_ANUNCIO_ANTICIPADO",
+                    "Todavía no es posible registrar la llegada del paciente. El turno es el "
+                            + FormatoMensaje.fechaHora(turnoExistente.getFechaHoraInicio()) + ".");
+        }
+        if (ahora.isAfter(turnoExistente.getFechaLimiteAnuncioTardio())) {
+            log.warn("No se pudo registrar sala de espera para turno {}: plazo de llegada vencido", id);
+            throw new ReglaNegocioException(getClass(), "TURNO_ANUNCIO_TARDIO",
+                    "Ya pasó el plazo para registrar la llegada del paciente.");
+        }
+
         historicoEstadoTurnoDomainService.transitionConfirmadoToEnSalaDeEsperaTurno(turnoExistente);
 
         return turnoMapper.toStartSalaDeEsperaResponse(turnoExistente, EstadoTurno.EN_SALA_DE_ESPERA);
@@ -512,8 +549,8 @@ public class TurnoApp {
      * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code StartAtencionTurnoResponse} el turno en atención
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está
-     *         en estado EN_SALA_DE_ESPERA
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está en estado
+     *         {@code EN_SALA_DE_ESPERA} o la atención se intenta antes de {@code fechaLimiteAnuncioTemprano}
      */
     @Transactional
     public StartAtencionTurnoResponse startAtencionTurno(UUID id, UsuarioDetails usuarioDetails) {
@@ -524,6 +561,16 @@ public class TurnoApp {
 
         //Validar que el médico del turno pertenece al usuario autenticado (si es médico)
         alcanceMedicoService.validateMedicoPropietario(usuarioDetails, turnoExistente.getMedico().getId());
+
+        //Validar que no se inicie la atención antes de la ventana del turno
+        ZonedDateTime ahora = ZonedDateTime.now();
+        if (ahora.isBefore(turnoExistente.getFechaLimiteAnuncioTemprano())) {
+            log.warn("No se pudo iniciar atención para turno {}: demasiado anticipado al horario del turno", id);
+            throw new ReglaNegocioException(getClass(), "TURNO_ATENCION_ANTICIPADA",
+                    "Todavía no es posible iniciar la atención. El turno es el "
+                            + FormatoMensaje.fechaHora(turnoExistente.getFechaHoraInicio()) + ".");
+        }
+
         historicoEstadoTurnoDomainService.transitionEnSalaDeEsperaToEnCursoTurno(turnoExistente);
 
         return turnoMapper.toStartAtencionResponse(turnoExistente, EstadoTurno.EN_CURSO);
