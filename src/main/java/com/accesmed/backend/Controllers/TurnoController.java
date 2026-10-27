@@ -146,6 +146,7 @@ public class TurnoController {
      *
      * @param id {@code UUID} identificador del turno a validar (validado contra el request)
      * @param validateTurnoRequest {@code ValidateTurnoRequest} id y aprobado (boolean)
+     * @param usuarioDetails {@code UsuarioDetails} identidad autenticada (inyectado por Spring Security)
      * @return {@code ResponseEntity<ValidateTurnoResponse>} el turno con su nuevo estado y status 200
      * @throws ValidacionException {@code ValidacionException} si el id de la ruta no coincide con el del body
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
@@ -155,7 +156,8 @@ public class TurnoController {
     @PatchMapping("/Turno/{id}/Validacion")
     public ResponseEntity<ValidateTurnoResponse> validateTurno(
             @PathVariable UUID id,
-            @Valid @RequestBody ValidateTurnoRequest validateTurnoRequest) {
+            @Valid @RequestBody ValidateTurnoRequest validateTurnoRequest,
+            @AuthenticationPrincipal UsuarioDetails usuarioDetails) {
 
         log.info("Solicitud recibida: validar turno id={}, aprobado={}", id, validateTurnoRequest.aprobado());
 
@@ -166,7 +168,7 @@ public class TurnoController {
                     java.util.List.of("El identificador indicado en la dirección no coincide con el de los datos enviados."));
         }
 
-        ValidateTurnoResponse validateTurnoResponse = turnoApp.validateTurno(validateTurnoRequest);
+        ValidateTurnoResponse validateTurnoResponse = turnoApp.validateTurno(validateTurnoRequest, usuarioDetails);
 
         return ResponseEntity.ok(validateTurnoResponse);
 

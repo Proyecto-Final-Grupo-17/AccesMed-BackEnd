@@ -56,7 +56,7 @@ public class TurnoScheduler {
         for (Turno turno : turnos) {
             if (ahora.isAfter(turno.getFechaLimiteConfirmacion())) {
                 try {
-                    turnoSchedulerService.confirmarTurno(turno);
+                    turnoSchedulerService.confirmarTurno(turno.getId());
                 } catch (RuntimeException excepcion) {
                     log.error("Fallo confirmando automáticamente el turno {}", turno.getId(), excepcion);
                 }
@@ -79,7 +79,7 @@ public class TurnoScheduler {
         for (Turno turno : turnos) {
             if (ahora.isAfter(turno.getFechaLimiteValidacion())) {
                 try {
-                    turnoSchedulerService.vencerValidacionTurno(turno);
+                    turnoSchedulerService.vencerValidacionTurno(turno.getId());
                 } catch (RuntimeException excepcion) {
                     log.error("Fallo venciendo la validación del turno {}", turno.getId(), excepcion);
                 }
@@ -102,7 +102,7 @@ public class TurnoScheduler {
         for (Turno turno : turnos) {
             if (ahora.isAfter(turno.getFechaLimiteAnuncioTardio())) {
                 try {
-                    turnoSchedulerService.marcarAusenteTurno(turno);
+                    turnoSchedulerService.marcarAusenteTurno(turno.getId());
                 } catch (RuntimeException excepcion) {
                     log.error("Fallo marcando ausente el turno {}", turno.getId(), excepcion);
                 }
@@ -125,7 +125,7 @@ public class TurnoScheduler {
         for (Turno turno : turnos) {
             if (ahora.isAfter(turno.getFechaHoraRecordatorioConfirmacion())) {
                 try {
-                    turnoSchedulerService.recordarConfirmacionTurno(turno);
+                    turnoSchedulerService.recordarConfirmacionTurno(turno.getId());
                 } catch (RuntimeException excepcion) {
                     log.error("Fallo recordando confirmación del turno {}", turno.getId(), excepcion);
                 }

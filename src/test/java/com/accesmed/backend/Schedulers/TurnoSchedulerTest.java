@@ -72,8 +72,8 @@ class TurnoSchedulerTest {
 
         turnoScheduler.confirmarTurnosVencidos();
 
-        verify(turnoSchedulerService, times(1)).confirmarTurno(turnoVencido);
-        verify(turnoSchedulerService, never()).confirmarTurno(turnoFuturo);
+        verify(turnoSchedulerService, times(1)).confirmarTurno(turnoVencido.getId());
+        verify(turnoSchedulerService, never()).confirmarTurno(turnoFuturo.getId());
     }
 
     @Test
@@ -86,13 +86,13 @@ class TurnoSchedulerTest {
                 .thenReturn(List.of(turnoVencido, turnoVencido2));
 
         doThrow(new RuntimeException("Simulated failure"))
-                .when(turnoSchedulerService).confirmarTurno(turnoVencido);
-        doNothing().when(turnoSchedulerService).confirmarTurno(turnoVencido2);
+                .when(turnoSchedulerService).confirmarTurno(turnoVencido.getId());
+        doNothing().when(turnoSchedulerService).confirmarTurno(turnoVencido2.getId());
 
         turnoScheduler.confirmarTurnosVencidos();
 
-        verify(turnoSchedulerService, times(1)).confirmarTurno(turnoVencido);
-        verify(turnoSchedulerService, times(1)).confirmarTurno(turnoVencido2);
+        verify(turnoSchedulerService, times(1)).confirmarTurno(turnoVencido.getId());
+        verify(turnoSchedulerService, times(1)).confirmarTurno(turnoVencido2.getId());
     }
 
     // region ========== vencerValidacionesTurno ==========
@@ -108,8 +108,8 @@ class TurnoSchedulerTest {
 
         turnoScheduler.vencerValidacionesTurno();
 
-        verify(turnoSchedulerService, times(1)).vencerValidacionTurno(turnoVencido);
-        verify(turnoSchedulerService, never()).vencerValidacionTurno(turnoFuturo);
+        verify(turnoSchedulerService, times(1)).vencerValidacionTurno(turnoVencido.getId());
+        verify(turnoSchedulerService, never()).vencerValidacionTurno(turnoFuturo.getId());
     }
 
     @Test
@@ -125,13 +125,13 @@ class TurnoSchedulerTest {
                 .thenReturn(List.of(turnoVencido, turnoVencido2));
 
         doThrow(new RuntimeException("Simulated failure"))
-                .when(turnoSchedulerService).vencerValidacionTurno(turnoVencido);
-        doNothing().when(turnoSchedulerService).vencerValidacionTurno(turnoVencido2);
+                .when(turnoSchedulerService).vencerValidacionTurno(turnoVencido.getId());
+        doNothing().when(turnoSchedulerService).vencerValidacionTurno(turnoVencido2.getId());
 
         turnoScheduler.vencerValidacionesTurno();
 
-        verify(turnoSchedulerService, times(1)).vencerValidacionTurno(turnoVencido);
-        verify(turnoSchedulerService, times(1)).vencerValidacionTurno(turnoVencido2);
+        verify(turnoSchedulerService, times(1)).vencerValidacionTurno(turnoVencido.getId());
+        verify(turnoSchedulerService, times(1)).vencerValidacionTurno(turnoVencido2.getId());
     }
 
     // region ========== marcarAusentesTurno ==========
@@ -147,8 +147,8 @@ class TurnoSchedulerTest {
 
         turnoScheduler.marcarAusentesTurno();
 
-        verify(turnoSchedulerService, times(1)).marcarAusenteTurno(turnoVencido);
-        verify(turnoSchedulerService, never()).marcarAusenteTurno(turnoFuturo);
+        verify(turnoSchedulerService, times(1)).marcarAusenteTurno(turnoVencido.getId());
+        verify(turnoSchedulerService, never()).marcarAusenteTurno(turnoFuturo.getId());
     }
 
     @Test
@@ -164,13 +164,13 @@ class TurnoSchedulerTest {
                 .thenReturn(List.of(turnoVencido, turnoVencido2));
 
         doThrow(new RuntimeException("Simulated failure"))
-                .when(turnoSchedulerService).marcarAusenteTurno(turnoVencido);
-        doNothing().when(turnoSchedulerService).marcarAusenteTurno(turnoVencido2);
+                .when(turnoSchedulerService).marcarAusenteTurno(turnoVencido.getId());
+        doNothing().when(turnoSchedulerService).marcarAusenteTurno(turnoVencido2.getId());
 
         turnoScheduler.marcarAusentesTurno();
 
-        verify(turnoSchedulerService, times(1)).marcarAusenteTurno(turnoVencido);
-        verify(turnoSchedulerService, times(1)).marcarAusenteTurno(turnoVencido2);
+        verify(turnoSchedulerService, times(1)).marcarAusenteTurno(turnoVencido.getId());
+        verify(turnoSchedulerService, times(1)).marcarAusenteTurno(turnoVencido2.getId());
     }
 
     // region ========== recordarConfirmacionTurno ==========
@@ -186,8 +186,8 @@ class TurnoSchedulerTest {
 
         turnoScheduler.recordarConfirmacionTurno();
 
-        verify(turnoSchedulerService, times(1)).recordarConfirmacionTurno(turnoVencido);
-        verify(turnoSchedulerService, never()).recordarConfirmacionTurno(turnoFuturo);
+        verify(turnoSchedulerService, times(1)).recordarConfirmacionTurno(turnoVencido.getId());
+        verify(turnoSchedulerService, never()).recordarConfirmacionTurno(turnoFuturo.getId());
     }
 
     @Test
@@ -203,13 +203,13 @@ class TurnoSchedulerTest {
                 .thenReturn(List.of(turnoVencido, turnoVencido2));
 
         doThrow(new RuntimeException("Simulated failure"))
-                .when(turnoSchedulerService).recordarConfirmacionTurno(turnoVencido);
-        doNothing().when(turnoSchedulerService).recordarConfirmacionTurno(turnoVencido2);
+                .when(turnoSchedulerService).recordarConfirmacionTurno(turnoVencido.getId());
+        doNothing().when(turnoSchedulerService).recordarConfirmacionTurno(turnoVencido2.getId());
 
         turnoScheduler.recordarConfirmacionTurno();
 
-        verify(turnoSchedulerService, times(1)).recordarConfirmacionTurno(turnoVencido);
-        verify(turnoSchedulerService, times(1)).recordarConfirmacionTurno(turnoVencido2);
+        verify(turnoSchedulerService, times(1)).recordarConfirmacionTurno(turnoVencido.getId());
+        verify(turnoSchedulerService, times(1)).recordarConfirmacionTurno(turnoVencido2.getId());
     }
 
 }

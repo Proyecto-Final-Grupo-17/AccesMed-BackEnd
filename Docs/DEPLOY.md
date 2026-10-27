@@ -88,6 +88,10 @@ docker compose restart back               # reiniciar sin recrear
 **Cambiar una variable** (por ejemplo `MAIL_PASSWORD`): editar el `.env` y
 `docker compose up -d` (recrea el contenedor con el valor nuevo).
 
+Excepciones: `POSTGRES_PASSWORD` no se cambia una vez creada la base (Postgres guarda la
+de la primera inicialización), y `ACCESMED_SUPERADMIN_PASSWORD` solo se usa para crear el
+SuperAdmin en el primer arranque: después su contraseña se cambia desde la app.
+
 **Rollback**: en el `.env` poner `IMAGE_TAG=sha-<commit>` (los tags están en GHCR) y
 `docker compose up -d`. El siguiente deploy por workflow no toca `IMAGE_TAG`: para volver
 al flujo normal, restaurar `IMAGE_TAG=<entorno>`.
