@@ -562,6 +562,16 @@ public class TurnoApp {
         //Validar que el médico del turno pertenece al usuario autenticado (si es médico)
         alcanceMedicoService.validateMedicoPropietario(usuarioDetails, turnoExistente.getMedico().getId());
 
+        //Pre-verificar estado sin ejecutar la transición: el error de estado tiene prioridad
+        //sobre el temporal (el turno ni siquiera está en sala de espera para atenderse)
+        EstadoTurno estadoVigenteAtencion = historicoEstadoTurnoDomainService.getEstadoVigente(turnoExistente.getId());
+        if (estadoVigenteAtencion != EstadoTurno.EN_SALA_DE_ESPERA) {
+            log.warn("No se pudo iniciar atención para turno {}: estado vigente {} no es EN_SALA_DE_ESPERA", id, estadoVigenteAtencion);
+            throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
+                    "Esta acción solo se puede realizar sobre un turno que está en sala de espera. El turno está "
+                            + FormatoMensaje.estado(estadoVigenteAtencion) + ".");
+        }
+
         //Validar que no se inicie la atención antes de la ventana del turno
         ZonedDateTime ahora = ZonedDateTime.now();
         if (ahora.isBefore(turnoExistente.getFechaLimiteAnuncioTemprano())) {

@@ -206,6 +206,8 @@ class TurnoAppTest {
         UUID prestacionId = turnoExistente.getPrestacion().getId();
 
         when(turnoDomainService.findTurnoById(turnoId)).thenReturn(turnoExistente);
+        when(historicoEstadoTurnoDomainService.getEstadoVigente(turnoId))
+                .thenReturn(EstadoTurno.EN_SALA_DE_ESPERA);
         when(turnoMapper.toStartAtencionResponse(turnoExistente, EstadoTurno.EN_CURSO))
                 .thenReturn(new StartAtencionTurnoResponse(
                         turnoId,
@@ -304,6 +306,9 @@ class TurnoAppTest {
         turnoExistente.setFechaLimiteAnuncioTemprano(ZonedDateTime.now().plusHours(2));
 
         when(turnoDomainService.findTurnoById(turnoId)).thenReturn(turnoExistente);
+        //Estado correcto para que el check temporal sea el que dispare el error
+        when(historicoEstadoTurnoDomainService.getEstadoVigente(turnoId))
+                .thenReturn(EstadoTurno.EN_SALA_DE_ESPERA);
 
         assertThrows(ReglaNegocioException.class,
                 () -> turnoApp.startAtencionTurno(turnoId, usuarioDetails));
