@@ -20,9 +20,9 @@
 
 ## Chatbot de WhatsApp (en progreso)
 
-Roadmap de implementación del chatbot (agente Flowise). Doc del chatbot en
-`Docs/Chatbot/` (contrato: `Docs/Chatbot/CONTRATO-AGENTE.md`); repo del agente:
-`AccesMed-Flowise` (hermano). Topología pasamanos:
+Roadmap de implementación del chatbot (agente Flowise). Doc del chatbot:
+`Docs/Features/Chatbot.md`; repo del agente: `AccesMed-Flowise` (hermano).
+Topología pasamanos:
 `WhatsApp → Chatwoot → back → Flowise → back → Chatwoot`.
 
 **Dónde estamos hoy (2026-11-03):** diseño cerrado y contrato escrito. Falta implementar
