@@ -1124,7 +1124,7 @@ Aplicado en `Especialidad`, `Plan`, `ObraSocial`, `TipoIndicacionPrestacion` e
 su `/Buscar` si hace falta (requiere resolver también las indicaciones anidadas del
 response, como hace `ObraSocialQueryService.findObraSocialByCriteria` con sus planes).
 
-Contrato para el front: ver `Docs/FILTRADO-DINAMICO.md`.
+Contrato para el front: ver `Otros/FILTRADO-DINAMICO.md`.
 
 **Soft delete y vigencia: filtro implícito, no expuesto en el Criteria.** Resolvía la nota
 "pendiente de definir" de una versión anterior de esta sección: no es un helper genérico en

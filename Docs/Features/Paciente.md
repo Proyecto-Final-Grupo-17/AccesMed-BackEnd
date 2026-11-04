@@ -91,7 +91,7 @@ Mismo contrato que `CreatePacienteResponse`.
 
 ### Buscar paciente — `GET /accesmed-api/Paciente/Paciente/Buscar`
 
-Recibe filtros de [filtrado dinámico](../FILTRADO-DINAMICO.md) (`id`, `dni`, `nombre`,
+Recibe filtros de [filtrado dinámico](../Otros/FILTRADO-DINAMICO.md) (`id`, `dni`, `nombre`,
 `apellido`, `email`, `numeroTelefono`, `createdDate`, `lastModifiedDate`) y devuelve el
 primer paciente activo que los cumple, con el mismo contrato que `GetPacienteResponse`.
 Pensado para criterios puntuales (ej. `numeroTelefono.equals`, para resolver al paciente

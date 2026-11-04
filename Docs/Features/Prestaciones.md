@@ -98,7 +98,7 @@
 ### Buscar tipo de indicación — `GET /accesmed-api/TipoIndicacionPrestacion/TipoIndicacionPrestacion/Buscar`
 
 Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
-[`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md) para el formato completo de filtros.
+[`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md) para el formato completo de filtros.
 
 **Query params** — `TipoIndicacionPrestacionCriteria`: `id`, `codigo`, `nombre`,
 `createdDate`, `lastModifiedDate`.
@@ -118,7 +118,7 @@ Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
 
 ### Listar tipos de indicación — `GET /accesmed-api/TipoIndicacionPrestacion/TipoIndicacionPrestacion`
 
-Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md).
 
 **Query params** — `TipoIndicacionPrestacionCriteria` (`id`, `codigo`, `nombre`,
 `createdDate`, `lastModifiedDate`) + paginación (`page`, `size`, `sort`).
@@ -363,7 +363,7 @@ implementa cuando esos módulos existan.
 
 ### Listar prestaciones — `GET /accesmed-api/Prestacion/Prestacion`
 
-Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md).
 
 **Flujo simplificado:**
 1. Recupera las prestaciones que cumplen el criteria (sin filtros = todas).
@@ -479,7 +479,7 @@ prestación (a diferencia del soft delete, que siempre es de a una).
 ### Buscar indicación de prestación — `GET /accesmed-api/IndicacionPrestacion/IndicacionPrestacion/Buscar`
 
 Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
-[`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md) para el formato completo de filtros. Solo
+[`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md) para el formato completo de filtros. Solo
 matchea indicaciones **vigentes** al momento de la consulta (no hay baja lógica en esta
 entidad: se retira cerrando `fechaFinVigencia`).
 
@@ -505,7 +505,7 @@ entidad: se retira cerrando `fechaFinVigencia`).
 
 ### Listar indicaciones de prestación — `GET /accesmed-api/IndicacionPrestacion/IndicacionPrestacion`
 
-Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md).
 
 **Query params** — `IndicacionPrestacionCriteria` (`id`, `nombre`, `requiereValidacion`,
 `prestacionId`, `tipoIndicacionPrestacionId`, `createdDate`, `lastModifiedDate`) +
@@ -573,7 +573,7 @@ Las reglas de tolerancia se **validan al guardar la prestación** (no en el alta
    - `PATCH /Prestacion/{id}/Despublicar` → vuelve a `NO_PUBLICADA`.
 
 5. **Listar y filtrar**: `GET /Prestacion` con filtrado dinámico (`especialidadId.equals`,
-   `estadoActual.equals`, etc. — ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md))
+   `estadoActual.equals`, etc. — ver [`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md))
    - Para separar catálogo publicado de no publicado en los listados del panel.
 
 6. **Deshabilitar eventualmente** (terminal, restrictiva): `PATCH /Prestacion/{id}/Deshabilitar`

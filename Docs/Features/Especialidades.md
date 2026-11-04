@@ -71,7 +71,7 @@
 ### Buscar especialidad — `GET /accesmed-api/Especialidad/Especialidad/Buscar`
 
 Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
-[`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md) para el formato completo de filtros.
+[`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md) para el formato completo de filtros.
 
 **Flujo simplificado:**
 1. Busca la única especialidad activa que cumple el criteria (típico: `id.equals=<uuid>`).
@@ -94,7 +94,7 @@ Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
 
 ### Listar especialidades — `GET /accesmed-api/Especialidad/Especialidad`
 
-Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md).
 
 **Flujo simplificado:**
 1. Recupera las especialidades activas que cumplen el criteria (sin filtros = todas).

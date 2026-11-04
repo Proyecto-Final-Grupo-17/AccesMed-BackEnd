@@ -319,7 +319,7 @@ que dos períodos adyacentes no chocan.
 
 #### Los tres `GET`
 
-Usan el filtrado dinámico de `Services/QueryServices/Filtering` (ver `Docs/FILTRADO-DINAMICO.md`).
+Usan el filtrado dinámico de `Services/QueryServices/Filtering` (ver `../../Docs/Otros/FILTRADO-DINAMICO.md`).
 
 **`AgendaMedicoCriteria`** — `id`, `medicoId`, `especialidadId` (join `medico.especialidad`),
 `fechaHoraInicioVigencia` (`RangeFilter`), `fechaHoraFinVigencia` (`RangeFilter`),
@@ -604,7 +604,7 @@ queda roto contra `develop`.
 | `Docs/Features/Agenda.md` | Nuevo. Delegar en la skill `feature-documenter` |
 | `Docs/Features/Medico.md` | La desasignación de prestación pasó de `DELETE` a `PATCH /Vigencia/{id}` |
 | `Docs/Features/Clinica.md` | El parámetro de horizonte de reserva |
-| `Docs/FILTRADO-DINAMICO.md` §5 | `AgendaMedico` y `AgendaHorarios`; los campos nuevos de `MedicoCriteria` |
+| `../../Docs/Otros/FILTRADO-DINAMICO.md` §5 | `AgendaMedico` y `AgendaHorarios`; los campos nuevos de `MedicoCriteria` |
 | `Docs/Dominio/dominio-reglas-validaciones.md` §11.3 | Las 7 funciones AGEN mapean a 7 endpoints con otros nombres; `consultarMedicosSinAgendaVigente` se resolvió como filtro de `MedicoCriteria` |
 | `Docs/ARQUITECTURA.md` §5.2 | **Cuarto caso de actualización**: delta de composición |
 

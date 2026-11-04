@@ -149,7 +149,7 @@ el backend lo rechaza como contradictorio (422) antes de tocar nada.
 ### Listar agendas — `GET /accesmed-api/AgendaMedico/Agenda`
 
 Alimenta el selector de agendas del front. Filtrado dinámico estándar (ver
-`Docs/FILTRADO-DINAMICO.md`) sobre `id`, `medicoId`, `especialidadId`,
+`../Otros/FILTRADO-DINAMICO.md`) sobre `id`, `medicoId`, `especialidadId`,
 `fechaInicioVigencia`, `fechaFinVigencia` y el derivado `vigenteAl`
 (`inicio <= vigenteAl <= fin`, ambos extremos inclusivos; `vigenteAl` es una fecha, sin valor por defecto: hay que pedirlo explícitamente). El
 listado **no** filtra por vigencia automáticamente: incluye tanto los períodos vencidos
