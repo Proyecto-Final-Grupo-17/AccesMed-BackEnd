@@ -26,24 +26,87 @@ También se puede relanzar a mano desde la pestaña *Actions* → *Deploy* → *
 
 ## Estructura en el servidor
 
+El VPS es **Ubuntu 24.04** (kernel 6.8) y aloja, además de AccesMed, proyectos ajenos al
+proyecto (`/root/system-softworks/`, contenedores detenidos) — no tocarlos.
+
 ```
-/root/docker/accesmed/
-├── staging/
-│   ├── back/
-│   │   ├── docker-compose.yml   ← lo pisa el workflow (no editar a mano)
-│   │   └── .env                 ← secretos del entorno (600, nunca se versiona)
-│   ├── front/
-│   │   ├── docker-compose.yml
-│   │   └── .env
-│   └── postgres-data/           ← datos de la Postgres (montado por el compose del back)
-└── prod/                        ← misma estructura
+/root/
+├── docker/
+│   ├── accesmed/
+│   │   ├── staging/
+│   │   │   ├── back/
+│   │   │   │   ├── docker-compose.yml   ← lo pisa el workflow (no editar a mano)
+│   │   │   │   └── .env                 ← secretos del entorno (nunca se versiona)
+│   │   │   ├── front/
+│   │   │   │   ├── docker-compose.yml
+│   │   │   │   └── .env
+│   │   │   └── postgres-data/           ← datos de la Postgres (lo monta el compose del back)
+│   │   └── prod/                        ← misma estructura (hoy sin contenedores levantados)
+│   └── chatwoot/
+│       ├── docker-compose.yaml          ← se administra a mano, no hay workflow
+│       ├── .env
+│       └── referencia-oficial/          ← compose de referencia de Chatwoot
+└── system-softworks/                    ← otros proyectos del VPS, ajenos a AccesMed
 ```
 
 - El compose del back levanta **`db`** (Postgres 16) y **`back`**. La base solo está en la
   red interna del compose: no publica puertos ni es alcanzable desde el front.
-- Back y front del mismo entorno comparten la red Docker `accesmed-<entorno>`, que es
-  donde se va a enganchar el nginx público cuando haya dominio.
+- Back y front del mismo entorno comparten la red Docker `accesmed-<entorno>`.
 - Plantillas de los `.env`: `docker/deploy/.env.example` en cada repo.
+
+### Contenedores
+
+Estado actual: **solo staging está levantado**. Las carpetas de `prod/` existen con su
+`.env`, pero no hay contenedores corriendo.
+
+| Contenedor | Imagen | Puerto host | Red |
+|------------|--------|-------------|-----|
+| `accesmed-staging-back` | `accesmed-backend:staging` | `8081` → 8080 | `accesmed-staging` + `internal` |
+| `accesmed-staging-front` | `accesmed-frontend:staging` | `3001` → 8080 | `accesmed-staging` |
+| `accesmed-staging-db` | `postgres:16-alpine` | — (solo interno) | `internal` |
+| `chatwoot-rails-1` | `chatwoot/chatwoot:v4.18.0-ce` | `127.0.0.1:3100` → 3000 | `chatwoot_default` |
+| `chatwoot-sidekiq-1` | `chatwoot/chatwoot:v4.18.0-ce` | — | `chatwoot_default` |
+| `chatwoot-postgres-1` | `pgvector/pgvector:pg16` | `127.0.0.1:5433` → 5432 | `chatwoot_default` |
+| `chatwoot-redis-1` | `redis:alpine` | — | `chatwoot_default` |
+
+> **Chatwoot y el back no comparten red Docker.** Chatwoot vive en `chatwoot_default` y el
+> back en `accesmed-staging` + `internal`. Para que Chatwoot llamara a un webhook del back
+> hay que elegir una de dos: sumar el back a `chatwoot_default` (y entonces la URL interna
+> es `http://accesmed-staging-back:8080/...`, sin salir del host), o que Chatwoot lo llame
+> por `http://accesmed.site/...`, que hoy es HTTP sin TLS.
+
+## Dominios y nginx
+
+El reverse proxy es **nginx instalado en el host** (systemd, no un contenedor), con los
+sitios en `/etc/nginx/sites-enabled/`. El contenedor llamado `nginx` que aparece detenido
+es de otro proyecto del VPS.
+
+| Dominio | TLS | Ruta | Destino |
+|---------|-----|------|---------|
+| `accesmed.site` | **no** (solo `:80`) | `/accesmed-api/`, `/swagger-ui`, `/v3/api-docs` | `127.0.0.1:8081` (back staging) |
+| `accesmed.site` | **no** | `/` | `127.0.0.1:3001` (front staging) |
+| `www.accesmed.site` | no | todo | 301 → `accesmed.site` |
+| `chat.accesmed.site` | **sí** (cert en `/etc/ssl/chat.accesmed.site/`) | `/privacidad/` | estático en `/var/www/chat.accesmed.site` |
+| `chat.accesmed.site` | sí | `/` | `127.0.0.1:3100` (Chatwoot) |
+
+El certificado de `chat.` está puesto a mano en `/etc/ssl/`, no lo gestiona Certbot
+(`/etc/letsencrypt/live/` solo tiene certificados de los otros proyectos del VPS).
+
+> **La config de nginx vive solo en el servidor**, no está versionada en ningún repo. Si se
+> reinstala el VPS hay que reescribirla.
+
+## Chatwoot
+
+Es el canal de WhatsApp y la bandeja de los operadores humanos. Se administra a mano
+(no tiene workflow de deploy).
+
+- **Versión** `v4.18.0-ce`. Una cuenta, dos usuarios.
+- **Dos inboxes de WhatsApp** (`Channel::Whatsapp`), ambos con provider `whatsapp_cloud`
+  (API oficial de Meta): *WhatsApp (prueba)* y *AccesMed WhatsApp*. **La conexión con
+  WhatsApp ya está hecha** — es el trámite más lento de toda la integración.
+- **No hay ningún Agent Bot creado** (la tabla `agent_bots` está vacía): es el paso que
+  falta para que los mensajes entrantes lleguen al backend.
+- Operación: `cd /root/docker/chatwoot && docker compose ps|logs -f rails`.
 
 ## Configuración en GitHub
 
@@ -104,7 +167,11 @@ docker exec accesmed-<entorno>-db pg_dump -U accesmed accesmed | gzip > accesmed
 
 ## Pendiente
 
-- **Dominio + HTTPS**: hoy se accede por IP y puerto (HTTP). Cuando haya dominio, el
-  nginx público del servidor termina TLS y rutea a los contenedores por la red
-  `accesmed-<entorno>`; ahí se dejan de publicar los puertos y se actualizan
-  `ACCESMED_CORS_ALLOWED_ORIGINS`, `ACCESMED_FRONTEND_BASE_URL` y `VITE_API_URL_*`.
+- **TLS en `accesmed.site`**: hoy el front y la API se sirven por HTTP plano; el único
+  certificado del proyecto es el de `chat.accesmed.site`. Hasta que esté, cualquier webhook
+  entrante al back viajaría sin cifrar (motivo extra para resolver la llamada de Chatwoot
+  al back por red Docker interna).
+- **Levantar `prod`**: las carpetas y los `.env` existen, pero solo corre staging.
+- **Agent Bot de Chatwoot**: falta crearlo y apuntarlo al webhook del back (ver
+  `Docs/Features/Chatbot.md`).
+- **Versionar la config de nginx**: hoy solo existe en el servidor.
