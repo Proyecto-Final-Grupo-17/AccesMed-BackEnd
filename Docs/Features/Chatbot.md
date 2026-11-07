@@ -7,8 +7,8 @@
 > `AccesMed-Flowise`.
 >
 > Relacionado: `Docs/Features/Turno.md` (endpoints web del Turno), las Especificaciones
-> (`Docs/Especificaciones Turnos.docx`) y el `README.md` de `AccesMed-Flowise` (topología
-> e infraestructura).
+> (`Docs/Especificaciones Turnos.docx`) y los `Docs/` de `AccesMed-Flowise` (`CONTEXTO.md`:
+> topología; `AGENTE.md`: funciones y piezas del agente; `SERVICIOS.md`: backend, LLM y Chatwoot).
 
 ---
 
@@ -135,8 +135,8 @@ Flujo del pasamanos:
      humano) y responde al paciente el mensaje de "te comunico con una persona";
    - si no → `POST` a Chatwoot `Create Message` (`outgoing`) con la respuesta.
 
-Detalle de los endpoints de Chatwoot (Create Message, toggle_status) y su auth: ver
-`README.md` de `AccesMed-Flowise` §Chatwoot.
+Detalle de los endpoints de Chatwoot (Create Message, toggle_status), su auth y la llamada
+de predicción a Flowise: ver `Docs/SERVICIOS.md` de `AccesMed-Flowise`.
 
 ---
 

@@ -42,10 +42,13 @@ proyecto (`/root/system-softworks/`, contenedores detenidos) — no tocarlos.
 │   │   │   │   └── .env
 │   │   │   └── postgres-data/           ← datos de la Postgres (lo monta el compose del back)
 │   │   └── prod/                        ← misma estructura (hoy sin contenedores levantados)
-│   └── chatwoot/
-│       ├── docker-compose.yaml          ← se administra a mano, no hay workflow
-│       ├── .env
-│       └── referencia-oficial/          ← compose de referencia de Chatwoot
+│   ├── chatwoot/
+│   │   ├── docker-compose.yaml          ← se administra a mano, no hay workflow
+│   │   ├── .env
+│   │   └── referencia-oficial/          ← compose de referencia de Chatwoot
+│   └── flowise/                         ← agente del chatbot (repo AccesMed-Flowise, un solo ambiente)
+│       ├── docker-compose.yml           ← lo pisa el workflow de AccesMed-Flowise
+│       └── .env                         ← se crea a mano (plantilla: .env.example de ese repo)
 └── system-softworks/                    ← otros proyectos del VPS, ajenos a AccesMed
 ```
 
@@ -68,6 +71,7 @@ Estado actual: **solo staging está levantado**. Las carpetas de `prod/` existen
 | `chatwoot-sidekiq-1` | `chatwoot/chatwoot:v4.18.0-ce` | — | `chatwoot_default` |
 | `chatwoot-postgres-1` | `pgvector/pgvector:pg16` | `127.0.0.1:5433` → 5432 | `chatwoot_default` |
 | `chatwoot-redis-1` | `redis:alpine` | — | `chatwoot_default` |
+| `accesmed-flowise` | `ghcr.io/proyecto-final-grupo-17/accesmed-flowise:main` | `127.0.0.1:3200` → 3000 | `accesmed-staging` |
 
 > **Chatwoot y el back no comparten red Docker.** Chatwoot vive en `chatwoot_default` y el
 > back en `accesmed-staging` + `internal`. Para que Chatwoot llamara a un webhook del back
@@ -88,9 +92,10 @@ es de otro proyecto del VPS.
 | `www.accesmed.site` | no | todo | 301 → `accesmed.site` |
 | `chat.accesmed.site` | **sí** (cert en `/etc/ssl/chat.accesmed.site/`) | `/privacidad/` | estático en `/var/www/chat.accesmed.site` |
 | `chat.accesmed.site` | sí | `/` | `127.0.0.1:3100` (Chatwoot) |
+| `flowise.accesmed.site` | **sí** (Let's Encrypt, `/etc/letsencrypt/live/flowise.accesmed.site/`) | `/` | `127.0.0.1:3200` (Flowise); `:80` redirige a HTTPS |
 
 El certificado de `chat.` está puesto a mano en `/etc/ssl/`, no lo gestiona Certbot
-(`/etc/letsencrypt/live/` solo tiene certificados de los otros proyectos del VPS).
+(`/etc/letsencrypt/live/` tiene el de `flowise.` y los de los otros proyectos del VPS).
 
 > **La config de nginx vive solo en el servidor**, no está versionada en ningún repo. Si se
 > reinstala el VPS hay que reescribirla.

@@ -29,7 +29,9 @@ Topología pasamanos:
 (todos los pasos de abajo pendientes). Marcar con `[x]` a medida que se completan.
 
 - **Fase 0 — Infra**
-  - [ ] 0.1 Levantar Flowise en el server (`docker-compose` listo en `AccesMed-Flowise`).
+  - [ ] 0.1 Levantar Flowise en el server: imagen propia (`flowise@3.1.3` por npm) que
+        `AccesMed-Flowise` construye y despliega al pushear a `main`; UI en
+        `https://flowise.accesmed.site`.
   - [ ] 0.2 Verificar que back ↔ Flowise se ven por la red `accesmed-staging`.
 - **Fase 1 — Back (capa `Agente`)**
   - [ ] 1.1 Cadena de seguridad `/Agente/**` (`X-Agente-Api-Key`) + leer `X-Paciente-Telefono`.
