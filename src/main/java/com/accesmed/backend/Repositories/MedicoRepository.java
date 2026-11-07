@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 /**
  * Repositorio de acceso a datos para la entidad {@code Medico}.
@@ -87,5 +88,21 @@ public interface MedicoRepository extends JpaRepository<Medico, UUID>, JpaSpecif
      * @return {@code boolean} {@code true} si existe otro médico activo con ese email
      */
     boolean existsByEmailAndDeletedAtIsNullAndIdNot(String email, UUID id);
+
+    /**
+     * Busca un médico activo por su matrícula.
+     *
+     * @param matricula {@code String} matrícula del médico
+     * @return {@code Optional<Medico>} el médico activo, o vacío si no existe
+     */
+    Optional<Medico> findByMatriculaAndDeletedAtIsNull(String matricula);
+
+    /**
+     * Lista los médicos activos de una especialidad, ordenados por apellido y nombre.
+     *
+     * @param especialidadId {@code UUID} identificador de la especialidad
+     * @return {@code List<Medico>} los médicos activos de esa especialidad
+     */
+    List<Medico> findByEspecialidadIdAndDeletedAtIsNullOrderByApellidoAscNombreAsc(UUID especialidadId);
 
 }

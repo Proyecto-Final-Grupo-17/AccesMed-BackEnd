@@ -61,4 +61,12 @@ public interface ObraSocialRepository extends JpaRepository<ObraSocial, UUID>, J
      */
     boolean existsByNombreIgnoreCaseAndDeletedAtIsNullAndIdNot(String nombre, UUID id);
 
+    /**
+     * Busca una obra social activa por su nombre, sin distinguir mayúsculas.
+     *
+     * @param nombre {@code String} nombre de la obra social
+     * @return {@code Optional<ObraSocial>} la obra social activa, o vacío si no existe
+     */
+    Optional<ObraSocial> findByNombreIgnoreCaseAndDeletedAtIsNull(String nombre);
+
 }

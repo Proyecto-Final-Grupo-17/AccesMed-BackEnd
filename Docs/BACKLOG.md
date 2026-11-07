@@ -25,8 +25,9 @@ Roadmap de implementación del chatbot (agente Flowise). Doc del chatbot:
 Topología pasamanos:
 `WhatsApp → Chatwoot → back → Flowise → back → Chatwoot`.
 
-**Dónde estamos hoy (2026-11-03):** diseño cerrado y contrato escrito. Falta implementar
-(todos los pasos de abajo pendientes). Marcar con `[x]` a medida que se completan.
+**Dónde estamos hoy (2026-11-07):** el back (Fase 1) está implementado en la rama `feature/Agente`
+(pendiente de revisión y merge). Falta configurar Chatwoot, Flowise y el servidor (ver
+`Docs/Planes/Plan-Agente-Chatwoot.md`, Fase 2). Marcar con `[x]` a medida que se completan.
 
 - **Fase 0 — Infra**
   - [ ] 0.1 Levantar Flowise en el server: imagen propia (`flowise@3.1.3` por npm) que
@@ -34,13 +35,14 @@ Topología pasamanos:
         `https://flowise.accesmed.site`.
   - [ ] 0.2 Verificar que back ↔ Flowise se ven por la red `accesmed-staging`.
 - **Fase 1 — Back (capa `Agente`)**
-  - [ ] 1.1 Cadena de seguridad `/Agente/**` (`X-Agente-Api-Key`) + leer `X-Paciente-Telefono`.
-  - [ ] 1.2 Gaps del contrato §8: `findPacienteActivoByNumeroTelefono`, `AlcancePacienteService`
-        (scope por teléfono), overloads de `cancelTurno`/`reprogramTurno` sin `UsuarioDetails`.
-  - [ ] 1.3 Endpoints de consulta (Clínica, Especialidades, Disponibilidad).
-  - [ ] 1.4 Endpoints de Paciente (registrar / modificar / baja).
-  - [ ] 1.5 Endpoints de Turno (solicitar / listar / confirmar / cancelar / reprogramar).
-  - [ ] 1.6 Webhook pasamanos + clientes de Chatwoot y Flowise.
+  - [x] 1.1 Cadena de seguridad `/Agente/**` (`X-Agente-Api-Key`) + leer `X-Paciente-Telefono`.
+  - [x] 1.2 Gaps del contrato §8: `findPacienteActivoByNumeroTelefono`, scope por teléfono
+        (`validateTurnoPerteneceAPaciente`), orquestación de `cancelTurno`/`reprogramTurno` copiada
+        en `AgenteApp` sin `UsuarioDetails`.
+  - [x] 1.3 Endpoints de consulta (Clínica, Especialidades, Disponibilidad).
+  - [x] 1.4 Endpoints de Paciente (registrar / modificar / baja).
+  - [x] 1.5 Endpoints de Turno (solicitar / listar / confirmar / cancelar / reprogramar).
+  - [x] 1.6 Webhook pasamanos (`POST /accesmed-api/Chatwoot/Webhook`) + clientes de Chatwoot y Flowise.
 - **Fase 2 — Flowise (el agente)**
   - [ ] 2.1 Cargar API key de OpenAI y armar el chatflow.
   - [ ] 2.2 Custom Tools (uno por endpoint) + system prompt + handoff (`—HANDOFF—`).

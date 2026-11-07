@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Repositorio de acceso a datos para la entidad {@code Plan}.
@@ -112,5 +113,20 @@ public interface PlanRepository extends JpaRepository<Plan, UUID>, JpaSpecificat
             + "WHERE h.plan.obraSocial.id = :obraSocialId AND h.plan.nombre = :nombre "
             + "AND h.fechaHoraFin IS NULL AND h.estado <> :estado AND h.plan.id <> :id")
     boolean existsByObraSocialIdAndNombreIgnoreCaseAndEstadoVigenteNotAndIdNot(UUID obraSocialId, String nombre, EstadoPlan estado, UUID id);
+
+    /**
+     * Busca un plan de una obra social por su nombre (sin distinguir mayúsculas) cuyo estado
+     * vigente no sea el indicado.
+     *
+     * @param obraSocialId {@code UUID} identificador de la obra social
+     * @param nombre {@code String} nombre del plan
+     * @param estado {@code EstadoPlan} estado vigente a excluir
+     * @return {@code Optional<Plan>} el plan, o vacío si no existe
+     */
+    @Query("SELECT h.plan FROM HistoricoEstadoPlan h "
+            + "WHERE h.plan.obraSocial.id = :obraSocialId AND LOWER(h.plan.nombre) = LOWER(:nombre) "
+            + "AND h.fechaHoraFin IS NULL AND h.estado <> :estado")
+    Optional<Plan> findByObraSocialIdAndNombreIgnoreCaseAndEstadoVigenteNot(@Param("obraSocialId") UUID obraSocialId,
+            @Param("nombre") String nombre, @Param("estado") EstadoPlan estado);
 
 }

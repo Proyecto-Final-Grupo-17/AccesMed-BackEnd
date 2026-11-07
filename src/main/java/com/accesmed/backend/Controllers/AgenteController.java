@@ -1,0 +1,332 @@
+package com.accesmed.backend.Controllers;
+
+import com.accesmed.backend.Application.AgenteApp;
+import com.accesmed.backend.Records.Agente.Request.AccionTurnoAgente;
+import com.accesmed.backend.Records.Agente.Request.CreatePacienteAgenteRequest;
+import com.accesmed.backend.Records.Agente.Request.CreateTurnoAgenteRequest;
+import com.accesmed.backend.Records.Agente.Request.FranjaHorariaAgente;
+import com.accesmed.backend.Records.Agente.Request.ReprogramTurnoAgenteRequest;
+import com.accesmed.backend.Records.Agente.Request.UpdatePacienteAgenteRequest;
+import com.accesmed.backend.Records.Agente.Response.ConfirmTurnoAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.CreatePacienteAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.CreateTurnoAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.GetClinicaAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.GetOfertaEspecialidadAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.GetPacienteAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.ListEspecialidadAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.ListHorarioDisponibleAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.ListTurnoAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.ReprogramTurnoAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.UpdatePacienteAgenteResponse;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+/**
+ * Controller REST del canal chatbot: los endpoints que consumen como Custom Tools los agentes de
+ * Flowise (actor Paciente). Se autentican con la API key del agente ({@code X-Agente-Api-Key}) y
+ * identifican al paciente por el header {@code X-Paciente-Telefono}, que inyecta el pasamanos de
+ * Chatwoot y que el LLM no compone. Toda la lógica vive en {@link AgenteApp}.
+ */
+@Slf4j
+@RestController
+@RequestMapping("/accesmed-api/Agente")
+@RequiredArgsConstructor
+public class AgenteController {
+
+    //region ========== Dependencias o inyecciones ==========
+
+    private final AgenteApp agenteApp;
+
+    //endregion
+
+    //region ========== Constantes ==========
+
+    private static final String HEADER_TELEFONO = "X-Paciente-Telefono";
+
+    //endregion
+
+    //region ========== Paciente ==========
+
+    /**
+     * Devuelve los datos del paciente identificado por el teléfono del canal.
+     *
+     * @param numeroTelefono {@code String} teléfono verificado del canal (header {@code X-Paciente-Telefono})
+     * @return {@code ResponseEntity<GetPacienteAgenteResponse>} el paciente con status 200
+     */
+    @GetMapping("/Paciente")
+    public ResponseEntity<GetPacienteAgenteResponse> getPaciente(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono) {
+
+        log.info("Solicitud recibida: consultar paciente del canal");
+
+        GetPacienteAgenteResponse getPacienteAgenteResponse = agenteApp.getPaciente(numeroTelefono);
+
+        return ResponseEntity.ok(getPacienteAgenteResponse);
+
+    }
+
+    /**
+     * Registra un paciente nuevo con el teléfono verificado del canal (ECU-PAC-1).
+     *
+     * @param numeroTelefono {@code String} teléfono verificado del canal (header {@code X-Paciente-Telefono})
+     * @param createPacienteAgenteRequest {@code CreatePacienteAgenteRequest} datos del paciente
+     * @return {@code ResponseEntity<CreatePacienteAgenteResponse>} la confirmación con status 201
+     */
+    @PostMapping("/Paciente")
+    public ResponseEntity<CreatePacienteAgenteResponse> createPaciente(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @Valid @RequestBody CreatePacienteAgenteRequest createPacienteAgenteRequest) {
+
+        log.info("Solicitud recibida: registrar paciente desde el canal");
+
+        CreatePacienteAgenteResponse createPacienteAgenteResponse =
+                agenteApp.createPaciente(numeroTelefono, createPacienteAgenteRequest);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(createPacienteAgenteResponse);
+
+    }
+
+    /**
+     * Modifica los datos del paciente identificado por el teléfono del canal (ECU-PAC-2).
+     *
+     * @param numeroTelefono {@code String} teléfono verificado del canal (header {@code X-Paciente-Telefono})
+     * @param updatePacienteAgenteRequest {@code UpdatePacienteAgenteRequest} datos a modificar
+     * @return {@code ResponseEntity<UpdatePacienteAgenteResponse>} los datos actualizados con status 200
+     */
+    @PatchMapping("/Paciente")
+    public ResponseEntity<UpdatePacienteAgenteResponse> updatePaciente(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @Valid @RequestBody UpdatePacienteAgenteRequest updatePacienteAgenteRequest) {
+
+        log.info("Solicitud recibida: modificar paciente desde el canal");
+
+        UpdatePacienteAgenteResponse updatePacienteAgenteResponse =
+                agenteApp.updatePaciente(numeroTelefono, updatePacienteAgenteRequest);
+
+        return ResponseEntity.ok(updatePacienteAgenteResponse);
+
+    }
+
+    /**
+     * Da de baja al paciente identificado por el teléfono del canal (ECU-PACIENTE-3).
+     *
+     * @param numeroTelefono {@code String} teléfono verificado del canal (header {@code X-Paciente-Telefono})
+     * @return {@code ResponseEntity<Void>} sin contenido con status 204
+     */
+    @DeleteMapping("/Paciente")
+    public ResponseEntity<Void> softDeletePaciente(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono) {
+
+        log.info("Solicitud recibida: dar de baja al paciente del canal");
+
+        agenteApp.softDeletePaciente(numeroTelefono);
+
+        return ResponseEntity.noContent().build();
+
+    }
+
+    //endregion
+
+    //region ========== Información general ==========
+
+    /**
+     * Devuelve la información general de la clínica (ECU-TURN-1).
+     *
+     * @return {@code ResponseEntity<GetClinicaAgenteResponse>} la clínica con status 200
+     */
+    @GetMapping("/Clinica")
+    public ResponseEntity<GetClinicaAgenteResponse> getClinica() {
+
+        log.info("Solicitud recibida: consultar información de la clínica");
+
+        GetClinicaAgenteResponse getClinicaAgenteResponse = agenteApp.getClinica();
+
+        return ResponseEntity.ok(getClinicaAgenteResponse);
+
+    }
+
+    /**
+     * Lista las especialidades activas (ECU-TURN-1).
+     *
+     * @return {@code ResponseEntity<List<ListEspecialidadAgenteResponse>>} las especialidades con status 200
+     */
+    @GetMapping("/Especialidad")
+    public ResponseEntity<List<ListEspecialidadAgenteResponse>> listEspecialidades() {
+
+        log.info("Solicitud recibida: listar especialidades");
+
+        List<ListEspecialidadAgenteResponse> listEspecialidadAgenteResponses = agenteApp.listEspecialidades();
+
+        return ResponseEntity.ok(listEspecialidadAgenteResponses);
+
+    }
+
+    /**
+     * Devuelve la oferta de una especialidad: prestaciones publicadas y médicos activos (ECU-TURN-1).
+     *
+     * @param nombre {@code String} nombre de la especialidad
+     * @return {@code ResponseEntity<GetOfertaEspecialidadAgenteResponse>} la oferta con status 200
+     */
+    @GetMapping("/Especialidad/{nombre}/Oferta")
+    public ResponseEntity<GetOfertaEspecialidadAgenteResponse> getOfertaEspecialidad(@PathVariable String nombre) {
+
+        log.info("Solicitud recibida: consultar oferta de la especialidad {}", nombre);
+
+        GetOfertaEspecialidadAgenteResponse getOfertaEspecialidadAgenteResponse = agenteApp.getOfertaEspecialidad(nombre);
+
+        return ResponseEntity.ok(getOfertaEspecialidadAgenteResponse);
+
+    }
+
+    //endregion
+
+    //region ========== Turnos ==========
+
+    /**
+     * Lista los horarios disponibles de un médico para una prestación (ECU-TURN-2).
+     *
+     * @param nombrePrestacion {@code String} nombre de la prestación
+     * @param matricula {@code String} matrícula del médico
+     * @param franjaHoraria {@code FranjaHorariaAgente} franja del día (opcional)
+     * @param pageable {@code Pageable} paginación
+     * @return {@code ResponseEntity<List<ListHorarioDisponibleAgenteResponse>>} los horarios con status 200
+     */
+    @GetMapping("/Turno/Disponibilidad")
+    public ResponseEntity<List<ListHorarioDisponibleAgenteResponse>> listHorariosDisponibles(
+            @RequestParam String nombrePrestacion,
+            @RequestParam String matricula,
+            @RequestParam(required = false) FranjaHorariaAgente franjaHoraria,
+            @PageableDefault(size = 10, sort = {"fecha", "horaDesde"}) Pageable pageable) {
+
+        log.info("Solicitud recibida: consultar horarios disponibles de la prestación {}", nombrePrestacion);
+
+        List<ListHorarioDisponibleAgenteResponse> listHorarioDisponibleAgenteResponses =
+                agenteApp.listHorariosDisponibles(nombrePrestacion, matricula, franjaHoraria, pageable);
+
+        return ResponseEntity.ok(listHorarioDisponibleAgenteResponses);
+
+    }
+
+    /**
+     * Solicita un turno para el paciente del canal en un horario disponible (ECU-TURN-3).
+     *
+     * @param numeroTelefono {@code String} teléfono verificado del canal (header {@code X-Paciente-Telefono})
+     * @param createTurnoAgenteRequest {@code CreateTurnoAgenteRequest} horario elegido
+     * @return {@code ResponseEntity<CreateTurnoAgenteResponse>} el turno creado con status 201
+     */
+    @PostMapping("/Turno")
+    public ResponseEntity<CreateTurnoAgenteResponse> createTurno(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @Valid @RequestBody CreateTurnoAgenteRequest createTurnoAgenteRequest) {
+
+        log.info("Solicitud recibida: solicitar turno desde el canal");
+
+        CreateTurnoAgenteResponse createTurnoAgenteResponse = agenteApp.createTurno(numeroTelefono, createTurnoAgenteRequest);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(createTurnoAgenteResponse);
+
+    }
+
+    /**
+     * Lista los turnos del paciente del canal que admiten una acción (cancelar, reprogramar, confirmar).
+     *
+     * @param numeroTelefono {@code String} teléfono verificado del canal (header {@code X-Paciente-Telefono})
+     * @param accion {@code AccionTurnoAgente} acción que el paciente quiere hacer
+     * @return {@code ResponseEntity<List<ListTurnoAgenteResponse>>} los turnos con status 200
+     */
+    @GetMapping("/Turno")
+    public ResponseEntity<List<ListTurnoAgenteResponse>> listTurnos(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @RequestParam AccionTurnoAgente accion) {
+
+        log.info("Solicitud recibida: listar turnos del paciente del canal para {}", accion);
+
+        List<ListTurnoAgenteResponse> listTurnoAgenteResponses = agenteApp.listTurnos(numeroTelefono, accion);
+
+        return ResponseEntity.ok(listTurnoAgenteResponses);
+
+    }
+
+    /**
+     * Cancela un turno del paciente del canal (ECU-TURN-4). No borra el registro: lo pasa a CANCELADO.
+     *
+     * @param numeroTelefono {@code String} teléfono verificado del canal (header {@code X-Paciente-Telefono})
+     * @param codigo {@code String} código del turno a cancelar
+     * @return {@code ResponseEntity<Void>} sin contenido con status 204
+     */
+    @DeleteMapping("/Turno/{codigo}")
+    public ResponseEntity<Void> cancelTurno(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @PathVariable String codigo) {
+
+        log.info("Solicitud recibida: cancelar turno {} desde el canal", codigo);
+
+        agenteApp.cancelTurno(numeroTelefono, codigo);
+
+        return ResponseEntity.noContent().build();
+
+    }
+
+    /**
+     * Reprograma un turno del paciente del canal en otro horario (ECU-TURN-5).
+     *
+     * @param numeroTelefono {@code String} teléfono verificado del canal (header {@code X-Paciente-Telefono})
+     * @param codigo {@code String} código del turno a reprogramar
+     * @param reprogramTurnoAgenteRequest {@code ReprogramTurnoAgenteRequest} nuevo horario elegido
+     * @return {@code ResponseEntity<ReprogramTurnoAgenteResponse>} el turno nuevo con status 200
+     */
+    @PatchMapping("/Turno/{codigo}/Reprogramacion")
+    public ResponseEntity<ReprogramTurnoAgenteResponse> reprogramTurno(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @PathVariable String codigo,
+            @Valid @RequestBody ReprogramTurnoAgenteRequest reprogramTurnoAgenteRequest) {
+
+        log.info("Solicitud recibida: reprogramar turno {} desde el canal", codigo);
+
+        ReprogramTurnoAgenteResponse reprogramTurnoAgenteResponse =
+                agenteApp.reprogramTurno(numeroTelefono, codigo, reprogramTurnoAgenteRequest);
+
+        return ResponseEntity.ok(reprogramTurnoAgenteResponse);
+
+    }
+
+    /**
+     * Confirma un turno del paciente del canal (ECU-TURN-6).
+     *
+     * @param numeroTelefono {@code String} teléfono verificado del canal (header {@code X-Paciente-Telefono})
+     * @param codigo {@code String} código del turno a confirmar
+     * @return {@code ResponseEntity<ConfirmTurnoAgenteResponse>} el turno confirmado con status 200
+     */
+    @PatchMapping("/Turno/{codigo}/Confirmacion")
+    public ResponseEntity<ConfirmTurnoAgenteResponse> confirmTurno(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @PathVariable String codigo) {
+
+        log.info("Solicitud recibida: confirmar turno {} desde el canal", codigo);
+
+        ConfirmTurnoAgenteResponse confirmTurnoAgenteResponse = agenteApp.confirmTurno(numeroTelefono, codigo);
+
+        return ResponseEntity.ok(confirmTurnoAgenteResponse);
+
+    }
+
+    //endregion
+
+}

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 /**
  * Repositorio de acceso a datos para la entidad {@code Especialidad}.
@@ -61,5 +62,20 @@ public interface EspecialidadRepository extends JpaRepository<Especialidad, UUID
      * @return {@code boolean} {@code true} si existe otra especialidad activa con ese nombre
      */
     boolean existsByNombreIgnoreCaseAndDeletedAtIsNullAndIdNot(String nombre, UUID id);
+
+    /**
+     * Busca una especialidad activa por su nombre, sin distinguir mayúsculas.
+     *
+     * @param nombre {@code String} nombre de la especialidad
+     * @return {@code Optional<Especialidad>} la especialidad activa, o vacío si no existe
+     */
+    Optional<Especialidad> findByNombreIgnoreCaseAndDeletedAtIsNull(String nombre);
+
+    /**
+     * Lista las especialidades activas ordenadas por nombre.
+     *
+     * @return {@code List<Especialidad>} las especialidades activas
+     */
+    List<Especialidad> findByDeletedAtIsNullOrderByNombreAsc();
 
 }

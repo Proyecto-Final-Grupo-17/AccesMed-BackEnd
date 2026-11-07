@@ -139,10 +139,31 @@ también para que el servidor haga `docker login` durante el deploy (y `logout` 
 | `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**` | HTTP Basic: `ACCESMED_DOCS_USERNAME` / `ACCESMED_DOCS_PASSWORD` del `.env` |
 | `/actuator/health` | Público (solo `{"status":"UP"}`; lo usa el healthcheck del contenedor) |
 | `/accesmed-api/Auth/{Login,Refresh,OlvideContrasena,RestablecerContrasena,ConfirmarCambioMail}` | Público |
+| `/accesmed-api/Agente/**` | API key del agente: header `X-Agente-Api-Key` (`ACCESMED_AGENTE_API_KEY`); la usa Flowise |
+| `/accesmed-api/Chatwoot/Webhook` | Sin JWT; el back verifica la firma HMAC del webhook (`ACCESMED_CHATWOOT_WEBHOOK_SECRET`) |
 | Resto de `/accesmed-api/**` | JWT (`Authorization: Bearer ...`) |
 
 El usuario de la documentación no es un usuario del sistema: no existe en la base ni sirve
 contra la API. Si falta `ACCESMED_DOCS_PASSWORD`, el back no arranca.
+
+## Variables del canal chatbot (contenedor del back)
+
+El back habla con Chatwoot y Flowise y expone endpoints a Flowise. Variables nuevas, en el `.env` del
+servidor (plantilla `docker/deploy/.env.example`) y mapeadas en `docker/deploy/docker-compose.yml`:
+
+| Variable | Obligatoria | Default | Para qué |
+|---|---|---|---|
+| `ACCESMED_AGENTE_API_KEY` | Sí | — | Clave que Flowise manda en `X-Agente-Api-Key` |
+| `ACCESMED_CHATWOOT_API_TOKEN` | Sí | — | Token de la API de Chatwoot para responder mensajes |
+| `ACCESMED_FLOWISE_CHATFLOW_ID` | Sí | — | Id del chatflow del agente |
+| `ACCESMED_CHATWOOT_BASE_URL` | No | `https://chat.accesmed.site` | URL de Chatwoot |
+| `ACCESMED_CHATWOOT_ACCOUNT_ID` | No | `1` | Cuenta de Chatwoot |
+| `ACCESMED_CHATWOOT_WEBHOOK_SECRET` | No | vacío | Secret del Agent Bot; vacío = no se verifica la firma |
+| `ACCESMED_FLOWISE_BASE_URL` | No | `http://accesmed-flowise:3000` | URL de Flowise (red `accesmed-staging`) |
+| `ACCESMED_FLOWISE_API_KEY` | No | vacío | API key del chatflow, si la exige |
+
+Las tres obligatorias **no tienen default: si faltan en el `.env` del servidor, el back no arranca**.
+Cargarlas antes de desplegar una imagen con este cambio.
 
 ## Operación
 
