@@ -59,17 +59,19 @@ public class FlowiseClient {
 
     /**
      * Envía la pregunta del paciente al chatflow de Flowise y devuelve el texto de la respuesta.
-     * La sesión mantiene la memoria de la conversación y el teléfono viaja como variable para que
-     * los Custom Tools lo reenvíen al back en el header {@code X-Paciente-Telefono}.
+     * La sesión mantiene la memoria de la conversación; el teléfono y el nombre viajan como variables
+     * ({@code $vars.numeroTelefono}, {@code $vars.nombreContacto}): el teléfono lo reenvían los Custom
+     * Tools al back en el header {@code X-Paciente-Telefono}.
      *
-     * @param pregunta {@code String} mensaje del paciente
+     * @param pregunta {@code String} mensaje del paciente (una tanda: mensajes unidos por salto de línea)
      * @param sessionId {@code String} identificador de sesión de la conversación
      * @param numeroTelefono {@code String} teléfono verificado del paciente
+     * @param nombreContacto {@code String} nombre del contacto en Chatwoot (vacío si no lo trae)
      * @return {@code String} el texto que respondió el agente, o {@code null} si Flowise no devolvió texto
      * @throws org.springframework.web.client.RestClientException si Flowise no responde o devuelve error
      */
     @SuppressWarnings("unchecked")
-    public String sendPreguntaFlowise(String pregunta, String sessionId, String numeroTelefono) {
+    public String sendPreguntaFlowise(String pregunta, String sessionId, String numeroTelefono, String nombreContacto) {
 
         log.debug("Enviando pregunta a Flowise: sessionId={}", sessionId);
 
@@ -77,7 +79,8 @@ public class FlowiseClient {
                 "question", pregunta,
                 "overrideConfig", Map.of(
                         "sessionId", sessionId,
-                        "vars", Map.of("numeroTelefono", numeroTelefono)));
+                        "vars", Map.of("numeroTelefono", numeroTelefono,
+                                "nombreContacto", nombreContacto == null ? "" : nombreContacto)));
 
         RestClient.RequestBodySpec request = restClient.post()
                 .uri("/api/v1/prediction/{chatflowId}", chatflowId)

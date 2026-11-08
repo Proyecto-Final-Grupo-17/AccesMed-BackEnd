@@ -6,9 +6,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * Payload del webhook del Agent Bot de Chatwoot para el evento {@code message_created}. Solo
  * mapea los campos que usa el pasamanos; el resto se ignora. No lleva Bean Validation: se
- * parsea a mano a partir del body crudo (necesario para verificar la firma HMAC).
+ * parsea a mano a partir del body crudo (contrato en {@code Docs/Features/Chatbot.md §6}).
  *
  * @param event {@code String} tipo de evento (se procesa solo {@code message_created})
+ * @param id {@code Long} identificador del mensaje en Chatwoot (para el log)
  * @param content {@code String} texto del mensaje
  * @param messageType {@code String} tipo de mensaje ({@code incoming} = del paciente; Chatwoot
  *        también puede mandarlo numérico, donde {@code 0} es entrante)
@@ -21,6 +22,8 @@ public record ReceiveMensajeChatwootRequest(
 
         @JsonProperty("event")
         String event,
+        @JsonProperty("id")
+        Long id,
 
         @JsonProperty("content")
         String content,

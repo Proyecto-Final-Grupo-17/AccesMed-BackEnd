@@ -342,7 +342,7 @@ accesmed-backend/
     │   │   ├── AccesMedApplication.java
     │   │   │
     │   │   ├── Config/                    # config transversal de infraestructura
-    │   │   │   ├── AsyncConfig.java          # executor del pasamanos de Chatwoot
+    │   │   │   ├── AsyncConfig.java          # executor + agrupador de mensajes del pasamanos de Chatwoot
     │   │   │   ├── JpaAuditingConfig.java
     │   │   │   └── SchedulingConfig.java
     │   │   │
@@ -393,6 +393,7 @@ accesmed-backend/
     │   │   │   │   └── ValidacionException.java
     │   │   │   └── Utils/
     │   │   │       ├── NormalizadorTelefono.java
+    │   │   │       ├── AgrupadorMensajes.java   # agrupa mensajes en ráfaga por clave (webhook de Chatwoot)
     │   │   │       └── <HelperGenerico>.java
     │   │   │
     │   │   ├── Repositories/
@@ -427,6 +428,8 @@ accesmed-backend/
     │   │   ├── Security/                    # SOLO mecanismo de sesión/JWT reemplazable
     │   │   │   ├── Agente/
     │   │   │   │   └── AgenteApiKeyFilter.java   # API key del canal chatbot (X-Agente-Api-Key)
+    │   │   │   ├── Chatwoot/
+    │   │   │   │   └── ChatwootFirmaFilter.java  # firma HMAC del webhook del Agent Bot (401 si falla)
     │   │   │   ├── Controllers/
     │   │   │   │   └── AuthController.java
     │   │   │   ├── Application/
@@ -653,7 +656,10 @@ necesita el canal (por teléfono, por nombre, por código de turno) se **agregan
 Repositories y DomainServices sin tocar los métodos existentes. Records propios en
 `Records/Agente` (`<Accion><Entidad>AgenteRequest/Response`). El webhook de Chatwoot
 (`ChatwootController` + `ChatwootApp`) es un pasamanos que no toca el dominio: solo usa
-`Services/Clients` (`ChatwootClient`, `FlowiseClient`) y responde en segundo plano.
+`Services/Clients` (`ChatwootClient`, `FlowiseClient`), agrupa los mensajes en ráfaga por
+conversación (`Services/Utils/AgrupadorMensajes`) y responde en segundo plano. Su autenticidad
+la verifica un filtro de la cadena de seguridad (`Security/Chatwoot/ChatwootFirmaFilter`, firma
+HMAC → 401), igual que la API key del agente. Contrato completo en `Docs/Features/Chatbot.md §6`.
 
 ---
 

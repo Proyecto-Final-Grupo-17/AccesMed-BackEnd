@@ -1,6 +1,7 @@
 package com.accesmed.backend.Security.Config;
 
 import com.accesmed.backend.Security.Agente.AgenteApiKeyFilter;
+import com.accesmed.backend.Security.Chatwoot.ChatwootFirmaFilter;
 import com.accesmed.backend.Security.Jwt.JwtAuthenticationEntryPoint;
 import com.accesmed.backend.Security.Jwt.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.util.Assert;
 import tools.jackson.databind.ObjectMapper;
+
+import java.time.Clock;
 
 /**
  * Configuración real de Spring Security: JWT stateless, con recálculo de permisos por
@@ -124,22 +127,28 @@ public class SecurityFilterChainConfig {
     }
 
     /**
-     * chatwootSecurityFilterChain: deja pasar el webhook de Chatwoot ({@code /accesmed-api/Chatwoot/**})
-     * sin JWT. La autenticidad la valida {@code ChatwootApp} con la firma HMAC del request, porque
-     * necesita el body crudo, que no está disponible en un filtro sin consumirlo.
+     * chatwootSecurityFilterChain: atiende el webhook del Agent Bot de Chatwoot
+     * ({@code /accesmed-api/Chatwoot/**}) sin JWT. La autenticidad la verifica
+     * {@code ChatwootFirmaFilter} con la firma HMAC del body crudo (401 si no coincide).
      *
      * @param httpSecurity {@code HttpSecurity} builder de la cadena.
+     * @param webhookSecret {@code String} secret del Agent Bot ({@code accesmed.chatwoot.webhook-secret}); vacío no verifica.
+     * @param objectMapper {@code ObjectMapper} serializador del {@code AccesMedError} del 401.
      * @return {@code SecurityFilterChain} cadena que atiende solo las rutas del webhook.
      */
     @Bean
     @Order(3)
-    public SecurityFilterChain chatwootSecurityFilterChain(HttpSecurity httpSecurity) throws Exception {
+    public SecurityFilterChain chatwootSecurityFilterChain(HttpSecurity httpSecurity,
+            @Value("${accesmed.chatwoot.webhook-secret:}") String webhookSecret,
+            ObjectMapper objectMapper) throws Exception {
 
         httpSecurity
                 .securityMatcher("/accesmed-api/Chatwoot/**")
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .csrf(AbstractHttpConfigurer::disable);
+                .csrf(AbstractHttpConfigurer::disable)
+                .addFilterBefore(new ChatwootFirmaFilter(webhookSecret, objectMapper, Clock.systemUTC()),
+                        UsernamePasswordAuthenticationFilter.class);
 
         SecurityFilterChain chatwootSecurityFilterChain = httpSecurity.build();
         return chatwootSecurityFilterChain;

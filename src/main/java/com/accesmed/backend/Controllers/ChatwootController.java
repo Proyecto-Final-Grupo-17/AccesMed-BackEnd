@@ -11,8 +11,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Controller REST del webhook del Agent Bot de Chatwoot. Recibe el body crudo (hace falta tal
- * cual para verificar la firma HMAC), delega en {@link ChatwootApp} y responde 200 de inmediato.
+ * Controller REST del webhook del Agent Bot de Chatwoot (contrato en
+ * {@code Docs/Features/Chatbot.md §6}). La firma HMAC ya la verificó {@code ChatwootFirmaFilter};
+ * recibe el body crudo, delega en {@link ChatwootApp} y responde 200 de inmediato.
  */
 @Slf4j
 @RestController
@@ -29,23 +30,21 @@ public class ChatwootController {
     //region ========== Métodos ==========
 
     /**
-     * Recibe un evento del Agent Bot de Chatwoot. El procesamiento (consulta a Flowise y respuesta)
-     * es asíncrono: este método solo valida la firma y encola el trabajo.
+     * Recibe un evento del Agent Bot de Chatwoot. El procesamiento (agrupación, consulta a Flowise y
+     * respuesta) es asíncrono: este método solo encola el trabajo.
      *
      * @param cuerpoCrudo {@code String} body del request sin parsear
-     * @param firma {@code String} header {@code X-Chatwoot-Signature} ({@code sha256=<hex>})
-     * @param timestamp {@code String} header {@code X-Chatwoot-Timestamp} (epoch en segundos)
+     * @param idEntrega {@code String} header {@code X-Chatwoot-Delivery} (id de entrega, solo para el log)
      * @return {@code ResponseEntity<Void>} sin contenido con status 200
      */
     @PostMapping("/Webhook")
     public ResponseEntity<Void> receiveMensajeChatwoot(
             @RequestBody String cuerpoCrudo,
-            @RequestHeader(value = "X-Chatwoot-Signature", required = false) String firma,
-            @RequestHeader(value = "X-Chatwoot-Timestamp", required = false) String timestamp) {
+            @RequestHeader(value = "X-Chatwoot-Delivery", required = false) String idEntrega) {
 
         log.info("Solicitud recibida: webhook de Chatwoot");
 
-        chatwootApp.receiveMensajeChatwoot(cuerpoCrudo, firma, timestamp);
+        chatwootApp.receiveMensajeChatwoot(cuerpoCrudo, idEntrega);
 
         return ResponseEntity.ok().build();
 

@@ -90,6 +90,11 @@ accesmed:
     account-id: ${ACCESMED_CHATWOOT_ACCOUNT_ID:1}
     api-token: ${ACCESMED_CHATWOOT_API_TOKEN}
     webhook-secret: ${ACCESMED_CHATWOOT_WEBHOOK_SECRET:}
+    # Agrupación de mensajes en ráfaga por conversación (Docs/Features/Chatbot.md §6.C).
+    agrupacion:
+      espera-segundos: 4
+      espera-maxima-segundos: 15
+      max-mensajes: 5
   # Flowise: chatflow del agente al que el back le pasa cada mensaje del paciente.
   flowise:
     base-url: ${ACCESMED_FLOWISE_BASE_URL:http://accesmed-flowise:3000}

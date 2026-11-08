@@ -86,7 +86,7 @@ es `Security/Agente/AgenteApiKeyFilter`. Un 401 sale con el formato `AccesMedErr
 | Header | Quién lo pone | Para qué |
 |--------|---------------|----------|
 | `X-Agente-Api-Key` | Flowise (fijo) | Autentica que quien llama es el agente. Debe coincidir con `ACCESMED_AGENTE_API_KEY` (env var del back, sin default; va a `.env.example` y a `application-test.yml`). |
-| `X-Paciente-Telefono` | Flowise (variable de sesión, inyectada por el pasamanos) | Identidad del paciente. **No** lo compone el LLM. El back lo trata como el teléfono verificado. |
+| `X-Paciente-Telefono` | Flowise (`$vars.numeroTelefono`, inyectada por el pasamanos, §6.D) | Identidad del paciente. **No** lo compone el LLM. El back lo trata como el teléfono verificado. |
 
 - Sin `X-Agente-Api-Key` válida → **401**. Los endpoints `/Agente/*` no usan JWT ni permisos.
   La clave se compara en tiempo constante y, si falta `accesmed.agente.api-key`, el back no arranca.
@@ -125,36 +125,135 @@ mapeo CU-excepción ↔ `codigo` está en cada sección de §7.
 
 ---
 
-## 6. Entrada del canal: el webhook (pasamanos)
+## 6. Contrato Chatwoot ↔ Backend (webhook del Agent Bot)
 
-No es un Custom Tool; es lo que **Chatwoot** llama (Agent Bot).
+No es un Custom Tool: es la entrada del canal. **Chatwoot** llama al back y el back le responde
+por la API de Chatwoot. Plan de implementación: `Docs/Planes/Plan-Contrato-Chatwoot.md`.
 
-**`POST /accesmed-api/Chatwoot/Webhook`** (`ChatwootController` + `ChatwootApp`; cadena de seguridad
-`permitAll`: la autenticidad la valida `ChatwootApp` con la firma, que necesita el body crudo).
+```
+Paciente (WhatsApp) → Chatwoot ──webhook──▶ Back ──▶ Flowise (LLM + Custom Tools §7)
+Paciente ◀─ Chatwoot ◀──API Chatwoot─── Back ◀── respuesta
+```
 
-Flujo del pasamanos:
-1. **Verifica la firma:** `X-Chatwoot-Signature` = `sha256=` + hex(HMAC-SHA256(`accesmed.chatwoot.webhook-secret`,
-   `"{X-Chatwoot-Timestamp}.{body crudo}"`)), comparada en tiempo constante, con timestamp de hasta 5
-   minutos. Si falla → 401. Si el secret está vacío, **no verifica** y deja un `warn` (solo para poder
-   probar si el Agent Bot no manda firma).
-2. Parsea el payload (ignora campos desconocidos) y procesa **solo** `event = message_created`,
-   `message_type = incoming`, `private = false`, con texto, en una conversación `pending`
-   (manejada por el bot). Ignora `outgoing` (sus propias respuestas y las de humanos → evita bucles)
-   y las conversaciones `open` (la tomó una persona).
-3. Extrae el `numeroTelefono` de `sender.phone_number` (respaldo: `conversation.meta.sender.phone_number`).
-   Sin teléfono: avisa y deriva a una persona sin llamar a Flowise.
-4. Responde **200 de inmediato** y sigue en segundo plano (`AsyncConfig`, executor `chatwootTaskExecutor`).
-5. Llama a Flowise (`sessionId = "chatwoot-<conversationId>"`, variable `numeroTelefono`).
-6. Con la respuesta de Flowise:
-   - si contiene el token `—HANDOFF—` → lo quita, envía el texto restante (si hay) y pasa la
-     conversación a `open` (`toggle_status`);
-   - si no → `POST` a Chatwoot `Create Message` (`outgoing`) con la respuesta.
-7. Si Flowise falla (o devuelve vacío) → mensaje genérico al paciente ("Estamos con problemas
-   técnicos, en breve te atiende una persona.") y `toggle_status: open`. Si Chatwoot falla → `log.error`
-   (no hay a quién responder).
+### 6.A Chatwoot → Back
 
-Los clientes son `Services/Clients/ChatwootClient` y `FlowiseClient` (`RestClient`, timeouts explícitos).
-Properties en `application.yml` (`accesmed.chatwoot.*`, `accesmed.flowise.*`).
+**`POST /accesmed-api/Chatwoot/Webhook`** (`ChatwootController` + `ChatwootApp`). Chatwoot lo llama
+**una vez por evento** (push, uno por mensaje; no hay lotes ni polling).
+
+| Header | Uso |
+|--------|-----|
+| `X-Chatwoot-Signature` | `sha256=` + hex(HMAC-SHA256(secret del Agent Bot, `"{timestamp}.{body crudo}"`)) |
+| `X-Chatwoot-Timestamp` | epoch en segundos; se rechaza si difiere más de 5 min |
+| `X-Chatwoot-Delivery` | id de entrega; solo para el log |
+
+Campos del body que usa el back (el resto se ignora):
+
+| Campo | Para qué |
+|-------|----------|
+| `event` | solo `message_created` |
+| `id` | id del mensaje (log) |
+| `content` | texto del paciente |
+| `message_type` | solo `incoming` (o `0`) |
+| `private` | descarta notas privadas |
+| `conversation.id` | clave de agrupación, sesión de Flowise y destino de la respuesta |
+| `conversation.status` | solo `pending` (la atiende el bot) |
+| `sender.id`, `sender.name`, `sender.phone_number` | contacto; respaldo en `conversation.meta.sender` |
+
+Respuestas del back:
+
+| Caso | Status |
+|------|--------|
+| Aceptado (incluso si el evento se ignora) | `200`, inmediato |
+| Firma ausente, inválida o vencida | `401` `CHATWOOT_NO_AUTENTICADO` (lo responde `Security/Chatwoot/ChatwootFirmaFilter`) |
+| Body que no es JSON | `422` `VALIDACION` |
+
+Con `accesmed.chatwoot.webhook-secret` vacío la firma **no se verifica** (solo para pruebas; deja un `warn`).
+
+### 6.B Qué atiende el bot
+
+Un evento se atiende solo si es `message_created` + `incoming` + no privado + conversación `pending`.
+Se ignora todo lo demás: los `outgoing` (respuestas del bot y de humanos → sin bucles) y las
+conversaciones `open`/`resolved`. Entre los atendidos:
+
+- **Sin teléfono** → mensaje de error técnico y handoff (no llama a Flowise).
+- **Sin texto** (audio, imagen, sticker) → responde *"Por ahora solo puedo leer mensajes de texto. ¿Me lo escribís?"*
+  (no llama a Flowise ni entra en la agrupación).
+- **Con texto** → se agrupa (6.C).
+
+### 6.C Agrupación de mensajes en ráfaga
+
+Por `conversation.id` (`Services/Utils/AgrupadorMensajes`, bean en `AsyncConfig`). La tanda se cierra
+con la **primera** que se cumpla:
+
+| Regla | Valor | Property |
+|-------|-------|----------|
+| Silencio sin mensajes nuevos | 4 s | `accesmed.chatwoot.agrupacion.espera-segundos` |
+| Mensajes acumulados | 5 | `accesmed.chatwoot.agrupacion.max-mensajes` |
+| Tope desde el primer mensaje | 15 s | `accesmed.chatwoot.agrupacion.espera-maxima-segundos` |
+
+Mientras una tanda de la conversación se procesa, lo nuevo espera a la siguiente: **nunca hay dos
+llamadas simultáneas a Flowise para la misma conversación**. El texto se junta de los propios
+webhooks (no se consulta `GET /messages`). El estado vive en memoria: si el back se reinicia en esos
+segundos, esa tanda no se responde.
+
+### 6.D Back → Flowise
+
+```json
+POST {accesmed.flowise.base-url}/api/v1/prediction/{chatflowId}
+{
+  "question": "hola
+quiero un turno
+con cardiología",
+  "overrideConfig": {
+    "sessionId": "chatwoot-<conversation.id>",
+    "vars": { "numeroTelefono": "+5492617742682", "nombreContacto": "Ana" }
+  }
+}
+```
+
+`question` = los mensajes de la tanda unidos por salto de línea. En el flow se leen como
+`$vars.numeroTelefono` y `$vars.nombreContacto` (las variables deben estar habilitadas para override
+en la configuración de seguridad del chatflow).
+
+### 6.E Back → Chatwoot (API)
+
+Autentica con `api_access_token` = **access token del Agent Bot** (`ACCESMED_CHATWOOT_API_TOKEN`):
+los mensajes figuran como enviados por el bot.
+
+| Acción | Endpoint |
+|--------|----------|
+| Responder | `POST /api/v1/accounts/{account}/conversations/{id}/messages` `{content, message_type: "outgoing", private: false}` |
+| Derivar a persona | `POST /api/v1/accounts/{account}/conversations/{id}/toggle_status` `{status: "open"}` |
+
+Se deriva cuando: la respuesta de Flowise trae `—HANDOFF—` (se quita el token y se envía el resto, §9);
+Flowise falla o devuelve vacío (antes se avisa *"Estamos con problemas técnicos, en breve te atiende una
+persona."*); el mensaje no trae teléfono. Si Chatwoot falla al responder, solo `log.error`.
+
+### 6.F Estados de la conversación (quién atiende)
+
+| Estado | Atiende | Cómo se llega |
+|--------|---------|---------------|
+| `pending` | Bot | toda conversación nueva de un inbox con Agent Bot (lo hace Chatwoot) |
+| `open` | Persona | handoff del back, o un operador la toma |
+| `resolved` | — | la cierra el operador |
+| `open` → `pending` | vuelve al bot | el operador la devuelve a mano |
+
+Paciente que escribe en una conversación `resolved`: ver 6.G (estado actual).
+
+### 6.G Configuración en Chatwoot (`chat.accesmed.site`)
+
+1. **Agent Bot** `AccesMed Bot` (Ajustes → Bots, o `POST /api/v1/accounts/{account}/agent_bots`):
+   `outgoing_url` = `https://<host del back>/accesmed-api/Chatwoot/Webhook`; su `secret` →
+   `ACCESMED_CHATWOOT_WEBHOOK_SECRET`; su access token → `ACCESMED_CHATWOOT_API_TOKEN`.
+2. **Conectar el bot al inbox** (Inbox → Configuración del bot, o `POST /inboxes/{id}/set_agent_bot`).
+3. Token y secret van **solo** al `.env` local / del servidor, nunca al repo (se copian desde
+   Ajustes → Bots → Editar: "Webhook Secret" y "Token de acceso").
+
+**Estado actual (2026-11-07):** `AccesMed Bot` creado (URL `https://accesmed.site/accesmed-api/Chatwoot/Webhook`,
+back de **staging**) y conectado al inbox **AccesMed WhatsApp**. El inbox "WhatsApp (Prueba)" no se usa
+(no funciona). El inbox tiene *Conversation Routing = Reopen same conversation*: cuando el paciente
+vuelve a escribir en una conversación `resolved`, Chatwoot la reabre (con el bot conectado
+debería quedar `pending`; confirmar en la primera prueba real y corregir esta línea).
 
 ---
 
@@ -351,9 +450,9 @@ Sin body. **Resolución:** `codigo` → `Turno`; scope por teléfono; delegar en
 4. **Cobertura por nombre (PAC-1/PAC-2):** `ObraSocialDomainService.findObraSocialActivaByNombre` y
    `PlanDomainService.findPlanActivoByObraSocialIdAndNombre`; `AgenteApp` crea/reemplaza la
    `ObraSocialPaciente`.
-5. **Cadenas de seguridad** `/Agente/**` (API key) y `/Chatwoot/**` (`permitAll`, firma HMAC en el App)
+5. **Cadenas de seguridad** `/Agente/**` (API key) y `/Chatwoot/**` (firma HMAC en `ChatwootFirmaFilter`)
    en `SecurityFilterChainConfig`.
-6. **Webhook + clientes de Chatwoot y Flowise** (el pasamanos, §6).
+6. **Webhook + clientes de Chatwoot y Flowise** (el pasamanos, §6), con agrupación de mensajes.
 7. Búsquedas nuevas por clave de negocio: `findTurnoByCodigo`, `findEspecialidadActivaByNombre`,
    `findEspecialidadesActivas`, `findPrestacionActivaByNombre`, `findPrestacionesPublicadasByEspecialidadId`,
    `findMedicoActivoByMatricula`, `findMedicosActivosByEspecialidadId`, `findAgendaHorarioActivoById`,
@@ -370,7 +469,7 @@ No modifica el dominio (el CU lo dice: "el sistema no crea ni modifica instancia
   agrega el token **`—HANDOFF—`** a su respuesta.
 - El back, al recibir la respuesta de Flowise, detecta el token y llama a Chatwoot
   `toggle_status: open` → la conversación cae en la bandeja de los operadores humanos. El bot
-  deja de responder mientras esté en `open` (regla del §6, paso 3).
+  deja de responder mientras esté en `open` (§6.B y §6.F).
 - Si Chatwoot no responde (Excepción 2 del CU): el back responde al paciente un mensaje de
   disculpa / reintento, sin tocar estado.
 
