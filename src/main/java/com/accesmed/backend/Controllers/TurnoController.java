@@ -215,14 +215,15 @@ public class TurnoController {
     }
 
     /**
-     * Inicia la atención de un turno en estado EN_SALA_DE_ESPERA, transicionándolo
-     * a estado EN_CURSO.
+     * Inicia la atención de un turno en estado EN_SALA_DE_ESPERA o CONFIRMADO
+     * (el médico se salta la sala de espera), transicionándolo a estado EN_CURSO.
      *
      * @param id {@code UUID} identificador del turno
      * @param usuarioDetails {@code UsuarioDetails} identidad autenticada (inyectado por Spring Security)
      * @return {@code ResponseEntity<StartAtencionTurnoResponse>} el turno en atención con status 200
      * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si el turno no existe
      * @throws com.accesmed.backend.Services.Errors.ReglaNegocioException si el turno no está en EN_SALA_DE_ESPERA
+     *         ni en CONFIRMADO, o si se intenta fuera de la ventana de anuncio
      */
     @PreAuthorize("hasAuthority('TURN_INICIAR')")
     @PatchMapping("/Turno/{id}/Atencion")

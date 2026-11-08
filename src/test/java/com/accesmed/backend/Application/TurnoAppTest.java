@@ -234,6 +234,39 @@ class TurnoAppTest {
         verify(applicationEventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void startAtencionTurno_turnoEnEstadoCONFIRMADO_transicionaSinPublicarEvento() {
+        UUID pacienteId = turnoExistente.getPaciente().getId();
+        UUID medicoId = turnoExistente.getMedico().getId();
+        UUID prestacionId = turnoExistente.getPrestacion().getId();
+
+        when(turnoDomainService.findTurnoById(turnoId)).thenReturn(turnoExistente);
+        when(historicoEstadoTurnoDomainService.getEstadoVigente(turnoId))
+                .thenReturn(EstadoTurno.CONFIRMADO);
+        when(turnoMapper.toStartAtencionResponse(turnoExistente, EstadoTurno.EN_CURSO))
+                .thenReturn(new StartAtencionTurnoResponse(
+                        turnoId,
+                        "TURNO_12345678",
+                        pacienteId,
+                        medicoId,
+                        prestacionId,
+                        turnoExistente.getFechaHoraInicio(),
+                        turnoExistente.getMontoAPagar(),
+                        "PARTICULAR",
+                        EstadoTurno.EN_CURSO
+                ));
+
+        StartAtencionTurnoResponse respuesta = turnoApp.startAtencionTurno(turnoId, usuarioDetails);
+
+        assertNotNull(respuesta);
+        assertEquals(EstadoTurno.EN_CURSO, respuesta.estadoActual());
+
+        verify(historicoEstadoTurnoDomainService).transitionConfirmadoToEnCursoTurno(turnoExistente);
+        verify(historicoEstadoTurnoDomainService, never())
+                .transitionEnSalaDeEsperaToEnCursoTurno(org.mockito.ArgumentMatchers.any());
+        verify(applicationEventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
+    }
+
     // region ========== finishTurno ==========
 
     @Test
@@ -321,6 +354,36 @@ class TurnoAppTest {
         assertThrows(ReglaNegocioException.class,
                 () -> turnoApp.startAtencionTurno(turnoId, usuarioDetails));
 
+        verify(historicoEstadoTurnoDomainService, never())
+                .transitionEnSalaDeEsperaToEnCursoTurno(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void startAtencionTurno_confirmadoLlegadaTardia_lanzaReglaNegocio() {
+        turnoExistente.setFechaLimiteAnuncioTardio(ZonedDateTime.now().minusMinutes(1));
+
+        when(turnoDomainService.findTurnoById(turnoId)).thenReturn(turnoExistente);
+        when(historicoEstadoTurnoDomainService.getEstadoVigente(turnoId))
+                .thenReturn(EstadoTurno.CONFIRMADO);
+
+        assertThrows(ReglaNegocioException.class,
+                () -> turnoApp.startAtencionTurno(turnoId, usuarioDetails));
+
+        verify(historicoEstadoTurnoDomainService, never())
+                .transitionConfirmadoToEnCursoTurno(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void startAtencionTurno_estadoNiEnSalaDeEsperaNiConfirmado_lanzaReglaNegocio() {
+        when(turnoDomainService.findTurnoById(turnoId)).thenReturn(turnoExistente);
+        when(historicoEstadoTurnoDomainService.getEstadoVigente(turnoId))
+                .thenReturn(EstadoTurno.PENDIENTE);
+
+        assertThrows(ReglaNegocioException.class,
+                () -> turnoApp.startAtencionTurno(turnoId, usuarioDetails));
+
+        verify(historicoEstadoTurnoDomainService, never())
+                .transitionConfirmadoToEnCursoTurno(org.mockito.ArgumentMatchers.any());
         verify(historicoEstadoTurnoDomainService, never())
                 .transitionEnSalaDeEsperaToEnCursoTurno(org.mockito.ArgumentMatchers.any());
     }

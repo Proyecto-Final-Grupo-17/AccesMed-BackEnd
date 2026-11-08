@@ -242,6 +242,30 @@ public class HistoricoEstadoTurnoDomainService {
     }
 
     /**
+     * Transiciona un turno de {@code CONFIRMADO} a {@code EN_CURSO}
+     * (el médico inicia la atención sin pasar por sala de espera, DTE 3.0).
+     *
+     * @param turno {@code Turno} turno a transicionar
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el estado vigente no es
+     *         {@code CONFIRMADO}
+     */
+    public void transitionConfirmadoToEnCursoTurno(Turno turno) {
+
+        log.debug("Transición CONFIRMADO → EN_CURSO de turno: id={}", turno.getId());
+
+        //Validar que el estado vigente sea CONFIRMADO
+        EstadoTurno estadoVigente = getEstadoVigente(turno.getId());
+        if (estadoVigente != EstadoTurno.CONFIRMADO) {
+            log.warn("No se pudo transicionar turno {}: estado vigente {} no es CONFIRMADO", turno.getId(), estadoVigente);
+            throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
+                    "Esta acción solo se puede realizar sobre un turno confirmado. El turno está " + FormatoMensaje.estado(estadoVigente) + ".");
+        }
+
+        cerrarYAbrirTramo(turno, EstadoTurno.EN_CURSO);
+
+    }
+
+    /**
      * Transiciona un turno de {@code EN_SALA_DE_ESPERA} a {@code EN_CURSO}
      * (inicio de la atención del paciente).
      *
