@@ -245,7 +245,8 @@ public class AgenteController {
     }
 
     /**
-     * Lista los turnos del paciente del canal que admiten una acción (cancelar, reprogramar, confirmar).
+     * Lista los turnos del paciente del canal que admiten una acción (cancelar, reprogramar, confirmar):
+     * estado vigente habilitado y plazo de la acción no vencido.
      *
      * @param numeroTelefono {@code String} teléfono verificado del canal (header {@code X-Paciente-Telefono})
      * @param accion {@code AccionTurnoAgente} acción que el paciente quiere hacer

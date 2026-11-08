@@ -218,9 +218,10 @@ especificación; las demás las resuelve el canal antes de llegar al agente.
 **Alterno:** lista vacía → "No tenés turnos que se puedan {cancelar / reprogramar /
 confirmar}" → **fin del CU** (Spec, Excepción 4 de TURN-4..6).
 
-> **Observación:** el listado filtra solo por estado, no por plazo (ni la spec en 6.1 ni el
-> código). Un turno fuera de plazo aparece en la lista y recién falla al elegirlo, aunque la
-> precondición de la spec dice "dentro de la fecha límite". Ver §1.9 D5.
+> **Plazo:** el listado filtra por estado **y** por plazo vigente de la acción
+> (`fechaLimiteCancelacion`, `fechaLimiteReprogramacion` o `fechaLimiteConfirmacion` según
+> corresponda), así que el paciente no elige un turno vencido. El 409 `*_FUERA_DE_PLAZO_*`
+> queda como defensa ante un vencimiento entre el listado y la acción. Ver §1.9 D5.
 
 ---
 
@@ -581,12 +582,12 @@ verificar · 🔴 conflicto que rompe un flujo.
 | 15 | Cancelar: plazo `fechaLimiteCancelacion` (paciente) | CAN | Exc. 5 | `TURNO_FUERA_DE_PLAZO_CANCELACION` | ✅ |
 | 16 | **Reprogramar: estados de origen** | REP | Pendiente **o** Espera de Validación | lista y transición: solo Pendiente | ✅ resuelto: transición y lista del agente solo Pendiente, como el DTE |
 | 17 | Reprogramar crea turno nuevo y cierra el viejo como Reprogramado | REP | "reasigna el turno manteniendo su estado" | crea nuevo + Reprogramado | 🟡 spec desactualizada |
-| 18 | Reprogramar: plazo `fechaLimiteReprogramacion` | REP | se valida **antes** de mostrar horarios (paso 8) | se valida recién al reprogramar | 🟠 el paciente puede elegir horario y recién ahí enterarse de que está fuera de plazo; el listado no expone las fechas límite |
+| 18 | Reprogramar: plazo `fechaLimiteReprogramacion` | REP | se valida **antes** de mostrar horarios (paso 8) | se valida recién al reprogramar | ✅ resuelto 2026-11-08 (el listado filtra por plazo: el paciente ya no elige un turno vencido; el 409 queda como defensa ante un vencimiento entre el listado y la acción) |
 | 19 | Reprogramar: horarios del **mismo médico y prestación** | REP | lee la `MedicoPrestacion` del turno | `listTurnos` devuelve la `matricula` que exige `listHorariosDisponibles` | ✅ resuelto: `matricula` en `ListTurnoAgenteResponse` |
 | 20 | Reprogramar con plan no Publicado o cobertura de baja → no se reprograma | REP | — | cobertura de baja → `OBRA_SOCIAL_PLAN_PRESTACION_NO_ENCONTRADA`; plan no Publicado → `PLAN_NO_PUBLICADO` | ✅ resuelto 2026-11-08 |
 | 21 | Confirmar: plazo `fechaLimiteConfirmacion` | CONF | Exc. 5 | `TURNO_FUERA_DE_PLAZO_CONFIRMACION` | ✅ |
 | 22 | El estado sigue siendo válido al ejecutar (cancelar, confirmar, reprogramar) | CAN, REP, CONF | en los parámetros, sin excepción | `TURNO_TRANSICION_INVALIDA` | 🟡 |
-| 23 | Los listados filtran por plazo (precondición "dentro de la fecha límite") | CAN, REP, CONF | precondición sí, búsqueda no | filtran solo por estado | 🟠 |
+| 23 | Los listados filtran por plazo (precondición "dentro de la fecha límite") | CAN, REP, CONF | precondición sí, búsqueda no | filtran por estado y por plazo vigente de la acción | ✅ resuelto 2026-11-08 |
 | 24 | Solo turnos propios; se expone el `codigo`, nunca el `id` | CAN, REP, CONF | implícito | `RECURSO_AJENO`, `TURNO_NO_ENCONTRADO` | 🟡 |
 | 25 | **Baja de paciente con turnos vivos** | BAJA | sin spec | rechaza con `PACIENTE_CON_TURNOS_VIVOS` | ✅ manda el código; reglas §6 actualizadas |
 | 26 | DNI y teléfono únicos entre activos; el teléfono no se cambia por el chatbot | REG, MOD | sin spec | `PACIENTE_DNI_DUPLICADO`, `PACIENTE_NUMERO_TELEFONO_DUPLICADO`; el request no admite teléfono | ✅ |
@@ -605,8 +606,8 @@ Preguntas que el análisis deja planteadas y se resuelven en la etapa 2:
 | D2 | **¿`CB-DISP` es abierto o exige registro?** | La spec lo pone en el grupo C; el endpoint no pide teléfono. Abrirlo permite consultar horarios sin registrarse y pedir el registro recién al reservar. |
 | D3 | **¿Después de `CB-REG` se retoma el objetivo?** | La spec termina el CU. Conversacionalmente conviene retomar ("Listo, ya estás registrado. ¿Seguimos con el turno de cardiología?"). |
 | D4 | **Confirmación explícita antes de cada operación que modifica** | Las specs pasan de "Seleccionar" a ejecutar. En lenguaje natural la elección puede ser ambigua: conviene un "¿Confirmás…?" antes de `createTurno`, `cancelTurno`, `reprogramTurno`, `confirmTurno`, `createPaciente`, `updatePaciente` y `softDeletePaciente`. |
-| D5 | **Turnos fuera de plazo en los listados** | ¿El back los filtra (o expone las fechas límite) o el agente tolera el error al elegir? Afecta a #18 y #23. |
+| D5 | **Turnos fuera de plazo en los listados** | **Resuelta (2026-11-08):** el back filtra por plazo en el listado (#18 y #23); el 409 queda como defensa. |
 | D6 | **Mostrar el monto antes de reservar o reprogramar** | Hoy solo se conoce después. Requeriría un endpoint de previsualización (#13). |
 | D7 | **Criterio de handoff proactivo** | Cuántos `EX-COH` seguidos, qué errores derivan directo (`EX-BACK`, CB-CAN.E3, CB-MOD.E2, CB-REG.E2). |
 | D8 | **Catálogo de obras sociales y planes** | Sin tool para listarlas, el paciente tiene que acertar el nombre. ¿Agregar `GET /Agente/ObraSocial`? |
-| D9 | **Correcciones aplicadas (2026-11-07)** | Resueltas: #16 (reprogramar solo desde Pendiente en la transición y en `REPROGRAMABLE`, alineado al DTE), #19 (`matricula` en `ListTurnoAgenteResponse`), #25 (reglas §6: la baja con turnos vivos se rechaza), #27 (la Excepción 2 de la spec queda desactualizada; manda `log.error`), #28 (regla: se asocia cualquier plan no Deshabilitado), #29 y #30 (reglas y `Chatbot.md` actualizados). Siguen pendientes las decisiones D1 a D8. |
+| D9 | **Correcciones aplicadas (2026-11-07)** | Resueltas: #18 y #23 (el listado del agente filtra por plazo; D5 resuelta, 2026-11-08), #16 (reprogramar solo desde Pendiente en la transición y en `REPROGRAMABLE`, alineado al DTE), #19 (`matricula` en `ListTurnoAgenteResponse`), #25 (reglas §6: la baja con turnos vivos se rechaza), #27 (la Excepción 2 de la spec queda desactualizada; manda `log.error`), #28 (regla: se asocia cualquier plan no Deshabilitado), #29 y #30 (reglas y `Chatbot.md` actualizados). Siguen pendientes las decisiones D1 a D8. |

@@ -402,7 +402,12 @@ estadoActual = `PENDIENTE` o `ESPERA_VALIDACION`), sin exponer UUIDs salvo el `c
 ### 7.7 Apoyo · Listar mis turnos — `GET /Agente/Turno`
 
 Para ECU-TURN-4/5/6 (paso "mostrar la lista de turnos"). Lista los turnos **del paciente del
-header** filtrando por estado vigente.
+header** filtrando por estado vigente **y** por plazo vigente de la acción: deja afuera los turnos
+cuya fecha límite ya venció (`ahora > fechaLimite`, la misma comparación de las operaciones).
+La fecha límite que usa cada acción: `CANCELABLE` → `fechaLimiteCancelacion`;
+`REPROGRAMABLE` → `fechaLimiteReprogramacion`; `CONFIRMABLE` → `fechaLimiteConfirmacion`. El 409
+`*_FUERA_DE_PLAZO_*` de cancelar/reprogramar/confirmar queda como defensa ante un vencimiento
+entre el listado y la acción.
 
 **Query params:** `accion` = `CANCELABLE | REPROGRAMABLE | CONFIRMABLE` (traduce a los estados
 del CU: cancelable = `PENDIENTE|CONFIRMADO|ESPERA_VALIDACION`; reprogramable =

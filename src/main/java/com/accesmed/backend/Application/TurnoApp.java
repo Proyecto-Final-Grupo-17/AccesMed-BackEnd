@@ -193,7 +193,7 @@ public class TurnoApp {
 
         //Calcular fechas límite usando tolerancias de la prestación
         turnoNuevo.setFechaLimiteValidacion(turnoNuevo.getFechaHoraInicio()
-                .plus(prestacionExistente.getTiempoToleranciaValidacion()));
+                .minus(prestacionExistente.getTiempoToleranciaValidacion()));
         turnoNuevo.setFechaLimiteReprogramacion(turnoNuevo.getFechaHoraInicio()
                 .minus(prestacionExistente.getTiempoToleranciaReprogramacion()));
         turnoNuevo.setFechaLimiteConfirmacion(turnoNuevo.getFechaHoraInicio()
@@ -338,7 +338,7 @@ public class TurnoApp {
 
         //Copiar fechas límite del viejo (mismo médico, prestación, tipo de cobertura)
         turnoNuevo.setFechaLimiteValidacion(turnoNuevo.getFechaHoraInicio()
-                .plus(turnoViejo.getPrestacion().getTiempoToleranciaValidacion()));
+                .minus(turnoViejo.getPrestacion().getTiempoToleranciaValidacion()));
         turnoNuevo.setFechaLimiteReprogramacion(turnoNuevo.getFechaHoraInicio()
                 .minus(turnoViejo.getPrestacion().getTiempoToleranciaReprogramacion()));
         turnoNuevo.setFechaLimiteConfirmacion(turnoNuevo.getFechaHoraInicio()

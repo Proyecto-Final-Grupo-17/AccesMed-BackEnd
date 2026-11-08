@@ -511,7 +511,7 @@ public class AgenteApp {
 
         //Calcular fechas límite usando tolerancias de la prestación
         turnoNuevo.setFechaLimiteValidacion(turnoNuevo.getFechaHoraInicio()
-                .plus(prestacionExistente.getTiempoToleranciaValidacion()));
+                .minus(prestacionExistente.getTiempoToleranciaValidacion()));
         turnoNuevo.setFechaLimiteReprogramacion(turnoNuevo.getFechaHoraInicio()
                 .minus(prestacionExistente.getTiempoToleranciaReprogramacion()));
         turnoNuevo.setFechaLimiteConfirmacion(turnoNuevo.getFechaHoraInicio()
@@ -553,11 +553,12 @@ public class AgenteApp {
 
     /**
      * Lista los turnos del paciente del canal que admiten una acción (cancelar, reprogramar o
-     * confirmar), según su estado vigente. Siempre filtra por el paciente del teléfono.
+     * confirmar), según su estado vigente y su plazo: deja afuera los turnos cuya fecha límite para la
+     * acción ya venció (misma comparación que las operaciones). Siempre filtra por el paciente del teléfono.
      *
      * @param numeroTelefono {@code String} teléfono verificado del canal
      * @param accionTurnoAgente {@code AccionTurnoAgente} acción que el paciente quiere hacer
-     * @return {@code List<ListTurnoAgenteResponse>} turnos del paciente que admiten la acción (puede estar vacía)
+     * @return {@code List<ListTurnoAgenteResponse>} turnos del paciente que admiten la acción y están en plazo (puede estar vacía)
      * @throws ValidacionException {@code ValidacionException} si el teléfono no es válido
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no hay un
      *         paciente activo con ese teléfono
@@ -574,7 +575,15 @@ public class AgenteApp {
         Map<UUID, EstadoTurno> estadosVigentes = historicoEstadoTurnoDomainService.getEstadosVigentes(
                 turnosDelPaciente.stream().map(Turno::getId).toList());
 
-        List<ListTurnoAgenteResponse> listTurnoAgenteResponses = turnosDelPaciente.stream()
+        //Dejar afuera los turnos cuyo plazo para la acción ya venció
+        ZonedDateTime ahora = ZonedDateTime.now();
+        List<Turno> turnosEnPlazo = turnosDelPaciente.stream()
+                .filter(turno -> !ahora.isAfter(accionTurnoAgente.fechaLimite(turno)))
+                .toList();
+        log.debug("Listado de turnos por canal: {} de {} turnos dentro de plazo para {}",
+                turnosEnPlazo.size(), turnosDelPaciente.size(), accionTurnoAgente);
+
+        List<ListTurnoAgenteResponse> listTurnoAgenteResponses = turnosEnPlazo.stream()
                 .map(turno -> agenteMapper.toListTurnoResponse(turno, estadosVigentes.get(turno.getId())))
                 .toList();
         return listTurnoAgenteResponses;
@@ -731,7 +740,7 @@ public class AgenteApp {
 
         //Copiar fechas límite del viejo (mismo médico, prestación, tipo de cobertura)
         turnoNuevo.setFechaLimiteValidacion(turnoNuevo.getFechaHoraInicio()
-                .plus(turnoViejo.getPrestacion().getTiempoToleranciaValidacion()));
+                .minus(turnoViejo.getPrestacion().getTiempoToleranciaValidacion()));
         turnoNuevo.setFechaLimiteReprogramacion(turnoNuevo.getFechaHoraInicio()
                 .minus(turnoViejo.getPrestacion().getTiempoToleranciaReprogramacion()));
         turnoNuevo.setFechaLimiteConfirmacion(turnoNuevo.getFechaHoraInicio()
