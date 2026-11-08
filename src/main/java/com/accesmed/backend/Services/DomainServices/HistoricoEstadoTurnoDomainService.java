@@ -145,22 +145,24 @@ public class HistoricoEstadoTurnoDomainService {
 
     /**
      * Transiciona un turno a {@code REPROGRAMADO} (marca el turno original como reprogramado).
-     * Valida que el estado vigente sea {@code PENDIENTE} o {@code CONFIRMADO}.
+     * Valida que el estado vigente sea {@code PENDIENTE}: un turno {@code CONFIRMADO} no se
+     * reprograma (hay que cancelarlo y dar de alta uno nuevo, regla del DTE).
      *
      * @param turno {@code Turno} turno a transicionar
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el estado vigente no es
-     *         {@code PENDIENTE} ni {@code CONFIRMADO}
+     *         {@code PENDIENTE}
      */
     public void transitionToReprogramadoTurno(Turno turno) {
 
         log.debug("Transición → REPROGRAMADO de turno: id={}", turno.getId());
 
-        //Validar que el estado vigente sea PENDIENTE o CONFIRMADO
+        //Validar que el estado vigente sea PENDIENTE
         EstadoTurno estadoVigente = getEstadoVigente(turno.getId());
-        if (estadoVigente != EstadoTurno.PENDIENTE && estadoVigente != EstadoTurno.CONFIRMADO) {
-            log.warn("No se pudo transicionar turno {}: estado vigente {} no es PENDIENTE ni CONFIRMADO", turno.getId(), estadoVigente);
+        if (estadoVigente != EstadoTurno.PENDIENTE) {
+            log.warn("No se pudo transicionar turno {}: estado vigente {} no es PENDIENTE", turno.getId(), estadoVigente);
             throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
-                    "Esta acción solo se puede realizar sobre un turno pendiente o confirmado. El turno está " + FormatoMensaje.estado(estadoVigente) + ".");
+                    "Solo se puede reprogramar un turno pendiente. El turno está " + FormatoMensaje.estado(estadoVigente)
+                            + "; si ya está confirmado, cancelalo y sacá uno nuevo.");
         }
 
         cerrarYAbrirTramo(turno, EstadoTurno.REPROGRAMADO);

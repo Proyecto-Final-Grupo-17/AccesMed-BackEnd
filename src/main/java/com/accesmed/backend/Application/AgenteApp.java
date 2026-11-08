@@ -43,6 +43,7 @@ import com.accesmed.backend.Records.Paciente.Request.UpdatePacienteRequest;
 import com.accesmed.backend.Services.DomainServices.AgendaHorariosDiaDomainService;
 import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.EspecialidadDomainService;
+import com.accesmed.backend.Services.DomainServices.HistoricoEstadoPlanDomainService;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoTurnoDomainService;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
@@ -111,6 +112,7 @@ public class AgenteApp {
     private final MedicoDomainService medicoDomainService;
     private final PrestacionDomainService prestacionDomainService;
     private final HistoricoEstadoPrestacionDomainService historicoEstadoPrestacionDomainService;
+    private final HistoricoEstadoPlanDomainService historicoEstadoPlanDomainService;
     private final MedicoPrestacionDomainService medicoPrestacionDomainService;
     private final IndicacionPrestacionDomainService indicacionPrestacionDomainService;
     private final IndicacionPrestacionTurnoDomainService indicacionPrestacionTurnoDomainService;
@@ -509,7 +511,7 @@ public class AgenteApp {
 
         //Calcular fechas límite usando tolerancias de la prestación
         turnoNuevo.setFechaLimiteValidacion(turnoNuevo.getFechaHoraInicio()
-                .plus(prestacionExistente.getTiempoToleranciaValidacion()));
+                .minus(prestacionExistente.getTiempoToleranciaValidacion()));
         turnoNuevo.setFechaLimiteReprogramacion(turnoNuevo.getFechaHoraInicio()
                 .minus(prestacionExistente.getTiempoToleranciaReprogramacion()));
         turnoNuevo.setFechaLimiteConfirmacion(turnoNuevo.getFechaHoraInicio()
@@ -551,11 +553,12 @@ public class AgenteApp {
 
     /**
      * Lista los turnos del paciente del canal que admiten una acción (cancelar, reprogramar o
-     * confirmar), según su estado vigente. Siempre filtra por el paciente del teléfono.
+     * confirmar), según su estado vigente y su plazo: deja afuera los turnos cuya fecha límite para la
+     * acción ya venció (misma comparación que las operaciones). Siempre filtra por el paciente del teléfono.
      *
      * @param numeroTelefono {@code String} teléfono verificado del canal
      * @param accionTurnoAgente {@code AccionTurnoAgente} acción que el paciente quiere hacer
-     * @return {@code List<ListTurnoAgenteResponse>} turnos del paciente que admiten la acción (puede estar vacía)
+     * @return {@code List<ListTurnoAgenteResponse>} turnos del paciente que admiten la acción y están en plazo (puede estar vacía)
      * @throws ValidacionException {@code ValidacionException} si el teléfono no es válido
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no hay un
      *         paciente activo con ese teléfono
@@ -572,7 +575,15 @@ public class AgenteApp {
         Map<UUID, EstadoTurno> estadosVigentes = historicoEstadoTurnoDomainService.getEstadosVigentes(
                 turnosDelPaciente.stream().map(Turno::getId).toList());
 
-        List<ListTurnoAgenteResponse> listTurnoAgenteResponses = turnosDelPaciente.stream()
+        //Dejar afuera los turnos cuyo plazo para la acción ya venció
+        ZonedDateTime ahora = ZonedDateTime.now();
+        List<Turno> turnosEnPlazo = turnosDelPaciente.stream()
+                .filter(turno -> !ahora.isAfter(accionTurnoAgente.fechaLimite(turno)))
+                .toList();
+        log.debug("Listado de turnos por canal: {} de {} turnos dentro de plazo para {}",
+                turnosEnPlazo.size(), turnosDelPaciente.size(), accionTurnoAgente);
+
+        List<ListTurnoAgenteResponse> listTurnoAgenteResponses = turnosEnPlazo.stream()
                 .map(turno -> agenteMapper.toListTurnoResponse(turno, estadosVigentes.get(turno.getId())))
                 .toList();
         return listTurnoAgenteResponses;
@@ -634,7 +645,8 @@ public class AgenteApp {
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el paciente, el
      *         turno o el nuevo horario no existen o no están disponibles
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno es de otro paciente,
-     *         el plazo de reprogramación venció o el turno está en un estado que no lo permite
+     *         el plazo de reprogramación venció, el plan de la cobertura no está publicado o el
+     *         turno está en un estado que no lo permite
      */
     @Transactional
     public ReprogramTurnoAgenteResponse reprogramTurno(String numeroTelefono, String codigo,
@@ -704,6 +716,9 @@ public class AgenteApp {
         //Recalcular tipo de cobertura y monto a pagar (por si cambiaron entre reprogramaciones)
         BigDecimal montoAPagarReprogramado;
         if (turnoViejo.getObraSocialPaciente() != null) {
+            //Solo un plan publicado cubre: si dejó de estarlo, no se reprograma
+            historicoEstadoPlanDomainService.validatePlanPublicado(turnoViejo.getObraSocialPaciente().getPlan());
+
             ObraSocialPlanPrestacion coberturaActual = obraSocialPlanPrestacionDomainService
                     .findCoberturaByPlanAndPrestacion(turnoViejo.getObraSocialPaciente().getPlan().getId(),
                             turnoViejo.getPrestacion().getId());
@@ -725,7 +740,7 @@ public class AgenteApp {
 
         //Copiar fechas límite del viejo (mismo médico, prestación, tipo de cobertura)
         turnoNuevo.setFechaLimiteValidacion(turnoNuevo.getFechaHoraInicio()
-                .plus(turnoViejo.getPrestacion().getTiempoToleranciaValidacion()));
+                .minus(turnoViejo.getPrestacion().getTiempoToleranciaValidacion()));
         turnoNuevo.setFechaLimiteReprogramacion(turnoNuevo.getFechaHoraInicio()
                 .minus(turnoViejo.getPrestacion().getTiempoToleranciaReprogramacion()));
         turnoNuevo.setFechaLimiteConfirmacion(turnoNuevo.getFechaHoraInicio()
@@ -819,7 +834,7 @@ public class AgenteApp {
     }
 
     /**
-     * Busca la primera cobertura activa del paciente cuyo plan cubre la prestación.
+     * Busca la primera cobertura activa del paciente cuyo plan está publicado y cubre la prestación.
      *
      * @param pacienteId {@code UUID} identificador del paciente
      * @param prestacionId {@code UUID} identificador de la prestación
@@ -829,8 +844,9 @@ public class AgenteApp {
     private ObraSocialPaciente findObraSocialPacienteCubridora(UUID pacienteId, UUID prestacionId) {
 
         for (ObraSocialPaciente cobertura : obraSocialPacienteDomainService.findCoberturasActivasByPaciente(pacienteId)) {
-            if (obraSocialPlanPrestacionDomainService.existsCoberturaActivaByPlanAndPrestacion(
-                    cobertura.getPlan().getId(), prestacionId)) {
+            if (historicoEstadoPlanDomainService.isPlanPublicado(cobertura.getPlan().getId())
+                    && obraSocialPlanPrestacionDomainService.existsCoberturaActivaByPlanAndPrestacion(
+                            cobertura.getPlan().getId(), prestacionId)) {
                 return cobertura;
             }
         }
