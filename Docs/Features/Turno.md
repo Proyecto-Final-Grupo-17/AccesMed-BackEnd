@@ -79,8 +79,9 @@ NOTIF-1 (Turno Registrado).
 1. Valida que existan y estén activos el médico, la prestación (y que esté **publicada**),
    el slot (disponible y dentro de plazo de reserva) y el paciente.
 2. Confirma que el médico atienda esa prestación en la fecha del slot (de ahí sale el precio).
-3. Calcula el `montoAPagar`: si vino `obraSocialPacienteId`, aplica la estrategia de
-   cobertura del plan; si no, es el precio particular.
+3. Calcula el `montoAPagar`: si vino `obraSocialPacienteId` y su plan está **Publicado**, aplica
+   la estrategia de cobertura del plan; si no vino o el plan no está Publicado, el turno es
+   `PARTICULAR` y paga el precio particular.
 4. Ocupa el slot, congela en el turno todas las fechas límite (validación, reprogramación,
    confirmación, cancelación, anuncio, recordatorio) a partir de las tolerancias de la prestación.
 5. Copia las indicaciones vigentes de la prestación al turno y abre el estado inicial:
@@ -95,7 +96,7 @@ NOTIF-1 (Turno Registrado).
 | `medicoId` | UUID | Sí | Médico del turno. |
 | `prestacionId` | UUID | Sí | Prestación a reservar. Debe estar **publicada**. |
 | `slotId` | UUID | Sí | Slot disponible de la agenda (`AgendaHorariosDia`). Debe estar libre y dentro del plazo de reserva. |
-| `obraSocialPacienteId` | UUID | No | Cobertura del paciente. Si viene, el turno es `OBRA_SOCIAL` y el monto se calcula según el plan; si se omite, es `PARTICULAR`. |
+| `obraSocialPacienteId` | UUID | No | Cobertura del paciente. Si viene y su plan está Publicado, el turno es `OBRA_SOCIAL` y el monto se calcula según el plan; si se omite o el plan no está Publicado, es `PARTICULAR`. |
 
 **Response para el front — `CreateTurnoResponse`**
 
@@ -114,6 +115,8 @@ Bloque base compartido. `estadoActual` = `ESPERA_VALIDACION` o `PENDIENTE` segú
 
 Permiso: `TURN_REPROGRAMAR`. No modifica el turno original: **crea uno nuevo** en otro slot,
 enlazado al viejo por `turnoOrigen`, y cierra el viejo en `REPROGRAMADO`. Dispara NOTIF-4.
+**Solo se reprograma un turno en estado `PENDIENTE`** (`TURNO_TRANSICION_INVALIDA` si no): un turno
+`CONFIRMADO` se cancela y se da de alta uno nuevo.
 
 **Flujo simplificado:**
 1. Busca el turno original y valida que pertenezca al médico autenticado (si quien llama es médico).
@@ -142,6 +145,8 @@ Bloque base compartido (del turno **nuevo**) + un campo extra. `estadoActual` =
 | `turnoOrigenId` | UUID | Id del turno original (ahora `REPROGRAMADO`), para enlazar el historial de reprogramaciones. |
 
 **Errores posibles:**
+- `TURNO_TRANSICION_INVALIDA` (409): el turno original no está `PENDIENTE`.
+- `PLAN_NO_PUBLICADO` (409): el plan de la cobertura del turno dejó de estar Publicado.
 - `TURNO_FUERA_DE_PLAZO_REPROGRAMACION` (409): venció el plazo para reprogramar.
 - `AGENDA_HORARIO_FUERA_DE_PLAZO` (409): venció el plazo para reservar el nuevo slot.
 - `PRESTACION_NO_PUBLICADA` (409): la prestación dejó de estar publicada.

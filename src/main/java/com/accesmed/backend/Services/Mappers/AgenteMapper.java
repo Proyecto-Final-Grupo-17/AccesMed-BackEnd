@@ -240,6 +240,7 @@ public interface AgenteMapper {
     @Mapping(target = "nombrePrestacion", source = "turno.prestacion.nombre")
     @Mapping(target = "nombreMedico", source = "turno.medico.nombre")
     @Mapping(target = "apellidoMedico", source = "turno.medico.apellido")
+    @Mapping(target = "matricula", source = "turno.medico.matricula")
     @Mapping(target = "codigo", source = "turno.codigo")
     @Mapping(target = "fechaHoraInicio", source = "turno.fechaHoraInicio")
     @Mapping(target = "estadoActual", source = "estadoActual")

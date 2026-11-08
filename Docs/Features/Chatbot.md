@@ -9,6 +9,8 @@
 > Relacionado: `Docs/Features/Turno.md` (endpoints web del Turno), las Especificaciones
 > (`Docs/Especificaciones Turnos.docx`) y los `Docs/` de `AccesMed-Flowise` (`CONTEXTO.md`:
 > topología; `AGENTE.md`: funciones y piezas del agente; `SERVICIOS.md`: backend, LLM y Chatwoot).
+> Análisis de los CU del chatbot (pasos de la conversación, flujos alternos, matriz reglas↔excepciones):
+> `Docs/Diseno-Chatbot.md`.
 
 ---
 
@@ -238,7 +240,8 @@ persona."*); el mensaje no trae teléfono. Si Chatwoot falla al responder, solo 
 | `resolved` | — | la cierra el operador |
 | `open` → `pending` | vuelve al bot | el operador la devuelve a mano |
 
-Paciente que escribe en una conversación `resolved`: ver 6.G (estado actual).
+Paciente que escribe después de una conversación `resolved`: Chatwoot abre una conversación
+nueva en `pending` y vuelve a atender el bot (verificado, ver 6.G).
 
 ### 6.G Configuración en Chatwoot (`chat.accesmed.site`)
 
@@ -251,9 +254,16 @@ Paciente que escribe en una conversación `resolved`: ver 6.G (estado actual).
 
 **Estado actual (2026-11-07):** `AccesMed Bot` creado (URL `https://accesmed.site/accesmed-api/Chatwoot/Webhook`,
 back de **staging**) y conectado al inbox **AccesMed WhatsApp**. El inbox "WhatsApp (Prueba)" no se usa
-(no funciona). El inbox tiene *Conversation Routing = Reopen same conversation*: cuando el paciente
-vuelve a escribir en una conversación `resolved`, Chatwoot la reabre (con el bot conectado
-debería quedar `pending`; confirmar en la primera prueba real y corregir esta línea).
+(no funciona).
+
+**Verificado en la primera prueba real (2026-11-07, staging):**
+- Paciente que escribe en una conversación **`open`** (asignada a una persona): Chatwoot manda el
+  webhook igual, pero el back lo ignora (no es `pending`) y responde la persona.
+- Paciente que escribe después de que la conversación quedó **`resolved`**: Chatwoot **no la reabre**,
+  crea una **conversación nueva en `pending`** y el bot la atiende. Ciclo completo WhatsApp → Chatwoot →
+  back → Flowise → Chatwoot ≈ 4,6 s (espera de agrupación de 4 s incluida).
+- Chatwoot también manda al webhook otros eventos (`conversation_created`, `message_updated`, etc.):
+  el back responde 200 y los descarta.
 
 ---
 
@@ -268,14 +278,12 @@ debería quedar `pending`; confirmar en la primera prueba real y corregir esta l
 > queda intacto). Las búsquedas nuevas (por teléfono, por nombre, por código) se agregaron a
 > Repositories/DomainServices sin tocar los métodos existentes.
 >
-> **Diferencias entre este contrato y el código real** (manda el código): `CreatePacienteAgenteRequest`
-> exige `fechaNacimiento` y `email` porque la entidad `Paciente` no admite nulos (el contrato los daba
-> como opcionales); `Turno` no tiene FK a `MedicoPrestacion` (se valida con `findVigenteEnFecha`);
+> **Diferencias entre este contrato y el código real** (manda el código): `Turno` no tiene FK a `MedicoPrestacion` (se valida con `findVigenteEnFecha`);
 > `ListHorarioDisponibleAgenteResponse` devuelve `{ slotId, fechaHora, franja }` y la franja se filtra
 > por `horaDesde` (MAÑANA < 12:00, TARDE 12:00-19:00, NOCHE desde 19:00); el `GET /Agente/Turno` exige
 > el query param `accion`; PAC-2 con `obraSocial` **reemplaza** las coberturas activas (la entidad
 > `ObraSocialPaciente` es inmutable: baja + alta); ante varias coberturas, `createTurno` usa la primera
-> del paciente cuyo plan cubre la prestación, o particular.
+> del paciente cuyo plan está Publicado y cubre la prestación, o particular.
 
 En todas las tablas, `X-Paciente-Telefono` + `X-Agente-Api-Key` van en el header (§4) y no
 se repiten en el body.
@@ -291,8 +299,8 @@ Crea el paciente con el teléfono verificado del canal (no se pide ni se recibe 
 | `dni` | String | Sí | Único entre pacientes activos. |
 | `nombre` | String | Sí | |
 | `apellido` | String | Sí | |
-| `fechaNacimiento` | LocalDate | No | |
-| `email` | String | No | |
+| `fechaNacimiento` | LocalDate | Sí | `@NotNull @Past`. |
+| `email` | String | Sí | `@NotBlank @Email`. Único entre pacientes activos. |
 | `obraSocial` | objeto | No | `{ nombreObraSocial, nombrePlan, nroSocio }`. Si viene, se resuelve por **nombre** (ver resolución). Informativo, no se valida contra API externa. |
 
 **Resolución (capa Agente):** `numeroTelefono` ← header. Si vino `obraSocial`: resolver
@@ -394,16 +402,22 @@ estadoActual = `PENDIENTE` o `ESPERA_VALIDACION`), sin exponer UUIDs salvo el `c
 ### 7.7 Apoyo · Listar mis turnos — `GET /Agente/Turno`
 
 Para ECU-TURN-4/5/6 (paso "mostrar la lista de turnos"). Lista los turnos **del paciente del
-header** filtrando por estado vigente.
+header** filtrando por estado vigente **y** por plazo vigente de la acción: deja afuera los turnos
+cuya fecha límite ya venció (`ahora > fechaLimite`, la misma comparación de las operaciones).
+La fecha límite que usa cada acción: `CANCELABLE` → `fechaLimiteCancelacion`;
+`REPROGRAMABLE` → `fechaLimiteReprogramacion`; `CONFIRMABLE` → `fechaLimiteConfirmacion`. El 409
+`*_FUERA_DE_PLAZO_*` de cancelar/reprogramar/confirmar queda como defensa ante un vencimiento
+entre el listado y la acción.
 
 **Query params:** `accion` = `CANCELABLE | REPROGRAMABLE | CONFIRMABLE` (traduce a los estados
 del CU: cancelable = `PENDIENTE|CONFIRMADO|ESPERA_VALIDACION`; reprogramable =
-`PENDIENTE|ESPERA_VALIDACION`; confirmable = `PENDIENTE`).
+`PENDIENTE` (un turno `CONFIRMADO` no se reprograma: hay que cancelarlo y sacar otro);
+confirmable = `PENDIENTE`).
 
 **Resolución:** reusa `TurnoQueryService` con criteria `pacienteId` (resuelto del teléfono) +
 estado. **Scope por teléfono forzado** (nunca lista turnos de otro paciente).
 
-**Response:** lista de `{ codigo, fechaHora, nombrePrestacion, nombreMedico, estadoActual }`.
+**Response:** lista de `{ codigo, fechaHoraInicio, nombrePrestacion, nombreMedico, apellidoMedico, matricula, estadoActual }`.
 **Errores:** lista vacía → el agente dice "No tiene turnos que se puedan …" (Excepción 4 de
 cada CU).
 
@@ -420,13 +434,15 @@ encontrado o ajeno al paciente (→ 404/scope), turno en estado final.
 
 **Request (`ReprogramTurnoAgenteRequest`):** `slotId` (UUID opaco de la Disponibilidad del
 mismo médico y prestación; se obtiene con `GET /Agente/Turno/Disponibilidad` filtrando por el
-médico/prestación del turno). **Resolución:** `codigo` → `Turno`; scope por teléfono; armar el
+médico/prestación del turno; el agente toma `nombrePrestacion` y `matricula` del turno elegido en
+`GET /Agente/Turno?accion=REPROGRAMABLE`). **Resolución:** `codigo` → `Turno`; scope por teléfono; armar el
 `ReprogramTurnoRequest` web (`id, slotId`) y delegar en **`TurnoApp.reprogramTurno`**
 (ver §8: `UsuarioDetails`).
 
 **Response:** bloque base del turno nuevo + `turnoOrigenId` interno (no se muestra). **Errores:**
 `TURNO_FUERA_DE_PLAZO_REPROGRAMACION` (Excepción 5), `AGENDA_HORARIO_FUERA_DE_PLAZO`
-(Excepción 7), `PRESTACION_NO_PUBLICADA`.
+(Excepción 7), `PRESTACION_NO_PUBLICADA`, `PLAN_NO_PUBLICADO` (el plan de la cobertura del turno dejó de
+estar Publicado), `TURNO_TRANSICION_INVALIDA` (el turno no está `PENDIENTE`).
 
 ### 7.10 ECU-TURN-6 · Confirmar — `PATCH /Agente/Turno/{codigo}/Confirmacion`
 
@@ -470,8 +486,9 @@ No modifica el dominio (el CU lo dice: "el sistema no crea ni modifica instancia
 - El back, al recibir la respuesta de Flowise, detecta el token y llama a Chatwoot
   `toggle_status: open` → la conversación cae en la bandeja de los operadores humanos. El bot
   deja de responder mientras esté en `open` (§6.B y §6.F).
-- Si Chatwoot no responde (Excepción 2 del CU): el back responde al paciente un mensaje de
-  disculpa / reintento, sin tocar estado.
+- Si Chatwoot falla al enviar la respuesta o al derivar (`Application/ChatwootApp`): el back
+  solo hace `log.error` y el paciente no recibe un mensaje extra. Es la decisión vigente
+  (coherente con §6.E); la Excepción 2 de la especificación del CU queda desactualizada.
 
 ---
 

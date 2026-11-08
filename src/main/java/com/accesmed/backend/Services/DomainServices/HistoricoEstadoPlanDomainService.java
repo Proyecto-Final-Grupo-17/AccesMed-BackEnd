@@ -85,6 +85,41 @@ public class HistoricoEstadoPlanDomainService {
     }
 
     /**
+     * Indica si el plan está {@code PUBLICADO}: solo un plan publicado cubre turnos nuevos.
+     *
+     * @param planId {@code UUID} identificador del plan
+     * @return {@code boolean} {@code true} si el estado vigente del plan es {@code PUBLICADO}
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el plan no
+     *         tiene un tramo de estado vigente
+     */
+    public boolean isPlanPublicado(UUID planId) {
+
+        return getEstadoVigente(planId) == EstadoPlan.PUBLICADO;
+
+    }
+
+    /**
+     * Valida que el plan esté {@code PUBLICADO} para cubrir un turno. Lo usa la reprogramación,
+     * que conserva la cobertura del turno original: si el plan dejó de estar publicado, el
+     * turno no se reprograma.
+     *
+     * @param plan {@code Plan} plan de la cobertura del turno
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el plan no está publicado
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el plan no
+     *         tiene un tramo de estado vigente
+     */
+    public void validatePlanPublicado(Plan plan) {
+
+        EstadoPlan estadoVigente = getEstadoVigente(plan.getId());
+        if (estadoVigente != EstadoPlan.PUBLICADO) {
+            log.warn("No se pudo validar plan publicado: plan {} en estado {}", plan.getId(), estadoVigente);
+            throw new ReglaNegocioException(getClass(), "PLAN_NO_PUBLICADO",
+                    "El plan " + plan.getNombre() + " no está disponible para cubrir turnos en este momento.");
+        }
+
+    }
+
+    /**
      * Abre el primer tramo del histórico de estados de un plan recién persistido
      * ({@code NO_PUBLICADO}).
      *
