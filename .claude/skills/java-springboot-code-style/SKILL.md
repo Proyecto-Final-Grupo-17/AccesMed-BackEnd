@@ -142,6 +142,17 @@ Services/
 └── Utils/            helpers genéricos sin dueño de entidad
 ```
 
+Además, cuando hay integraciones con sistemas externos:
+
+```
+Services/
+├── Clients/          <Servicio>Client: solo transporte HTTP saliente (RestClient), sin decisiones
+└── ExternalServices/ <Servicio>Service: lógica de integración (qué mandar, cuándo, cómo leer la respuesta)
+```
+
+Ej.: `ChatwootService` (horario, antispam, mensajes fijos del canal) usa `ChatwootClient` y
+`FlowiseClient`, y lo orquesta `ChatwootApp`. No va en `Utils` (no es un helper genérico).
+
 - **Controller** (`<Entidad>Controller`, `@RestController`, package `Controllers`): recibe, `@Valid`, delega. **Sin lógica.**
 - **App** (`<Entidad>App`, `@Service`, package `Application`): orquesta el flujo,
   valida reglas de negocio llamando a services, `@Transactional`.

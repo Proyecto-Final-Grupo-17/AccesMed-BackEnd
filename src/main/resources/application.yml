@@ -95,6 +95,17 @@ accesmed:
       espera-segundos: 4
       espera-maxima-segundos: 15
       max-mensajes: 5
+    # Ventana de inactividad por conversación: abre la bienvenida y la sesión de Flowise
+    # (Docs/Diseno-Chatbot.md §2.3.4).
+    ventana-inactividad-minutos: 30
+    # Antispam: más de max-mensajes en ventana-segundos silencia la conversación (§2.3.6).
+    antispam:
+      max-mensajes: 10
+      ventana-segundos: 60
+      silencio-minutos: 5
+    # Respuestas fuera de tema seguidas que derivan la conversación a una persona.
+    fuera-de-tema:
+      max-seguidos: 3
   # Flowise: chatflow del agente al que el back le pasa cada mensaje del paciente.
   flowise:
     base-url: ${ACCESMED_FLOWISE_BASE_URL:http://accesmed-flowise:3000}

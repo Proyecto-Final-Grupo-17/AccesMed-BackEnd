@@ -43,8 +43,13 @@ Topología pasamanos:
   - [x] 1.4 Endpoints de Paciente (registrar / modificar / baja).
   - [x] 1.5 Endpoints de Turno (solicitar / listar / confirmar / cancelar / reprogramar).
   - [x] 1.6 Webhook pasamanos (`POST /accesmed-api/Chatwoot/Webhook`) + clientes de Chatwoot y Flowise.
+  - [x] 1.7 Controles del canal (`Docs/Diseno-Chatbot.md §2.3`): `ChatwootService` en
+        `Services/ExternalServices` con horario de atención, antispam, ventana de inactividad,
+        bienvenida instantánea, variables nuevas para Flowise (`pacienteRegistrado`, `nombrePaciente`,
+        `fechaHoraActual`), `sessionId` por ventana y token `—FUERA_DE_TEMA—`.
+  - [x] 1.8 `GET /Agente/ObraSocial` (D8): catálogo de obras sociales con sus planes asociables.
 - **Fase 2 — Flowise (el agente)**
-  - [ ] 2.1 Cargar API key de OpenAI y armar el chatflow.
+  - [ ] 2.1 Cargar API key de OpenAI, crear las variables de `Chatbot.md §6.D` y armar el flow (`Docs/Diseno-Chatbot.md §2.4`).
   - [ ] 2.2 Custom Tools (uno por endpoint) + system prompt + handoff (`—HANDOFF—`).
 - **Fase 3 — Chatwoot + WhatsApp**
   - [ ] 3.1 Crear el Agent Bot en Chatwoot apuntando al webhook del back.

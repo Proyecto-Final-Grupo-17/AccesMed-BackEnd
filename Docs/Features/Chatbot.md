@@ -177,10 +177,38 @@ Un evento se atiende solo si es `message_created` + `incoming` + no privado + co
 Se ignora todo lo demás: los `outgoing` (respuestas del bot y de humanos → sin bucles) y las
 conversaciones `open`/`resolved`. Entre los atendidos:
 
-- **Sin teléfono** → mensaje de error técnico y handoff (no llama a Flowise).
-- **Sin texto** (audio, imagen, sticker) → responde *"Por ahora solo puedo leer mensajes de texto. ¿Me lo escribís?"*
-  (no llama a Flowise ni entra en la agrupación).
-- **Con texto** → se agrupa (6.C).
+Los controles se aplican **en este orden** (lógica en `Services/ExternalServices/ChatwootService`,
+diseño en `Docs/Diseno-Chatbot.md §2.3`):
+
+1. **Sin teléfono** → mensaje de error técnico y handoff (no llama a Flowise).
+2. **Fuera del horario de atención** (`Clinica.horarioInicioAtencion` ≤ ahora < `horarioFinAtencion`,
+   en `Clinica.zonaHoraria`) → *"Hola, somos {nombre}. Nuestro horario de atención es de {inicio} a
+   {fin} h. Escribinos en ese horario y te ayudamos."*, **una vez por ventana**; no llama a Flowise.
+3. **Antispam**: más de 10 mensajes en 60 s → *"Recibimos muchos mensajes seguidos…"* una vez y
+   la conversación se ignora 5 min.
+4. **Sin texto** (audio, imagen, video, sticker, documento) → *"Por ahora solo puedo leer mensajes de
+   texto. ¿Me lo escribís?"* (no llama a Flowise ni entra en la agrupación). Un adjunto con pie de
+   texto pasa como texto y el adjunto se ignora.
+5. **Primer mensaje de texto de la ventana** → bienvenida inmediata, antes de agrupar: *"¡Hola,
+   {nombre del Paciente}! Somos {clínica}, atendemos de {inicio} a {fin} h. Ya estamos revisando tu
+   mensaje, aguardá un momento."* (sin nombre si el teléfono no está registrado). **El agente de
+   Flowise no saluda.**
+6. **Con texto** → se agrupa (6.C).
+
+**Ventana de inactividad** por conversación: arranca con el primer mensaje, se renueva con cada
+uno y vence a los 30 min sin mensajes. Reinicia la bienvenida, el aviso de fuera de horario, el
+contador de fuera de tema y la sesión de Flowise (6.D).
+
+| Regla | Valor | Property |
+|-------|-------|----------|
+| Ventana de inactividad | 30 min | `accesmed.chatwoot.ventana-inactividad-minutos` |
+| Antispam: mensajes tolerados | 10 | `accesmed.chatwoot.antispam.max-mensajes` |
+| Antispam: ventana de conteo | 60 s | `accesmed.chatwoot.antispam.ventana-segundos` |
+| Antispam: silencio | 5 min | `accesmed.chatwoot.antispam.silencio-minutos` |
+| Fuera de tema seguidos → handoff | 3 | `accesmed.chatwoot.fuera-de-tema.max-seguidos` |
+
+El estado (ventanas, antispam, fuera de tema) vive en memoria y se limpia cada 10 min: supone una
+sola instancia del back.
 
 ### 6.C Agrupación de mensajes en ráfaga
 
@@ -207,15 +235,39 @@ POST {accesmed.flowise.base-url}/api/v1/prediction/{chatflowId}
 quiero un turno
 con cardiología",
   "overrideConfig": {
-    "sessionId": "chatwoot-<conversation.id>",
-    "vars": { "numeroTelefono": "+5492617742682", "nombreContacto": "Ana" }
+    "sessionId": "chatwoot-<conversation.id>-<inicio de la ventana en epoch>",
+    "vars": {
+      "numeroTelefono": "+5492617742682",
+      "nombreContacto": "Ana",
+      "pacienteRegistrado": "true",
+      "nombrePaciente": "Ana",
+      "fechaHoraActual": "sábado 08/11/2026 10:35"
+    }
   }
 }
 ```
 
-`question` = los mensajes de la tanda unidos por salto de línea. En el flow se leen como
-`$vars.numeroTelefono` y `$vars.nombreContacto` (las variables deben estar habilitadas para override
-en la configuración de seguridad del chatflow).
+`question` = los mensajes de la tanda unidos por salto de línea. El `sessionId` cambia con cada
+ventana de inactividad (6.B): la memoria del agente arranca limpia después de 30 min sin mensajes.
+
+| Variable | Valor |
+|----------|-------|
+| `numeroTelefono` | teléfono verificado del canal; los Custom Tools lo mandan en `X-Paciente-Telefono` |
+| `nombreContacto` | nombre del perfil de WhatsApp (vacío si no viene) |
+| `pacienteRegistrado` | `"true"` / `"false"`: hay un paciente activo con ese teléfono (se consulta en cada tanda) |
+| `nombrePaciente` | nombre del `Paciente` registrado, o vacío |
+| `fechaHoraActual` | día, fecha y hora en la zona de la clínica, para interpretar "mañana", "el jueves" |
+
+En el flow se leen como `$vars.<nombre>`. Cada variable tiene que estar **creada en *Variables*** de
+Flowise y habilitada para override en la configuración de seguridad del chatflow.
+
+**Tokens de la respuesta** (los quita el back antes de enviar el texto):
+
+- `—HANDOFF—` → envía el texto y abre la conversación (pasa a una persona).
+- `—FUERA_DE_TEMA—` → envía el texto y suma 1 al contador de la conversación; cualquier respuesta sin
+  el token lo reinicia. Al llegar a 3 seguidos, avisa *"Te paso con una persona del equipo."* y abre
+  la conversación.
+- Respuesta vacía o error de Flowise → mensaje de error técnico y handoff.
 
 ### 6.E Back → Chatwoot (API)
 
@@ -228,7 +280,7 @@ los mensajes figuran como enviados por el bot.
 | Derivar a persona | `POST /api/v1/accounts/{account}/conversations/{id}/toggle_status` `{status: "open"}` |
 
 Se deriva cuando: la respuesta de Flowise trae `—HANDOFF—` (se quita el token y se envía el resto, §9);
-Flowise falla o devuelve vacío (antes se avisa *"Estamos con problemas técnicos, en breve te atiende una
+se acumulan 3 respuestas `—FUERA_DE_TEMA—` seguidas (6.D); Flowise falla o devuelve vacío (antes se avisa *"Estamos con problemas técnicos, en breve te atiende una
 persona."*); el mensaje no trae teléfono. Si Chatwoot falla al responder, solo `log.error`.
 
 ### 6.F Estados de la conversación (quién atiende)
@@ -344,6 +396,21 @@ Sin body. Identifica por teléfono. Delega en **`PacienteApp.softDeletePaciente(
 **Response:** 204. **Errores:** paciente no encontrado (Excepción 3: "No encontramos un
 paciente registrado con este número"); `ReglaNegocio` si tiene turnos vivos
 (`validateSinTurnosVivosDePaciente`).
+
+### 7.3.1 Apoyo · Catálogo de obras sociales — `GET /Agente/ObraSocial`
+
+Para ECU-PAC-1 y ECU-PAC-2: le da al agente los nombres exactos que acepta `ObraSocialAgenteRequest`,
+así el paciente no tiene que acertarlos (decisión D8 de `Docs/Diseno-Chatbot.md`). No requiere
+registro (sí `X-Agente-Api-Key`).
+
+**Response 200:** obras sociales activas, ordenadas por nombre, con sus planes **no deshabilitados**
+(mismo criterio con el que el registro resuelve el plan). Se omiten las que no tienen planes.
+
+```json
+[
+  { "nombre": "OSDE", "planes": ["OSDE 210", "OSDE 310", "OSDE 410"] }
+]
+```
 
 ### 7.4 ECU-TURN-1 · Información general
 
@@ -486,7 +553,8 @@ No modifica el dominio (el CU lo dice: "el sistema no crea ni modifica instancia
 - El back, al recibir la respuesta de Flowise, detecta el token y llama a Chatwoot
   `toggle_status: open` → la conversación cae en la bandeja de los operadores humanos. El bot
   deja de responder mientras esté en `open` (§6.B y §6.F).
-- Si Chatwoot falla al enviar la respuesta o al derivar (`Application/ChatwootApp`): el back
+- También deriva el back solo, sin token de handoff, tras 3 respuestas `—FUERA_DE_TEMA—` seguidas (§6.D).
+- Si Chatwoot falla al enviar la respuesta o al derivar (`Services/ExternalServices/ChatwootService`): el back
   solo hace `log.error` y el paciente no recibe un mensaje extra. Es la decisión vigente
   (coherente con §6.E); la Excepción 2 de la especificación del CU queda desactualizada.
 
@@ -521,6 +589,7 @@ No modifica el dominio (el CU lo dice: "el sistema no crea ni modifica instancia
 | PATCH | `/accesmed-api/Agente/Paciente` | PAC-2 | `PacienteApp.updatePaciente` |
 | DELETE | `/accesmed-api/Agente/Paciente` | PAC-3 | `PacienteApp.softDeletePaciente` |
 | GET | `/accesmed-api/Agente/Paciente` | apoyo | `PacienteQueryService` |
+| GET | `/accesmed-api/Agente/ObraSocial` | apoyo PAC-1/2 | `ObraSocialDomainService` + `PlanDomainService` |
 | GET | `/accesmed-api/Agente/Clinica` | TURN-1 | `ClinicaQueryService` |
 | GET | `/accesmed-api/Agente/Especialidad` | TURN-1/2/3 | `EspecialidadQueryService` |
 | GET | `/accesmed-api/Agente/Especialidad/{nombre}/Oferta` | TURN-1/2/3 | `Prestacion`/`MedicoQueryService` |

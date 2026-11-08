@@ -34,6 +34,7 @@ import com.accesmed.backend.Records.Agente.Response.GetOfertaEspecialidadAgenteR
 import com.accesmed.backend.Records.Agente.Response.GetPacienteAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListEspecialidadAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListHorarioDisponibleAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.ListObraSocialAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ObraSocialAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ReprogramTurnoAgenteResponse;
@@ -327,6 +328,30 @@ public class AgenteApp {
         List<ListEspecialidadAgenteResponse> listEspecialidadAgenteResponses =
                 agenteMapper.toListEspecialidadResponses(especialidadDomainService.findEspecialidadesActivas());
         return listEspecialidadAgenteResponses;
+
+    }
+
+    /**
+     * Lista las obras sociales activas con los planes que el paciente puede declarar como
+     * cobertura al registrarse o modificar sus datos (los no deshabilitados, mismo criterio que
+     * resuelve {@code ObraSocialAgenteRequest}). Las obras sociales sin planes asociables se omiten.
+     *
+     * @return {@code List<ListObraSocialAgenteResponse>} obras sociales con los nombres de sus planes
+     */
+    @Transactional(readOnly = true)
+    public List<ListObraSocialAgenteResponse> listObrasSociales() {
+
+        log.info("Listado de obras sociales por canal");
+
+        //Juntar cada obra social activa con sus planes asociables
+        List<ListObraSocialAgenteResponse> listObraSocialAgenteResponses = obraSocialDomainService.findObrasSocialesActivas()
+                .stream()
+                .map(obraSocial -> agenteMapper.toListObraSocialResponse(obraSocial,
+                        planDomainService.findPlanesNoDeshabilitadosByObraSocial(obraSocial.getId())))
+                //Una obra social sin planes asociables no se puede declarar
+                .filter(listObraSocialAgenteResponse -> !listObraSocialAgenteResponse.planes().isEmpty())
+                .toList();
+        return listObraSocialAgenteResponses;
 
     }
 

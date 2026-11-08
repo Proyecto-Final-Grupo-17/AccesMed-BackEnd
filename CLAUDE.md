@@ -77,9 +77,12 @@ Estas convenciones se aplican SIEMPRE. El detalle y ejemplos están en `Docs/ARQ
   (`SecurityFilterChainConfig`) vive en `Security/Config/`.
 
 **Servicios externos y canal chatbot:** `Services/Clients` tiene los clientes HTTP salientes
-(`ChatwootClient`, `FlowiseClient`, sobre `RestClient`). El agente de WhatsApp entra por
+(`ChatwootClient`, `FlowiseClient`, sobre `RestClient`); `Services/ExternalServices` tiene la
+lógica de integración con cada servicio externo (`ChatwootService`: horario de atención, antispam,
+bienvenida, sesión/variables de Flowise, tokens de la respuesta). El agente de WhatsApp entra por
 `Controllers/AgenteController` + `Application/AgenteApp` (records en `Records/Agente`) y el
-webhook de Chatwoot por `ChatwootController` + `ChatwootApp`. **Ningún `App` llama a otro `App`**:
+webhook de Chatwoot por `ChatwootController` + `ChatwootApp`, que solo orquesta
+(diseño en `Docs/Diseno-Chatbot.md §2`). **Ningún `App` llama a otro `App`**:
 `AgenteApp` copia la orquestación de `PacienteApp`/`TurnoApp` para no tocar el panel.
 
 **Nomenclatura:**
@@ -177,7 +180,7 @@ default y también van en `docker/deploy`; `ACCESMED_CHATWOOT_WEBHOOK_SECRET` y
 `ACCESMED_FLOWISE_API_KEY` son opcionales (vacío = no se verifica la firma / no se manda
 `Authorization`); el health
 queda público porque lo usa el healthcheck del contenedor. Los datos de demo se cargan con
-`Scripts/seed-datos-demo.sql`, que no contiene contraseñas escritas, solo hashes bcrypt.
+`Scripts/seed-datos-demo.sql`, que no siembra usuarios (el único es el SuperAdmin).
 
 ## Ramas
 

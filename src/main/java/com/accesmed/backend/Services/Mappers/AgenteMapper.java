@@ -2,6 +2,8 @@ package com.accesmed.backend.Services.Mappers;
 
 import com.accesmed.backend.Domain.Clinica;
 import com.accesmed.backend.Domain.Especialidad;
+import com.accesmed.backend.Domain.ObraSocial;
+import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Domain.EstadoTurno;
 import com.accesmed.backend.Domain.Medico;
 import com.accesmed.backend.Domain.ObraSocialPaciente;
@@ -17,6 +19,7 @@ import com.accesmed.backend.Records.Agente.Response.GetClinicaAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetOfertaEspecialidadAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetPacienteAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListEspecialidadAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.ListObraSocialAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListHorarioDisponibleAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListMedicoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListPrestacionAgenteResponse;
@@ -111,6 +114,21 @@ public interface AgenteMapper {
      * @return {@code List<ListEspecialidadAgenteResponse>} especialidades mapeadas
      */
     List<ListEspecialidadAgenteResponse> toListEspecialidadResponses(List<Especialidad> especialidades);
+
+    /**
+     * Convierte una obra social y sus planes asociables a {@code ListObraSocialAgenteResponse}.
+     *
+     * @param obraSocial {@code ObraSocial} obra social activa
+     * @param planes {@code List<Plan>} sus planes no deshabilitados
+     * @return {@code ListObraSocialAgenteResponse} la obra social con los nombres de sus planes
+     */
+    default ListObraSocialAgenteResponse toListObraSocialResponse(ObraSocial obraSocial, List<Plan> planes) {
+
+        ListObraSocialAgenteResponse listObraSocialAgenteResponse = new ListObraSocialAgenteResponse(
+                obraSocial.getNombre(), planes.stream().map(Plan::getNombre).sorted().toList());
+        return listObraSocialAgenteResponse;
+
+    }
 
     /**
      * Convierte una prestación a {@code ListPrestacionAgenteResponse}.
