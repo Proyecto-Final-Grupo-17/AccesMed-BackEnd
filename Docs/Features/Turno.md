@@ -114,6 +114,8 @@ Bloque base compartido. `estadoActual` = `ESPERA_VALIDACION` o `PENDIENTE` segú
 
 Permiso: `TURN_REPROGRAMAR`. No modifica el turno original: **crea uno nuevo** en otro slot,
 enlazado al viejo por `turnoOrigen`, y cierra el viejo en `REPROGRAMADO`. Dispara NOTIF-4.
+**Solo se reprograma un turno en estado `PENDIENTE`** (`TURNO_TRANSICION_INVALIDA` si no): un turno
+`CONFIRMADO` se cancela y se da de alta uno nuevo.
 
 **Flujo simplificado:**
 1. Busca el turno original y valida que pertenezca al médico autenticado (si quien llama es médico).
@@ -142,6 +144,7 @@ Bloque base compartido (del turno **nuevo**) + un campo extra. `estadoActual` =
 | `turnoOrigenId` | UUID | Id del turno original (ahora `REPROGRAMADO`), para enlazar el historial de reprogramaciones. |
 
 **Errores posibles:**
+- `TURNO_TRANSICION_INVALIDA` (409): el turno original no está `PENDIENTE`.
 - `TURNO_FUERA_DE_PLAZO_REPROGRAMACION` (409): venció el plazo para reprogramar.
 - `AGENDA_HORARIO_FUERA_DE_PLAZO` (409): venció el plazo para reservar el nuevo slot.
 - `PRESTACION_NO_PUBLICADA` (409): la prestación dejó de estar publicada.

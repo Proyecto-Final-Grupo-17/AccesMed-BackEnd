@@ -12,6 +12,7 @@ import java.time.ZonedDateTime;
  * @param nombrePrestacion {@code String} nombre de la prestación
  * @param nombreMedico {@code String} nombre del médico
  * @param apellidoMedico {@code String} apellido del médico
+ * @param matricula {@code String} matrícula del médico
  * @param estadoActual {@code EstadoTurno} estado vigente
  */
 public record ListTurnoAgenteResponse(
@@ -20,6 +21,7 @@ public record ListTurnoAgenteResponse(
         String nombrePrestacion,
         String nombreMedico,
         String apellidoMedico,
+        String matricula,
         EstadoTurno estadoActual
 ) {
 }

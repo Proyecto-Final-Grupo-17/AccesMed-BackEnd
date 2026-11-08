@@ -16,6 +16,7 @@ Fuente de verdad estructural: `modelo_acces_med.json` y `modelo_dte_turno.json`.
 8. **La baja de `Medico` y la baja de `Usuario` quedan desacopladas**: ninguna arrastra a la otra. La asociación `Usuario`–`Medico`/`Admin` es **unidireccional** (la FK vive en `usuario`; `Medico` y `Admin` no la navegan de vuelta). `Usuario` se crea con dos caminos según el rol: rol médico crea también la instancia de `Medico` con los datos recibidos, rol admin crea la instancia de `Admin`.
 9. **Clase nueva `Archivo`**: N→1 `Paciente` (obligatoria) y N→1 `Turno` (opcional).
 10. **El estado `En Transcurso` pasó a llamarse `En Curso`.**
+11. **Ajustes de 2026-11-07 (manda el código):** la baja de `Paciente` se rechaza con turnos vivos; el `email` del paciente es único entre activos; la cobertura no exige plan Publicado al asociarse.
 
 ---
 
@@ -499,7 +500,8 @@ Los períodos del par `(prestacion, nombre)` no se solapan, así que el relevo e
 - En el canal chatbot el teléfono lo provee la API de WhatsApp; en el canal interno lo ingresa el administrador.
 - **El paciente no puede cambiarse el `numeroTelefono` a sí mismo** desde el chatbot: ese cambio lo hace el administrador.
 - Si no declara ninguna cobertura, se atiende como particular.
-- `ObraSocialPaciente` es inmutable: alta y baja lógica. Cambiar de plan es baja más alta. **Solo se puede asociar un `Plan` Publicado**, y la cobertura se da de baja en cascada cuando su plan se deshabilita.
+- `ObraSocialPaciente` es inmutable: alta y baja lógica. Cambiar de plan es baja más alta. Se puede asociar cualquier `Plan` **no Deshabilitado** (`PlanDomainService.findPlanActivoByObraSocialIdAndNombre` en el canal, `findPlanActivoById` en el panel), sin exigir que esté Publicado, y la cobertura se da de baja en cascada cuando su plan se deshabilita. Al sacar un turno (`AgenteApp.createTurno`, `TurnoApp.createTurno`) la cobertura que cubre la prestación se aplica sin comprobar el estado del plan: si el plan no está Publicado, el turno igual se registra como `OBRA_SOCIAL`.
+- El `email` es único entre pacientes activos (`PacienteDomainService.validateEmailPacienteIsUnique`, `PACIENTE_EMAIL_DUPLICADO`).
 
 #### Archivos
 
@@ -650,7 +652,7 @@ Cumplida la precondición, baja atómica en una sola transacción: `Medico` + `A
 
 ### Paciente
 
-Baja lógica. Arrastra sus `ObraSocialPaciente` y sus `Archivo`. No cancela turnos: los turnos vivos de un paciente dado de baja se resuelven a mano.
+Baja lógica. Arrastra sus `ObraSocialPaciente` y sus `Archivo`. La baja se **rechaza** si el paciente tiene turnos vivos (estado vigente no final) con `PACIENTE_CON_TURNOS_VIVOS`: primero hay que cancelarlos (`TurnoDomainService.validateSinTurnosVivosDePaciente`).
 
 ### Rol
 

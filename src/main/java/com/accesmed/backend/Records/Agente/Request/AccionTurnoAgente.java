@@ -11,7 +11,7 @@ import java.util.Set;
 public enum AccionTurnoAgente {
 
     CANCELABLE(Set.of(EstadoTurno.PENDIENTE, EstadoTurno.CONFIRMADO, EstadoTurno.ESPERA_VALIDACION)),
-    REPROGRAMABLE(Set.of(EstadoTurno.PENDIENTE, EstadoTurno.ESPERA_VALIDACION)),
+    REPROGRAMABLE(Set.of(EstadoTurno.PENDIENTE)),
     CONFIRMABLE(Set.of(EstadoTurno.PENDIENTE));
 
     private final Set<EstadoTurno> estados;

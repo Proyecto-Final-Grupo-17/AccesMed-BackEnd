@@ -9,6 +9,8 @@
 > Relacionado: `Docs/Features/Turno.md` (endpoints web del Turno), las Especificaciones
 > (`Docs/Especificaciones Turnos.docx`) y los `Docs/` de `AccesMed-Flowise` (`CONTEXTO.md`:
 > topología; `AGENTE.md`: funciones y piezas del agente; `SERVICIOS.md`: backend, LLM y Chatwoot).
+> Análisis de los CU del chatbot (pasos de la conversación, flujos alternos, matriz reglas↔excepciones):
+> `Docs/Diseno-Chatbot.md`.
 
 ---
 
@@ -276,9 +278,7 @@ back de **staging**) y conectado al inbox **AccesMed WhatsApp**. El inbox "Whats
 > queda intacto). Las búsquedas nuevas (por teléfono, por nombre, por código) se agregaron a
 > Repositories/DomainServices sin tocar los métodos existentes.
 >
-> **Diferencias entre este contrato y el código real** (manda el código): `CreatePacienteAgenteRequest`
-> exige `fechaNacimiento` y `email` porque la entidad `Paciente` no admite nulos (el contrato los daba
-> como opcionales); `Turno` no tiene FK a `MedicoPrestacion` (se valida con `findVigenteEnFecha`);
+> **Diferencias entre este contrato y el código real** (manda el código): `Turno` no tiene FK a `MedicoPrestacion` (se valida con `findVigenteEnFecha`);
 > `ListHorarioDisponibleAgenteResponse` devuelve `{ slotId, fechaHora, franja }` y la franja se filtra
 > por `horaDesde` (MAÑANA < 12:00, TARDE 12:00-19:00, NOCHE desde 19:00); el `GET /Agente/Turno` exige
 > el query param `accion`; PAC-2 con `obraSocial` **reemplaza** las coberturas activas (la entidad
@@ -299,8 +299,8 @@ Crea el paciente con el teléfono verificado del canal (no se pide ni se recibe 
 | `dni` | String | Sí | Único entre pacientes activos. |
 | `nombre` | String | Sí | |
 | `apellido` | String | Sí | |
-| `fechaNacimiento` | LocalDate | No | |
-| `email` | String | No | |
+| `fechaNacimiento` | LocalDate | Sí | `@NotNull @Past`. |
+| `email` | String | Sí | `@NotBlank @Email`. Único entre pacientes activos. |
 | `obraSocial` | objeto | No | `{ nombreObraSocial, nombrePlan, nroSocio }`. Si viene, se resuelve por **nombre** (ver resolución). Informativo, no se valida contra API externa. |
 
 **Resolución (capa Agente):** `numeroTelefono` ← header. Si vino `obraSocial`: resolver
@@ -406,12 +406,13 @@ header** filtrando por estado vigente.
 
 **Query params:** `accion` = `CANCELABLE | REPROGRAMABLE | CONFIRMABLE` (traduce a los estados
 del CU: cancelable = `PENDIENTE|CONFIRMADO|ESPERA_VALIDACION`; reprogramable =
-`PENDIENTE|ESPERA_VALIDACION`; confirmable = `PENDIENTE`).
+`PENDIENTE` (un turno `CONFIRMADO` no se reprograma: hay que cancelarlo y sacar otro);
+confirmable = `PENDIENTE`).
 
 **Resolución:** reusa `TurnoQueryService` con criteria `pacienteId` (resuelto del teléfono) +
 estado. **Scope por teléfono forzado** (nunca lista turnos de otro paciente).
 
-**Response:** lista de `{ codigo, fechaHora, nombrePrestacion, nombreMedico, estadoActual }`.
+**Response:** lista de `{ codigo, fechaHoraInicio, nombrePrestacion, nombreMedico, apellidoMedico, matricula, estadoActual }`.
 **Errores:** lista vacía → el agente dice "No tiene turnos que se puedan …" (Excepción 4 de
 cada CU).
 
@@ -428,13 +429,14 @@ encontrado o ajeno al paciente (→ 404/scope), turno en estado final.
 
 **Request (`ReprogramTurnoAgenteRequest`):** `slotId` (UUID opaco de la Disponibilidad del
 mismo médico y prestación; se obtiene con `GET /Agente/Turno/Disponibilidad` filtrando por el
-médico/prestación del turno). **Resolución:** `codigo` → `Turno`; scope por teléfono; armar el
+médico/prestación del turno; el agente toma `nombrePrestacion` y `matricula` del turno elegido en
+`GET /Agente/Turno?accion=REPROGRAMABLE`). **Resolución:** `codigo` → `Turno`; scope por teléfono; armar el
 `ReprogramTurnoRequest` web (`id, slotId`) y delegar en **`TurnoApp.reprogramTurno`**
 (ver §8: `UsuarioDetails`).
 
 **Response:** bloque base del turno nuevo + `turnoOrigenId` interno (no se muestra). **Errores:**
 `TURNO_FUERA_DE_PLAZO_REPROGRAMACION` (Excepción 5), `AGENDA_HORARIO_FUERA_DE_PLAZO`
-(Excepción 7), `PRESTACION_NO_PUBLICADA`.
+(Excepción 7), `PRESTACION_NO_PUBLICADA`, `TURNO_TRANSICION_INVALIDA` (el turno no está `PENDIENTE`).
 
 ### 7.10 ECU-TURN-6 · Confirmar — `PATCH /Agente/Turno/{codigo}/Confirmacion`
 
@@ -478,8 +480,9 @@ No modifica el dominio (el CU lo dice: "el sistema no crea ni modifica instancia
 - El back, al recibir la respuesta de Flowise, detecta el token y llama a Chatwoot
   `toggle_status: open` → la conversación cae en la bandeja de los operadores humanos. El bot
   deja de responder mientras esté en `open` (§6.B y §6.F).
-- Si Chatwoot no responde (Excepción 2 del CU): el back responde al paciente un mensaje de
-  disculpa / reintento, sin tocar estado.
+- Si Chatwoot falla al enviar la respuesta o al derivar (`Application/ChatwootApp`): el back
+  solo hace `log.error` y el paciente no recibe un mensaje extra. Es la decisión vigente
+  (coherente con §6.E); la Excepción 2 de la especificación del CU queda desactualizada.
 
 ---
 
