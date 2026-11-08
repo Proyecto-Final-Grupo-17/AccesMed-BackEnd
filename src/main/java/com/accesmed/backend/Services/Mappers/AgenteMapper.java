@@ -31,6 +31,8 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 
 /**
@@ -199,60 +201,77 @@ public interface AgenteMapper {
     }
 
     /**
+     * Convierte la fecha y hora de inicio de un turno a la hora local de la clínica. La persistencia
+     * devuelve el {@code ZonedDateTime} en UTC y Jackson lo serializa con {@code Z}: el agente
+     * mostraba 17:00 para un turno de las 14:00. Va sin zona, igual que la disponibilidad.
+     *
+     * @param fechaHoraInicio {@code ZonedDateTime} fecha y hora de inicio del turno
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica
+     * @return {@code LocalDateTime} fecha y hora de inicio en la zona de la clínica, o {@code null}
+     */
+    default LocalDateTime toFechaHoraClinica(ZonedDateTime fechaHoraInicio, ZoneId zonaHorariaClinica) {
+        return fechaHoraInicio != null ? fechaHoraInicio.withZoneSameInstant(zonaHorariaClinica).toLocalDateTime() : null;
+    }
+
+    /**
      * Convierte un turno recién creado a {@code CreateTurnoAgenteResponse}.
      *
      * @param turno {@code Turno} entidad guardada
      * @param estadoActual {@code EstadoTurno} estado inicial del turno
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, para la hora que ve el paciente
      * @return {@code CreateTurnoAgenteResponse} turno sin ids internos
      */
     @Mapping(target = "nombrePrestacion", source = "turno.prestacion.nombre")
     @Mapping(target = "nombreMedico", source = "turno.medico.nombre")
     @Mapping(target = "apellidoMedico", source = "turno.medico.apellido")
     @Mapping(target = "codigo", source = "turno.codigo")
-    @Mapping(target = "fechaHoraInicio", source = "turno.fechaHoraInicio")
+    @Mapping(target = "fechaHoraInicio", expression = "java(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica))")
     @Mapping(target = "montoAPagar", source = "turno.montoAPagar")
     @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura")
     @Mapping(target = "estadoActual", source = "estadoActual")
-    CreateTurnoAgenteResponse toCreateTurnoResponse(Turno turno, EstadoTurno estadoActual);
+    CreateTurnoAgenteResponse toCreateTurnoResponse(Turno turno, EstadoTurno estadoActual, ZoneId zonaHorariaClinica);
 
     /**
      * Convierte el turno nuevo resultante de una reprogramación a {@code ReprogramTurnoAgenteResponse}.
      *
      * @param turno {@code Turno} entidad nueva, con {@code turnoOrigen}
      * @param estadoActual {@code EstadoTurno} estado inicial del turno nuevo
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, para la hora que ve el paciente
      * @return {@code ReprogramTurnoAgenteResponse} turno sin ids internos
      */
     @Mapping(target = "nombrePrestacion", source = "turno.prestacion.nombre")
     @Mapping(target = "nombreMedico", source = "turno.medico.nombre")
     @Mapping(target = "apellidoMedico", source = "turno.medico.apellido")
     @Mapping(target = "codigo", source = "turno.codigo")
-    @Mapping(target = "fechaHoraInicio", source = "turno.fechaHoraInicio")
+    @Mapping(target = "fechaHoraInicio", expression = "java(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica))")
     @Mapping(target = "montoAPagar", source = "turno.montoAPagar")
     @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura")
     @Mapping(target = "estadoActual", source = "estadoActual")
     @Mapping(target = "codigoTurnoOrigen", source = "turno.turnoOrigen.codigo")
-    ReprogramTurnoAgenteResponse toReprogramTurnoResponse(Turno turno, EstadoTurno estadoActual);
+    ReprogramTurnoAgenteResponse toReprogramTurnoResponse(Turno turno, EstadoTurno estadoActual, ZoneId zonaHorariaClinica);
 
     /**
      * Convierte un turno confirmado a {@code ConfirmTurnoAgenteResponse}.
      *
      * @param turno {@code Turno} entidad confirmada
      * @param estadoActual {@code EstadoTurno} estado vigente ({@code CONFIRMADO})
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, para la hora que ve el paciente
      * @return {@code ConfirmTurnoAgenteResponse} turno sin ids internos
      */
     @Mapping(target = "nombrePrestacion", source = "turno.prestacion.nombre")
     @Mapping(target = "nombreMedico", source = "turno.medico.nombre")
     @Mapping(target = "apellidoMedico", source = "turno.medico.apellido")
     @Mapping(target = "codigo", source = "turno.codigo")
-    @Mapping(target = "fechaHoraInicio", source = "turno.fechaHoraInicio")
+    @Mapping(target = "fechaHoraInicio", expression = "java(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica))")
     @Mapping(target = "estadoActual", source = "estadoActual")
-    ConfirmTurnoAgenteResponse toConfirmTurnoResponse(Turno turno, EstadoTurno estadoActual);
+    ConfirmTurnoAgenteResponse toConfirmTurnoResponse(Turno turno, EstadoTurno estadoActual, ZoneId zonaHorariaClinica);
 
     /**
      * Convierte un turno del paciente a {@code ListTurnoAgenteResponse}.
      *
      * @param turno {@code Turno} entidad
      * @param estadoActual {@code EstadoTurno} estado vigente del turno
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, para la hora que ve el paciente
      * @return {@code ListTurnoAgenteResponse} turno sin ids internos
      */
     @Mapping(target = "nombrePrestacion", source = "turno.prestacion.nombre")
@@ -260,9 +279,9 @@ public interface AgenteMapper {
     @Mapping(target = "apellidoMedico", source = "turno.medico.apellido")
     @Mapping(target = "matricula", source = "turno.medico.matricula")
     @Mapping(target = "codigo", source = "turno.codigo")
-    @Mapping(target = "fechaHoraInicio", source = "turno.fechaHoraInicio")
+    @Mapping(target = "fechaHoraInicio", expression = "java(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica))")
     @Mapping(target = "estadoActual", source = "estadoActual")
-    ListTurnoAgenteResponse toListTurnoResponse(Turno turno, EstadoTurno estadoActual);
+    ListTurnoAgenteResponse toListTurnoResponse(Turno turno, EstadoTurno estadoActual, ZoneId zonaHorariaClinica);
 
     //endregion
 

@@ -14,6 +14,7 @@ import com.accesmed.backend.Services.DomainServices.ObraSocialDomainService;
 import com.accesmed.backend.Services.DomainServices.ObraSocialPacienteDomainService;
 import com.accesmed.backend.Services.DomainServices.PacienteDomainService;
 import com.accesmed.backend.Services.DomainServices.PlanDomainService;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
@@ -48,6 +49,7 @@ public class PacienteApp {
     private final ObraSocialDomainService obraSocialDomainService;
     private final PlanDomainService planDomainService;
     private final TurnoDomainService turnoDomainService;
+    private final ClinicaDomainService clinicaDomainService;
 
     //Mappers
     private final PacienteMapper pacienteMapper;
@@ -165,7 +167,7 @@ public class PacienteApp {
         Paciente pacienteExistente = pacienteDomainService.findPacienteActivoById(id);
 
         //Validar que no tenga turnos vivos
-        turnoDomainService.validateSinTurnosVivosDePaciente(id);
+        turnoDomainService.validateSinTurnosVivosDePaciente(id, clinicaDomainService.findZonaHorariaClinica());
 
         //Dar de baja
         pacienteDomainService.softDeletePaciente(pacienteExistente, "Baja de paciente");

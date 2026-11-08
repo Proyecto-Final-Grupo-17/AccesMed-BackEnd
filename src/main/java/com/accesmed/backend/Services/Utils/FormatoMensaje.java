@@ -2,6 +2,7 @@ package com.accesmed.backend.Services.Utils;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -33,14 +34,19 @@ public final class FormatoMensaje {
     }
 
     /**
-     * Formatea una fecha y hora como {@code dd/MM/yyyy HH:mm}.
+     * Formatea una fecha y hora como {@code dd/MM/yyyy HH:mm} en la zona horaria de la clínica.
+     * Los {@code ZonedDateTime} que devuelve la persistencia vienen en UTC: sin convertir, un
+     * turno de las 14:00 en Argentina se mostraría como 17:00.
      *
      * @param fechaHora {@code ZonedDateTime} fecha y hora a formatear, o {@code null}
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica ({@code Clinica.zonaHoraria})
      * @return {@code String} la fecha y hora formateadas, o {@code "una fecha desconocida"} si es {@code null}
      */
-    public static String fechaHora(ZonedDateTime fechaHora) {
+    public static String fechaHora(ZonedDateTime fechaHora, ZoneId zonaHorariaClinica) {
 
-        return fechaHora != null ? FORMATO_FECHA_HORA.format(fechaHora) : "una fecha desconocida";
+        return fechaHora != null
+                ? FORMATO_FECHA_HORA.format(fechaHora.withZoneSameInstant(zonaHorariaClinica))
+                : "una fecha desconocida";
 
     }
 
