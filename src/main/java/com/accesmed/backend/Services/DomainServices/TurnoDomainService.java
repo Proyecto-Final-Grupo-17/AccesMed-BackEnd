@@ -12,6 +12,10 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.accesmed.backend.Domain.Turno;
+import com.accesmed.backend.Domain.Paciente;
+import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
+import java.util.Collection;
 
 /**
  * Lógica de dominio de solo lectura para la entidad {@code Turno}. No construye el
@@ -223,6 +227,61 @@ public class TurnoDomainService {
         log.debug("Buscando turnos con estado vigente: estado={}", estado);
 
         return turnoRepository.findByEstadoVigente(estado);
+
+    }
+
+    /**
+     * Busca un turno por su código de negocio.
+     *
+     * @param codigo {@code String} código del turno (ej. {@code TURNO_A1B2C3D4})
+     * @return {@code Turno} el turno correspondiente al código
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe un
+     *         turno con ese código
+     */
+    public Turno findTurnoByCodigo(String codigo) {
+
+        log.debug("Buscando turno por código: {}", codigo);
+
+        return turnoRepository.findByCodigo(codigo)
+                .orElseThrow(() -> {
+                    log.warn("Turno no encontrado: código={}", codigo);
+                    return new RecursoNoEncontradoException(getClass(), "TURNO_NO_ENCONTRADO",
+                            "No se encontró el turno solicitado.");
+                });
+
+    }
+
+    /**
+     * Valida que el turno pertenezca al paciente indicado (scope del canal chatbot: un paciente
+     * solo puede operar sobre sus propios turnos).
+     *
+     * @param turno {@code Turno} turno a validar
+     * @param paciente {@code Paciente} paciente que dice ser el dueño del turno
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno es de otro paciente
+     */
+    public void validateTurnoPerteneceAPaciente(Turno turno, Paciente paciente) {
+
+        if (!turno.getPaciente().getId().equals(paciente.getId())) {
+            log.warn("El turno {} no pertenece al paciente {}", turno.getCodigo(), paciente.getId());
+            throw new ReglaNegocioException(getClass(), "RECURSO_AJENO",
+                    "El turno indicado no pertenece a este paciente.");
+        }
+
+    }
+
+    /**
+     * Lista los turnos de un paciente cuyo estado vigente está entre los indicados, ordenados por
+     * fecha de inicio.
+     *
+     * @param pacienteId {@code UUID} identificador del paciente
+     * @param estados {@code Collection<EstadoTurno>} estados vigentes buscados
+     * @return {@code List<Turno>} los turnos del paciente en alguno de esos estados
+     */
+    public List<Turno> findTurnosByPacienteIdAndEstadosVigentes(UUID pacienteId, Collection<EstadoTurno> estados) {
+
+        log.debug("Buscando turnos del paciente {} en estados {}", pacienteId, estados);
+
+        return turnoRepository.findByPacienteIdAndEstadoVigenteIn(pacienteId, estados);
 
     }
 

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.List;
 
 /**
  * Lógica de dominio y persistencia para la entidad {@code Especialidad}.
@@ -150,6 +151,40 @@ public class EspecialidadDomainService {
         //deletedBy se completará cuando exista el módulo de seguridad
 
         saveEspecialidad(especialidad);
+
+    }
+
+    /**
+     * Busca una especialidad activa por su nombre, sin distinguir mayúsculas.
+     *
+     * @param nombre {@code String} nombre de la especialidad
+     * @return {@code Especialidad} la especialidad activa con ese nombre
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe
+     *         una especialidad activa con ese nombre
+     */
+    public Especialidad findEspecialidadActivaByNombre(String nombre) {
+
+        log.debug("Buscando especialidad activa por nombre: {}", nombre);
+
+        return especialidadRepository.findByNombreIgnoreCaseAndDeletedAtIsNull(nombre)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró la especialidad activa: nombre={}", nombre);
+                    return new RecursoNoEncontradoException(getClass(), "ESPECIALIDAD_NO_ENCONTRADA",
+                            "No encontramos la especialidad \"" + nombre + "\".");
+                });
+
+    }
+
+    /**
+     * Lista las especialidades activas ordenadas por nombre.
+     *
+     * @return {@code List<Especialidad>} las especialidades activas
+     */
+    public List<Especialidad> findEspecialidadesActivas() {
+
+        log.debug("Listando especialidades activas");
+
+        return especialidadRepository.findByDeletedAtIsNullOrderByNombreAsc();
 
     }
 

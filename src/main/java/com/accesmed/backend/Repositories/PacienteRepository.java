@@ -7,6 +7,8 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Repositorio de acceso a datos para la entidad {@code Paciente}.
@@ -79,5 +81,17 @@ public interface PacienteRepository extends JpaRepository<Paciente, UUID>, JpaSp
      * @return {@code boolean} {@code true} si existe otro paciente activo con ese email
      */
     boolean existsByEmailAndDeletedAtIsNullAndIdNot(String email, UUID id);
+
+    /**
+     * Busca un paciente activo por su número de teléfono, comparando solo los dígitos: ignora
+     * espacios, guiones, paréntesis y el signo {@code +} del número guardado. Lo usa el canal
+     * chatbot, donde el teléfono llega en formato E.164 y en la base puede estar con otro formato.
+     *
+     * @param digitos {@code String} número de teléfono normalizado a solo dígitos
+     * @return {@code Optional<Paciente>} el paciente activo con ese teléfono, o vacío si no existe
+     */
+    @Query("SELECT p FROM Paciente p WHERE p.deletedAt IS NULL AND "
+            + "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(p.numeroTelefono, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = :digitos")
+    Optional<Paciente> findActivoByNumeroTelefonoNormalizado(@Param("digitos") String digitos);
 
 }

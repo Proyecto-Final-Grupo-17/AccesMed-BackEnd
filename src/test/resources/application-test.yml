@@ -18,3 +18,14 @@ accesmed:
   docs:
     username: docs-test
     password: docs-test-password
+  agente:
+    api-key: test-agente-api-key
+  chatwoot:
+    base-url: http://localhost:9
+    account-id: 1
+    api-token: test-chatwoot-token
+    webhook-secret: ''
+  flowise:
+    base-url: http://localhost:9
+    chatflow-id: test-chatflow-id
+    api-key: ''

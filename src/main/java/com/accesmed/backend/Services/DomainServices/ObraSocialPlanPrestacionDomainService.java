@@ -196,6 +196,22 @@ public class ObraSocialPlanPrestacionDomainService {
 
     }
 
+    /**
+     * Indica si un plan tiene una cobertura activa para una prestación. A diferencia de
+     * {@code findCoberturaByPlanAndPrestacion}, no lanza excepción cuando no existe.
+     *
+     * @param planId {@code UUID} identificador del plan
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @return {@code boolean} {@code true} si el plan cubre esa prestación
+     */
+    public boolean existsCoberturaActivaByPlanAndPrestacion(UUID planId, UUID prestacionId) {
+
+        log.debug("Verificando cobertura entre plan={} y prestación={}", planId, prestacionId);
+
+        return obraSocialPlanPrestacionRepository.existsByPlan_IdAndPrestacion_IdAndDeletedAtIsNull(planId, prestacionId);
+
+    }
+
     //endregion
 
 }

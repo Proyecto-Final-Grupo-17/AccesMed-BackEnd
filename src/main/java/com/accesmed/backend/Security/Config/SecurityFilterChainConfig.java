@@ -1,5 +1,7 @@
 package com.accesmed.backend.Security.Config;
 
+import com.accesmed.backend.Security.Agente.AgenteApiKeyFilter;
+import com.accesmed.backend.Security.Chatwoot.ChatwootFirmaFilter;
 import com.accesmed.backend.Security.Jwt.JwtAuthenticationEntryPoint;
 import com.accesmed.backend.Security.Jwt.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,9 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.util.Assert;
+import tools.jackson.databind.ObjectMapper;
+
+import java.time.Clock;
 
 /**
  * Configuración real de Spring Security: JWT stateless, con recálculo de permisos por
@@ -85,6 +90,68 @@ public class SecurityFilterChainConfig {
 
         SecurityFilterChain docsSecurityFilterChain = httpSecurity.build();
         return docsSecurityFilterChain;
+
+    }
+
+    /**
+     * agenteSecurityFilterChain: protege los endpoints del canal chatbot ({@code /accesmed-api/Agente/**})
+     * con la API key compartida con Flowise ({@code X-Agente-Api-Key}). Stateless, sin JWT ni permisos:
+     * la autorización real es el scope por teléfono que aplica {@code AgenteApp}.
+     *
+     * @param httpSecurity {@code HttpSecurity} builder de la cadena.
+     * @param agenteApiKey {@code String} clave del agente ({@code accesmed.agente.api-key}).
+     * @param objectMapper {@code ObjectMapper} serializador del {@code AccesMedError} del 401.
+     * @return {@code SecurityFilterChain} cadena que atiende solo las rutas del agente.
+     * @throws IllegalArgumentException si la clave del agente está vacía.
+     */
+    @Bean
+    @Order(2)
+    public SecurityFilterChain agenteSecurityFilterChain(HttpSecurity httpSecurity,
+            @Value("${accesmed.agente.api-key}") String agenteApiKey,
+            ObjectMapper objectMapper) throws Exception {
+
+        //Sin clave el canal quedaría abierto: se corta el arranque en vez de exponerlo
+        Assert.hasText(agenteApiKey, "accesmed.agente.api-key (ACCESMED_AGENTE_API_KEY) no puede estar vacía");
+
+        httpSecurity
+                .securityMatcher("/accesmed-api/Agente/**")
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .csrf(AbstractHttpConfigurer::disable)
+                .exceptionHandling(exceptionHandling -> exceptionHandling.authenticationEntryPoint(jwtAuthenticationEntryPoint))
+                .addFilterBefore(new AgenteApiKeyFilter(agenteApiKey, objectMapper), UsernamePasswordAuthenticationFilter.class);
+
+        SecurityFilterChain agenteSecurityFilterChain = httpSecurity.build();
+        return agenteSecurityFilterChain;
+
+    }
+
+    /**
+     * chatwootSecurityFilterChain: atiende el webhook del Agent Bot de Chatwoot
+     * ({@code /accesmed-api/Chatwoot/**}) sin JWT. La autenticidad la verifica
+     * {@code ChatwootFirmaFilter} con la firma HMAC del body crudo (401 si no coincide).
+     *
+     * @param httpSecurity {@code HttpSecurity} builder de la cadena.
+     * @param webhookSecret {@code String} secret del Agent Bot ({@code accesmed.chatwoot.webhook-secret}); vacío no verifica.
+     * @param objectMapper {@code ObjectMapper} serializador del {@code AccesMedError} del 401.
+     * @return {@code SecurityFilterChain} cadena que atiende solo las rutas del webhook.
+     */
+    @Bean
+    @Order(3)
+    public SecurityFilterChain chatwootSecurityFilterChain(HttpSecurity httpSecurity,
+            @Value("${accesmed.chatwoot.webhook-secret:}") String webhookSecret,
+            ObjectMapper objectMapper) throws Exception {
+
+        httpSecurity
+                .securityMatcher("/accesmed-api/Chatwoot/**")
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .csrf(AbstractHttpConfigurer::disable)
+                .addFilterBefore(new ChatwootFirmaFilter(webhookSecret, objectMapper, Clock.systemUTC()),
+                        UsernamePasswordAuthenticationFilter.class);
+
+        SecurityFilterChain chatwootSecurityFilterChain = httpSecurity.build();
+        return chatwootSecurityFilterChain;
 
     }
 

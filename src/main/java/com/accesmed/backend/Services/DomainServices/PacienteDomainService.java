@@ -10,6 +10,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.UUID;
+import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.Utils.NormalizadorTelefono;
+import java.util.List;
 
 /**
  * Lógica de dominio y persistencia para la entidad {@code Paciente}.
@@ -186,6 +189,72 @@ public class PacienteDomainService {
         //deletedBy se completará cuando exista el módulo de seguridad
 
         savePaciente(paciente);
+
+    }
+
+    /**
+     * Busca un paciente activo por su número de teléfono, comparando solo los dígitos (el número
+     * guardado puede tener espacios, guiones o {@code +}). Es la base de la identidad del canal chatbot.
+     *
+     * @param numeroTelefono {@code String} número de teléfono tal como llega del canal (ej. {@code +5492617742682})
+     * @return {@code Paciente} el paciente activo dueño de ese teléfono
+     * @throws ValidacionException {@code ValidacionException} si el número no es un teléfono válido
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe un
+     *         paciente activo con ese teléfono
+     */
+    public Paciente findPacienteActivoByNumeroTelefono(String numeroTelefono) {
+
+        String digitos = validateNumeroTelefonoEsValido(numeroTelefono);
+
+        log.debug("Buscando paciente activo por número de teléfono normalizado");
+
+        return pacienteRepository.findActivoByNumeroTelefonoNormalizado(digitos)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró un paciente activo para el teléfono ingresado por el canal");
+                    return new RecursoNoEncontradoException(getClass(), "PACIENTE_NO_ENCONTRADO",
+                            "No encontramos un paciente registrado con este número de teléfono.");
+                });
+
+    }
+
+    /**
+     * Valida que el número de teléfono del paciente sea único entre los pacientes activos,
+     * comparando solo los dígitos (ignora el formato con el que esté guardado cada número).
+     *
+     * @param numeroTelefono {@code String} número de teléfono a verificar
+     * @throws ValidacionException {@code ValidacionException} si el número no es un teléfono válido
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si ya existe un paciente
+     *         activo con ese número de teléfono
+     */
+    public void validateNumeroTelefonoPacienteNormalizadoIsUnique(String numeroTelefono) {
+
+        String digitos = validateNumeroTelefonoEsValido(numeroTelefono);
+
+        if (pacienteRepository.findActivoByNumeroTelefonoNormalizado(digitos).isPresent()) {
+            log.warn("No se pudo crear el paciente: ya existe uno con el teléfono ingresado por el canal");
+            throw new ReglaNegocioException(getClass(), "PACIENTE_NUMERO_TELEFONO_DUPLICADO",
+                    "Ya existe un paciente registrado con este número de teléfono.");
+        }
+
+    }
+
+    /**
+     * Valida que el texto sea un teléfono utilizable y devuelve sus dígitos.
+     *
+     * @param numeroTelefono {@code String} número de teléfono a validar
+     * @return {@code String} el número normalizado a solo dígitos
+     * @throws ValidacionException {@code ValidacionException} si el número es nulo o no tiene
+     *         una cantidad de dígitos razonable
+     */
+    private String validateNumeroTelefonoEsValido(String numeroTelefono) {
+
+        if (!NormalizadorTelefono.esValido(numeroTelefono)) {
+            log.warn("El teléfono recibido del canal no es válido");
+            throw new ValidacionException(getClass(),
+                    List.of("No se pudo identificar el número de teléfono del paciente."));
+        }
+
+        return NormalizadorTelefono.normalizarDigitos(numeroTelefono);
 
     }
 

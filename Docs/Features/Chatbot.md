@@ -1,6 +1,6 @@
 # Contrato del Agente (canal WhatsApp / Flowise)
 
-> **Estado:** diseño (Fase 1). Documento de contrato de los endpoints
+> **Estado:** back implementado (rama `feature/Agente`; ver Docs/Planes/Plan-Agente-Chatwoot.md). Falta la Fase 2 (configurar Chatwoot, Flowise y el servidor). Documento de contrato de los endpoints
 > `/accesmed-api/Agente/*` que consume el agente de Flowise, derivados de las
 > Especificaciones de Casos de Uso del **actor Paciente**. Es la fuente de verdad para
 > implementar la capa `Agente` en el back y armar el flow + Custom Tools en el repo
@@ -68,9 +68,10 @@ Cada CU se parte en dos:
    especialidad/prestación, matrícula del médico, `codigo` del turno. La capa `Agente`
    **resuelve** clave → entidad antes de delegar. Única excepción: el `slotId` (UUID opaco),
    que viaja por la sesión de Flowise y **nunca se muestra al paciente** (ver §7, ECU-TURN-3).
-4. **Reutilización, no duplicación.** La capa `Agente` envuelve los `App` existentes
-   (`TurnoApp`, `PacienteApp`) y los `QueryService` existentes. No se copia lógica de dominio;
-   se agrega resolución de claves + scope por teléfono. Ver §8 y §10.
+4. **Misma regla de negocio, orquestación propia.** Ningún `App` llama a otro `App`: `AgenteApp`
+   **copia la orquestación** de `PacienteApp` y `TurnoApp` (para no tocar el panel) y reutiliza
+   los DomainServices, QueryServices y Mappers. La regla de negocio vive en los DomainServices
+   compartidos; `AgenteApp` agrega resolución de claves + scope por teléfono. Ver §8 y §10.
 5. **Mismo formato de error.** Todos los endpoints devuelven `AccesMedError` (§5).
 
 ---
@@ -78,14 +79,22 @@ Cada CU se parte en dos:
 ## 4. Seguridad y autenticación
 
 Cadena de seguridad propia para `/accesmed-api/Agente/**` (aparte de la del panel web y la
-de Swagger), configurada en `Security/Config/SecurityFilterChainConfig`.
+de Swagger), configurada en `Security/Config/SecurityFilterChainConfig`; el filtro de la API key
+es `Security/Agente/AgenteApiKeyFilter`. Un 401 sale con el formato `AccesMedError` (código
+`AGENTE_NO_AUTENTICADO`).
 
 | Header | Quién lo pone | Para qué |
 |--------|---------------|----------|
 | `X-Agente-Api-Key` | Flowise (fijo) | Autentica que quien llama es el agente. Debe coincidir con `ACCESMED_AGENTE_API_KEY` (env var del back, sin default; va a `.env.example` y a `application-test.yml`). |
-| `X-Paciente-Telefono` | Flowise (variable de sesión, inyectada por el pasamanos) | Identidad del paciente. **No** lo compone el LLM. El back lo trata como el teléfono verificado. |
+| `X-Paciente-Telefono` | Flowise (`$vars.numeroTelefono`, inyectada por el pasamanos, §6.D) | Identidad del paciente. **No** lo compone el LLM. El back lo trata como el teléfono verificado. |
 
 - Sin `X-Agente-Api-Key` válida → **401**. Los endpoints `/Agente/*` no usan JWT ni permisos.
+  La clave se compara en tiempo constante y, si falta `accesmed.agente.api-key`, el back no arranca.
+- Sin `X-Paciente-Telefono` (o con un teléfono que no es un número) → **422** `VALIDACION`. Con un
+  teléfono sin paciente registrado → **404** `PACIENTE_NO_ENCONTRADO` (el agente deriva al registro).
+- **Formato del teléfono:** llega en E.164 (`+5492617742682`); la búsqueda compara solo los dígitos
+  (ignora `+`, espacios, guiones y paréntesis del número guardado). Al registrar un paciente desde el
+  canal se guarda como `+<dígitos>`.
 - La autorización real es el **scope por teléfono**: la capa `Agente` resuelve el paciente a
   partir de `X-Paciente-Telefono` y rechaza cualquier turno/dato que no le pertenezca.
 - **Supuesto de confianza (Fase 1):** como solo Flowise tiene la API key y el teléfono se lo
@@ -116,37 +125,157 @@ mapeo CU-excepción ↔ `codigo` está en cada sección de §7.
 
 ---
 
-## 6. Entrada del canal: el webhook (pasamanos)
+## 6. Contrato Chatwoot ↔ Backend (webhook del Agent Bot)
 
-No es un Custom Tool; es lo que **Chatwoot** llama (Agent Bot).
+No es un Custom Tool: es la entrada del canal. **Chatwoot** llama al back y el back le responde
+por la API de Chatwoot. Plan de implementación: `Docs/Planes/Plan-Contrato-Chatwoot.md`.
 
-**`POST /accesmed-api/Agente/Webhook/Chatwoot`**
+```
+Paciente (WhatsApp) → Chatwoot ──webhook──▶ Back ──▶ Flowise (LLM + Custom Tools §7)
+Paciente ◀─ Chatwoot ◀──API Chatwoot─── Back ◀── respuesta
+```
 
-Flujo del pasamanos:
-1. Verifica el evento (secret del Agent Bot de Chatwoot).
-2. Procesa **solo** `event = message_created` con `message_type = incoming` (mensajes del
-   paciente). Ignora `outgoing` (sus propias respuestas y las de agentes humanos) → evita bucles.
-3. Procesa solo si la conversación está en `pending` (manejada por el bot). Si está en `open`
-   (la tomó un humano), **no** llama a Flowise.
-4. Extrae el `numeroTelefono` del `sender` (identidad verificada).
-5. Llama a Flowise (prediction) pasando el mensaje + el teléfono como variable de sesión.
-6. Con la respuesta de Flowise:
-   - si contiene el token `—HANDOFF—` → `POST` a Chatwoot `toggle_status: open` (deriva a
-     humano) y responde al paciente el mensaje de "te comunico con una persona";
-   - si no → `POST` a Chatwoot `Create Message` (`outgoing`) con la respuesta.
+### 6.A Chatwoot → Back
 
-Detalle de los endpoints de Chatwoot (Create Message, toggle_status), su auth y la llamada
-de predicción a Flowise: ver `Docs/SERVICIOS.md` de `AccesMed-Flowise`.
+**`POST /accesmed-api/Chatwoot/Webhook`** (`ChatwootController` + `ChatwootApp`). Chatwoot lo llama
+**una vez por evento** (push, uno por mensaje; no hay lotes ni polling).
+
+| Header | Uso |
+|--------|-----|
+| `X-Chatwoot-Signature` | `sha256=` + hex(HMAC-SHA256(secret del Agent Bot, `"{timestamp}.{body crudo}"`)) |
+| `X-Chatwoot-Timestamp` | epoch en segundos; se rechaza si difiere más de 5 min |
+| `X-Chatwoot-Delivery` | id de entrega; solo para el log |
+
+Campos del body que usa el back (el resto se ignora):
+
+| Campo | Para qué |
+|-------|----------|
+| `event` | solo `message_created` |
+| `id` | id del mensaje (log) |
+| `content` | texto del paciente |
+| `message_type` | solo `incoming` (o `0`) |
+| `private` | descarta notas privadas |
+| `conversation.id` | clave de agrupación, sesión de Flowise y destino de la respuesta |
+| `conversation.status` | solo `pending` (la atiende el bot) |
+| `sender.id`, `sender.name`, `sender.phone_number` | contacto; respaldo en `conversation.meta.sender` |
+
+Respuestas del back:
+
+| Caso | Status |
+|------|--------|
+| Aceptado (incluso si el evento se ignora) | `200`, inmediato |
+| Firma ausente, inválida o vencida | `401` `CHATWOOT_NO_AUTENTICADO` (lo responde `Security/Chatwoot/ChatwootFirmaFilter`) |
+| Body que no es JSON | `422` `VALIDACION` |
+
+Con `accesmed.chatwoot.webhook-secret` vacío la firma **no se verifica** (solo para pruebas; deja un `warn`).
+
+### 6.B Qué atiende el bot
+
+Un evento se atiende solo si es `message_created` + `incoming` + no privado + conversación `pending`.
+Se ignora todo lo demás: los `outgoing` (respuestas del bot y de humanos → sin bucles) y las
+conversaciones `open`/`resolved`. Entre los atendidos:
+
+- **Sin teléfono** → mensaje de error técnico y handoff (no llama a Flowise).
+- **Sin texto** (audio, imagen, sticker) → responde *"Por ahora solo puedo leer mensajes de texto. ¿Me lo escribís?"*
+  (no llama a Flowise ni entra en la agrupación).
+- **Con texto** → se agrupa (6.C).
+
+### 6.C Agrupación de mensajes en ráfaga
+
+Por `conversation.id` (`Services/Utils/AgrupadorMensajes`, bean en `AsyncConfig`). La tanda se cierra
+con la **primera** que se cumpla:
+
+| Regla | Valor | Property |
+|-------|-------|----------|
+| Silencio sin mensajes nuevos | 4 s | `accesmed.chatwoot.agrupacion.espera-segundos` |
+| Mensajes acumulados | 5 | `accesmed.chatwoot.agrupacion.max-mensajes` |
+| Tope desde el primer mensaje | 15 s | `accesmed.chatwoot.agrupacion.espera-maxima-segundos` |
+
+Mientras una tanda de la conversación se procesa, lo nuevo espera a la siguiente: **nunca hay dos
+llamadas simultáneas a Flowise para la misma conversación**. El texto se junta de los propios
+webhooks (no se consulta `GET /messages`). El estado vive en memoria: si el back se reinicia en esos
+segundos, esa tanda no se responde.
+
+### 6.D Back → Flowise
+
+```json
+POST {accesmed.flowise.base-url}/api/v1/prediction/{chatflowId}
+{
+  "question": "hola
+quiero un turno
+con cardiología",
+  "overrideConfig": {
+    "sessionId": "chatwoot-<conversation.id>",
+    "vars": { "numeroTelefono": "+5492617742682", "nombreContacto": "Ana" }
+  }
+}
+```
+
+`question` = los mensajes de la tanda unidos por salto de línea. En el flow se leen como
+`$vars.numeroTelefono` y `$vars.nombreContacto` (las variables deben estar habilitadas para override
+en la configuración de seguridad del chatflow).
+
+### 6.E Back → Chatwoot (API)
+
+Autentica con `api_access_token` = **access token del Agent Bot** (`ACCESMED_CHATWOOT_API_TOKEN`):
+los mensajes figuran como enviados por el bot.
+
+| Acción | Endpoint |
+|--------|----------|
+| Responder | `POST /api/v1/accounts/{account}/conversations/{id}/messages` `{content, message_type: "outgoing", private: false}` |
+| Derivar a persona | `POST /api/v1/accounts/{account}/conversations/{id}/toggle_status` `{status: "open"}` |
+
+Se deriva cuando: la respuesta de Flowise trae `—HANDOFF—` (se quita el token y se envía el resto, §9);
+Flowise falla o devuelve vacío (antes se avisa *"Estamos con problemas técnicos, en breve te atiende una
+persona."*); el mensaje no trae teléfono. Si Chatwoot falla al responder, solo `log.error`.
+
+### 6.F Estados de la conversación (quién atiende)
+
+| Estado | Atiende | Cómo se llega |
+|--------|---------|---------------|
+| `pending` | Bot | toda conversación nueva de un inbox con Agent Bot (lo hace Chatwoot) |
+| `open` | Persona | handoff del back, o un operador la toma |
+| `resolved` | — | la cierra el operador |
+| `open` → `pending` | vuelve al bot | el operador la devuelve a mano |
+
+Paciente que escribe en una conversación `resolved`: ver 6.G (estado actual).
+
+### 6.G Configuración en Chatwoot (`chat.accesmed.site`)
+
+1. **Agent Bot** `AccesMed Bot` (Ajustes → Bots, o `POST /api/v1/accounts/{account}/agent_bots`):
+   `outgoing_url` = `https://<host del back>/accesmed-api/Chatwoot/Webhook`; su `secret` →
+   `ACCESMED_CHATWOOT_WEBHOOK_SECRET`; su access token → `ACCESMED_CHATWOOT_API_TOKEN`.
+2. **Conectar el bot al inbox** (Inbox → Configuración del bot, o `POST /inboxes/{id}/set_agent_bot`).
+3. Token y secret van **solo** al `.env` local / del servidor, nunca al repo (se copian desde
+   Ajustes → Bots → Editar: "Webhook Secret" y "Token de acceso").
+
+**Estado actual (2026-11-07):** `AccesMed Bot` creado (URL `https://accesmed.site/accesmed-api/Chatwoot/Webhook`,
+back de **staging**) y conectado al inbox **AccesMed WhatsApp**. El inbox "WhatsApp (Prueba)" no se usa
+(no funciona). El inbox tiene *Conversation Routing = Reopen same conversation*: cuando el paciente
+vuelve a escribir en una conversación `resolved`, Chatwoot la reabre (con el bot conectado
+debería quedar `pending`; confirmar en la primera prueba real y corregir esta línea).
 
 ---
 
 ## 7. Endpoints por caso de uso
 
-> Base por controlador: `@RequestMapping("/accesmed-api/Agente/<Entidad>")` (igual que el
-> stub actual `TurnoAgenteController`). Controladores: `PacienteAgenteController`,
-> `TurnoAgenteController`, `ConsultaAgenteController` (clínica/especialidades).
-> Records nuevos agrupados por entidad con sufijo `...AgenteRequest/Response` (acción en
-> inglés): p. ej. `Records/Turno/Request/CreateTurnoAgenteRequest`.
+> Un único controller, `AgenteController` (`@RequestMapping("/accesmed-api/Agente")`), delega en
+> `AgenteApp`. Records en `Records/Agente/Request` y `Records/Agente/Response`, con sufijo
+> `...AgenteRequest/Response` (acción en inglés): p. ej. `Records/Agente/Request/CreateTurnoAgenteRequest`.
+>
+> **Dónde dice "delegar en `PacienteApp.x` / `TurnoApp.x` / reusa `QueryService`":** significa que
+> `AgenteApp` **copia la orquestación** de ese método (ningún `App` llama a otro `App`; el panel
+> queda intacto). Las búsquedas nuevas (por teléfono, por nombre, por código) se agregaron a
+> Repositories/DomainServices sin tocar los métodos existentes.
+>
+> **Diferencias entre este contrato y el código real** (manda el código): `CreatePacienteAgenteRequest`
+> exige `fechaNacimiento` y `email` porque la entidad `Paciente` no admite nulos (el contrato los daba
+> como opcionales); `Turno` no tiene FK a `MedicoPrestacion` (se valida con `findVigenteEnFecha`);
+> `ListHorarioDisponibleAgenteResponse` devuelve `{ slotId, fechaHora, franja }` y la franja se filtra
+> por `horaDesde` (MAÑANA < 12:00, TARDE 12:00-19:00, NOCHE desde 19:00); el `GET /Agente/Turno` exige
+> el query param `accion`; PAC-2 con `obraSocial` **reemplaza** las coberturas activas (la entidad
+> `ObraSocialPaciente` es inmutable: baja + alta); ante varias coberturas, `createTurno` usa la primera
+> del paciente cuyo plan cubre la prestación, o particular.
 
 En todas las tablas, `X-Paciente-Telefono` + `X-Agente-Api-Key` van en el header (§4) y no
 se repiten en el body.
@@ -309,33 +438,25 @@ Sin body. **Resolución:** `codigo` → `Turno`; scope por teléfono; delegar en
 
 ---
 
-## 8. Trabajo nuevo en el back (gaps detectados)
-
-La reutilización es alta, pero hay piezas que **no existen** y hay que agregar:
+## 8. Trabajo nuevo en el back (gaps del diseño inicial, ya resueltos)
 
 1. **`findPacienteActivoByNumeroTelefono(String)`** en `PacienteDomainService` +
-   `PacienteRepository` (hoy solo hay `existsByNumeroTelefono...`). Es la base de la identidad
-   de casi todos los endpoints del agente. Lanza `RecursoNoEncontrado` → el agente deriva al
-   registro (Excepción 3).
-2. **Delegación sin `UsuarioDetails`.** `cancelTurno` y `reprogramTurno` reciben
-   `UsuarioDetails` y aplican `AlcanceMedicoService.validateMedicoPropietario` (scope de
-   **médico**). El agente no tiene usuario logueado y el actor es el **paciente**. Opciones:
-   - (a) *recomendada:* overloads `cancelTurno(request)` / `reprogramTurno(request)` sin
-     `UsuarioDetails` que **omitan** el scope de médico (el agente ya aplicó el scope de
-     paciente en la capa `Agente`);
-   - (b) pasar un `UsuarioDetails` "no-médico" que haga no-op el `validateMedicoPropietario`.
-   Elegir (a): más explícito, no fuerza un objeto falso. Decisión a confirmar al implementar.
-3. **Scope por teléfono** como servicio reutilizable (`AlcancePacienteService`): dado el
-   teléfono y un turno/recurso, valida pertenencia. Espejo de `AlcanceMedicoService`.
-4. **Modificar cobertura por nombre en ECU-PAC-2.** Verificar si `PacienteApp.updatePaciente`
-   crea/reemplaza la `ObraSocialPaciente`; si no, la capa `Agente` orquesta
-   `ObraSocialPacienteDomainService`. A confirmar leyendo el mapper de update.
-5. **Cadena de seguridad `/Agente/**`** con filtro de API key (`X-Agente-Api-Key`) en
-   `Security/Config`, + lectura de `X-Paciente-Telefono`.
-6. **Endpoint webhook + cliente de Chatwoot + cliente de Flowise** (el pasamanos, §6).
-
-La capa `Agente` (controllers + `TurnoAgenteApp`/`PacienteAgenteApp` + records + mappers)
-sigue las convenciones de `CLAUDE.md` y `Docs/ARQUITECTURA.md`.
+   `PacienteRepository.findActivoByNumeroTelefonoNormalizado` (compara solo dígitos, con
+   `Services/Utils/NormalizadorTelefono`). Lanza `RecursoNoEncontrado` `PACIENTE_NO_ENCONTRADO`.
+2. **Delegación sin `UsuarioDetails`.** Sin overloads ni cambios en `TurnoApp`: `AgenteApp` copia la
+   orquestación de `cancelTurno`/`reprogramTurno` **sin el scope de médico** (el actor es el paciente).
+3. **Scope por teléfono:** `TurnoDomainService.validateTurnoPerteneceAPaciente(turno, paciente)` →
+   `ReglaNegocio` `RECURSO_AJENO` (409). No hace falta un `AlcancePacienteService` aparte.
+4. **Cobertura por nombre (PAC-1/PAC-2):** `ObraSocialDomainService.findObraSocialActivaByNombre` y
+   `PlanDomainService.findPlanActivoByObraSocialIdAndNombre`; `AgenteApp` crea/reemplaza la
+   `ObraSocialPaciente`.
+5. **Cadenas de seguridad** `/Agente/**` (API key) y `/Chatwoot/**` (firma HMAC en `ChatwootFirmaFilter`)
+   en `SecurityFilterChainConfig`.
+6. **Webhook + clientes de Chatwoot y Flowise** (el pasamanos, §6), con agrupación de mensajes.
+7. Búsquedas nuevas por clave de negocio: `findTurnoByCodigo`, `findEspecialidadActivaByNombre`,
+   `findEspecialidadesActivas`, `findPrestacionActivaByNombre`, `findPrestacionesPublicadasByEspecialidadId`,
+   `findMedicoActivoByMatricula`, `findMedicosActivosByEspecialidadId`, `findAgendaHorarioActivoById`,
+   `existsCoberturaActivaByPlanAndPrestacion`, `findTurnosByPacienteIdAndEstadosVigentes`.
 
 ---
 
@@ -348,7 +469,7 @@ No modifica el dominio (el CU lo dice: "el sistema no crea ni modifica instancia
   agrega el token **`—HANDOFF—`** a su respuesta.
 - El back, al recibir la respuesta de Flowise, detecta el token y llama a Chatwoot
   `toggle_status: open` → la conversación cae en la bandeja de los operadores humanos. El bot
-  deja de responder mientras esté en `open` (regla del §6, paso 3).
+  deja de responder mientras esté en `open` (§6.B y §6.F).
 - Si Chatwoot no responde (Excepción 2 del CU): el back responde al paciente un mensaje de
   disculpa / reintento, sin tocar estado.
 
@@ -376,9 +497,9 @@ No modifica el dominio (el CU lo dice: "el sistema no crea ni modifica instancia
 
 ## 12. Resumen de endpoints
 
-| Método | Ruta | CU | Reutiliza |
+| Método | Ruta | CU | Copia la orquestación de |
 |--------|------|----|-----------|
-| POST | `/accesmed-api/Agente/Webhook/Chatwoot` | canal | — (pasamanos) |
+| POST | `/accesmed-api/Chatwoot/Webhook` | canal | — (pasamanos: `ChatwootApp`) |
 | POST | `/accesmed-api/Agente/Paciente` | PAC-1 | `PacienteApp.createPaciente` |
 | PATCH | `/accesmed-api/Agente/Paciente` | PAC-2 | `PacienteApp.updatePaciente` |
 | DELETE | `/accesmed-api/Agente/Paciente` | PAC-3 | `PacienteApp.softDeletePaciente` |

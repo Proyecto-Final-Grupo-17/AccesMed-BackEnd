@@ -186,4 +186,12 @@ public interface AgendaHorariosDiaRepository extends JpaRepository<AgendaHorario
 
     }
 
+    /**
+     * Busca un horario de agenda activo (sin baja lógica) por su identificador, esté o no ocupado.
+     *
+     * @param id {@code UUID} identificador del horario
+     * @return {@code Optional<AgendaHorariosDia>} el horario activo, o vacío si no existe
+     */
+    Optional<AgendaHorariosDia> findByIdAndDeletedAtIsNull(UUID id);
+
 }

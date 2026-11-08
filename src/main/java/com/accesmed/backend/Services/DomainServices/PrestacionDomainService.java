@@ -268,6 +268,41 @@ public class PrestacionDomainService {
 
     }
 
+    /**
+     * Busca una prestación activa (no deshabilitada) por su nombre, sin distinguir mayúsculas.
+     *
+     * @param nombre {@code String} nombre de la prestación
+     * @return {@code Prestacion} la prestación con ese nombre, si no está deshabilitada
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe una
+     *         prestación activa con ese nombre
+     */
+    public Prestacion findPrestacionActivaByNombre(String nombre) {
+
+        log.debug("Buscando prestación activa por nombre: {}", nombre);
+
+        return prestacionRepository.findByNombreIgnoreCaseAndEstadoVigenteNot(nombre, EstadoPrestacion.DESHABILITADA)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró la prestación activa: nombre={}", nombre);
+                    return new RecursoNoEncontradoException(getClass(), "PRESTACION_NO_ENCONTRADA",
+                            "No encontramos la prestación \"" + nombre + "\".");
+                });
+
+    }
+
+    /**
+     * Lista las prestaciones publicadas de una especialidad, ordenadas por nombre.
+     *
+     * @param especialidadId {@code UUID} identificador de la especialidad
+     * @return {@code List<Prestacion>} las prestaciones publicadas de esa especialidad
+     */
+    public List<Prestacion> findPrestacionesPublicadasByEspecialidadId(UUID especialidadId) {
+
+        log.debug("Listando prestaciones publicadas de la especialidad: {}", especialidadId);
+
+        return prestacionRepository.findByEspecialidadIdAndEstadoVigente(especialidadId, EstadoPrestacion.PUBLICADA);
+
+    }
+
     //endregion
 
 }

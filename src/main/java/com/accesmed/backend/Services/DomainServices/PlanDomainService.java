@@ -167,6 +167,30 @@ public class PlanDomainService {
 
     }
 
+    /**
+     * Busca un plan activo (no deshabilitado) de una obra social por su nombre, sin distinguir
+     * mayúsculas.
+     *
+     * @param obraSocialId {@code UUID} identificador de la obra social
+     * @param nombre {@code String} nombre del plan
+     * @return {@code Plan} el plan con ese nombre en esa obra social
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la obra social
+     *         no tiene un plan activo con ese nombre
+     */
+    public Plan findPlanActivoByObraSocialIdAndNombre(UUID obraSocialId, String nombre) {
+
+        log.debug("Buscando plan activo por obra social={} y nombre={}", obraSocialId, nombre);
+
+        return planRepository.findByObraSocialIdAndNombreIgnoreCaseAndEstadoVigenteNot(
+                        obraSocialId, nombre, EstadoPlan.DESHABILITADO)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró el plan activo: obraSocial={}, nombre={}", obraSocialId, nombre);
+                    return new RecursoNoEncontradoException(getClass(), "PLAN_NO_ENCONTRADO",
+                            "No encontramos el plan \"" + nombre + "\" en esa obra social.");
+                });
+
+    }
+
     //endregion
 
 }

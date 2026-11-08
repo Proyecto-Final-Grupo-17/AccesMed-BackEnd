@@ -50,14 +50,14 @@ preguntas abiertas: cualquier código nuevo debe seguirlas.
 | Sin carpeta `Shared` — se reparte por rol: excepciones a `Services/Errors`, advice+contrato a `Controllers/Errors`, `Auditable` a `Domain`, `Util` a `Services/Utils` | Un cajón "transversal" genérico mezcla responsabilidades; cada cosa va donde se origina o se usa. |
 | `Util` dentro de **`Services/Utils`** | Los helpers genéricos también son un tipo de soporte que usan los services/apps, igual que los `Mapper`. Se agrupa con el resto en vez de quedar suelto en la raíz. |
 | Build tool: **Maven** | Para un proyecto académico/colaborativo: es el default de Spring Initializr, más ejemplos, más predecible, menos curva. Gradle es más rápido pero suma complejidad que acá no rinde. |
-| Estructura de carpetas por **capa** en el núcleo + **slice vertical** para `Security` y `Agente` | Con pocas entidades, package-by-layer es legible. Seguridad y agente sí se aíslan porque son subsistemas con reglas propias. |
+| Estructura de carpetas por **capa** en el núcleo + **slice vertical** solo para `Security` | Con pocas entidades, package-by-layer es legible. La seguridad sí se aísla porque es un subsistema con reglas propias. El canal chatbot (agente) **no** es un slice: entra por las capas normales (`Controllers/AgenteController`, `Application/AgenteApp`). |
 | `Security/` se aísla **solo como mecanismo reemplazable** (JWT, tokens de sesión, config); `Usuario`/`Rol`/`UsuarioRol`/`Admin` ("quién existe y qué puede hacer") quedan en el **núcleo**, con Controller/App/DomainService/Repository de siempre | El dato de negocio (identidad, roles) no es lo mismo que el mecanismo que lo protege (JWT hoy, podría ser otra cosa mañana). Aislar solo el mecanismo permite reemplazarlo sin tocar el modelo de usuarios; si todo viviera bajo `Security/`, cambiar de JWT a sesiones arrastraría entidades de negocio con él. |
 | Cruce núcleo → `Security`: **`GestionUsuarioPort`** (interfaz en `Application/Ports/` del núcleo, implementada por `GestionUsuarioAdapter` en `Security/Application/`) | Ningún `App` del núcleo puede importar de `Security` directamente (violaría la dirección de dependencia: el núcleo no depende del mecanismo). El puerto invierte la dependencia: el núcleo declara qué necesita (`asignarUsuarioAMedico`, `desactivarUsuarioDeAdmin`...), `Security` lo implementa. |
 | Autorización en **tres mecanismos**, cada uno para un caso distinto: `@PreAuthorize("hasAuthority(...)")` (gate de entrada, permiso fijo), `AlcanceMedicoService` (scope sobre recursos propios del médico — Turno, Agenda, Paciente) y `AutorizacionService.requireAuthority(...)` (permiso extra condicional dentro de un método) | Un solo mecanismo no alcanza: el permiso de entrada es estático y declarativo (bien resuelto por `@PreAuthorize`), pero el scope "solo mis turnos" depende de datos en tiempo de ejecución, y un permiso condicional ("crear médico + usuario a la vez exige además `USER_ALTA`") no es el gate del endpoint sino una regla dentro del flujo. Los tres viven en `Security/Services/Utils/` (misma familia que el filtro JWT), agnósticos de dominio: la aplicación específica la hace el `QueryService`/`App` del núcleo que los llama. |
-| El agente tiene carpeta aparte **solo para la entrada**, reutiliza los mismos App/Service | El agente no duplica negocio: solo cambia el punto de entrada (controllers y records propios, otra auth). La lógica es la misma. |
-| Nombres de package en mayúsculas: `Domain`, `Services`, `Controllers`, `Application`, `Repositories`, `Records`, `Config`, `Security`, `Agente` | Convención de proyecto. **Nota técnica breve**: la convención estándar de Java es minúsculas para packages (el JLS solo lo recomienda, no lo exige); en mayúsculas compila y funciona igual, pero algunas herramientas/linters de estilo Java pueden marcarlo como advertencia. No es un problema funcional. |
+| **Ningún `App` llama a otro `App`.** El canal chatbot tiene su propio `AgenteApp`, que **copia la orquestación** de `PacienteApp`/`TurnoApp` (y reutiliza sus DomainServices, QueryServices y Mappers) | Cambiar el panel no puede romper el agente ni al revés: no hay acoplamiento entre casos de uso. El costo (orquestación duplicada: si una regla de `createTurno` cambia hay que replicarla en `AgenteApp.createTurno`) se acepta a cambio de dejar el panel intacto; la regla de negocio de fondo sigue en los DomainServices compartidos. Mismo criterio para `ChatwootApp` (pasamanos Chatwoot → Flowise → Chatwoot, no toca dominio). |
+| Nombres de package en mayúsculas: `Domain`, `Services`, `Controllers`, `Application`, `Repositories`, `Records`, `Config`, `Security` | Convención de proyecto. **Nota técnica breve**: la convención estándar de Java es minúsculas para packages (el JLS solo lo recomienda, no lo exige); en mayúsculas compila y funciona igual, pero algunas herramientas/linters de estilo Java pueden marcarlo como advertencia. No es un problema funcional. |
 | Subpaquete por entidad dentro de un paquete de tipo, recién cuando supere ~8-10 archivos (ej. `Services/DomainServices/Medico/`) | No crear carpetas de un solo archivo por adelantado. |
-| Plural en `Controllers`, `Services`, `Repositories` (y sus subcarpetas `DomainServices`/`QueryServices`/`Mappers`/`Errors`/`Utils`) | Son colecciones de clases del mismo rol (todos los controllers, todos los services, todos los repositories). `Domain`, `Application`, `Records`, `Config`, `Security`, `Agente` quedan como estaban. |
+| Plural en `Controllers`, `Services`, `Repositories` (y sus subcarpetas `DomainServices`/`QueryServices`/`Mappers`/`Errors`/`Utils`/`Clients`) | Son colecciones de clases del mismo rol (todos los controllers, todos los services, todos los repositories). `Domain`, `Application`, `Records`, `Config`, `Security` quedan como estaban. |
 | El `QueryService` se inyecta y se llama **desde el Controller para lecturas (`GET`)**; el `App` no participa en el camino de lectura | Los endpoints de lectura (`GET /list`, `GET /Buscar`) inyectan el `QueryService` directo; es un passthrough puro (no hay validación, orquestación, ni cambio de estado). El `App` queda solo para mutaciones (`POST`, `PATCH`, `DELETE`), donde sí hay orquestación. El `QueryService` devuelve `Response` mapeado (el `Mapper` vive adentro). Mantiene la separación de responsabilidades: lecturas ≠ mutaciones. |
 | Nombres de método de actualización: **`fullUpdate<Entidad>`** (PUT), **`partialUpdate<Entidad>`** (PATCH genérico) y **`update<Concepto><Entidad>`** (PATCH de un grupo de campos específico, ej. `updateToleranciasPrestacion`) | El nombre distingue de entrada tres casos distintos: reemplazo completo, actualización de un subconjunto arbitrario de campos, y un caso de uso acotado que ya sabe de antemano qué campos toca (no es "parcial genérico" con dos campos, es una operación de negocio propia). |
 | `partialUpdate<Entidad>` (PATCH genérico): un campo en `null` significa **"no lo toques"**, nunca "vacíalo" | Evita la ambigüedad JSON entre "campo ausente" y "campo enviado en `null`" sin necesitar un wrapper (`JsonNullable`) en todos los campos nullable del record. Si un campo necesita poder vaciarse de verdad, no se fuerza acá: se resuelve con la fila siguiente. |
@@ -342,6 +342,7 @@ accesmed-backend/
     │   │   ├── AccesMedApplication.java
     │   │   │
     │   │   ├── Config/                    # config transversal de infraestructura
+    │   │   │   ├── AsyncConfig.java          # executor + agrupador de mensajes del pasamanos de Chatwoot
     │   │   │   ├── JpaAuditingConfig.java
     │   │   │   └── SchedulingConfig.java
     │   │   │
@@ -350,6 +351,8 @@ accesmed-backend/
     │   │   │   ├── UsuarioController.java
     │   │   │   ├── RolController.java
     │   │   │   ├── AdminController.java
+    │   │   │   ├── AgenteController.java     # /accesmed-api/Agente: Custom Tools de Flowise (API key)
+    │   │   │   ├── ChatwootController.java   # /accesmed-api/Chatwoot: webhook del Agent Bot (HMAC)
     │   │   │   ├── Errors/
     │   │   │   │   ├── GlobalExceptionHandler.java
     │   │   │   │   └── AccesMedError.java
@@ -378,13 +381,19 @@ accesmed-backend/
     │   │   │   │   ├── UsuarioMapper.java
     │   │   │   │   ├── RolMapper.java
     │   │   │   │   ├── AdminMapper.java
+    │   │   │   │   ├── AgenteMapper.java       # entidades → responses del canal chatbot
     │   │   │   │   └── <NombreEntidad>Mapper.java
+    │   │   │   ├── Clients/                # integraciones HTTP salientes (RestClient)
+    │   │   │   │   ├── ChatwootClient.java
+    │   │   │   │   └── FlowiseClient.java
     │   │   │   ├── Errors/
     │   │   │   │   ├── AccesMedException.java
     │   │   │   │   ├── RecursoNoEncontradoException.java
     │   │   │   │   ├── ReglaNegocioException.java
     │   │   │   │   └── ValidacionException.java
     │   │   │   └── Utils/
+    │   │   │       ├── NormalizadorTelefono.java
+    │   │   │       ├── AgrupadorMensajes.java   # agrupa mensajes en ráfaga por clave (webhook de Chatwoot)
     │   │   │       └── <HelperGenerico>.java
     │   │   │
     │   │   ├── Repositories/
@@ -398,6 +407,8 @@ accesmed-backend/
     │   │   │   ├── UsuarioApp.java
     │   │   │   ├── RolApp.java
     │   │   │   ├── AdminApp.java
+    │   │   │   ├── AgenteApp.java            # CU del paciente por WhatsApp (copia orquestación de PacienteApp/TurnoApp)
+    │   │   │   ├── ChatwootApp.java          # pasamanos Chatwoot → Flowise → Chatwoot
     │   │   │   ├── Ports/
     │   │   │   │   └── GestionUsuarioPort.java   # interfaz: cruce núcleo → Security
     │   │   │   └── <NombreEntidad>App.java
@@ -406,6 +417,8 @@ accesmed-backend/
     │   │   │   ├── Usuario/
     │   │   │   ├── Rol/
     │   │   │   ├── Admin/
+    │   │   │   ├── Agente/                  # Request/ y Response/ del canal chatbot (*AgenteRequest/Response)
+    │   │   │   ├── Chatwoot/                # Request/: payload del webhook de Chatwoot
     │   │   │   └── <NombreEntidad>/
     │   │   │       ├── Request/
     │   │   │       │   └── <Accion><NombreEntidad>Request.java
@@ -413,6 +426,10 @@ accesmed-backend/
     │   │   │           └── <Accion><NombreEntidad>Response.java
     │   │   │
     │   │   ├── Security/                    # SOLO mecanismo de sesión/JWT reemplazable
+    │   │   │   ├── Agente/
+    │   │   │   │   └── AgenteApiKeyFilter.java   # API key del canal chatbot (X-Agente-Api-Key)
+    │   │   │   ├── Chatwoot/
+    │   │   │   │   └── ChatwootFirmaFilter.java  # firma HMAC del webhook del Agent Bot (401 si falla)
     │   │   │   ├── Controllers/
     │   │   │   │   └── AuthController.java
     │   │   │   ├── Application/
@@ -446,16 +463,6 @@ accesmed-backend/
     │   │   │       ├── SecurityFilterChainConfig.java
     │   │   │       └── SuperAdminInicializador.java   # ApplicationRunner: crea el primer SuperAdmin al arrancar
     │   │   │
-    │   │   └── Agente/
-    │   │       ├── Controllers/
-    │   │       │   └── <NombreEntidad>AgenteController.java
-    │   │       └── Records/
-    │   │           └── <NombreEntidad>/
-    │   │               ├── Request/
-    │   │               │   └── <Accion><NombreEntidad>AgenteRequest.java
-    │   │               └── Response/
-    │   │                   └── <Accion><NombreEntidad>AgenteResponse.java
-    │   │       (reutiliza Application/ y Services/ del núcleo; no duplica lógica)
     │   │
     │   └── resources/
     │       ├── application.yml
@@ -497,6 +504,8 @@ el inicio.** `Services` no tiene archivos sueltos: se divide en subcarpetas fija
   negocio, pero es un componente de soporte que solo usan los services y apps para
   convertir Record↔entidad; por eso vive junto a los demás, no como package suelto en la raíz.
 - `Services/Errors/` — `AccesMedException` y sus subclases (ver §3).
+- `Services/Clients/` — clientes HTTP salientes (`ChatwootClient`, `FlowiseClient`) sobre `RestClient`, con timeouts
+  explícitos y sin dependencias nuevas. Los usan los `App` que integran sistemas externos (hoy `ChatwootApp`).
 - `Services/Utils/` — helpers genéricos sin dueño de entidad (formateo de fechas,
   generación de códigos, etc.). Mismo razonamiento que con `Mapper`: es un componente de
   soporte que usan los services y apps, así que se agrupa ahí en vez de quedar suelto
@@ -576,7 +585,7 @@ quedan juntos (y el request y el response de un mismo endpoint, a un paso de dis
 igual que el resto de la arquitectura, que ya está organizada por entidad dentro de cada
 rol (`PrestacionController`, `PrestacionApp`, `PrestacionMapper`). Agregar una entidad
 nueva crea un paquete, no toca la estructura existente. Vale lo mismo dentro de `Security/`
-y `Agente/`: sus `Records/` también se agrupan por entidad o funcionalidad.
+y para el canal chatbot (`Records/Agente`, `Records/Chatwoot`): también se agrupan por funcionalidad.
 
 **`Controllers` tiene dos subcarpetas fijas: `Errors/` y `ControllersConfig/`.**
 `Errors/` ya se explicó arriba. `ControllersConfig/` es la **configuración propia de la
@@ -631,11 +640,26 @@ mismo request exige, además de `MED_ALTA`, `USER_ALTA`) y `AutorizacionService.
 `auditoria` de un Response). Las excepciones propias de `Security` (si las hay) viven en
 `Security/Services/Errors`; las traduce el mismo `GlobalExceptionHandler` global.
 
-**`Agente` sin duplicar negocio.** El agente hace, en el fondo, las mismas operaciones de
-turnos que el sistema interno. Entonces **reutiliza los mismos `App` y `Service`**.
-Lo único propio del agente es la **entrada**: sus controllers (con la forma de request
-que le conviene a Flowise) y sus records. Así, si mañana cambia una regla de negocio de
-turnos, se cambia en un solo lugar y sirve para el panel y para el bot.
+**Canal chatbot (agente) y la regla "ningún `App` llama a otro `App`".** El agente de
+WhatsApp hace, en el fondo, las mismas operaciones de pacientes y turnos que el panel, pero
+con otro actor (el paciente, identificado por teléfono y no por JWT), otras claves (nombres,
+matrículas y códigos de turno en vez de UUIDs) y otra autenticación. Entra por las capas
+normales: `Controllers/AgenteController` (`/accesmed-api/Agente`, autenticado con la API key
+`X-Agente-Api-Key`, ver `Docs/Security.md`) → `Application/AgenteApp`. Como **ningún `App`
+llama a otro `App`**, `AgenteApp` no invoca a `PacienteApp` ni a `TurnoApp`: **copia su
+orquestación** (incluidos helpers privados como `generarCodigoTurno`) y reutiliza lo que sí es
+compartible: DomainServices, QueryServices, Mappers, `Services/Utils` y el mismo
+`TurnoNotificacionEvent`. Así el panel queda intacto y un cambio en él no puede romper al
+agente (ni al revés); el precio es que una regla de orquestación que cambie en
+`TurnoApp.createTurno` hay que replicarla en `AgenteApp.createTurno`. Las búsquedas nuevas que
+necesita el canal (por teléfono, por nombre, por código de turno) se **agregan** a
+Repositories y DomainServices sin tocar los métodos existentes. Records propios en
+`Records/Agente` (`<Accion><Entidad>AgenteRequest/Response`). El webhook de Chatwoot
+(`ChatwootController` + `ChatwootApp`) es un pasamanos que no toca el dominio: solo usa
+`Services/Clients` (`ChatwootClient`, `FlowiseClient`), agrupa los mensajes en ráfaga por
+conversación (`Services/Utils/AgrupadorMensajes`) y responde en segundo plano. Su autenticidad
+la verifica un filtro de la cadena de seguridad (`Security/Chatwoot/ChatwootFirmaFilter`, firma
+HMAC → 401), igual que la API key del agente. Contrato completo en `Docs/Features/Chatbot.md §6`.
 
 ---
 
