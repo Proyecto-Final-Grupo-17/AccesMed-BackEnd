@@ -4,6 +4,7 @@ import com.accesmed.backend.Domain.Clinica;
 import com.accesmed.backend.Domain.Paciente;
 import com.accesmed.backend.Records.Chatwoot.Request.ReceiveMensajeChatwootRequest;
 import com.accesmed.backend.Records.Chatwoot.Request.RemitenteChatwootRequest;
+import com.accesmed.backend.Services.AgenteServices.AccionAgente;
 import com.accesmed.backend.Services.Clients.ChatwootClient;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import lombok.extern.slf4j.Slf4j;
@@ -22,10 +23,12 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -64,6 +67,31 @@ public class ChatwootService {
             + "en un solo mensaje; en unos minutos seguimos.";
 
     static final String MENSAJE_HANDOFF_FUERA_DE_TEMA = "Te paso con una persona del equipo.";
+
+    /**
+     * Token que el agente agrega cuando la charla terminó (el paciente se despidió): el back resuelve
+     * la conversación y cierra la ventana.
+     */
+    static final String TOKEN_FIN = "—FIN—";
+
+    static final String MENSAJE_DOCUMENTO_RECIBIDO = "📎 Recibimos tu archivo. Alguien del equipo lo va a revisar.";
+
+    static final String MENSAJE_RESPUESTA_NO_VERIFICADA = "Perdón, no pude completar eso. ¿Lo intentamos de nuevo?";
+
+    /**
+     * Etiqueta de Chatwoot para las conversaciones con archivos del paciente (la crea el equipo en Chatwoot).
+     */
+    static final String ETIQUETA_DOCUMENTACION = "documentacion";
+
+    /**
+     * Tipos de adjunto que se toman como documento del paciente (audio y video siguen con "solo texto").
+     */
+    private static final Set<String> TIPOS_ADJUNTO_DOCUMENTO = Set.of("image", "file");
+
+    /**
+     * Variable de Flowise con la instrucción de corrección cuando la respuesta del agente no pasó la verificación.
+     */
+    static final String VARIABLE_CONTROL_INTERNO = "controlInterno";
 
     private static final DateTimeFormatter FORMATO_HORA = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -198,6 +226,22 @@ public class ChatwootService {
         boolean tieneTexto = receiveMensajeChatwootRequest.content() != null
                 && !receiveMensajeChatwootRequest.content().isBlank();
         return tieneTexto;
+
+    }
+
+    /**
+     * Indica si el mensaje trae un documento del paciente (imagen o archivo). Los audios y videos no
+     * cuentan: siguen con el aviso de "solo texto".
+     *
+     * @param receiveMensajeChatwootRequest {@code ReceiveMensajeChatwootRequest} payload parseado
+     * @return {@code boolean} {@code true} si trae al menos una imagen o un archivo
+     */
+    public boolean hasDocumentoMensaje(ReceiveMensajeChatwootRequest receiveMensajeChatwootRequest) {
+
+        boolean tieneDocumento = receiveMensajeChatwootRequest.attachments() != null
+                && receiveMensajeChatwootRequest.attachments().stream()
+                        .anyMatch(adjunto -> adjunto != null && TIPOS_ADJUNTO_DOCUMENTO.contains(adjunto.fileType()));
+        return tieneDocumento;
 
     }
 
@@ -407,7 +451,7 @@ public class ChatwootService {
      * @param nombreContacto {@code String} nombre del perfil de WhatsApp (puede ser vacío)
      * @param pacienteRegistrado {@code Optional<Paciente>} paciente activo dueño del teléfono, si existe
      * @param clinica {@code Clinica} configuración de la clínica (zona horaria)
-     * @return {@code Map<String, String>} {@code numeroTelefono}, {@code nombreContacto}, {@code pacienteRegistrado}, {@code nombrePaciente} y {@code fechaHoraActual}
+     * @return {@code Map<String, String>} {@code numeroTelefono}, {@code nombreContacto}, {@code pacienteRegistrado}, {@code nombrePaciente}, {@code fechaHoraActual} y {@code controlInterno} (vacío)
      */
     public Map<String, String> buildVariablesFlowise(String numeroTelefono, String nombreContacto,
             Optional<Paciente> pacienteRegistrado, Clinica clinica) {
@@ -419,8 +463,26 @@ public class ChatwootService {
                 "nombreContacto", nombreContacto == null ? "" : nombreContacto,
                 "pacienteRegistrado", String.valueOf(pacienteRegistrado.isPresent()),
                 "nombrePaciente", pacienteRegistrado.map(Paciente::getNombre).orElse(""),
-                "fechaHoraActual", fechaHoraActual);
+                "fechaHoraActual", fechaHoraActual,
+                VARIABLE_CONTROL_INTERNO, "");
         return variablesFlowise;
+
+    }
+
+    /**
+     * Copia las variables de sesión agregando la instrucción de corrección para el agente, para
+     * volver a preguntarle cuando su respuesta no pasó la verificación ({@code Docs/Diseno-Chatbot.md §3.4.5}).
+     *
+     * @param variablesFlowise {@code Map<String, String>} variables de la primera consulta
+     * @param instruccionCorreccion {@code String} qué hizo mal el agente y qué tiene que hacer
+     * @return {@code Map<String, String>} las mismas variables con {@code controlInterno} completo
+     */
+    public Map<String, String> buildVariablesFlowiseConCorreccion(Map<String, String> variablesFlowise,
+            String instruccionCorreccion) {
+
+        Map<String, String> variablesFlowiseConCorreccion = new HashMap<>(variablesFlowise);
+        variablesFlowiseConCorreccion.put(VARIABLE_CONTROL_INTERNO, instruccionCorreccion);
+        return variablesFlowiseConCorreccion;
 
     }
 
@@ -428,7 +490,9 @@ public class ChatwootService {
      * Interpreta la respuesta de Flowise y la entrega por Chatwoot. Quita los tokens antes de
      * enviar el texto. {@code —HANDOFF—} deriva la conversación a una persona.
      * {@code —FUERA_DE_TEMA—} suma al contador de la conversación y, al llegar al máximo, deriva;
-     * cualquier otra respuesta reinicia el contador. Una respuesta vacía se trata como error técnico.
+     * cualquier otra respuesta reinicia el contador. {@code —FIN—} (si no hay handoff) resuelve la
+     * conversación y cierra la ventana: el próximo mensaje arranca de cero, con bienvenida y sesión
+     * nueva. Una respuesta vacía se trata como error técnico.
      *
      * @param conversationId {@code long} identificador de la conversación
      * @param respuestaFlowise {@code String} texto que devolvió el agente, o {@code null}
@@ -444,7 +508,9 @@ public class ChatwootService {
 
         boolean pideHandoff = respuestaFlowise.contains(TOKEN_HANDOFF);
         boolean fueraDeTema = respuestaFlowise.contains(TOKEN_FUERA_DE_TEMA);
-        String textoRespuesta = respuestaFlowise.replace(TOKEN_HANDOFF, "").replace(TOKEN_FUERA_DE_TEMA, "").trim();
+        boolean terminaCharla = respuestaFlowise.contains(TOKEN_FIN) && !pideHandoff;
+        String textoRespuesta = respuestaFlowise.replace(TOKEN_HANDOFF, "").replace(TOKEN_FUERA_DE_TEMA, "")
+                .replace(TOKEN_FIN, "").trim();
 
         //Contar los fuera de tema seguidos: al llegar al máximo, la conversación pasa a una persona
         boolean derivaPorFueraDeTema = false;
@@ -456,6 +522,11 @@ public class ChatwootService {
             }
             if (!fueraDeTema || derivaPorFueraDeTema) {
                 estadoConversacion.fueraDeTemaSeguidos = 0;
+            }
+            //Fin de la charla: cerrar la ventana para que el próximo mensaje abra una sesión nueva
+            if (terminaCharla) {
+                estadoConversacion.ultimoMensaje = null;
+                estadoConversacion.inicioVentana = null;
             }
         }
 
@@ -471,6 +542,9 @@ public class ChatwootService {
             if (pideHandoff || derivaPorFueraDeTema) {
                 log.info("Handoff a una persona: conversación={}", conversationId);
                 chatwootClient.openConversacionChatwoot(conversationId);
+            } else if (terminaCharla) {
+                log.info("Fin de la charla: se resuelve la conversación {}", conversationId);
+                chatwootClient.resolveConversacionChatwoot(conversationId);
             }
         } catch (RuntimeException excepcion) {
             log.error("Chatwoot falló al responder la conversación {}", conversationId, excepcion);
@@ -532,6 +606,51 @@ public class ChatwootService {
     public void sendMensajeSoloTextoAsync(long conversationId) {
 
         executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, MENSAJE_SOLO_TEXTO));
+
+    }
+
+    /**
+     * Avisa, en segundo plano, que se recibió el archivo del paciente y etiqueta la conversación
+     * para que el equipo lo revise. El archivo queda en Chatwoot: no se le pasa a Flowise.
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     */
+    public void receiveDocumentoAsync(long conversationId) {
+
+        executeEnviosAsync(conversationId, () -> {
+            sendMensajeSeguro(conversationId, MENSAJE_DOCUMENTO_RECIBIDO);
+            try {
+                chatwootClient.addEtiquetasConversacionChatwoot(conversationId, List.of(ETIQUETA_DOCUMENTACION));
+            } catch (RuntimeException excepcion) {
+                log.error("Chatwoot falló al etiquetar la conversación {} con {}", conversationId, ETIQUETA_DOCUMENTACION, excepcion);
+            }
+        });
+
+    }
+
+    /**
+     * Manda, en segundo plano, el aviso de espera de la acción que pidió el agente ("Buscando
+     * horarios disponibles…"), para que el paciente sepa que su pedido se está procesando.
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     * @param accionAgente {@code AccionAgente} acción que el agente pidió
+     */
+    public void sendMensajeEsperaAsync(long conversationId, AccionAgente accionAgente) {
+
+        String mensajeEspera = buildMensajeEspera(accionAgente);
+        executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, mensajeEspera));
+
+    }
+
+    /**
+     * Avisa que no se pudo completar el pedido: se usa cuando la respuesta del agente no pasó la
+     * verificación ni siquiera después de pedirle que la corrija. Si Chatwoot falla, solo se loguea.
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     */
+    public void sendMensajeRespuestaNoVerificada(long conversationId) {
+
+        sendMensajeSeguro(conversationId, MENSAJE_RESPUESTA_NO_VERIFICADA);
 
     }
 
@@ -599,6 +718,28 @@ public class ChatwootService {
             estadoConversacion.fueraDeTemaSeguidos = 0;
         }
         estadoConversacion.ultimoMensaje = ahora;
+
+    }
+
+    /**
+     * Compone el aviso de espera de cada acción del agente.
+     *
+     * @param accionAgente {@code AccionAgente} acción pedida
+     * @return {@code String} el aviso para el paciente
+     */
+    private String buildMensajeEspera(AccionAgente accionAgente) {
+
+        String mensajeEspera = switch (accionAgente) {
+            case CONSULTA_CATALOGO -> "🔎 Buscando en la cartilla…";
+            case CONSULTA_HORARIOS -> "🔎 Buscando horarios disponibles…";
+            case CONSULTA_TURNOS -> "🔎 Revisando tus turnos…";
+            case RESERVA_TURNO -> "⏳ Reservando tu turno…";
+            case CANCELACION_TURNO -> "⏳ Cancelando tu turno…";
+            case REPROGRAMACION_TURNO -> "⏳ Reprogramando tu turno…";
+            case CONFIRMACION_TURNO -> "⏳ Confirmando tu turno…";
+            case REGISTRO_PACIENTE, MODIFICACION_PACIENTE, BAJA_PACIENTE -> "⏳ Guardando tus datos…";
+        };
+        return mensajeEspera;
 
     }
 

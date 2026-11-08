@@ -1,11 +1,16 @@
 package com.accesmed.backend.Services.DomainServices;
 
 import com.accesmed.backend.Domain.Medico;
+import com.accesmed.backend.Domain.Medico_;
 import com.accesmed.backend.Repositories.MedicoRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import com.accesmed.backend.Services.Utils.EspecificacionBusquedaPalabras;
+import com.accesmed.backend.Services.Utils.NormalizadorBusqueda;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -20,6 +25,17 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class MedicoDomainService {
+
+    //region ========== Constantes ==========
+
+    /**
+     * Similitud mínima de trigramas para el fallback de la búsqueda por parecido.
+     */
+    private static final double UMBRAL_SIMILITUD = 0.35;
+
+    private static final int LIMITE_SIMILITUD = 5;
+
+    //endregion
 
     //region ========== Dependencias o inyecciones ==========
 
@@ -240,6 +256,40 @@ public class MedicoDomainService {
         log.debug("Listando médicos activos de la especialidad: {}", especialidadId);
 
         return medicoRepository.findByEspecialidadIdAndDeletedAtIsNullOrderByApellidoAscNombreAsc(especialidadId);
+
+    }
+
+    /**
+     * Busca médicos activos por parecido con su nombre o apellido (canal chatbot): primero por
+     * palabras (cada palabra contenida en el nombre o en el apellido, sin distinguir mayúsculas ni
+     * tildes) y, si no hay coincidencias, por similitud de trigramas para tolerar errores de tipeo.
+     *
+     * @param nombre {@code String} texto libre que escribió el paciente ("Raúl", "dra gomez")
+     * @return {@code List<Medico>} las coincidencias (vacía si no hay ninguna)
+     */
+    public List<Medico> searchMedicosActivosByNombre(String nombre) {
+
+        log.debug("Buscando médicos activos por parecido: {}", nombre);
+
+        List<String> palabrasBusqueda = NormalizadorBusqueda.findPalabrasBusqueda(nombre);
+        if (palabrasBusqueda.isEmpty()) {
+            return List.of();
+        }
+
+        //Coincidencia por palabras: cada una contenida en el nombre o en el apellido
+        Specification<Medico> specificationBusqueda = EspecificacionBusquedaPalabras
+                .<Medico>buildSpecificationPalabras(palabrasBusqueda, List.of(Medico_.nombre, Medico_.apellido))
+                .and((root, query, cb) -> cb.isNull(root.get(Medico_.deletedAt)));
+        List<Medico> medicosEncontrados = medicoRepository.findAll(specificationBusqueda,
+                Sort.by(Medico_.APELLIDO, Medico_.NOMBRE));
+
+        //Sin coincidencias exactas por palabra: probar por similitud (errores de tipeo)
+        if (medicosEncontrados.isEmpty()) {
+            medicosEncontrados = medicoRepository.findActivosBySimilitudNombre(
+                    String.join(" ", palabrasBusqueda), UMBRAL_SIMILITUD, LIMITE_SIMILITUD);
+        }
+
+        return medicosEncontrados;
 
     }
 

@@ -2,12 +2,17 @@ package com.accesmed.backend.Services.DomainServices;
 
 import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.Prestacion;
+import com.accesmed.backend.Domain.Prestacion_;
 import com.accesmed.backend.Repositories.PrestacionRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.Utils.EspecificacionBusquedaPalabras;
+import com.accesmed.backend.Services.Utils.NormalizadorBusqueda;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -24,6 +29,17 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class PrestacionDomainService {
+
+    //region ========== Constantes ==========
+
+    /**
+     * Similitud mínima de trigramas para el fallback de la búsqueda por parecido.
+     */
+    private static final double UMBRAL_SIMILITUD = 0.35;
+
+    private static final int LIMITE_SIMILITUD = 10;
+
+    //endregion
 
     //region ========== Dependencias  ==========
 
@@ -300,6 +316,40 @@ public class PrestacionDomainService {
         log.debug("Listando prestaciones publicadas de la especialidad: {}", especialidadId);
 
         return prestacionRepository.findByEspecialidadIdAndEstadoVigente(especialidadId, EstadoPrestacion.PUBLICADA);
+
+    }
+
+    /**
+     * Busca prestaciones por parecido con el nombre (canal chatbot), en cualquier estado: el filtro
+     * por estado vigente lo aplica quien llama. Primero por palabras (cada palabra contenida en el
+     * nombre, sin distinguir mayúsculas ni tildes) y, si no hay coincidencias, por similitud de
+     * trigramas para tolerar errores de tipeo.
+     *
+     * @param nombre {@code String} texto libre que escribió el paciente ("electro", "crioterapia")
+     * @return {@code List<Prestacion>} las coincidencias (vacía si no hay ninguna)
+     */
+    public List<Prestacion> searchPrestacionesByNombre(String nombre) {
+
+        log.debug("Buscando prestaciones por parecido: {}", nombre);
+
+        List<String> palabrasBusqueda = NormalizadorBusqueda.findPalabrasBusqueda(nombre);
+        if (palabrasBusqueda.isEmpty()) {
+            return List.of();
+        }
+
+        //Coincidencia por palabras: cada una contenida en el nombre
+        Specification<Prestacion> specificationBusqueda = EspecificacionBusquedaPalabras
+                .buildSpecificationPalabras(palabrasBusqueda, List.of(Prestacion_.nombre));
+        List<Prestacion> prestacionesEncontradas = prestacionRepository.findAll(specificationBusqueda,
+                Sort.by(Prestacion_.NOMBRE));
+
+        //Sin coincidencias exactas por palabra: probar por similitud (errores de tipeo)
+        if (prestacionesEncontradas.isEmpty()) {
+            prestacionesEncontradas = prestacionRepository.findBySimilitudNombre(
+                    String.join(" ", palabrasBusqueda), UMBRAL_SIMILITUD, LIMITE_SIMILITUD);
+        }
+
+        return prestacionesEncontradas;
 
     }
 

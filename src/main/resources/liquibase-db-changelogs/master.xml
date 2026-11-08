@@ -44,4 +44,7 @@
     <!-- ====== Correcciones E2E ====== -->
     <include file="changelogs/20260927120000-FixesE2E.xml" relativeToChangelogFile="true"/>
 
+    <!-- ====== Canal chatbot ====== -->
+    <include file="changelogs/20261108120000-BusquedaAgente.xml" relativeToChangelogFile="true"/>
+
 </databaseChangeLog>

@@ -3,6 +3,8 @@ package com.accesmed.backend.Repositories;
 import com.accesmed.backend.Domain.Especialidad;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -77,5 +79,22 @@ public interface EspecialidadRepository extends JpaRepository<Especialidad, UUID
      * @return {@code List<Especialidad>} las especialidades activas
      */
     List<Especialidad> findByDeletedAtIsNullOrderByNombreAsc();
+
+    /**
+     * Busca especialidades activas por similitud de trigramas con el nombre (canal chatbot,
+     * fallback de la búsqueda por palabras): tolera errores de tipeo. Usa {@code word_similarity}
+     * de {@code pg_trgm} sobre {@code lower(unaccent(nombre))}.
+     *
+     * @param consulta {@code String} consulta ya normalizada (minúsculas, sin tildes)
+     * @param umbral {@code double} similitud mínima (0 a 1)
+     * @param limite {@code int} cantidad máxima de resultados
+     * @return {@code List<Especialidad>} las especialidades más parecidas primero
+     */
+    @Query(value = "SELECT e.* FROM especialidad e WHERE e.deleted_at IS NULL "
+            + "AND word_similarity(:consulta, lower(unaccent(e.nombre))) >= :umbral "
+            + "ORDER BY word_similarity(:consulta, lower(unaccent(e.nombre))) DESC, e.nombre LIMIT :limite",
+            nativeQuery = true)
+    List<Especialidad> findActivasBySimilitudNombre(@Param("consulta") String consulta, @Param("umbral") double umbral,
+            @Param("limite") int limite);
 
 }

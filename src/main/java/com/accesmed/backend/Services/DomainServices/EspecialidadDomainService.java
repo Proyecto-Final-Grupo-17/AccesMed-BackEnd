@@ -1,11 +1,16 @@
 package com.accesmed.backend.Services.DomainServices;
 
 import com.accesmed.backend.Domain.Especialidad;
+import com.accesmed.backend.Domain.Especialidad_;
 import com.accesmed.backend.Repositories.EspecialidadRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import com.accesmed.backend.Services.Utils.EspecificacionBusquedaPalabras;
+import com.accesmed.backend.Services.Utils.NormalizadorBusqueda;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -20,6 +25,17 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class EspecialidadDomainService {
+
+    //region ========== Constantes ==========
+
+    /**
+     * Similitud mínima de trigramas para el fallback de la búsqueda por parecido.
+     */
+    private static final double UMBRAL_SIMILITUD = 0.35;
+
+    private static final int LIMITE_SIMILITUD = 5;
+
+    //endregion
 
     //region ========== Dependencias o inyecciones ==========
 
@@ -185,6 +201,40 @@ public class EspecialidadDomainService {
         log.debug("Listando especialidades activas");
 
         return especialidadRepository.findByDeletedAtIsNullOrderByNombreAsc();
+
+    }
+
+    /**
+     * Busca especialidades activas por parecido con el nombre (canal chatbot): primero por palabras
+     * (cada palabra contenida en el nombre, sin distinguir mayúsculas ni tildes) y, si no hay
+     * coincidencias, por similitud de trigramas para tolerar errores de tipeo.
+     *
+     * @param nombre {@code String} texto libre que escribió el paciente
+     * @return {@code List<Especialidad>} las coincidencias (vacía si no hay ninguna)
+     */
+    public List<Especialidad> searchEspecialidadesActivasByNombre(String nombre) {
+
+        log.debug("Buscando especialidades activas por parecido: {}", nombre);
+
+        List<String> palabrasBusqueda = NormalizadorBusqueda.findPalabrasBusqueda(nombre);
+        if (palabrasBusqueda.isEmpty()) {
+            return List.of();
+        }
+
+        //Coincidencia por palabras: cada una contenida en el nombre
+        Specification<Especialidad> specificationBusqueda = EspecificacionBusquedaPalabras
+                .<Especialidad>buildSpecificationPalabras(palabrasBusqueda, List.of(Especialidad_.nombre))
+                .and((root, query, cb) -> cb.isNull(root.get(Especialidad_.deletedAt)));
+        List<Especialidad> especialidadesEncontradas = especialidadRepository.findAll(specificationBusqueda,
+                Sort.by(Especialidad_.NOMBRE));
+
+        //Sin coincidencias exactas por palabra: probar por similitud (errores de tipeo)
+        if (especialidadesEncontradas.isEmpty()) {
+            especialidadesEncontradas = especialidadRepository.findActivasBySimilitudNombre(
+                    String.join(" ", palabrasBusqueda), UMBRAL_SIMILITUD, LIMITE_SIMILITUD);
+        }
+
+        return especialidadesEncontradas;
 
     }
 
