@@ -238,7 +238,8 @@ persona."*); el mensaje no trae teléfono. Si Chatwoot falla al responder, solo 
 | `resolved` | — | la cierra el operador |
 | `open` → `pending` | vuelve al bot | el operador la devuelve a mano |
 
-Paciente que escribe en una conversación `resolved`: ver 6.G (estado actual).
+Paciente que escribe después de una conversación `resolved`: Chatwoot abre una conversación
+nueva en `pending` y vuelve a atender el bot (verificado, ver 6.G).
 
 ### 6.G Configuración en Chatwoot (`chat.accesmed.site`)
 
@@ -251,9 +252,16 @@ Paciente que escribe en una conversación `resolved`: ver 6.G (estado actual).
 
 **Estado actual (2026-11-07):** `AccesMed Bot` creado (URL `https://accesmed.site/accesmed-api/Chatwoot/Webhook`,
 back de **staging**) y conectado al inbox **AccesMed WhatsApp**. El inbox "WhatsApp (Prueba)" no se usa
-(no funciona). El inbox tiene *Conversation Routing = Reopen same conversation*: cuando el paciente
-vuelve a escribir en una conversación `resolved`, Chatwoot la reabre (con el bot conectado
-debería quedar `pending`; confirmar en la primera prueba real y corregir esta línea).
+(no funciona).
+
+**Verificado en la primera prueba real (2026-11-07, staging):**
+- Paciente que escribe en una conversación **`open`** (asignada a una persona): Chatwoot manda el
+  webhook igual, pero el back lo ignora (no es `pending`) y responde la persona.
+- Paciente que escribe después de que la conversación quedó **`resolved`**: Chatwoot **no la reabre**,
+  crea una **conversación nueva en `pending`** y el bot la atiende. Ciclo completo WhatsApp → Chatwoot →
+  back → Flowise → Chatwoot ≈ 4,6 s (espera de agrupación de 4 s incluida).
+- Chatwoot también manda al webhook otros eventos (`conversation_created`, `message_updated`, etc.):
+  el back responde 200 y los descarta.
 
 ---
 
