@@ -258,8 +258,11 @@ ventana de inactividad (6.B): la memoria del agente arranca limpia después de 3
 | `nombrePaciente` | nombre del `Paciente` registrado, o vacío |
 | `fechaHoraActual` | día, fecha y hora en la zona de la clínica, para interpretar "mañana", "el jueves" |
 
-En el flow se leen como `$vars.<nombre>`. Cada variable tiene que estar **creada en *Variables*** de
-Flowise y habilitada para override en la configuración de seguridad del chatflow.
+En el flow se leen como `$vars.<nombre>`. El chatflow tiene que tener el override activado
+(`apiConfig.overrideConfig.status = true`) y **cada variable habilitada** en
+`apiConfig.overrideConfig.variables`; si no, Flowise las ignora sin error (verificado en el código de
+3.1.3, `Diseno-Chatbot.md §2.4.4`). Crearlas además en *Variables* da valores por defecto para probar
+desde la UI.
 
 **Tokens de la respuesta** (los quita el back antes de enviar el texto):
 
@@ -339,6 +342,13 @@ back de **staging**) y conectado al inbox **AccesMed WhatsApp**. El inbox "Whats
 
 En todas las tablas, `X-Paciente-Telefono` + `X-Agente-Api-Key` van en el header (§4) y no
 se repiten en el body.
+
+**Fechas y horas:** todas las que devuelve `/Agente/*` (`fechaHora` de la disponibilidad y
+`fechaHoraInicio` de los turnos) van **sin zona y en la hora de la clínica** (`Clinica.zonaHoraria`),
+p. ej. `2026-11-11T14:00:00`: es la hora que el agente le muestra al paciente, sin conversiones. Hasta
+el 2026-11-08 `fechaHoraInicio` salía en UTC (`…T17:00:00Z`) y el agente a veces mostraba 17:00 para
+un turno de las 14:00. Los `mensaje` de error con fecha y hora (`FormatoMensaje.fechaHora`) también
+usan la zona de la clínica.
 
 ### 7.1 ECU-PAC-1 · Registrarse — `POST /Agente/Paciente`
 
