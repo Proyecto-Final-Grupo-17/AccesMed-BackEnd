@@ -115,6 +115,21 @@ public class MedicoPrestacionDomainService {
     }
 
     /**
+     * Busca las asignaciones vigentes en una fecha dada de una prestación (qué médicos la atienden).
+     *
+     * @param prestacionId {@code UUID} identificador de la prestación
+     * @param fecha {@code LocalDate} fecha contra la cual evaluar la vigencia
+     * @return {@code List<MedicoPrestacion>} las asignaciones vigentes de esa prestación
+     */
+    public List<MedicoPrestacion> findAsignacionesVigentesByPrestacion(UUID prestacionId, LocalDate fecha) {
+
+        log.debug("Buscando asignaciones vigentes de la prestación: {}, fecha: {}", prestacionId, fecha);
+
+        return medicoPrestacionRepository.findByPrestacion_IdAndVigenteAt(prestacionId, fecha);
+
+    }
+
+    /**
      * Valida que el período {@code [desde, hasta]} (ambos extremos inclusivos) indicado no se solape con ninguna
      * vigencia ya existente entre el médico y la prestación indicados.
      *

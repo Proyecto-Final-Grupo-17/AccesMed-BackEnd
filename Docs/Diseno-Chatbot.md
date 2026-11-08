@@ -3,7 +3,9 @@
 > **Estado:** etapa 1 (Análisis) redactada el 2026-11-07. Etapa 2 (Diseño) redactada el
 > 2026-11-08 (§2): resuelve las decisiones de §1.9 y divide la implementación en **Fase 1 —
 > Canal** (back: `ChatwootApp` + `ChatwootService`, **implementada el 2026-11-08**) y **Fase 2 —
-> Flow** (Flowise, pendiente).
+> Flow** (Flowise, construida y probada en staging el 2026-11-08). Etapa 3 (§3, 2026-11-08):
+> ajustes tras la primera prueba real por WhatsApp — **Fase 3A (back) implementada y probada en
+> local**, sin desplegar; Fase 3B (flow) pendiente.
 >
 > **Para qué sirve este documento.** Traducir los casos de uso del actor Paciente en los
 > **pasos de una conversación de WhatsApp**: qué escribe el paciente, qué tiene que razonar el
@@ -985,3 +987,246 @@ en que llega el dato; una corrección no es confirmación), `listTurnos` = todo 
 | Días de atención (D15) | Diferido | Cambio de dominio en `Clinica`. |
 | Aviso "sigo revisando" > 15 s | Diferido | §2.3.4. |
 | Estado del canal en Redis/BD | Si se escala | §2.3.2. |
+
+---
+
+## 3. Etapa 3 — Ajustes tras la prueba real (2026-11-08)
+
+### 3.1 Qué pasó en la prueba
+
+Prueba por WhatsApp con 6 personas (conversaciones 7 a 12 de la bandeja *AccesMed WhatsApp*),
+cruzada con el log del back y las ejecuciones guardadas en Flowise. El back no tuvo errores; las
+fallas son del agente, que **afirma datos o resultados sin haber llamado a la tool**:
+
+| Caso | Qué dijo el bot | Qué pasó de verdad |
+|------|-----------------|--------------------|
+| Oferta de Dermatología | Médicos "Ana Pérez, 12345" y "Luis Gómez, 23456" | No llamó a `getOfertaEspecialidad`. Ninguno existe (son Camila Vega y Federico Suárez). El back respondió 6 veces `MEDICO_NO_ENCONTRADO` y el agente siguió con la lista inventada. |
+| Confirmar turno (×2 pacientes) | "Listo… estado: *CONFIRMADO*" | Nunca llamó a `confirmTurno`: no hay ni un `PATCH …/Confirmacion` en el log. Los turnos siguen `PENDIENTE`. |
+| Ver turnos a confirmar | `TURNO_2F71AC90`, "Martín Pérez, MP-8873" | No llamó a `listTurnos`. El turno y el médico no existen. |
+| Reservar con Ricardo Molina | 10 horarios (09:45, 10:15, 16:00…) | No llamó a `listHorariosDisponibles`. Al confirmar mandó `slotId: "UNKNOWN"` y el back lo rechazó ("problema técnico"). |
+
+Otros hallazgos: la oferta devuelve prestaciones y médicos en listas separadas (el agente no sabe
+quién hace qué); "Dale mándale perrito" no se tomó como confirmación; "Información clínica",
+"Gracias 🙂" y "Siuuuuu" cayeron en el menú; "¿Llevo estudios anteriores?" se tomó como fuera de
+tema; el "sí" a "¿Querés que te registre?" volvió a pedir registro (loop); no se muestran las
+indicaciones de la prestación; formato con listas anidadas y prestación repetida.
+
+**Causa probable:** `gpt-5.4-mini` con `reasoningEffort: none`, más una memoria que guarda solo el
+texto (no las salidas de las tools): el modelo imita el formato de sus respuestas anteriores en
+vez de consultar. Los prompts tampoco le dan contexto del dominio ni de las reglas de negocio.
+
+### 3.2 Decisiones
+
+| # | Decisión | Resolución |
+|---|----------|------------|
+| D16 | Capa intermedia del canal | **Sí: `Services/AgenteServices`** entre `AgenteApp`/`ChatwootApp` y los DomainServices/QueryServices (§3.3). Es una **excepción** a la arquitectura de capas, solo para el canal; se documenta en `ARQUITECTURA.md` y `CLAUDE.md` al implementarla. |
+| D17 | Búsquedas | **Por parecido**: sin distinguir mayúsculas ni tildes, por palabras parciales (`LIKE` sobre `lower(unaccent(…))`, lo que ya hace el `contains` de `AbstractFiltroQueryService`), con *fallback* por similitud (`pg_trgm`) para errores de tipeo (§3.4.4). |
+| D18 | Verificar lo que afirma el agente | **Sí, completo**: escrituras **y** datos leídos (códigos de turno, matrículas, horarios). El back compara la respuesta de Flowise con lo que las tools devolvieron en esa tanda (§3.4.5). |
+| D19 | Mensajes de espera | **Los manda el back** al recibir la llamada de una tool, con texto fijo por acción y como mucho uno por tanda (§3.4.6). |
+| D20 | Documentos | El back **no los pasa a Flowise**: responde un texto fijo y etiqueta la conversación en Chatwoot (§3.4.7). Audio sigue con `EX-MEDIA` (D13). |
+| D21 | Fin de conversación | Token **`—FIN—`**: el back envía el texto, resuelve la conversación en Chatwoot y cierra la ventana (§3.4.8). |
+| D22 | Modelo | **`gpt-5.4` con razonamiento** en los agentes con tools (a probar también en el router). Hay que verificar primero por qué en la Fase 2 `reasoningEffort: none` resultó obligatorio con tools. |
+| D23 | Fuente de verdad del flow | **El repo `AccesMed-Flowise`** (`prompts/`, `tools/`, `scripts/build-flow.mjs`). Staging se actualiza desde el navegador cargando lo del repo; nada se edita solo en la UI. |
+| D24 | Errores para el agente | Se traducen **en la tool** (`llamarBackend`): un mapa `codigo` → instrucción para el modelo. El back no cambia su contrato de errores ni suma tipos de excepción. |
+
+### 3.3 La capa `Services/AgenteServices` (D16)
+
+```
+AgenteController ──> AgenteApp ───┐
+                                  ├──> Services/AgenteServices ──> DomainServices / QueryServices
+ChatwootController ─> ChatwootApp ┘
+        (los dos App siguen usando DomainServices y ExternalServices como hoy)
+```
+
+- **Por qué.** `AgenteApp` ya tiene ~900 líneas y copia orquestación del panel. Las búsquedas por
+  parecido, el armado del catálogo con relaciones e indicaciones y el registro de la tanda son
+  lógica **del canal**: no pertenecen a un DomainService (que es de una entidad y lo usa el panel)
+  ni al App (que solo orquesta).
+- **Reglas de la capa:**
+  - La usan **solo** `AgenteApp` y `ChatwootApp`. El panel no la toca.
+  - Puede llamar a DomainServices, QueryServices y Mappers. Nunca a un `App` ni a
+    `Services/ExternalServices`.
+  - Lanza las excepciones de siempre (`RecursoNoEncontrado`/`ReglaNegocio`/`Validacion`), con
+    `log.warn` en el `throw`.
+  - Lo nuevo va acá. Lo que ya está en `AgenteApp` se mueve solo si se toca por otro motivo (no hay
+    refactor masivo).
+- **Componentes:**
+
+| Componente | Qué hace |
+|------------|----------|
+| `CatalogoAgenteService` | Búsquedas por parecido de especialidad, prestación y médico (§3.4.4). Arma las respuestas con la relación `MedicoPrestacion` vigente y las indicaciones vigentes. Filtra: prestación `PUBLICADA`, médico activo, `MedicoPrestacion` vigente. |
+| `TandaAgenteService` | Estado en memoria de la tanda en curso, por teléfono: conversación, tools llamadas, resultado y **datos entregados** (códigos, matrículas, horarios). Lo alimenta `AgenteApp` y lo consultan `ChatwootApp` (verificación, §3.4.5) y el aviso de espera (§3.4.6). Misma premisa que el resto del estado del canal: una sola instancia del back. |
+
+### 3.4 Fase 3A — Back
+
+#### 3.4.1 Oferta con relación prestación ↔ médico (cambia el contrato)
+
+`GET /Agente/Especialidad/{nombre}/Oferta` mantiene la ruta. El nombre se resuelve por parecido
+("cardio" → Cardiología) y la respuesta pasa a anidar los médicos dentro de cada prestación:
+
+```json
+{
+  "especialidad": "Dermatología",
+  "prestaciones": [
+    {
+      "nombre": "Crioterapia",
+      "requiereValidacion": false,
+      "medicos": [{ "nombre": "Camila", "apellido": "Vega", "matricula": "MP-12134" }]
+    }
+  ]
+}
+```
+
+Si el nombre coincide con más de una especialidad (y ninguna es exacta): `409 ESPECIALIDAD_AMBIGUA`,
+con las opciones en el mensaje (es una `ReglaNegocioException`: `ValidacionException` no admite código
+propio). Si no coincide con ninguna: `404 ESPECIALIDAD_NO_ENCONTRADA`.
+
+#### 3.4.2 Endpoints nuevos de búsqueda
+
+Ambos responden `200` con una lista, vacía si no hay coincidencias (no es error: el agente decide
+qué preguntar). Máximo 10 resultados.
+
+| Endpoint | Para qué | Respuesta (por elemento) |
+|----------|----------|--------------------------|
+| `GET /Agente/Prestacion?nombre=…` | "¿Hacen electrocardiogramas?", "quiero una crioterapia" | `nombre`, `especialidad`, `requiereValidacion`, `indicaciones[]` (§3.4.3), `medicos[]` (nombre, apellido, matrícula) |
+| `GET /Agente/Medico?nombre=…` | "turno con Raúl el viernes", "¿Raúl hace electrocardiogramas?" | `nombre`, `apellido`, `matricula`, `especialidad`, `prestaciones[]` (nombres de las que hace) |
+
+Records: `ListPrestacionAgenteResponse` y `ListMedicoAgenteResponse` se amplían (hoy solo tienen
+nombre / nombre-apellido-matrícula); se suma `IndicacionPrestacionAgenteResponse`.
+
+`GET /Agente/Turno/Disponibilidad` también resuelve `nombrePrestacion` por parecido (debe quedar
+**una** coincidencia entre las prestaciones del médico; si no, `409 PRESTACION_AMBIGUA`,
+`409 MEDICO_NO_ATIENDE_PRESTACION` o `404 PRESTACION_NO_ENCONTRADA`).
+
+Implementado además: `matricula` en las respuestas de reservar, reprogramar y confirmar (la usa la
+verificación de §3.4.5) y el header `X-Paciente-Telefono` (opcional) en las consultas de catálogo y
+disponibilidad, para registrarlas en la tanda.
+
+#### 3.4.3 Indicaciones de la prestación
+
+- Cada indicación vigente: `nombre` (del `TipoIndicacionPrestacion`), `descripcion`,
+  `requiereValidacion`.
+- `requiereValidacion` de la prestación = alguna indicación vigente lo requiere (el mismo criterio
+  con el que `createTurno` elige `ESPERA_VALIDACION`).
+- `CreateTurnoAgenteResponse` suma `indicaciones[]`, para que el mensaje final las repita.
+
+#### 3.4.4 Búsqueda por parecido (D17)
+
+1. **Normalizar** la consulta: minúsculas, sin tildes, sin títulos (`dr`, `dra`, `doctor`,
+   `doctora`), sin signos; separar en palabras.
+2. **Coincidencia por palabras:** cada palabra tiene que aparecer (`LIKE %palabra%` sobre
+   `lower(unaccent(…))`) en el nombre de la especialidad/prestación, o en el nombre **o** el
+   apellido del médico. "camila suarez" no trae a nadie con las dos palabras → paso 3.
+3. **Fallback por similitud** si el paso 2 no trajo nada: `similarity(lower(unaccent(texto)),
+   consulta) > 0.3` con `pg_trgm`, ordenado por similitud. Cubre "traumtitini" → Traumatología y
+   "camila suarez" → Camila Vega / Federico Suárez (el agente repregunta).
+4. **Migración:** changeset Liquibase `CREATE EXTENSION IF NOT EXISTS pg_trgm` (`unaccent` ya
+   existe, `20260927120000-FixesE2E.xml`). Sin índice trigram por ahora: el catálogo es chico.
+
+#### 3.4.5 Verificación de la respuesta (D18)
+
+`TandaAgenteService` abre la tanda cuando `ChatwootApp` llama a Flowise y la cierra al enviar.
+Mientras tanto, `AgenteApp` anota cada llamada (acción, ok/error) y los datos que devolvió.
+
+Antes de enviar, `ChatwootApp` le pide a `TandaAgenteService` que verifique el texto:
+
+| Regla | Se detecta en el texto | Tiene que haber en la tanda |
+|-------|------------------------|-----------------------------|
+| Resultado de escritura | Frases afirmativas por acción: "te quedó reservado", "te lo confirmé", "quedó cancelado", "te lo reprogramé", "ya estás registrado", "actualicé tus datos", "te di de baja" | Una llamada **exitosa** a esa acción |
+| Códigos de turno | `TURNO_[0-9A-F]{8}` | Ese código devuelto por alguna tool |
+| Matrículas | Valor después de "matrícula" / `MP-…` | Esa matrícula devuelta por alguna tool |
+| Horarios | Lista con 2 o más ítems día/fecha + hora | Una llamada a `listHorariosDisponibles` |
+
+- **Si pasa:** se envía como hoy.
+- **Si no pasa:** se loguea `warn` con la regla violada y se le vuelve a preguntar a Flowise **una
+  vez**, con la misma tanda y una variable `controlInterno` que explica el problema ("No llamaste
+  a confirmTurno: llamala o decí que no se pudo"). Si la segunda respuesta tampoco pasa, se envía
+  un mensaje fijo: *"Perdón, no pude completar eso. ¿Lo intentamos de nuevo?"*
+- **A verificar en la Fase 3B:** borrar de la memoria de Flowise la respuesta rechazada (API de
+  `chatmessage`), para que el modelo no la imite.
+
+Las frases de la primera regla se ajustan con lo que muestren los logs: un falso positivo solo
+cuesta un reintento.
+
+#### 3.4.6 Mensajes de espera (D19)
+
+Al recibir la llamada de una tool, `AgenteApp` le pregunta a `TandaAgenteService` si ya se avisó en
+esta tanda; si no, `ChatwootService` envía:
+
+| Tool | Mensaje |
+|------|---------|
+| `listEspecialidades`, `getOfertaEspecialidad`, búsquedas | *"🔎 Buscando en la cartilla…"* |
+| `listHorariosDisponibles` | *"🔎 Buscando horarios disponibles…"* |
+| `listTurnos` | *"🔎 Revisando tus turnos…"* |
+| `createTurno` | *"⏳ Reservando tu turno…"* |
+| `cancelTurno` / `reprogramTurno` / `confirmTurno` | *"⏳ Cancelando / Reprogramando / Confirmando tu turno…"* |
+| `createPaciente` / `updatePaciente` / `softDeletePaciente` | *"⏳ Guardando tus datos…"* |
+
+`getPaciente`, `getClinica` y `listObraSocial` no avisan (son rápidas). Con el reintento de §3.4.5
+no se vuelve a avisar.
+
+#### 3.4.7 Documentos (D20)
+
+- Mensaje con adjunto `file` o `image`: el back responde *"📎 Recibimos tu archivo. Alguien del
+  equipo lo va a revisar."* y le agrega la etiqueta `documentacion` a la conversación (API de
+  Chatwoot; la etiqueta la crea el equipo en Chatwoot, no el back). La conversación sigue con el
+  bot.
+- Si además trae texto (pie de foto), el texto sigue a Flowise como hoy.
+- `audio` y `video`: sigue `EX-MEDIA` ("solo texto").
+- `ChatwootClient` suma `addLabelConversacion`.
+
+#### 3.4.8 Fin de conversación (D21)
+
+- Si la respuesta de Flowise trae `—FIN—`: el back quita el token, envía el texto, **resuelve** la
+  conversación en Chatwoot y cierra la ventana de inactividad. El próximo mensaje del paciente
+  arranca de cero: bienvenida y `sessionId` nuevo.
+- `ChatwootClient` suma `resolveConversacion`.
+- **Verificado** (BD de Chatwoot, 2026-11-08, y `Chatbot.md §6.G`): cuando el paciente escribe después
+  de una conversación resuelta, Chatwoot crea una conversación **nueva** en `pending` y la atiende el bot.
+
+#### 3.4.9 Cancelar solo desde estados válidos
+
+`AgenteApp.cancelTurno` valida que el estado vigente sea `PENDIENTE`, `CONFIRMADO` o
+`ESPERA_VALIDACION` (los mismos de `AccionTurnoAgente.CANCELABLE`); si no,
+`ReglaNegocioException` `TURNO_NO_CANCELABLE`. Hoy solo se valida "no final" + plazo, y
+`EN_SALA_DE_ESPERA`/`EN_CURSO` no son finales. El panel no cambia.
+
+#### 3.4.10 Documentación a actualizar en la misma implementación
+
+`CLAUDE.md` y `ARQUITECTURA.md` (capa `Services/AgenteServices`, D16), `Docs/Features/Chatbot.md`
+(contrato: oferta, búsquedas, indicaciones, `TURNO_NO_CANCELABLE`, `—FIN—`, documentos, avisos,
+verificación), `Docs/BACKLOG.md`.
+
+### 3.5 Fase 3B — Flow (Flowise, desde el navegador)
+
+1. **Modelo (D22):** `gpt-5.4` con razonamiento (bajo o medio) en los agentes; probar el router.
+2. **Prompt común con contexto:** qué es AccesMed; glosario del dominio (Paciente, Especialidad,
+   Prestación, Médico — no todos hacen todas las prestaciones de su especialidad —, Turno y sus
+   estados, Indicación, obra social / plan / particular, plazos); reglas de negocio que hacen
+   fallar una tool; qué hace, qué pide y qué devuelve cada tool. Regla central: **cada dato
+   concreto de la respuesta sale de una tool llamada en este mismo mensaje**.
+3. **Lenguaje natural:** "dale", "mandale", "obvio", "👍" son un sí; elegir por número o por nombre
+   aproximado; entrar al catálogo por especialidad, prestación o médico (tools de §3.4.2).
+4. **Router:** nuevos escenarios "agradece o se despide" (respuesta corta + `—FIN—`), "cancela la
+   acción en curso" (se aborta sin ejecutar), "quiere mandar un documento" ("mandalo por acá");
+   el "sí" a "¿Querés que te registre?" va a registro; preguntas sobre la preparación de un turno
+   van a oferta, no a fuera de tema.
+5. **Tono:** emojis con moderación; "¡De nada! Que tengas un buen día 😊"; menú con "Otra consulta".
+6. **Registro:** obligatorios DNI (7 a 9 dígitos), nombre, apellido, fecha de nacimiento y email;
+   cobertura particular u obra social con plan y número de socio (los tres obligatorios si tiene).
+   Si no nombra la obra social, mostrar las obras sociales y planes.
+7. **Reserva:** antes del "¿Confirmás?", mostrar las indicaciones; si alguna requiere validación,
+   explicar que el turno queda en espera hasta que la clínica lo valide.
+8. **Errores (D24):** mapa `codigo` → instrucción en `llamarBackend`; validar el formato
+   `TURNO_XXXXXXXX` antes de llamar.
+9. **Formato:** sin listas anidadas para un solo dato, sin datos repetidos.
+10. **Tools nuevas:** `searchPrestacion`, `searchMedico`; `getOfertaEspecialidad` con la respuesta
+    nueva.
+11. **Prueba:** repetir por WhatsApp los casos de §3.1.
+
+### 3.6 Orden de trabajo
+
+1. Fase 3A en `feature/Agente`, probada en local (Docker).
+2. Deploy del back a staging.
+3. Fase 3B: repo `AccesMed-Flowise` → staging por el navegador.
+4. Prueba real por WhatsApp.
