@@ -19,10 +19,13 @@ import com.accesmed.backend.Security.Domain.CambioMailToken;
 import com.accesmed.backend.Security.Services.DomainServices.CambioMailTokenDomainService;
 import com.accesmed.backend.Security.Services.DomainServices.PasswordResetTokenDomainService;
 import com.accesmed.backend.Security.Services.DomainServices.RefreshTokenDomainService;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioRolDomainService;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Utils.MailService;
+import com.accesmed.backend.Services.Utils.PlantillaMailHtml;
+import com.accesmed.backend.Services.Utils.PlantillaMailHtml.ContenidoMail;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,6 +61,7 @@ public class AuthApp {
     private final UsuarioDetailsService usuarioDetailsService;
     private final PasswordEncoder passwordEncoder;
     private final MailService mailService;
+    private final ClinicaDomainService clinicaDomainService;
 
     @Value("${accesmed.frontend.base-url}")
     private String frontendBaseUrl;
@@ -233,9 +237,21 @@ public class AuthApp {
     private void enviarMailRecuperacion(Usuario usuario) {
         String token = passwordResetTokenDomainService.generarYGuardarPasswordResetToken(usuario);
         String link = frontendBaseUrl + "/restablecer-contrasena?token=" + token;
-        mailService.enviarMail(usuario.getMail(), "Recuperación de contraseña — AccesMed",
-                "Ingresá a este link para definir una contraseña nueva:\n\n" + link
-                        + "\n\nSi no pediste esto, ignorá este mail.");
+
+        ContenidoMail contenidoMail = ContenidoMail.builder()
+                .etiqueta("Tu cuenta")
+                .colorAcento(PlantillaMailHtml.ACENTO_INFO)
+                .titulo("Recuperá tu contraseña")
+                .saludo("Hola,")
+                .parrafos(List.of("Recibimos un pedido para definir una contraseña nueva en tu cuenta de AccesMed."))
+                .textoBoton("Definir contraseña nueva")
+                .urlBoton(link)
+                .nota("El link vence en 1 hora y se puede usar una sola vez. Si no pediste esto, ignorá este mail.")
+                .build();
+
+        mailService.enviarMailConPlantilla(usuario.getMail(), "Recuperación de contraseña — AccesMed",
+                contenidoMail, clinicaDomainService.findClinica());
+
     }
 
     //endregion
