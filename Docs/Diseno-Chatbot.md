@@ -803,16 +803,16 @@ el repo).
 
 ```mermaid
 flowchart TD
-  ST[Start<br/>Chat Input] --> RT{Condition Agent<br/>Router}
+  ST[Start<br/>Chat Input] --> CTX[Custom Function<br/>Contexto de sesión] --> RT{Condition Agent<br/>Router}
   RT -- saludo / sin intención --> MENU[Direct Reply: menú fijo]
   RT -- info de la clínica --> H1[HTTP getClinica] --> L1[LLM redacta<br/>Structured Output] --> R1[Direct Reply]
   RT -- oferta / disponibilidad --> A2[Agent Oferta] --> P2[Custom Function parseo] --> R2[Direct Reply]
   RT -- sacar turno --> C3{Condition<br/>pacienteRegistrado}
   C3 -- true --> A3[Agent Turno nuevo] --> P3[Custom Function parseo] --> R3[Direct Reply]
-  C3 -- false --> A5
+  C3 -- false --> REG3[Direct Reply: pedir registro]
   RT -- mis turnos --> C4{Condition<br/>pacienteRegistrado}
   C4 -- true --> A4[Agent Mis turnos] --> P4[Custom Function parseo] --> R4[Direct Reply]
-  C4 -- false --> A5
+  C4 -- false --> REG4[Direct Reply: pedir registro]
   RT -- mis datos / registrarme --> A5[Agent Mis datos] --> P5[Custom Function parseo] --> R5[Direct Reply]
   RT -- operador --> OP[Direct Reply + —HANDOFF—]
   RT -- fuera de tema --> FT[Direct Reply + —FUERA_DE_TEMA—]
@@ -848,9 +848,21 @@ clasificación.
 | Mis turnos | `listTurnos`, `cancelTurno`, `reprogramTurno`, `confirmTurno`, `listHorariosDisponibles` |
 | Mis datos | `getPaciente`, `createPaciente`, `updatePaciente`, `softDeletePaciente`, `listObraSocial` |
 
-**Gate de registro** (*Condition*, sin LLM): `{{$vars.pacienteRegistrado}}` igual a `true`. Si no
-está registrado, el pedido del grupo C va a la rama Mis datos, que ofrece el registro y retoma el
-objetivo (D3). `CB-DISP` no pasa por el gate (D2).
+**Contexto de sesión** (*Custom Function*, primer nodo): copia `pacienteRegistrado`, `nombrePaciente`,
+`nombreContacto` y `fechaHoraActual` de `$vars` a `$flow.state`; el gate y los prompts leen
+`{{ $flow.state.x }}`. Motivo en §2.4.4 (las referencias `{{ $vars.x }}` de los nodos no ven el
+override).
+
+**Gate de registro** (*Condition*, sin LLM): `{{ $flow.state.pacienteRegistrado }}` igual a `true`. Si no
+está registrado, el pedido del grupo C termina en un mensaje fijo que explica que hace falta
+registrarse y ofrece hacerlo. El "sí" siguiente lo clasifica el router (con memoria) como registro y
+va a la rama Mis datos, que registra y retoma el objetivo (D3). `CB-DISP` no pasa por el gate (D2).
+
+> **Por qué no se conecta el gate directo a Mis datos.** En Agentflow V2 (3.1.3,
+> `buildAgentflow.js`, `setupNodeDependencies`) un nodo con varios padres que salen de ramas
+> condicionales espera una entrada de cada grupo: el Agent de Mis datos, con tres padres (router y los
+> dos gates), no se ejecutaría cuando lo elige uno solo. Regla del flow: **cada nodo tiene un solo
+> padre**. El mensaje fijo además ahorra una llamada al LLM.
 
 **Por qué *Agent* y no cadenas HTTP → LLM en los CU de varios pasos.** Cada mensaje del paciente
 arranca el flow de cero y el `$flow.state` no se conserva; lo único que persiste es la memoria de
@@ -862,12 +874,18 @@ ofrece botones *proceed/reject*, no texto libre de WhatsApp.
 
 | Nodo | Modelo inicial | Motivo |
 |------|----------------|--------|
-| Router (Condition Agent) | `gpt-5.4-nano` | Clasificar es simple y es el nodo que corre siempre: prima la latencia. Si clasifica mal en las pruebas, pasa a `gpt-5.4-mini`. |
+| Router (Condition Agent) | `gpt-5.4-mini` | Arrancó en `gpt-5.4-nano`, pero en staging mandó el "sí, confirmo" de una reserva a Mis turnos por la palabra *confirmo* (el Agent llamó a `reprogramTurno`, que el back rechazó). Con `mini` y escenarios reformulados clasificó bien todas las pruebas. |
 | LLM info de la clínica | `gpt-5.4-nano` | Solo redacta datos ya obtenidos. |
 | Agents de las ramas | `gpt-5.4-mini` | Eligen tools y llevan un diálogo de varios pasos. |
 
 Los dos modelos están en la lista de Flowise 3.1.3 (`models.json`). Precio y calidad se validan
 en OpenAI y en las pruebas, no en este documento.
+
+**`reasoningEffort: none` en todos los nodos.** Flowise llama a OpenAI por Chat Completions y ahí
+`gpt-5.4-*` no admite tools con otro esfuerzo de razonamiento (400 *"Function tools with
+reasoning_effort are not supported… set reasoning_effort to 'none'"*, visto en staging el
+2026-11-08). Además es lo más rápido: en las pruebas, ~1 s las respuestas fijas y 2–5 s las ramas
+con Agent.
 
 #### 2.4.3 Prompts y formato de salida
 
@@ -881,6 +899,9 @@ en OpenAI y en las pruebas, no en este documento.
 - Usá **solo** datos que devolvió una herramienta; nunca inventes médicos, horarios ni precios.
 - Fecha y hora actuales: `{{$vars.fechaHoraActual}}`. Interpretá "mañana", "el jueves" con eso.
 - Antes de cualquier acción que modifique, resumí y pedí confirmación explícita (D4).
+- Lo que vas a necesitar en el mensaje siguiente tiene que quedar escrito en tu respuesta (p. ej.
+  el código de cada turno listado): no vas a ver las respuestas de las herramientas de mensajes
+  anteriores (§2.4.4).
 - Si una herramienta devuelve un error con `mensaje`, transmitilo en tus palabras. Si es un error
   no previsto (`EX-BACK`), disculpate y terminá con `—HANDOFF—`.
 - Respondé siempre entre `<respuesta>` y `</respuesta>`; fuera de las etiquetas, nada.
@@ -889,25 +910,69 @@ en OpenAI y en las pruebas, no en este documento.
 
 - Nodos *LLM*: *JSON Structured Output* nativo (`{ "respuesta": string }`): Flowise valida el
   esquema.
-- Nodos *Agent* (no tienen salida estructurada): etiquetas `<respuesta>…</respuesta>`. Una
-  *Custom Function* extrae lo que está entre etiquetas y descarta el resto; si no las encuentra,
-  devuelve un mensaje fijo ("No te entendí bien, ¿me lo decís de otra forma?").
+- Nodos *Agent*: etiquetas `<respuesta>…</respuesta>`. Una *Custom Function* extrae lo que está
+  entre etiquetas. `gpt-5.4-mini` a veces las omite aunque la respuesta sea correcta (visto en
+  staging): como la salida del *Agent* es solo el mensaje final, sin etiquetas se usa el texto
+  entero; el mensaje fijo ("No te entendí bien, ¿me lo decís de otra forma?") queda para una
+  respuesta vacía. El *Agent* de 3.1.3 **sí** tiene *JSON Structured
+  Output*, pero lo resuelve con **una segunda llamada al LLM** al terminar las tools ("Convert the
+  following response to the structured output format", `Agent.js`): se descarta por latencia.
 - Los tokens `—HANDOFF—` y `—FUERA_DE_TEMA—` van dentro de la respuesta; los interpreta el back.
 
 El body hacia la API no lo arma el LLM en texto libre: lo arman las Custom Tools a partir de los
 argumentos que el *Agent* les pasa (esquema de cada tool), y los headers salen de `$vars`.
 
-#### 2.4.4 Construcción y verificación
+#### 2.4.4 Verificado contra el código de Flowise 3.1.3
 
-1. Exportar desde la UI un flow mínimo (Start → LLM → Direct Reply) como plantilla del formato
-   real de nodos y conexiones de Flowise 3.1.3.
-2. Generar el flow completo como JSON en `AccesMed-Flowise/flows/`, con las Custom Tools en
-   `tools/` y los prompts en `prompts/` (convención de ese repo).
-3. Importarlo (*Load Agentflow* o `POST /api/v1/chatflows`) y verificarlo en el navegador:
-   canvas, chat de prueba y *Executions* (qué escenario eligió el router, qué tools llamó cada
-   Agent).
-4. Recorrer una conversación por CU (incluidas sus excepciones de §1.7) y ajustar prompts y
-   escenarios.
+Revisado en `AccesMed-Flowise/node_modules/flowise{,-components}` (la doc de GitBook está
+desactualizada en varios puntos):
+
+| Tema | Comportamiento real | Consecuencia para el diseño |
+|------|---------------------|-----------------------------|
+| Memoria del *Condition Agent* | Tiene *Enable Memory* (All Messages / Window Size / Summary); la doc no lo menciona. | El router con memoria de ventana (§2.4.1) es viable. |
+| Qué guarda la memoria | El historial sale de la tabla `ChatMessage` por `chatflowid` + `sessionId`: **solo el texto** de cada mensaje del usuario y de cada respuesta final. Las salidas de las tools no vuelven al LLM en el mensaje siguiente. | Todas las ramas comparten la misma memoria (cambiar de rama y retomar, D3, funciona). Pero lo que el Agent necesite del paso anterior **tiene que estar en el texto visible**: al listar turnos se muestra el `codigo` de cada uno; si no, el Agent vuelve a llamar a la tool. Regla del bloque común. |
+| Override de `$vars` | El back las manda en `overrideConfig.vars`, pero Flowise solo las aplica si el chatflow tiene `apiConfig.overrideConfig.status = true` **y** cada variable con `enabled: true` en `apiConfig.overrideConfig.variables`. Si no, se ignoran **sin error**. | Paso obligatorio de la importación. Crearlas en *Variables* no es requisito del override, pero sí da valores por defecto para probar desde el chat de la UI. |
+| Alcance del override | Llega a las Custom Tools y a los *Custom Function* (`$vars` del sandbox), pero **no** a las referencias `{{ $vars.x }}` de los inputs de los nodos: `buildAgentflow` las resuelve con un `flowConfig` sin las vars y toma el valor guardado en *Variables* (en staging el gate veía siempre `pacienteRegistrado = false`). | Nodo *Contexto de sesión* que copia las vars a `$flow.state` (§2.4.1). Las runtime (`ACCESMED_API_URL`) sí se resuelven bien con `{{ $vars.x }}`. |
+| `apiConfig` | Es un campo del chatflow, **no** viaja en el JSON exportado del canvas (`flowData`). | *Load Agentflow* desde la UI no alcanza: el override se configura aparte (UI o API). |
+| Custom Tools en un Agent | El Agent referencia cada tool guardada por su **id** en la tabla `Tool`; las tools leen `$vars` del mismo override. | Las tools se crean antes que el flow y sus ids se inyectan en el JSON. |
+| Nodos con varios padres | Si los padres salen de ramas condicionales, el nodo espera una entrada de cada grupo (`setupNodeDependencies`). | Cada nodo del flow tiene un solo padre (gate de registro, §2.4.1). |
+| Sandbox de las Custom Tools | NodeVM: hay `node-fetch` y `encodeURIComponent`, no `URLSearchParams` (error en staging). | `listHorariosDisponibles` arma la query a mano. |
+| Texto de los prompts | Un valor que empieza con un bloque HTML (`<p>`) se convierte con *turndown*; texto plano se usa tal cual y `{{ $vars.x }}` / `{{ nodoId }}` se resuelven igual. | Los prompts se cargan como texto plano desde `prompts/`. |
+
+#### 2.4.5 Construcción y verificación
+
+Todo se genera desde el repo `AccesMed-Flowise` (fuente del agente) con un script de
+importación contra la API REST de Flowise (API key de Flowise con permisos de tools, variables
+y agentflows, en el `.env`, nunca en el repo):
+
+1. **Fuentes**: Custom Tools en `tools/` (código + esquema de argumentos), prompts en `prompts/`
+   (bloque común + uno por rama, router, info de la clínica, respuestas fijas).
+2. **`scripts/build-flow.mjs`** genera `flows/agente-chatbot.json` (26 nodos) con las definiciones
+   reales de los nodos de `flowise-components` y marcadores en lugar de ids de tools y credencial.
+   El JSON no se edita a mano.
+3. **`scripts/import-flow.mjs`** (idempotente, por nombre): sube las tools y hace
+   `PUT /api/v1/chatflows/<id>` con `flowData` resuelto. El `apiConfig` (override de las cinco
+   variables de §2.3.5) se configuró una vez y se conserva. Sin API key de Flowise, lo mismo se hace
+   desde una pestaña con sesión iniciada (así se cargó en staging el 2026-11-08).
+4. **Verificar**: canvas, `POST /api/v1/internal-prediction/<id>` con `overrideConfig.vars` (lo mismo
+   que manda el back) y *Executions* (escenario elegido, tools llamadas).
+5. Recorrer una conversación por CU (incluidas sus excepciones de §1.7) y ajustar prompts y
+   escenarios en el repo.
+
+**Estado (2026-11-08):** cargado en el Flowise de staging y probado de punta a punta (predicción
+con las mismas `vars` que manda el back) con un paciente ficticio que al final se dio de baja:
+menú, info de la clínica, oferta, horarios, operador, fuera de tema, urgencia, abusivo, gate de
+registro, `CB-REG`, `CB-SOL`, `CB-REP`, `CB-CONF`, `CB-CAN`, `CB-MOD` y `CB-BAJA` (incluido
+`PACIENTE_CON_TURNOS_VIVOS`). Ajustes que salieron de las pruebas: router a `mini`, criterio de
+reprogramación en el router, regla de confirmación endurecida (nunca se modifica en el mismo mensaje
+en que llega el dato; una corrección no es confirmación), `listTurnos` = todo operable.
+
+**Pendientes:**
+- ~~**Hora en UTC.**~~ Resuelto el 2026-11-08: los Response de turno del agente devuelven
+  `fechaHoraInicio` como `LocalDateTime` en la zona de la clínica (igual que la disponibilidad) y
+  `FormatoMensaje.fechaHora` convierte a esa zona (afecta también a los mensajes del panel). Contrato
+  en `Chatbot.md §7`.
+- Prueba real por WhatsApp (Chatwoot → back → Flowise).
 
 ---
 

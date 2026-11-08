@@ -22,6 +22,7 @@ import com.accesmed.backend.Services.DomainServices.ObraSocialPacienteDomainServ
 import com.accesmed.backend.Services.DomainServices.ObraSocialPlanPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.PlanDomainService;
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
@@ -38,6 +39,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +62,7 @@ public class ObraSocialApp {
     private final PlanDomainService planDomainService;
     private final HistoricoEstadoPlanDomainService historicoEstadoPlanDomainService;
     private final TurnoDomainService turnoDomainService;
+    private final ClinicaDomainService clinicaDomainService;
     private final ObraSocialPacienteDomainService obraSocialPacienteDomainService;
     private final ObraSocialPlanPrestacionDomainService obraSocialPlanPrestacionDomainService;
     private final PrestacionDomainService prestacionDomainService;
@@ -186,8 +189,9 @@ public class ObraSocialApp {
 
         //Validar que cada plan no deshabilitado pueda deshabilitarse (sin turnos vivos); si alguno falla, rechazar toda la operación
         List<Plan> planesNoDeshabilitados = planDomainService.findPlanesNoDeshabilitadosByObraSocial(id);
+        ZoneId zonaHorariaClinica = clinicaDomainService.findZonaHorariaClinica();
         for (Plan plan : planesNoDeshabilitados) {
-            turnoDomainService.validateSinTurnosVivosDePlan(plan.getId());
+            turnoDomainService.validateSinTurnosVivosDePlan(plan.getId(), zonaHorariaClinica);
         }
 
         //Deshabilitar en cascada los planes no deshabilitados, arrastrando sus coberturas (A5)
