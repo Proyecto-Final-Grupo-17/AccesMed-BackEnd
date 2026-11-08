@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Búsquedas por parecido del canal chatbot (Docs/Diseno-Chatbot.md §3.4.4): si la coincidencia
+        por palabras (LIKE sobre lower(unaccent(...))) no trae nada, se busca por similitud de
+        trigramas (word_similarity de pg_trgm) para tolerar errores de tipeo ("traumtitini").
+        Sin índice trigram: el catálogo (especialidades, prestaciones, médicos) es chico.
+    -->
+    <changeSet id="20261108120000-extension-pg-trgm" author="claude">
+        <sql>CREATE EXTENSION IF NOT EXISTS pg_trgm;</sql>
+
+        <rollback>
+            <sql>DROP EXTENSION IF EXISTS pg_trgm;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

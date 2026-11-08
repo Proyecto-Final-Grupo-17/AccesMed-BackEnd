@@ -186,14 +186,17 @@ diseño en `Docs/Diseno-Chatbot.md §2.3`):
    {fin} h. Escribinos en ese horario y te ayudamos."*, **una vez por ventana**; no llama a Flowise.
 3. **Antispam**: más de 10 mensajes en 60 s → *"Recibimos muchos mensajes seguidos…"* una vez y
    la conversación se ignora 5 min.
-4. **Sin texto** (audio, imagen, video, sticker, documento) → *"Por ahora solo puedo leer mensajes de
-   texto. ¿Me lo escribís?"* (no llama a Flowise ni entra en la agrupación). Un adjunto con pie de
-   texto pasa como texto y el adjunto se ignora.
-5. **Primer mensaje de texto de la ventana** → bienvenida inmediata, antes de agrupar: *"¡Hola,
+4. **Documento** (adjunto `image` o `file`) → *"📎 Recibimos tu archivo. Alguien del equipo lo va a
+   revisar."* y la conversación se etiqueta `documentacion` (la etiqueta la crea el equipo en
+   Chatwoot). El archivo queda en Chatwoot: **nunca le llega a Flowise**. Si trae pie de texto, el
+   texto sigue su curso (punto 6).
+5. **Sin texto** y sin documento (audio, video, sticker) → *"Por ahora solo puedo leer mensajes de
+   texto. ¿Me lo escribís?"* (no llama a Flowise ni entra en la agrupación).
+6. **Primer mensaje de texto de la ventana** → bienvenida inmediata, antes de agrupar: *"¡Hola,
    {nombre del Paciente}! Somos {clínica}, atendemos de {inicio} a {fin} h. Ya estamos revisando tu
    mensaje, aguardá un momento."* (sin nombre si el teléfono no está registrado). **El agente de
    Flowise no saluda.**
-6. **Con texto** → se agrupa (6.C).
+7. **Con texto** → se agrupa (6.C).
 
 **Ventana de inactividad** por conversación: arranca con el primer mensaje, se renueva con cada
 uno y vence a los 30 min sin mensajes. Reinicia la bienvenida, el aviso de fuera de horario, el
@@ -241,7 +244,8 @@ con cardiología",
       "nombreContacto": "Ana",
       "pacienteRegistrado": "true",
       "nombrePaciente": "Ana",
-      "fechaHoraActual": "sábado 08/11/2026 10:35"
+      "fechaHoraActual": "sábado 08/11/2026 10:35",
+      "controlInterno": ""
     }
   }
 }
@@ -257,6 +261,7 @@ ventana de inactividad (6.B): la memoria del agente arranca limpia después de 3
 | `pacienteRegistrado` | `"true"` / `"false"`: hay un paciente activo con ese teléfono (se consulta en cada tanda) |
 | `nombrePaciente` | nombre del `Paciente` registrado, o vacío |
 | `fechaHoraActual` | día, fecha y hora en la zona de la clínica, para interpretar "mañana", "el jueves" |
+| `controlInterno` | vacío; en el reintento de la verificación (6.H), la instrucción de corrección para el agente |
 
 En el flow se leen como `$vars.<nombre>`. El chatflow tiene que tener el override activado
 (`apiConfig.overrideConfig.status = true`) y **cada variable habilitada** en
@@ -270,7 +275,12 @@ desde la UI.
 - `—FUERA_DE_TEMA—` → envía el texto y suma 1 al contador de la conversación; cualquier respuesta sin
   el token lo reinicia. Al llegar a 3 seguidos, avisa *"Te paso con una persona del equipo."* y abre
   la conversación.
+- `—FIN—` (el paciente se despidió) → envía el texto, **resuelve** la conversación y cierra la
+  ventana: el próximo mensaje arranca de cero (conversación nueva en Chatwoot, bienvenida y sesión
+  nueva de Flowise). Si la misma respuesta trae `—HANDOFF—`, gana el handoff.
 - Respuesta vacía o error de Flowise → mensaje de error técnico y handoff.
+
+Antes de entregar la respuesta, el back la **verifica** (6.H).
 
 ### 6.E Back → Chatwoot (API)
 
@@ -281,6 +291,8 @@ los mensajes figuran como enviados por el bot.
 |--------|----------|
 | Responder | `POST /api/v1/accounts/{account}/conversations/{id}/messages` `{content, message_type: "outgoing", private: false}` |
 | Derivar a persona | `POST /api/v1/accounts/{account}/conversations/{id}/toggle_status` `{status: "open"}` |
+| Fin de la charla (`—FIN—`) | `POST /api/v1/accounts/{account}/conversations/{id}/toggle_status` `{status: "resolved"}` |
+| Etiquetar documento | `POST /api/v1/accounts/{account}/conversations/{id}/labels` `{labels: ["documentacion"]}` |
 
 Se deriva cuando: la respuesta de Flowise trae `—HANDOFF—` (se quita el token y se envía el resto, §9);
 se acumulan 3 respuestas `—FUERA_DE_TEMA—` seguidas (6.D); Flowise falla o devuelve vacío (antes se avisa *"Estamos con problemas técnicos, en breve te atiende una
@@ -319,6 +331,40 @@ back de **staging**) y conectado al inbox **AccesMed WhatsApp**. El inbox "Whats
   back → Flowise → Chatwoot ≈ 4,6 s (espera de agrupación de 4 s incluida).
 - Chatwoot también manda al webhook otros eventos (`conversation_created`, `message_updated`, etc.):
   el back responde 200 y los descarta.
+
+### 6.H Tanda, avisos de espera y verificación de la respuesta
+
+Diseño en `Docs/Diseno-Chatbot.md §3.4.5–§3.4.6`; código en `Services/AgenteServices/TandaAgenteService`.
+Mientras Flowise procesa una tanda, el back la tiene **abierta** por teléfono: cada endpoint de
+`/Agente/*` que llama el agente (con `X-Paciente-Telefono`) se registra ahí. Por eso las consultas de
+catálogo y disponibilidad también aceptan ese header (opcional: sin él no hay aviso ni registro).
+
+**Aviso de espera** (uno por tanda, a la primera tool que lo amerita):
+
+| Tool | Aviso |
+|------|-------|
+| `listEspecialidades`, `getOfertaEspecialidad`, `searchPrestacion`, `searchMedico` | *"🔎 Buscando en la cartilla…"* |
+| `listHorariosDisponibles` | *"🔎 Buscando horarios disponibles…"* |
+| `listTurnos` | *"🔎 Revisando tus turnos…"* |
+| `createTurno` | *"⏳ Reservando tu turno…"* |
+| `cancelTurno` / `reprogramTurno` / `confirmTurno` | *"⏳ Cancelando / Reprogramando / Confirmando tu turno…"* |
+| `createPaciente` / `updatePaciente` / `softDeletePaciente` | *"⏳ Guardando tus datos…"* |
+
+`getPaciente`, `getClinica` y `listObraSocial` no avisan.
+
+**Verificación:** antes de entregar la respuesta, el back la compara con lo registrado:
+
+| Regla | Se detecta en el texto | Tiene que haber |
+|-------|------------------------|-----------------|
+| Escritura anunciada | "te reservé", "quedó cancelado", "ya estás registrado", "listo, te lo confirmo"… (se ignoran oraciones con `?` o con "no") | una llamada **exitosa** a esa acción **en esta tanda** |
+| Código de turno | `TURNO_XXXXXXXX` | devuelto por alguna tool **en la sesión** de Flowise |
+| Matrícula | `matrícula X` / `MP-…` | devuelta por alguna tool en la sesión |
+| Fecha con hora | `dd/MM … HH:mm` en la misma línea | un horario o inicio de turno devuelto en la sesión |
+
+Si no pasa, el back loguea `warn` y le vuelve a preguntar **una vez** a Flowise con la misma
+`question` y la variable `controlInterno` con la instrucción de corrección (el flow la tiene que
+leer). Si la segunda respuesta tampoco pasa, envía *"Perdón, no pude completar eso. ¿Lo intentamos
+de nuevo?"*. Estado en memoria por teléfono (una sola instancia del back).
 
 ---
 
@@ -431,9 +477,34 @@ Consulta abierta (no requiere registro). Igual se exige `X-Agente-Api-Key`.
   el "mensaje de presentación" que varios CU muestran cuando el paciente no está registrado.
 - **`GET /Agente/Especialidad`** → lista de especialidades activas (`nombre`) vía
   `EspecialidadQueryService`.
-- **`GET /Agente/Especialidad/{nombre}/Oferta`** → prestaciones activas (`nombre`) + médicos
-  activos (`nombre`, `apellido`, `matricula`) de esa especialidad (vía `PrestacionQueryService`
-  + `MedicoQueryService`). **Errores:** especialidad inexistente → Excepción 3 de ECU-TURN-1.
+- **`GET /Agente/Especialidad/{nombre}/Oferta`** → el nombre se resuelve **por parecido**
+  ("derma", "traumtitini" → la especialidad; ver búsqueda abajo). Devuelve las prestaciones
+  publicadas, **cada una con los médicos que la atienden hoy** (`MedicoPrestacion` vigente: no todos
+  los médicos de una especialidad hacen todas sus prestaciones). Las prestaciones sin médicos se
+  omiten. Vía `CatalogoAgenteService`.
+
+  ```json
+  { "especialidad": "Dermatología",
+    "prestaciones": [
+      { "nombre": "Crioterapia", "requiereValidacion": false,
+        "medicos": [{ "nombre": "Camila", "apellido": "Vega", "matricula": "MP-12134" }] } ] }
+  ```
+
+  `requiereValidacion` = alguna indicación vigente lo requiere (el turno arranca en
+  `ESPERA_VALIDACION`). **Errores:** `404 ESPECIALIDAD_NO_ENCONTRADA` (ninguna parecida → Excepción 3
+  de ECU-TURN-1); `409 ESPECIALIDAD_AMBIGUA` (varias parecidas: el mensaje las nombra).
+- **`GET /Agente/Prestacion?nombre=…`** → prestaciones publicadas parecidas al nombre ("¿hacen
+  electrocardiogramas?"), hasta 10: `{ nombre, especialidad, requiereValidacion, indicaciones[], medicos[] }`,
+  con `indicaciones[] = { nombre, descripcion, requiereValidacion }`. Lista vacía si no hay.
+- **`GET /Agente/Medico?nombre=…`** → médicos activos parecidos por nombre o apellido ("Raúl",
+  "dra gómez"), hasta 10: `{ nombre, apellido, matricula, especialidad, prestaciones[] }` (nombres de
+  las prestaciones publicadas que atiende hoy). Lista vacía si no hay.
+
+**Búsqueda por parecido** (`search<Entidad>ByNombre` en los DomainServices): se normaliza la consulta
+(minúsculas, sin tildes ni signos, sin "dr/dra/la/de…"); primero **cada palabra** tiene que estar
+contenida (`LIKE`) en el nombre (o en nombre/apellido del médico) sobre `lower(unaccent(...))`; si no
+hay coincidencias, se busca por **similitud de trigramas** (`word_similarity` de `pg_trgm` ≥ 0,35) para
+tolerar errores de tipeo. Si hay varias coincidencias y una es exacta, gana la exacta.
 
 ### 7.5 ECU-TURN-2 · Turnos disponibles — `GET /Agente/Turno/Disponibilidad`
 
@@ -443,9 +514,11 @@ filtra `estaOcupada=false`, `fechaLimiteReserva > now` y horizonte de reserva de
 **Query params:** `nombrePrestacion` (req), `matricula` (req), `franjaHoraria?`
 (`MANANA|TARDE|NOCHE`), paginación.
 
-**Resolución:** `nombrePrestacion` → `Prestacion` activa; `matricula` → `Medico` activo;
-validar `MedicoPrestacion` vigente (médico ofrece la prestación); construir el
-`AgendaHorariosCriteria` con esos UUIDs + franja y delegar.
+**Resolución:** `matricula` → `Medico` activo; `nombrePrestacion` se resuelve **por parecido entre
+las prestaciones publicadas que ese médico atiende hoy** (así se valida también que la atienda:
+"consulta" con una dermatóloga → Consulta Dermatológica); construir el `AgendaHorariosCriteria` con
+esos UUIDs + franja y delegar. Errores nuevos: `409 PRESTACION_AMBIGUA` (el médico atiende varias
+parecidas al nombre).
 
 **Response (`ListHorarioDisponibleAgenteResponse`):** lista de `{ slotId, fechaHora, franja }`.
 El `slotId` es **UUID opaco**: viaja a Flowise para usarlo en Solicitar/Reprogramar, pero el
@@ -466,8 +539,10 @@ prestación, se usa (regla del CU: el monto se calcula según cobertura). Se arm
 `CreateTurnoRequest` web (`pacienteId, medicoId, prestacionId, slotId, obraSocialPacienteId?`)
 y se delega en **`TurnoApp.createTurno`**.
 
-**Response:** bloque base del Turno (código, fechaHoraInicio, montoAPagar, tipoCobertura,
-estadoActual = `PENDIENTE` o `ESPERA_VALIDACION`), sin exponer UUIDs salvo el `codigo`.
+**Response:** bloque base del Turno (código, fechaHoraInicio, prestación, médico con `matricula`,
+montoAPagar, tipoCobertura, estadoActual = `PENDIENTE` o `ESPERA_VALIDACION`) e **`indicaciones[]`**
+(`{ nombre, descripcion, requiereValidacion }`) para que el agente las repita, sin exponer UUIDs
+salvo el `codigo`. Reprogramar y confirmar también devuelven `matricula`.
 
 **Errores:** `PRESTACION_NO_PUBLICADA`, `AGENDA_HORARIO_FUERA_DE_PLAZO` (→ Excepción 9
 "ese horario ya no está disponible"), recursos no encontrados.
@@ -505,7 +580,9 @@ header** (scope). Delegar en **`TurnoApp.cancelTurno`** con motivo por defecto
 `SOLICITUD_DEL_PACIENTE` (ver §8: cómo delegar sin `UsuarioDetails`).
 
 **Response:** 204. **Errores:** `TURNO_FUERA_DE_PLAZO_CANCELACION` (→ Excepción 5), turno no
-encontrado o ajeno al paciente (→ 404/scope), turno en estado final.
+encontrado o ajeno al paciente (→ 404/scope), `409 TURNO_NO_CANCELABLE`: desde el canal solo se
+cancela un turno `PENDIENTE`, `CONFIRMADO` o `ESPERA_VALIDACION` (los mismos estados del listado
+`CANCELABLE`); un turno en sala de espera, en curso o terminado no (el panel no cambia).
 
 ### 7.9 ECU-TURN-5 · Reprogramar — `PATCH /Agente/Turno/{codigo}/Reprogramacion`
 
@@ -602,7 +679,9 @@ No modifica el dominio (el CU lo dice: "el sistema no crea ni modifica instancia
 | GET | `/accesmed-api/Agente/ObraSocial` | apoyo PAC-1/2 | `ObraSocialDomainService` + `PlanDomainService` |
 | GET | `/accesmed-api/Agente/Clinica` | TURN-1 | `ClinicaQueryService` |
 | GET | `/accesmed-api/Agente/Especialidad` | TURN-1/2/3 | `EspecialidadQueryService` |
-| GET | `/accesmed-api/Agente/Especialidad/{nombre}/Oferta` | TURN-1/2/3 | `Prestacion`/`MedicoQueryService` |
+| GET | `/accesmed-api/Agente/Especialidad/{nombre}/Oferta` | TURN-1/2/3 | `CatalogoAgenteService` (por parecido, prestación ↔ médico) |
+| GET | `/accesmed-api/Agente/Prestacion?nombre=` | TURN-1/2/3 | `CatalogoAgenteService.searchPrestaciones` |
+| GET | `/accesmed-api/Agente/Medico?nombre=` | TURN-1/2/3 | `CatalogoAgenteService.searchMedicos` |
 | GET | `/accesmed-api/Agente/Turno/Disponibilidad` | TURN-2/3/5 | `findHorariosDisponibles` |
 | POST | `/accesmed-api/Agente/Turno` | TURN-3 | `TurnoApp.createTurno` |
 | GET | `/accesmed-api/Agente/Turno` | TURN-4/5/6 | `TurnoQueryService` |

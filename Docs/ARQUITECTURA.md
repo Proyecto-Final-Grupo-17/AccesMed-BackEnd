@@ -388,6 +388,10 @@ accesmed-backend/
     │   │   │   │   └── FlowiseClient.java
     │   │   │   ├── ExternalServices/       # lógica de integración con servicios externos (usa Clients)
     │   │   │   │   └── ChatwootService.java # canal Chatwoot: horario, antispam, ventana, mensajes fijos, tokens
+    │   │   │   ├── AgenteServices/         # EXCEPCIÓN: capa intermedia solo del canal chatbot (ver §4 notas)
+    │   │   │   │   ├── CatalogoAgenteService.java # catálogo por parecido con relación prestación↔médico e indicaciones
+    │   │   │   │   ├── TandaAgenteService.java    # tanda en curso: aviso de espera y verificación de la respuesta del agente
+    │   │   │   │   └── AccionAgente.java
     │   │   │   ├── Errors/
     │   │   │   │   ├── AccesMedException.java
     │   │   │   │   ├── RecursoNoEncontradoException.java
@@ -516,6 +520,16 @@ el inicio.** `Services` no tiene archivos sueltos: se divide en subcarpetas fija
   tokens de la respuesta). Usa los `Clients` y lo orquesta un `App` (`ChatwootApp`). Puede guardar
   estado en memoria del canal (supone una sola instancia del back). No va en `Utils` porque no es un
   helper genérico ni en `Clients` porque no es transporte HTTP.
+- `Services/AgenteServices/` — **excepción a la arquitectura de capas, solo para el canal chatbot**
+  (decisión D16 de `Docs/Diseno-Chatbot.md §3.3`): una capa intermedia entre `AgenteApp`/`ChatwootApp`
+  y los DomainServices/QueryServices, con la lógica que es del canal y no de una entidad ni de la
+  orquestación: `CatalogoAgenteService` (resolver especialidad, prestación y médico por parecido y
+  armar la relación prestación↔médico con indicaciones) y `TandaAgenteService` (registro de las tools
+  que llamó el agente en la tanda en curso: aviso de espera y verificación de que la respuesta no
+  afirme algo que ninguna tool hizo o devolvió). Reglas: la usan **solo** `AgenteApp` y `ChatwootApp`
+  (el panel no); puede llamar a DomainServices, QueryServices y Mappers, nunca a un `App` ni a
+  `ExternalServices`; lanza las 3 excepciones de siempre con `log.warn` en el `throw`. Lo nuevo del
+  canal va acá; lo que ya está en `AgenteApp` se mueve solo si se toca por otro motivo.
 - `Services/Utils/` — helpers genéricos sin dueño de entidad (formateo de fechas,
   generación de códigos, etc.). Mismo razonamiento que con `Mapper`: es un componente de
   soporte que usan los services y apps, así que se agrupa ahí en vez de quedar suelto
@@ -663,7 +677,10 @@ compartible: DomainServices, QueryServices, Mappers, `Services/Utils` y el mismo
 agente (ni al revés); el precio es que una regla de orquestación que cambie en
 `TurnoApp.createTurno` hay que replicarla en `AgenteApp.createTurno`. Las búsquedas nuevas que
 necesita el canal (por teléfono, por nombre, por código de turno) se **agregan** a
-Repositories y DomainServices sin tocar los métodos existentes. Records propios en
+Repositories y DomainServices sin tocar los métodos existentes; las búsquedas **por parecido**
+(`search<Entidad>ByNombre`: palabras con `LIKE` sobre `lower(unaccent(...))` y, si no hay
+coincidencias, similitud de trigramas con `pg_trgm`) también, y las usa la capa
+`Services/AgenteServices` (§4 notas), que arma el catálogo del canal y registra la tanda en curso. Records propios en
 `Records/Agente` (`<Accion><Entidad>AgenteRequest/Response`). El webhook de Chatwoot
 (`ChatwootController` + `ChatwootApp`) es un pasamanos: `ChatwootApp` orquesta y la lógica del
 canal vive en `Services/ExternalServices/ChatwootService` (horario de atención, antispam, bienvenida,

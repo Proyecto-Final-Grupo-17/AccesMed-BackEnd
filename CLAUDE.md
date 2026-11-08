@@ -84,6 +84,13 @@ bienvenida, sesión/variables de Flowise, tokens de la respuesta). El agente de 
 webhook de Chatwoot por `ChatwootController` + `ChatwootApp`, que solo orquesta
 (diseño en `Docs/Diseno-Chatbot.md §2`). **Ningún `App` llama a otro `App`**:
 `AgenteApp` copia la orquestación de `PacienteApp`/`TurnoApp` para no tocar el panel.
+**Excepción de capas, solo del canal:** `Services/AgenteServices` es una capa intermedia entre
+`AgenteApp`/`ChatwootApp` y los DomainServices/QueryServices (`CatalogoAgenteService`: catálogo por
+parecido con relación prestación↔médico e indicaciones; `TandaAgenteService`: avisos de espera y
+verificación de que la respuesta del agente no afirme algo que ninguna tool hizo o devolvió). La
+usan solo esos dos `App`; nunca llama a un `App` ni a `ExternalServices`. Las búsquedas por parecido
+(`search<Entidad>ByNombre`) usan `LIKE` sobre `lower(unaccent(...))` con fallback `pg_trgm`.
+Detalle en `Docs/ARQUITECTURA.md §4` y `Docs/Diseno-Chatbot.md §3`.
 
 **Nomenclatura:**
 

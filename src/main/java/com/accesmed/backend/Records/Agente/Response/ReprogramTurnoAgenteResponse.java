@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
  * @param nombrePrestacion {@code String} nombre de la prestación
  * @param nombreMedico {@code String} nombre del médico
  * @param apellidoMedico {@code String} apellido del médico
+ * @param matricula {@code String} matrícula del médico
  * @param montoAPagar {@code BigDecimal} monto a pagar por el paciente
  * @param tipoCobertura {@code String} tipo de cobertura ({@code PARTICULAR} u {@code OBRA_SOCIAL})
  * @param estadoActual {@code EstadoTurno} estado vigente del turno
@@ -24,6 +25,7 @@ public record ReprogramTurnoAgenteResponse(
         String nombrePrestacion,
         String nombreMedico,
         String apellidoMedico,
+        String matricula,
         BigDecimal montoAPagar,
         String tipoCobertura,
         EstadoTurno estadoActual,
