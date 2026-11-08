@@ -3,6 +3,8 @@ package com.accesmed.backend.Records.Chatwoot.Request;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.List;
+
 /**
  * Payload del webhook del Agent Bot de Chatwoot para el evento {@code message_created}. Solo
  * mapea los campos que usa el pasamanos; el resto se ignora. No lleva Bean Validation: se
@@ -16,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @param privado {@code Boolean} {@code true} si es una nota privada de un agente
  * @param conversation {@code ConversacionChatwootRequest} conversación del mensaje
  * @param sender {@code RemitenteChatwootRequest} contacto que escribió
+ * @param attachments {@code List<AdjuntoChatwootRequest>} adjuntos del mensaje (vacía o {@code null} si no trae)
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ReceiveMensajeChatwootRequest(
@@ -38,7 +41,10 @@ public record ReceiveMensajeChatwootRequest(
         ConversacionChatwootRequest conversation,
 
         @JsonProperty("sender")
-        RemitenteChatwootRequest sender
+        RemitenteChatwootRequest sender,
+
+        @JsonProperty("attachments")
+        List<AdjuntoChatwootRequest> attachments
 
 ) {
 }

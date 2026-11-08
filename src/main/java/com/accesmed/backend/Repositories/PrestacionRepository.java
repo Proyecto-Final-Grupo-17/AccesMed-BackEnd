@@ -150,4 +150,21 @@ public interface PrestacionRepository extends JpaRepository<Prestacion, UUID>, J
     List<Prestacion> findByEspecialidadIdAndEstadoVigente(@Param("especialidadId") UUID especialidadId,
             @Param("estado") EstadoPrestacion estado);
 
+    /**
+     * Busca prestaciones por similitud de trigramas con el nombre (canal chatbot, fallback de la
+     * búsqueda por palabras), en cualquier estado: el filtro por estado vigente lo aplica quien
+     * llama. Usa {@code word_similarity} de {@code pg_trgm} sobre {@code lower(unaccent(nombre))}.
+     *
+     * @param consulta {@code String} consulta ya normalizada (minúsculas, sin tildes)
+     * @param umbral {@code double} similitud mínima (0 a 1)
+     * @param limite {@code int} cantidad máxima de resultados
+     * @return {@code List<Prestacion>} las prestaciones más parecidas primero
+     */
+    @Query(value = "SELECT p.* FROM prestacion p "
+            + "WHERE word_similarity(:consulta, lower(unaccent(p.nombre))) >= :umbral "
+            + "ORDER BY word_similarity(:consulta, lower(unaccent(p.nombre))) DESC, p.nombre LIMIT :limite",
+            nativeQuery = true)
+    List<Prestacion> findBySimilitudNombre(@Param("consulta") String consulta, @Param("umbral") double umbral,
+            @Param("limite") int limite);
+
 }

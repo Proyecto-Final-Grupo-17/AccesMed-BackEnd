@@ -18,6 +18,8 @@ import com.accesmed.backend.Records.Agente.Response.ListHorarioDisponibleAgenteR
 import com.accesmed.backend.Records.Agente.Response.ListObraSocialAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ReprogramTurnoAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.SearchMedicoAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.SearchPrestacionAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.UpdatePacienteAgenteResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -166,14 +168,16 @@ public class AgenteController {
     /**
      * Lista las especialidades activas (ECU-TURN-1).
      *
+     * @param numeroTelefono {@code String} teléfono del canal (header {@code X-Paciente-Telefono}, opcional: solo para el aviso de espera)
      * @return {@code ResponseEntity<List<ListEspecialidadAgenteResponse>>} las especialidades con status 200
      */
     @GetMapping("/Especialidad")
-    public ResponseEntity<List<ListEspecialidadAgenteResponse>> listEspecialidades() {
+    public ResponseEntity<List<ListEspecialidadAgenteResponse>> listEspecialidades(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono) {
 
         log.info("Solicitud recibida: listar especialidades");
 
-        List<ListEspecialidadAgenteResponse> listEspecialidadAgenteResponses = agenteApp.listEspecialidades();
+        List<ListEspecialidadAgenteResponse> listEspecialidadAgenteResponses = agenteApp.listEspecialidades(numeroTelefono);
 
         return ResponseEntity.ok(listEspecialidadAgenteResponses);
 
@@ -197,19 +201,65 @@ public class AgenteController {
     }
 
     /**
-     * Devuelve la oferta de una especialidad: prestaciones publicadas y médicos activos (ECU-TURN-1).
+     * Devuelve la oferta de una especialidad (resuelta por parecido con el nombre): sus prestaciones
+     * publicadas, cada una con los médicos que la atienden (ECU-TURN-1).
      *
-     * @param nombre {@code String} nombre de la especialidad
+     * @param numeroTelefono {@code String} teléfono del canal (header {@code X-Paciente-Telefono}, opcional: solo para la tanda)
+     * @param nombre {@code String} nombre aproximado de la especialidad
      * @return {@code ResponseEntity<GetOfertaEspecialidadAgenteResponse>} la oferta con status 200
      */
     @GetMapping("/Especialidad/{nombre}/Oferta")
-    public ResponseEntity<GetOfertaEspecialidadAgenteResponse> getOfertaEspecialidad(@PathVariable String nombre) {
+    public ResponseEntity<GetOfertaEspecialidadAgenteResponse> getOfertaEspecialidad(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @PathVariable String nombre) {
 
         log.info("Solicitud recibida: consultar oferta de la especialidad {}", nombre);
 
-        GetOfertaEspecialidadAgenteResponse getOfertaEspecialidadAgenteResponse = agenteApp.getOfertaEspecialidad(nombre);
+        GetOfertaEspecialidadAgenteResponse getOfertaEspecialidadAgenteResponse = agenteApp.getOfertaEspecialidad(numeroTelefono, nombre);
 
         return ResponseEntity.ok(getOfertaEspecialidadAgenteResponse);
+
+    }
+
+    /**
+     * Busca prestaciones publicadas por parecido con el nombre ("¿hacen electrocardiogramas?"),
+     * con su especialidad, indicaciones y médicos (ECU-TURN-1).
+     *
+     * @param numeroTelefono {@code String} teléfono del canal (header {@code X-Paciente-Telefono}, opcional: solo para la tanda)
+     * @param nombre {@code String} nombre aproximado de la prestación
+     * @return {@code ResponseEntity<List<SearchPrestacionAgenteResponse>>} las coincidencias con status 200 (vacía si no hay)
+     */
+    @GetMapping("/Prestacion")
+    public ResponseEntity<List<SearchPrestacionAgenteResponse>> searchPrestaciones(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @RequestParam String nombre) {
+
+        log.info("Solicitud recibida: buscar prestaciones parecidas a {}", nombre);
+
+        List<SearchPrestacionAgenteResponse> searchPrestacionAgenteResponses = agenteApp.searchPrestaciones(numeroTelefono, nombre);
+
+        return ResponseEntity.ok(searchPrestacionAgenteResponses);
+
+    }
+
+    /**
+     * Busca médicos activos por parecido con su nombre o apellido ("turno con Raúl"), con su
+     * especialidad y las prestaciones que atienden (ECU-TURN-1).
+     *
+     * @param numeroTelefono {@code String} teléfono del canal (header {@code X-Paciente-Telefono}, opcional: solo para la tanda)
+     * @param nombre {@code String} nombre o apellido aproximado del médico
+     * @return {@code ResponseEntity<List<SearchMedicoAgenteResponse>>} las coincidencias con status 200 (vacía si no hay)
+     */
+    @GetMapping("/Medico")
+    public ResponseEntity<List<SearchMedicoAgenteResponse>> searchMedicos(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @RequestParam String nombre) {
+
+        log.info("Solicitud recibida: buscar médicos parecidos a {}", nombre);
+
+        List<SearchMedicoAgenteResponse> searchMedicoAgenteResponses = agenteApp.searchMedicos(numeroTelefono, nombre);
+
+        return ResponseEntity.ok(searchMedicoAgenteResponses);
 
     }
 
@@ -220,7 +270,8 @@ public class AgenteController {
     /**
      * Lista los horarios disponibles de un médico para una prestación (ECU-TURN-2).
      *
-     * @param nombrePrestacion {@code String} nombre de la prestación
+     * @param numeroTelefono {@code String} teléfono del canal (header {@code X-Paciente-Telefono}, opcional: solo para la tanda)
+     * @param nombrePrestacion {@code String} nombre aproximado de la prestación
      * @param matricula {@code String} matrícula del médico
      * @param franjaHoraria {@code FranjaHorariaAgente} franja del día (opcional)
      * @param pageable {@code Pageable} paginación
@@ -228,6 +279,7 @@ public class AgenteController {
      */
     @GetMapping("/Turno/Disponibilidad")
     public ResponseEntity<List<ListHorarioDisponibleAgenteResponse>> listHorariosDisponibles(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
             @RequestParam String nombrePrestacion,
             @RequestParam String matricula,
             @RequestParam(required = false) FranjaHorariaAgente franjaHoraria,
@@ -236,7 +288,7 @@ public class AgenteController {
         log.info("Solicitud recibida: consultar horarios disponibles de la prestación {}", nombrePrestacion);
 
         List<ListHorarioDisponibleAgenteResponse> listHorarioDisponibleAgenteResponses =
-                agenteApp.listHorariosDisponibles(nombrePrestacion, matricula, franjaHoraria, pageable);
+                agenteApp.listHorariosDisponibles(numeroTelefono, nombrePrestacion, matricula, franjaHoraria, pageable);
 
         return ResponseEntity.ok(listHorarioDisponibleAgenteResponses);
 

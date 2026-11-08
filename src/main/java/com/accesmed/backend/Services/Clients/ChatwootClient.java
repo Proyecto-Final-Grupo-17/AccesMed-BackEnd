@@ -9,6 +9,7 @@ import org.springframework.web.client.RestClient;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -93,6 +94,46 @@ public class ChatwootClient {
                 .uri("/api/v1/accounts/{accountId}/conversations/{conversationId}/toggle_status", accountId, conversationId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("status", "open"))
+                .retrieve()
+                .toBodilessEntity();
+
+    }
+
+    /**
+     * Pasa la conversación a {@code resolved}: la charla terminó. Si el paciente vuelve a escribir,
+     * Chatwoot abre una conversación nueva en {@code pending} (con el bot).
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     * @throws org.springframework.web.client.RestClientException si Chatwoot no responde o devuelve error
+     */
+    public void resolveConversacionChatwoot(long conversationId) {
+
+        log.debug("Resolviendo la conversación de Chatwoot: id={}", conversationId);
+
+        restClient.post()
+                .uri("/api/v1/accounts/{accountId}/conversations/{conversationId}/toggle_status", accountId, conversationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("status", "resolved"))
+                .retrieve()
+                .toBodilessEntity();
+
+    }
+
+    /**
+     * Agrega etiquetas a la conversación (la etiqueta tiene que existir en Chatwoot).
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     * @param etiquetas {@code List<String>} etiquetas a agregar
+     * @throws org.springframework.web.client.RestClientException si Chatwoot no responde o devuelve error
+     */
+    public void addEtiquetasConversacionChatwoot(long conversationId, List<String> etiquetas) {
+
+        log.debug("Etiquetando la conversación de Chatwoot: id={}, etiquetas={}", conversationId, etiquetas);
+
+        restClient.post()
+                .uri("/api/v1/accounts/{accountId}/conversations/{conversationId}/labels", accountId, conversationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("labels", etiquetas))
                 .retrieve()
                 .toBodilessEntity();
 

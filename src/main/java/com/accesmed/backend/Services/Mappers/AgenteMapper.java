@@ -5,6 +5,7 @@ import com.accesmed.backend.Domain.Especialidad;
 import com.accesmed.backend.Domain.ObraSocial;
 import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Domain.EstadoTurno;
+import com.accesmed.backend.Domain.IndicacionPrestacion;
 import com.accesmed.backend.Domain.Medico;
 import com.accesmed.backend.Domain.ObraSocialPaciente;
 import com.accesmed.backend.Domain.Paciente;
@@ -21,6 +22,9 @@ import com.accesmed.backend.Records.Agente.Response.GetPacienteAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListEspecialidadAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListObraSocialAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListHorarioDisponibleAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.ListIndicacionPrestacionAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.SearchMedicoAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.SearchPrestacionAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListMedicoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListPrestacionAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListTurnoAgenteResponse;
@@ -133,20 +137,60 @@ public interface AgenteMapper {
     }
 
     /**
-     * Convierte una prestación a {@code ListPrestacionAgenteResponse}.
+     * Convierte una prestación publicada a {@code ListPrestacionAgenteResponse}.
      *
      * @param prestacion {@code Prestacion} entidad
-     * @return {@code ListPrestacionAgenteResponse} prestación con su nombre
+     * @param requiereValidacion {@code boolean} si alguna indicación vigente requiere validación
+     * @param medicos {@code List<ListMedicoAgenteResponse>} médicos que la atienden, ya mapeados
+     * @return {@code ListPrestacionAgenteResponse} prestación con sus médicos
      */
-    ListPrestacionAgenteResponse toListPrestacionResponse(Prestacion prestacion);
+    @Mapping(target = "nombre", source = "prestacion.nombre")
+    ListPrestacionAgenteResponse toListPrestacionResponse(Prestacion prestacion, boolean requiereValidacion,
+            List<ListMedicoAgenteResponse> medicos);
 
     /**
-     * Convierte una lista de prestaciones a {@code ListPrestacionAgenteResponse}.
+     * Convierte una prestación publicada a {@code SearchPrestacionAgenteResponse}.
      *
-     * @param prestaciones {@code List<Prestacion>} entidades
-     * @return {@code List<ListPrestacionAgenteResponse>} prestaciones mapeadas
+     * @param prestacion {@code Prestacion} entidad
+     * @param requiereValidacion {@code boolean} si alguna indicación vigente requiere validación
+     * @param indicaciones {@code List<ListIndicacionPrestacionAgenteResponse>} indicaciones vigentes, ya mapeadas
+     * @param medicos {@code List<ListMedicoAgenteResponse>} médicos que la atienden, ya mapeados
+     * @return {@code SearchPrestacionAgenteResponse} prestación con su especialidad, indicaciones y médicos
      */
-    List<ListPrestacionAgenteResponse> toListPrestacionResponses(List<Prestacion> prestaciones);
+    @Mapping(target = "nombre", source = "prestacion.nombre")
+    @Mapping(target = "especialidad", source = "prestacion.especialidad.nombre")
+    SearchPrestacionAgenteResponse toSearchPrestacionResponse(Prestacion prestacion, boolean requiereValidacion,
+            List<ListIndicacionPrestacionAgenteResponse> indicaciones, List<ListMedicoAgenteResponse> medicos);
+
+    /**
+     * Convierte un médico a {@code SearchMedicoAgenteResponse}.
+     *
+     * @param medico {@code Medico} entidad
+     * @param prestaciones {@code List<String>} nombres de las prestaciones publicadas que atiende
+     * @return {@code SearchMedicoAgenteResponse} médico con su especialidad y sus prestaciones
+     */
+    @Mapping(target = "nombre", source = "medico.nombre")
+    @Mapping(target = "apellido", source = "medico.apellido")
+    @Mapping(target = "matricula", source = "medico.matricula")
+    @Mapping(target = "especialidad", source = "medico.especialidad.nombre")
+    SearchMedicoAgenteResponse toSearchMedicoResponse(Medico medico, List<String> prestaciones);
+
+    /**
+     * Convierte una indicación de prestación a {@code ListIndicacionPrestacionAgenteResponse}.
+     *
+     * @param indicacionPrestacion {@code IndicacionPrestacion} entidad vigente
+     * @return {@code ListIndicacionPrestacionAgenteResponse} indicación con nombre, descripción y si requiere validación
+     */
+    ListIndicacionPrestacionAgenteResponse toListIndicacionPrestacionResponse(IndicacionPrestacion indicacionPrestacion);
+
+    /**
+     * Convierte una lista de indicaciones de prestación a {@code ListIndicacionPrestacionAgenteResponse}.
+     *
+     * @param indicacionesPrestacion {@code List<IndicacionPrestacion>} entidades vigentes
+     * @return {@code List<ListIndicacionPrestacionAgenteResponse>} indicaciones mapeadas
+     */
+    List<ListIndicacionPrestacionAgenteResponse> toListIndicacionPrestacionResponses(
+            List<IndicacionPrestacion> indicacionesPrestacion);
 
     /**
      * Convierte un médico a {@code ListMedicoAgenteResponse}.
@@ -165,15 +209,14 @@ public interface AgenteMapper {
     List<ListMedicoAgenteResponse> toListMedicoResponses(List<Medico> medicos);
 
     /**
-     * Arma la oferta de una especialidad (prestaciones publicadas y médicos activos).
+     * Arma la oferta de una especialidad (prestaciones publicadas con sus médicos).
      *
      * @param especialidad {@code String} nombre de la especialidad
-     * @param prestaciones {@code List<ListPrestacionAgenteResponse>} prestaciones ya mapeadas
-     * @param medicos {@code List<ListMedicoAgenteResponse>} médicos ya mapeados
+     * @param prestaciones {@code List<ListPrestacionAgenteResponse>} prestaciones ya mapeadas, con sus médicos
      * @return {@code GetOfertaEspecialidadAgenteResponse} oferta de la especialidad
      */
     GetOfertaEspecialidadAgenteResponse toGetOfertaEspecialidadResponse(String especialidad,
-            List<ListPrestacionAgenteResponse> prestaciones, List<ListMedicoAgenteResponse> medicos);
+            List<ListPrestacionAgenteResponse> prestaciones);
 
     //endregion
 
@@ -219,17 +262,21 @@ public interface AgenteMapper {
      * @param turno {@code Turno} entidad guardada
      * @param estadoActual {@code EstadoTurno} estado inicial del turno
      * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, para la hora que ve el paciente
+     * @param indicaciones {@code List<ListIndicacionPrestacionAgenteResponse>} indicaciones del turno, ya mapeadas
      * @return {@code CreateTurnoAgenteResponse} turno sin ids internos
      */
     @Mapping(target = "nombrePrestacion", source = "turno.prestacion.nombre")
     @Mapping(target = "nombreMedico", source = "turno.medico.nombre")
     @Mapping(target = "apellidoMedico", source = "turno.medico.apellido")
+    @Mapping(target = "matricula", source = "turno.medico.matricula")
     @Mapping(target = "codigo", source = "turno.codigo")
     @Mapping(target = "fechaHoraInicio", expression = "java(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica))")
     @Mapping(target = "montoAPagar", source = "turno.montoAPagar")
     @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura")
     @Mapping(target = "estadoActual", source = "estadoActual")
-    CreateTurnoAgenteResponse toCreateTurnoResponse(Turno turno, EstadoTurno estadoActual, ZoneId zonaHorariaClinica);
+    @Mapping(target = "indicaciones", source = "indicaciones")
+    CreateTurnoAgenteResponse toCreateTurnoResponse(Turno turno, EstadoTurno estadoActual, ZoneId zonaHorariaClinica,
+            List<ListIndicacionPrestacionAgenteResponse> indicaciones);
 
     /**
      * Convierte el turno nuevo resultante de una reprogramación a {@code ReprogramTurnoAgenteResponse}.
@@ -242,6 +289,7 @@ public interface AgenteMapper {
     @Mapping(target = "nombrePrestacion", source = "turno.prestacion.nombre")
     @Mapping(target = "nombreMedico", source = "turno.medico.nombre")
     @Mapping(target = "apellidoMedico", source = "turno.medico.apellido")
+    @Mapping(target = "matricula", source = "turno.medico.matricula")
     @Mapping(target = "codigo", source = "turno.codigo")
     @Mapping(target = "fechaHoraInicio", expression = "java(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica))")
     @Mapping(target = "montoAPagar", source = "turno.montoAPagar")
@@ -261,6 +309,7 @@ public interface AgenteMapper {
     @Mapping(target = "nombrePrestacion", source = "turno.prestacion.nombre")
     @Mapping(target = "nombreMedico", source = "turno.medico.nombre")
     @Mapping(target = "apellidoMedico", source = "turno.medico.apellido")
+    @Mapping(target = "matricula", source = "turno.medico.matricula")
     @Mapping(target = "codigo", source = "turno.codigo")
     @Mapping(target = "fechaHoraInicio", expression = "java(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica))")
     @Mapping(target = "estadoActual", source = "estadoActual")

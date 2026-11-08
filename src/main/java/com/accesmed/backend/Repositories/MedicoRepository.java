@@ -3,6 +3,8 @@ package com.accesmed.backend.Repositories;
 import com.accesmed.backend.Domain.Medico;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -104,5 +106,23 @@ public interface MedicoRepository extends JpaRepository<Medico, UUID>, JpaSpecif
      * @return {@code List<Medico>} los médicos activos de esa especialidad
      */
     List<Medico> findByEspecialidadIdAndDeletedAtIsNullOrderByApellidoAscNombreAsc(UUID especialidadId);
+
+    /**
+     * Busca médicos activos por similitud de trigramas con su nombre completo (canal chatbot,
+     * fallback de la búsqueda por palabras): tolera errores de tipeo. Usa {@code word_similarity}
+     * de {@code pg_trgm} sobre {@code lower(unaccent(nombre || ' ' || apellido))}.
+     *
+     * @param consulta {@code String} consulta ya normalizada (minúsculas, sin tildes)
+     * @param umbral {@code double} similitud mínima (0 a 1)
+     * @param limite {@code int} cantidad máxima de resultados
+     * @return {@code List<Medico>} los médicos más parecidos primero
+     */
+    @Query(value = "SELECT m.* FROM medico m WHERE m.deleted_at IS NULL "
+            + "AND word_similarity(:consulta, lower(unaccent(m.nombre || ' ' || m.apellido))) >= :umbral "
+            + "ORDER BY word_similarity(:consulta, lower(unaccent(m.nombre || ' ' || m.apellido))) DESC, "
+            + "m.apellido, m.nombre LIMIT :limite",
+            nativeQuery = true)
+    List<Medico> findActivosBySimilitudNombre(@Param("consulta") String consulta, @Param("umbral") double umbral,
+            @Param("limite") int limite);
 
 }

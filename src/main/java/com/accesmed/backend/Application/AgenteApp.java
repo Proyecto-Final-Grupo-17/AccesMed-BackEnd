@@ -38,9 +38,17 @@ import com.accesmed.backend.Records.Agente.Response.ListObraSocialAgenteResponse
 import com.accesmed.backend.Records.Agente.Response.ListTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ObraSocialAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ReprogramTurnoAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.SearchMedicoAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.SearchPrestacionAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.UpdatePacienteAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.ListMedicoAgenteResponse;
 import com.accesmed.backend.Records.Paciente.Request.CreatePacienteRequest;
 import com.accesmed.backend.Records.Paciente.Request.UpdatePacienteRequest;
+import com.accesmed.backend.Services.AgenteServices.AccionAgente;
+import com.accesmed.backend.Services.AgenteServices.CatalogoAgenteService;
+import com.accesmed.backend.Services.AgenteServices.TandaAgenteService;
+import com.accesmed.backend.Services.ExternalServices.ChatwootService;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import com.accesmed.backend.Services.DomainServices.AgendaHorariosDiaDomainService;
 import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.EspecialidadDomainService;
@@ -80,7 +88,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -93,8 +101,11 @@ import java.util.UUID;
  * paciente por el teléfono verificado del canal y las claves de negocio (nombres, matrículas,
  * códigos) a entidades, aplica el scope por paciente y ejecuta la misma orquestación que el
  * panel web. Esa orquestación está <b>copiada</b> de {@code PacienteApp} y {@code TurnoApp} a
- * propósito: ningún {@code App} llama a otro, y así el panel queda intacto. Solo usa
- * DomainServices, QueryServices, Mappers y utilidades.
+ * propósito: ningún {@code App} llama a otro, y así el panel queda intacto. Usa DomainServices,
+ * QueryServices, Mappers, utilidades y la capa del canal {@code Services/AgenteServices}
+ * ({@code Docs/Diseno-Chatbot.md §3.3}): {@code CatalogoAgenteService} para resolver el catálogo
+ * por parecido y {@code TandaAgenteService} para registrar cada acción en la tanda en curso (aviso
+ * de espera y verificación de la respuesta del agente).
  */
 @Slf4j
 @Service
@@ -124,6 +135,11 @@ public class AgenteApp {
 
     //Query Services
     private final AgendaHorariosDiaQueryService agendaHorariosDiaQueryService;
+
+    //Agente Services (capa del canal, Docs/Diseno-Chatbot.md §3.3) y servicio del canal Chatwoot
+    private final CatalogoAgenteService catalogoAgenteService;
+    private final TandaAgenteService tandaAgenteService;
+    private final ChatwootService chatwootService;
 
     //Utils y mappers
     private final FabricaEstrategiaCalcularMontoAPagarTurno fabricaEstrategiaCalcularMontoAPagarTurno;
@@ -179,6 +195,7 @@ public class AgenteApp {
             CreatePacienteAgenteRequest createPacienteAgenteRequest) {
 
         log.info("Registro de paciente por canal iniciado: dni={}", createPacienteAgenteRequest.dni());
+        notifyInicioAccion(numeroTelefono, AccionAgente.REGISTRO_PACIENTE);
 
         //Validar que el DNI, el teléfono y el email sean únicos
         pacienteDomainService.validateDniPacienteIsUnique(createPacienteAgenteRequest.dni());
@@ -204,6 +221,8 @@ public class AgenteApp {
             obraSocialPacienteDomainService.saveObraSocialPaciente(obraSocialPacienteNueva);
         }
 
+        tandaAgenteService.registerAccionExitosa(numeroTelefono, AccionAgente.REGISTRO_PACIENTE);
+
         CreatePacienteAgenteResponse createPacienteAgenteResponse = agenteMapper.toCreatePacienteResponse(pacienteGuardado);
         return createPacienteAgenteResponse;
 
@@ -227,6 +246,7 @@ public class AgenteApp {
             UpdatePacienteAgenteRequest updatePacienteAgenteRequest) {
 
         log.info("Modificación de paciente por canal iniciada");
+        notifyInicioAccion(numeroTelefono, AccionAgente.MODIFICACION_PACIENTE);
 
         //Buscar el paciente activo
         Paciente pacienteExistente = pacienteDomainService.findPacienteActivoByNumeroTelefono(numeroTelefono);
@@ -260,6 +280,8 @@ public class AgenteApp {
             obraSocialPacienteDomainService.saveObraSocialPaciente(obraSocialPacienteNueva);
         }
 
+        tandaAgenteService.registerAccionExitosa(numeroTelefono, AccionAgente.MODIFICACION_PACIENTE);
+
         //Devolver response mapeado, con las coberturas del paciente
         List<ObraSocialAgenteResponse> obrasSocialesResponse = agenteMapper.toObraSocialResponses(
                 obraSocialPacienteDomainService.findCoberturasActivasByPaciente(id));
@@ -283,6 +305,7 @@ public class AgenteApp {
     public void softDeletePaciente(String numeroTelefono) {
 
         log.info("Baja de paciente por canal iniciada");
+        notifyInicioAccion(numeroTelefono, AccionAgente.BAJA_PACIENTE);
 
         //Buscar el paciente activo
         Paciente pacienteExistente = pacienteDomainService.findPacienteActivoByNumeroTelefono(numeroTelefono);
@@ -292,6 +315,7 @@ public class AgenteApp {
 
         //Dar de baja
         pacienteDomainService.softDeletePaciente(pacienteExistente, "Baja solicitada por el paciente desde el chatbot");
+        tandaAgenteService.registerAccionExitosa(numeroTelefono, AccionAgente.BAJA_PACIENTE);
 
     }
 
@@ -319,12 +343,14 @@ public class AgenteApp {
     /**
      * Lista las especialidades activas.
      *
+     * @param numeroTelefono {@code String} teléfono del canal (solo para la tanda: aviso de espera), o {@code null}
      * @return {@code List<ListEspecialidadAgenteResponse>} especialidades con su nombre
      */
     @Transactional(readOnly = true)
-    public List<ListEspecialidadAgenteResponse> listEspecialidades() {
+    public List<ListEspecialidadAgenteResponse> listEspecialidades(String numeroTelefono) {
 
         log.info("Listado de especialidades por canal");
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
 
         List<ListEspecialidadAgenteResponse> listEspecialidadAgenteResponses =
                 agenteMapper.toListEspecialidadResponses(especialidadDomainService.findEspecialidadesActivas());
@@ -357,27 +383,83 @@ public class AgenteApp {
     }
 
     /**
-     * Obtiene la oferta de una especialidad: sus prestaciones publicadas y sus médicos activos.
+     * Obtiene la oferta de una especialidad, resuelta por parecido con el nombre: sus prestaciones
+     * publicadas, cada una con los médicos que la atienden.
      *
-     * @param nombreEspecialidad {@code String} nombre de la especialidad
-     * @return {@code GetOfertaEspecialidadAgenteResponse} prestaciones y médicos de la especialidad
-     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la especialidad
-     *         no existe
+     * @param numeroTelefono {@code String} teléfono del canal (solo para la tanda), o {@code null}
+     * @param nombreEspecialidad {@code String} nombre aproximado de la especialidad
+     * @return {@code GetOfertaEspecialidadAgenteResponse} prestaciones de la especialidad con sus médicos
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no hay una
+     *         especialidad parecida
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si hay varias especialidades parecidas
      */
     @Transactional(readOnly = true)
-    public GetOfertaEspecialidadAgenteResponse getOfertaEspecialidad(String nombreEspecialidad) {
+    public GetOfertaEspecialidadAgenteResponse getOfertaEspecialidad(String numeroTelefono, String nombreEspecialidad) {
 
         log.info("Consulta de oferta de especialidad por canal: especialidad={}", nombreEspecialidad);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
 
-        Especialidad especialidadExistente = especialidadDomainService.findEspecialidadActivaByNombre(nombreEspecialidad);
+        //Resolver la especialidad por parecido y armar la oferta con la relación prestación ↔ médico
+        Especialidad especialidadExistente = catalogoAgenteService.findEspecialidadByNombreAproximado(nombreEspecialidad);
+        GetOfertaEspecialidadAgenteResponse getOfertaEspecialidadAgenteResponse =
+                catalogoAgenteService.buildOfertaEspecialidad(especialidadExistente);
 
-        GetOfertaEspecialidadAgenteResponse getOfertaEspecialidadAgenteResponse = agenteMapper.toGetOfertaEspecialidadResponse(
-                especialidadExistente.getNombre(),
-                agenteMapper.toListPrestacionResponses(
-                        prestacionDomainService.findPrestacionesPublicadasByEspecialidadId(especialidadExistente.getId())),
-                agenteMapper.toListMedicoResponses(
-                        medicoDomainService.findMedicosActivosByEspecialidadId(especialidadExistente.getId())));
+        //Registrar en la tanda las matrículas entregadas (verificación de la respuesta del agente)
+        tandaAgenteService.registerMatriculas(numeroTelefono, getOfertaEspecialidadAgenteResponse.prestaciones().stream()
+                .flatMap(listPrestacionAgenteResponse -> listPrestacionAgenteResponse.medicos().stream())
+                .map(ListMedicoAgenteResponse::matricula)
+                .toList());
+
         return getOfertaEspecialidadAgenteResponse;
+
+    }
+
+    /**
+     * Busca prestaciones publicadas por parecido con el nombre, con su especialidad, indicaciones
+     * vigentes y médicos que las atienden.
+     *
+     * @param numeroTelefono {@code String} teléfono del canal (solo para la tanda), o {@code null}
+     * @param nombrePrestacion {@code String} nombre aproximado de la prestación
+     * @return {@code List<SearchPrestacionAgenteResponse>} hasta 10 coincidencias (vacía si no hay)
+     */
+    @Transactional(readOnly = true)
+    public List<SearchPrestacionAgenteResponse> searchPrestaciones(String numeroTelefono, String nombrePrestacion) {
+
+        log.info("Búsqueda de prestaciones por canal: nombre={}", nombrePrestacion);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
+
+        List<SearchPrestacionAgenteResponse> searchPrestacionAgenteResponses = catalogoAgenteService.searchPrestaciones(nombrePrestacion);
+
+        tandaAgenteService.registerMatriculas(numeroTelefono, searchPrestacionAgenteResponses.stream()
+                .flatMap(searchPrestacionAgenteResponse -> searchPrestacionAgenteResponse.medicos().stream())
+                .map(ListMedicoAgenteResponse::matricula)
+                .toList());
+
+        return searchPrestacionAgenteResponses;
+
+    }
+
+    /**
+     * Busca médicos activos por parecido con su nombre o apellido, con su especialidad y las
+     * prestaciones que atienden.
+     *
+     * @param numeroTelefono {@code String} teléfono del canal (solo para la tanda), o {@code null}
+     * @param nombreMedico {@code String} nombre o apellido aproximado del médico
+     * @return {@code List<SearchMedicoAgenteResponse>} hasta 10 coincidencias (vacía si no hay)
+     */
+    @Transactional(readOnly = true)
+    public List<SearchMedicoAgenteResponse> searchMedicos(String numeroTelefono, String nombreMedico) {
+
+        log.info("Búsqueda de médicos por canal: nombre={}", nombreMedico);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
+
+        List<SearchMedicoAgenteResponse> searchMedicoAgenteResponses = catalogoAgenteService.searchMedicos(nombreMedico);
+
+        tandaAgenteService.registerMatriculas(numeroTelefono, searchMedicoAgenteResponses.stream()
+                .map(SearchMedicoAgenteResponse::matricula)
+                .toList());
+
+        return searchMedicoAgenteResponses;
 
     }
 
@@ -387,34 +469,31 @@ public class AgenteApp {
 
     /**
      * Lista los horarios disponibles de un médico para una prestación, opcionalmente en una
-     * franja del día. Valida que el médico atienda esa prestación y delega la búsqueda en
+     * franja del día. La prestación se resuelve por parecido entre las que el médico atiende (así
+     * también se valida que la atienda) y la búsqueda se delega en
      * {@code AgendaHorariosDiaQueryService.findHorariosDisponibles}.
      *
-     * @param nombrePrestacion {@code String} nombre de la prestación
+     * @param numeroTelefono {@code String} teléfono del canal (solo para la tanda), o {@code null}
+     * @param nombrePrestacion {@code String} nombre aproximado de la prestación
      * @param matricula {@code String} matrícula del médico
      * @param franjaHorariaAgente {@code FranjaHorariaAgente} franja del día, o {@code null} para todo el día
      * @param pageable {@code Pageable} paginación
      * @return {@code List<ListHorarioDisponibleAgenteResponse>} horarios disponibles (puede estar vacía)
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la prestación o el médico no existen
-     * @throws ReglaNegocioException {@code ReglaNegocioException} si el médico no atiende esa prestación
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si el médico no atiende esa
+     *         prestación o atiende varias parecidas al nombre
      */
     @Transactional(readOnly = true)
-    public List<ListHorarioDisponibleAgenteResponse> listHorariosDisponibles(String nombrePrestacion, String matricula,
-            FranjaHorariaAgente franjaHorariaAgente, Pageable pageable) {
+    public List<ListHorarioDisponibleAgenteResponse> listHorariosDisponibles(String numeroTelefono, String nombrePrestacion,
+            String matricula, FranjaHorariaAgente franjaHorariaAgente, Pageable pageable) {
 
         log.info("Consulta de horarios disponibles por canal: prestación={}, matrícula={}", nombrePrestacion, matricula);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_HORARIOS);
 
-        //Resolver prestación y médico por clave de negocio
-        Prestacion prestacionExistente = prestacionDomainService.findPrestacionActivaByNombre(nombrePrestacion);
+        //Resolver médico por matrícula y, entre sus prestaciones, la que se parece al nombre
         Medico medicoExistente = medicoDomainService.findMedicoActivoByMatricula(matricula);
-
-        //Validar que el médico atienda esa prestación
-        if (!medicoPrestacionDomainService.existsVigenteEnFecha(
-                medicoExistente.getId(), prestacionExistente.getId(), LocalDate.now())) {
-            log.warn("El médico {} no atiende la prestación {}", medicoExistente.getId(), prestacionExistente.getId());
-            throw new ReglaNegocioException(getClass(), "MEDICO_NO_ATIENDE_PRESTACION",
-                    "El médico elegido no atiende esa prestación.");
-        }
+        Prestacion prestacionExistente = catalogoAgenteService.findPrestacionDeMedicoByNombreAproximado(
+                nombrePrestacion, medicoExistente);
 
         //Armar el criteria con médico, prestación y franja
         AgendaHorariosCriteria agendaHorariosCriteria = new AgendaHorariosCriteria();
@@ -437,6 +516,14 @@ public class AgenteApp {
         List<ListHorarioDisponibleAgenteResponse> listHorarioDisponibleAgenteResponses = horariosDisponibles.content().stream()
                 .map(agenteMapper::toListHorarioDisponibleResponse)
                 .toList();
+
+        //Registrar en la tanda los horarios y la matrícula entregados (verificación de la respuesta del agente)
+        tandaAgenteService.registerFechasHoras(numeroTelefono, listHorarioDisponibleAgenteResponses.stream()
+                .map(ListHorarioDisponibleAgenteResponse::fechaHora)
+                .toList());
+        tandaAgenteService.registerMatriculas(numeroTelefono, List.of(medicoExistente.getMatricula()));
+        tandaAgenteService.registerAccionExitosa(numeroTelefono, AccionAgente.CONSULTA_HORARIOS);
+
         return listHorarioDisponibleAgenteResponses;
 
     }
@@ -457,6 +544,8 @@ public class AgenteApp {
      */
     @Transactional
     public CreateTurnoAgenteResponse createTurno(String numeroTelefono, CreateTurnoAgenteRequest createTurnoAgenteRequest) {
+
+        notifyInicioAccion(numeroTelefono, AccionAgente.RESERVA_TURNO);
 
         //Buscar paciente (identidad del canal)
         Paciente pacienteExistente = pacienteDomainService.findPacienteActivoByNumeroTelefono(numeroTelefono);
@@ -569,10 +658,17 @@ public class AgenteApp {
         var estadoInicial = requiereValidacionAlguna ? EstadoTurno.ESPERA_VALIDACION : EstadoTurno.PENDIENTE;
         historicoEstadoTurnoDomainService.setEstadoInicialTurno(turnoGuardado, estadoInicial);
 
-        //Mapear y devolver
-        CreateTurnoAgenteResponse createTurnoAgenteResponse = agenteMapper.toCreateTurnoResponse(turnoGuardado, estadoInicial, clinicaDomainService.findZonaHorariaClinica());
+        //Mapear (con las indicaciones que el paciente tiene que cumplir) y devolver
+        CreateTurnoAgenteResponse createTurnoAgenteResponse = agenteMapper.toCreateTurnoResponse(turnoGuardado, estadoInicial,
+                clinicaDomainService.findZonaHorariaClinica(), agenteMapper.toListIndicacionPrestacionResponses(indicacionesVigentes));
 
         applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.REGISTRADO, turnoGuardado));
+
+        //Registrar en la tanda la reserva y lo que se le entrega al agente
+        registerTurnoEntregado(numeroTelefono, createTurnoAgenteResponse.codigo(), createTurnoAgenteResponse.fechaHoraInicio(),
+                createTurnoAgenteResponse.matricula());
+        tandaAgenteService.registerAccionExitosa(numeroTelefono, AccionAgente.RESERVA_TURNO);
+
         return createTurnoAgenteResponse;
 
     }
@@ -593,6 +689,7 @@ public class AgenteApp {
     public List<ListTurnoAgenteResponse> listTurnos(String numeroTelefono, AccionTurnoAgente accionTurnoAgente) {
 
         log.info("Listado de turnos por canal iniciado: acción={}", accionTurnoAgente);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_TURNOS);
 
         Paciente pacienteExistente = pacienteDomainService.findPacienteActivoByNumeroTelefono(numeroTelefono);
 
@@ -613,6 +710,11 @@ public class AgenteApp {
         List<ListTurnoAgenteResponse> listTurnoAgenteResponses = turnosEnPlazo.stream()
                 .map(turno -> agenteMapper.toListTurnoResponse(turno, estadosVigentes.get(turno.getId()), zonaHorariaClinica))
                 .toList();
+
+        //Registrar en la tanda los turnos entregados (verificación de la respuesta del agente)
+        listTurnoAgenteResponses.forEach(listTurnoAgenteResponse -> registerTurnoEntregado(numeroTelefono,
+                listTurnoAgenteResponse.codigo(), listTurnoAgenteResponse.fechaHoraInicio(), listTurnoAgenteResponse.matricula()));
+
         return listTurnoAgenteResponses;
 
     }
@@ -627,17 +729,27 @@ public class AgenteApp {
      * @throws ValidacionException {@code ValidacionException} si el teléfono no es válido
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el paciente o el turno no existen
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno es de otro paciente,
-     *         está en estado final o el plazo de cancelación venció
+     *         no está pendiente, confirmado ni en espera de validación (el paciente no puede cancelar
+     *         un turno en sala de espera, en curso o terminado) o el plazo de cancelación venció
      */
     @Transactional
     public void cancelTurno(String numeroTelefono, String codigo) {
 
         log.info("Cancelación de turno por canal iniciada: código={}", codigo);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CANCELACION_TURNO);
 
         //Resolver paciente y turno, y validar que el turno sea del paciente
         Paciente pacienteExistente = pacienteDomainService.findPacienteActivoByNumeroTelefono(numeroTelefono);
         var turnoExistente = turnoDomainService.findTurnoByCodigo(codigo);
         turnoDomainService.validateTurnoPerteneceAPaciente(turnoExistente, pacienteExistente);
+
+        //Desde el canal solo se cancela un turno que todavía no empezó (mismos estados que el listado CANCELABLE)
+        EstadoTurno estadoVigente = historicoEstadoTurnoDomainService.getEstadoVigente(turnoExistente.getId());
+        if (!AccionTurnoAgente.CANCELABLE.estados().contains(estadoVigente)) {
+            log.warn("No se pudo cancelar turno {} por canal: estado vigente {}", codigo, estadoVigente);
+            throw new ReglaNegocioException(getClass(), "TURNO_NO_CANCELABLE",
+                    "El turno está " + FormatoMensaje.estado(estadoVigente) + " y ya no se puede cancelar desde este canal.");
+        }
 
         //Validar plazo de cancelación (el motivo siempre es la solicitud del paciente)
         ZonedDateTime ahora = ZonedDateTime.now();
@@ -657,6 +769,7 @@ public class AgenteApp {
         historicoEstadoTurnoDomainService.transitionToCanceladoTurno(turnoExistente);
 
         applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.CANCELADO, turnoExistente));
+        tandaAgenteService.registerAccionExitosa(numeroTelefono, AccionAgente.CANCELACION_TURNO);
 
     }
 
@@ -681,6 +794,7 @@ public class AgenteApp {
 
         log.info("Reprogramación de turno por canal iniciada: código={}, slot={}",
                 codigo, reprogramTurnoAgenteRequest.slotId());
+        notifyInicioAccion(numeroTelefono, AccionAgente.REPROGRAMACION_TURNO);
 
         //Resolver paciente y turno viejo, y validar que el turno sea del paciente
         Paciente pacienteExistente = pacienteDomainService.findPacienteActivoByNumeroTelefono(numeroTelefono);
@@ -795,6 +909,12 @@ public class AgenteApp {
                 agenteMapper.toReprogramTurnoResponse(turnoNuevoGuardado, estadoInicial, clinicaDomainService.findZonaHorariaClinica());
 
         applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.REPROGRAMADO, turnoNuevoGuardado));
+
+        //Registrar en la tanda la reprogramación y el turno nuevo entregado
+        registerTurnoEntregado(numeroTelefono, reprogramTurnoAgenteResponse.codigo(), reprogramTurnoAgenteResponse.fechaHoraInicio(),
+                reprogramTurnoAgenteResponse.matricula());
+        tandaAgenteService.registerAccionExitosa(numeroTelefono, AccionAgente.REPROGRAMACION_TURNO);
+
         return reprogramTurnoAgenteResponse;
 
     }
@@ -814,6 +934,7 @@ public class AgenteApp {
     public ConfirmTurnoAgenteResponse confirmTurno(String numeroTelefono, String codigo) {
 
         log.info("Confirmación de turno por canal iniciada: código={}", codigo);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONFIRMACION_TURNO);
 
         //Resolver paciente y turno, y validar que el turno sea del paciente
         Paciente pacienteExistente = pacienteDomainService.findPacienteActivoByNumeroTelefono(numeroTelefono);
@@ -833,6 +954,12 @@ public class AgenteApp {
 
         ConfirmTurnoAgenteResponse confirmTurnoAgenteResponse =
                 agenteMapper.toConfirmTurnoResponse(turnoExistente, EstadoTurno.CONFIRMADO, clinicaDomainService.findZonaHorariaClinica());
+
+        //Registrar en la tanda la confirmación y el turno entregado
+        registerTurnoEntregado(numeroTelefono, confirmTurnoAgenteResponse.codigo(), confirmTurnoAgenteResponse.fechaHoraInicio(),
+                confirmTurnoAgenteResponse.matricula());
+        tandaAgenteService.registerAccionExitosa(numeroTelefono, AccionAgente.CONFIRMACION_TURNO);
+
         return confirmTurnoAgenteResponse;
 
     }
@@ -879,6 +1006,37 @@ public class AgenteApp {
         }
 
         return null;
+
+    }
+
+    /**
+     * Registra en la tanda que el agente pidió una acción y, si es la primera de la tanda, manda el
+     * aviso de espera al paciente ("Buscando horarios disponibles…").
+     *
+     * @param numeroTelefono {@code String} teléfono del canal, o {@code null} (sin tanda no hay aviso)
+     * @param accionAgente {@code AccionAgente} acción pedida
+     */
+    private void notifyInicioAccion(String numeroTelefono, AccionAgente accionAgente) {
+
+        tandaAgenteService.registerInicioAccion(numeroTelefono, accionAgente)
+                .ifPresent(conversationId -> chatwootService.sendMensajeEsperaAsync(conversationId, accionAgente));
+
+    }
+
+    /**
+     * Registra en la tanda los datos de un turno que se le entregan al agente: código, fecha y hora
+     * de inicio y matrícula del médico.
+     *
+     * @param numeroTelefono {@code String} teléfono del canal, o {@code null}
+     * @param codigo {@code String} código del turno
+     * @param fechaHoraInicio {@code LocalDateTime} inicio en la zona de la clínica
+     * @param matricula {@code String} matrícula del médico
+     */
+    private void registerTurnoEntregado(String numeroTelefono, String codigo, LocalDateTime fechaHoraInicio, String matricula) {
+
+        tandaAgenteService.registerCodigosTurno(numeroTelefono, List.of(codigo));
+        tandaAgenteService.registerFechasHoras(numeroTelefono, List.of(fechaHoraInicio));
+        tandaAgenteService.registerMatriculas(numeroTelefono, List.of(matricula));
 
     }
 
