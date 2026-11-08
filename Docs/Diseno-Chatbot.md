@@ -327,8 +327,8 @@ correspondiente al paciente.
 
 **Diferencias:**
 - La spec no habla de **cobertura ni de monto**. Las reglas (§8) y el código sí: se usa la
-  primera cobertura del paciente cuyo plan cubre la prestación; si el plan no está Publicado,
-  el turno queda `PARTICULAR`. El paciente se entera del monto **después** de reservar (§1.9 D6).
+  primera cobertura del paciente cuyo plan está **Publicado** y cubre la prestación; si no hay
+  ninguna, el turno queda `PARTICULAR` (corregido en el código el 2026-11-08). El paciente se entera del monto **después** de reservar (§1.9 D6).
 - El borde superior de la ventana de reserva (horizonte) es Regla: el back lo aplica al
   **listar**, pero `createTurno` no lo vuelve a comprobar. Hueco menor, porque el `slotId`
   siempre sale del listado.
@@ -402,6 +402,7 @@ correspondiente.
 | CB-REP.E5 | 10 | El nuevo horario ya fue tomado o venció | `AGENDA_HORARIO_NO_DISPONIBLE` / `AGENDA_HORARIO_FUERA_DE_PLAZO` | "Ese horario ya no está disponible" → paso 6 | Spec (Exc. 7) |
 | CB-REP.E6 | 10 | La prestación ya no está Publicada | `PRESTACION_NO_PUBLICADA` | Informar; el turno sigue como estaba | Regla |
 | CB-REP.E7 | 10 | La cobertura del plan para esa prestación se dio de baja | `OBRA_SOCIAL_PLAN_PRESTACION_NO_ENCONTRADA` | Informar; el turno sigue como estaba; ofrecer `CB-OPE` | Regla |
+| CB-REP.E7b | 10 | El plan de la cobertura del turno dejó de estar Publicado | `PLAN_NO_PUBLICADO` | Informar; el turno sigue como estaba; ofrecer cancelar y sacar otro (sale particular) o `CB-OPE` | Regla |
 | CB-REP.E8 | 10 | El turno no está en un estado reprogramable | `TURNO_TRANSICION_INVALIDA` | Informar → volver a la lista | Código (defensivo: el estado cambió entre el listado y la acción) |
 | CB-REP.E9 | 10 | `codigo` inexistente o ajeno | `TURNO_NO_ENCONTRADO` / `RECURSO_AJENO` | Volver a la lista | Código |
 
@@ -574,7 +575,7 @@ verificar · 🔴 conflicto que rompe un flujo.
 | 9 | Slot ocupado entre el listado y la reserva | SOL, REP | Exc. 9 / 7 | `AGENDA_HORARIO_NO_DISPONIBLE` | ✅ |
 | 10 | Ventana de reserva, borde superior (horizonte de la clínica) | DISP, SOL, REP | — | se aplica al listar; `createTurno` no lo revalida | 🟠 |
 | 11 | La prestación tiene que estar **Publicada** al reservar | SOL, REP | — | `PRESTACION_NO_PUBLICADA` | 🟡 |
-| 12 | Plan **Publicado** para cubrir; si no, `PARTICULAR` | SOL | — (la spec no habla de cobertura) | el alta elige la primera cobertura que cubre la prestación | 🟡 |
+| 12 | Plan **Publicado** para cubrir; si no, `PARTICULAR` | SOL | — (la spec no habla de cobertura) | el alta elige la primera cobertura con plan Publicado que cubre la prestación | ✅ resuelto 2026-11-08 (antes no se revisaba el estado del plan) |
 | 13 | El monto se informa al paciente | SOL, REP | — | viene en el response, **después** de reservar | 🟠 (reglas: "el monto nuevo se muestra antes del Confirmar" en la reprogramación) |
 | 14 | Estado inicial Pendiente / Espera de Validación | SOL | ✅ | ✅ | ✅ |
 | 15 | Cancelar: plazo `fechaLimiteCancelacion` (paciente) | CAN | Exc. 5 | `TURNO_FUERA_DE_PLAZO_CANCELACION` | ✅ |
@@ -582,7 +583,7 @@ verificar · 🔴 conflicto que rompe un flujo.
 | 17 | Reprogramar crea turno nuevo y cierra el viejo como Reprogramado | REP | "reasigna el turno manteniendo su estado" | crea nuevo + Reprogramado | 🟡 spec desactualizada |
 | 18 | Reprogramar: plazo `fechaLimiteReprogramacion` | REP | se valida **antes** de mostrar horarios (paso 8) | se valida recién al reprogramar | 🟠 el paciente puede elegir horario y recién ahí enterarse de que está fuera de plazo; el listado no expone las fechas límite |
 | 19 | Reprogramar: horarios del **mismo médico y prestación** | REP | lee la `MedicoPrestacion` del turno | `listTurnos` devuelve la `matricula` que exige `listHorariosDisponibles` | ✅ resuelto: `matricula` en `ListTurnoAgenteResponse` |
-| 20 | Reprogramar con plan no Publicado o cobertura de baja → no se reprograma | REP | — | cobertura de baja → `OBRA_SOCIAL_PLAN_PRESTACION_NO_ENCONTRADA`; el estado del plan no se revisa | 🟠 |
+| 20 | Reprogramar con plan no Publicado o cobertura de baja → no se reprograma | REP | — | cobertura de baja → `OBRA_SOCIAL_PLAN_PRESTACION_NO_ENCONTRADA`; plan no Publicado → `PLAN_NO_PUBLICADO` | ✅ resuelto 2026-11-08 |
 | 21 | Confirmar: plazo `fechaLimiteConfirmacion` | CONF | Exc. 5 | `TURNO_FUERA_DE_PLAZO_CONFIRMACION` | ✅ |
 | 22 | El estado sigue siendo válido al ejecutar (cancelar, confirmar, reprogramar) | CAN, REP, CONF | en los parámetros, sin excepción | `TURNO_TRANSICION_INVALIDA` | 🟡 |
 | 23 | Los listados filtran por plazo (precondición "dentro de la fecha límite") | CAN, REP, CONF | precondición sí, búsqueda no | filtran solo por estado | 🟠 |

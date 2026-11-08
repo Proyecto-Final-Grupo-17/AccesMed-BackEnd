@@ -283,7 +283,7 @@ back de **staging**) y conectado al inbox **AccesMed WhatsApp**. El inbox "Whats
 > por `horaDesde` (MAÑANA < 12:00, TARDE 12:00-19:00, NOCHE desde 19:00); el `GET /Agente/Turno` exige
 > el query param `accion`; PAC-2 con `obraSocial` **reemplaza** las coberturas activas (la entidad
 > `ObraSocialPaciente` es inmutable: baja + alta); ante varias coberturas, `createTurno` usa la primera
-> del paciente cuyo plan cubre la prestación, o particular.
+> del paciente cuyo plan está Publicado y cubre la prestación, o particular.
 
 En todas las tablas, `X-Paciente-Telefono` + `X-Agente-Api-Key` van en el header (§4) y no
 se repiten en el body.
@@ -436,7 +436,8 @@ médico/prestación del turno; el agente toma `nombrePrestacion` y `matricula` d
 
 **Response:** bloque base del turno nuevo + `turnoOrigenId` interno (no se muestra). **Errores:**
 `TURNO_FUERA_DE_PLAZO_REPROGRAMACION` (Excepción 5), `AGENDA_HORARIO_FUERA_DE_PLAZO`
-(Excepción 7), `PRESTACION_NO_PUBLICADA`, `TURNO_TRANSICION_INVALIDA` (el turno no está `PENDIENTE`).
+(Excepción 7), `PRESTACION_NO_PUBLICADA`, `PLAN_NO_PUBLICADO` (el plan de la cobertura del turno dejó de
+estar Publicado), `TURNO_TRANSICION_INVALIDA` (el turno no está `PENDIENTE`).
 
 ### 7.10 ECU-TURN-6 · Confirmar — `PATCH /Agente/Turno/{codigo}/Confirmacion`
 

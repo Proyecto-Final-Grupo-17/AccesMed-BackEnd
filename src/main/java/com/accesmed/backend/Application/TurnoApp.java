@@ -38,6 +38,7 @@ import com.accesmed.backend.Services.DomainServices.MedicoDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.PacienteDomainService;
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
+import com.accesmed.backend.Services.DomainServices.HistoricoEstadoPlanDomainService;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionTurnoDomainService;
 import com.accesmed.backend.Services.DomainServices.ObraSocialPacienteDomainService;
@@ -78,6 +79,7 @@ public class TurnoApp {
     private final MedicoDomainService medicoDomainService;
     private final PrestacionDomainService prestacionDomainService;
     private final HistoricoEstadoPrestacionDomainService historicoEstadoPrestacionDomainService;
+    private final HistoricoEstadoPlanDomainService historicoEstadoPlanDomainService;
     private final MedicoPrestacionDomainService medicoPrestacionDomainService;
     private final IndicacionPrestacionDomainService indicacionPrestacionDomainService;
     private final PacienteDomainService pacienteDomainService;
@@ -160,12 +162,17 @@ public class TurnoApp {
         turnoNuevo.setPrestacion(prestacionExistente);
         turnoNuevo.setAgendaHorarios(slotDisponible);
 
-        //Determinar tipo de cobertura y calcular monto a pagar
+        //Determinar tipo de cobertura y calcular monto a pagar (solo un plan publicado cubre; si no, particular)
         BigDecimal montoAPagar;
-        if (createTurnoRequest.obraSocialPacienteId() != null) {
-            ObraSocialPaciente obraSocialPacienteExistente =
-                    obraSocialPacienteDomainService.findObraSocialPacienteActivaById(createTurnoRequest.obraSocialPacienteId());
-
+        ObraSocialPaciente obraSocialPacienteExistente = createTurnoRequest.obraSocialPacienteId() != null
+                ? obraSocialPacienteDomainService.findObraSocialPacienteActivaById(createTurnoRequest.obraSocialPacienteId())
+                : null;
+        if (obraSocialPacienteExistente != null
+                && !historicoEstadoPlanDomainService.isPlanPublicado(obraSocialPacienteExistente.getPlan().getId())) {
+            log.info("Plan {} no publicado: el turno se registra como particular", obraSocialPacienteExistente.getPlan().getId());
+            obraSocialPacienteExistente = null;
+        }
+        if (obraSocialPacienteExistente != null) {
             ObraSocialPlanPrestacion coberturaExistente = obraSocialPlanPrestacionDomainService
                     .findCoberturaByPlanAndPrestacion(obraSocialPacienteExistente.getPlan().getId(), createTurnoRequest.prestacionId());
 
@@ -236,7 +243,8 @@ public class TurnoApp {
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno
      *         original o el nuevo slot no existen
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el plazo de reprogramación
-     *         venció, el nuevo slot no está disponible, o el turno está en un estado no permitido
+     *         venció, el nuevo slot no está disponible, el plan de la cobertura no está publicado,
+     *         o el turno está en un estado no permitido
      */
     @Transactional
     public ReprogramTurnoResponse reprogramTurno(ReprogramTurnoRequest reprogramTurnoRequest, UsuarioDetails usuarioDetails) {
@@ -306,6 +314,9 @@ public class TurnoApp {
         //Recalcular tipo de cobertura y monto a pagar (por si cambiaron entre reprogramaciones)
         BigDecimal montoAPagarReprogramado;
         if (turnoViejo.getObraSocialPaciente() != null) {
+            //Solo un plan publicado cubre: si dejó de estarlo, no se reprograma
+            historicoEstadoPlanDomainService.validatePlanPublicado(turnoViejo.getObraSocialPaciente().getPlan());
+
             ObraSocialPlanPrestacion coberturaActual = obraSocialPlanPrestacionDomainService
                     .findCoberturaByPlanAndPrestacion(turnoViejo.getObraSocialPaciente().getPlan().getId(),
                             turnoViejo.getPrestacion().getId());
