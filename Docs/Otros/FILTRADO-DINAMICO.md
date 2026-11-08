@@ -1,11 +1,11 @@
 # Filtrado dinámico — guía para el frontend
 
-Complemento de [`FRONTEND-GUIA.md`](FRONTEND-GUIA.md): mientras esa guía cubre el contrato
+Complemento de [`../FRONTEND-GUIA.md`](../FRONTEND-GUIA.md): mientras esa guía cubre el contrato
 general de la API (errores, auth, convenciones), este documento explica **un mecanismo
 puntual** que usan los listados y las búsquedas puntuales de las entidades de catálogo:
 `Especialidad`, `ObraSocial`, `Plan`, `Prestacion`, `TipoIndicacionPrestacion` e
 `IndicacionPrestacion`. El detalle de implementación (Specifications, metamodelo JPA) está
-en [`ARQUITECTURA.md §7`](ARQUITECTURA.md); acá solo el contrato que ve el front.
+en [`ARQUITECTURA.md §7`](../ARQUITECTURA.md); acá solo el contrato que ve el front.
 
 ---
 

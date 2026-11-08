@@ -78,3 +78,25 @@ accesmed:
   docs:
     username: ${ACCESMED_DOCS_USERNAME:accesmed}
     password: ${ACCESMED_DOCS_PASSWORD}
+  # Canal chatbot (Chatwoot -> back -> Flowise). Ver Docs/Features/Chatbot.md.
+  # Clave que Flowise manda en `X-Agente-Api-Key` a /accesmed-api/Agente/** (ver SecurityFilterChainConfig).
+  # Sin clave la app no arranca: dejaría el canal del agente abierto.
+  agente:
+    api-key: ${ACCESMED_AGENTE_API_KEY}
+  # API de Chatwoot: el back responde por ella los mensajes del bot. El secret del webhook firma
+  # los eventos del Agent Bot; vacío = no se verifica la firma (solo para probar la integración).
+  chatwoot:
+    base-url: ${ACCESMED_CHATWOOT_BASE_URL:https://chat.accesmed.site}
+    account-id: ${ACCESMED_CHATWOOT_ACCOUNT_ID:1}
+    api-token: ${ACCESMED_CHATWOOT_API_TOKEN}
+    webhook-secret: ${ACCESMED_CHATWOOT_WEBHOOK_SECRET:}
+    # Agrupación de mensajes en ráfaga por conversación (Docs/Features/Chatbot.md §6.C).
+    agrupacion:
+      espera-segundos: 4
+      espera-maxima-segundos: 15
+      max-mensajes: 5
+  # Flowise: chatflow del agente al que el back le pasa cada mensaje del paciente.
+  flowise:
+    base-url: ${ACCESMED_FLOWISE_BASE_URL:http://accesmed-flowise:3000}
+    chatflow-id: ${ACCESMED_FLOWISE_CHATFLOW_ID}
+    api-key: ${ACCESMED_FLOWISE_API_KEY:}

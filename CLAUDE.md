@@ -73,8 +73,14 @@ Estas convenciones se aplican SIEMPRE. El detalle y ejemplos están en `Docs/ARQ
   de Bean Validation —anotación + `ConstraintValidator`— aplicadas a nivel de record;
   vive ahí porque Bean Validation es responsabilidad del Controller, no del Service).
   `Config/` queda para lo transversal de infraestructura que no es mecanismo de seguridad
-  (`JpaAuditingConfig`, `SchedulingConfig`); el filter chain de seguridad
+  (`JpaAuditingConfig`, `SchedulingConfig`, `AsyncConfig`); el filter chain de seguridad
   (`SecurityFilterChainConfig`) vive en `Security/Config/`.
+
+**Servicios externos y canal chatbot:** `Services/Clients` tiene los clientes HTTP salientes
+(`ChatwootClient`, `FlowiseClient`, sobre `RestClient`). El agente de WhatsApp entra por
+`Controllers/AgenteController` + `Application/AgenteApp` (records en `Records/Agente`) y el
+webhook de Chatwoot por `ChatwootController` + `ChatwootApp`. **Ningún `App` llama a otro `App`**:
+`AgenteApp` copia la orquestación de `PacienteApp`/`TurnoApp` para no tocar el panel.
 
 **Nomenclatura:**
 
@@ -154,7 +160,8 @@ va en `docker/deploy/docker-compose.yml` y `docker/deploy/.env.example`, y en el
 del servidor.
 
 **Secretos**: las variables sin default (`MAIL_USERNAME`, `MAIL_PASSWORD`,
-`ACCESMED_JWT_SECRET`) nunca se committean. En local salen de un `.env` en la raíz
+`ACCESMED_JWT_SECRET`, `ACCESMED_AGENTE_API_KEY`, `ACCESMED_CHATWOOT_API_TOKEN`,
+`ACCESMED_FLOWISE_CHATFLOW_ID`) nunca se committean. En local salen de un `.env` en la raíz
 —gitignored, plantilla en `.env.example`— que `application.yml` importa con
 `spring.config.import: optional:file:.env[.properties]`; en `staging`/`prod` llegan
 como variables de entorno reales, que le ganan al archivo. Al agregar una property
@@ -164,7 +171,11 @@ de contexto. `ACCESMED_SUPERADMIN_MAIL` / `ACCESMED_SUPERADMIN_PASSWORD` son
 opcionales (`SuperAdminInicializador` crea el SuperAdmin solo si hay contraseña), por
 eso no están en `application-test.yml`. Swagger UI y `/v3/api-docs` piden HTTP Basic
 (`accesmed.docs.*`, cadena aparte en `SecurityFilterChainConfig`): `ACCESMED_DOCS_PASSWORD`
-es obligatoria en `staging`/`prod` y en `dev` vale `accesmed` por defecto; el health
+es obligatoria en `staging`/`prod` y en `dev` vale `accesmed` por defecto; las del canal chatbot
+(`ACCESMED_AGENTE_API_KEY`, `ACCESMED_CHATWOOT_API_TOKEN`, `ACCESMED_FLOWISE_CHATFLOW_ID`) no tienen
+default y también van en `docker/deploy`; `ACCESMED_CHATWOOT_WEBHOOK_SECRET` y
+`ACCESMED_FLOWISE_API_KEY` son opcionales (vacío = no se verifica la firma / no se manda
+`Authorization`); el health
 queda público porque lo usa el healthcheck del contenedor. Los datos de demo se cargan con
 `Scripts/seed-datos-demo.sql`, que no contiene contraseñas escritas, solo hashes bcrypt.
 

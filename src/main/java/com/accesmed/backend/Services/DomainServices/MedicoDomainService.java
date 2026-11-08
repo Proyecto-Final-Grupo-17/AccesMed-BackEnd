@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.List;
 
 /**
  * Lógica de dominio y persistencia para la entidad {@code Medico}.
@@ -204,6 +205,41 @@ public class MedicoDomainService {
             throw new ReglaNegocioException(getClass(), "ESPECIALIDAD_CON_MEDICOS_ACTIVOS",
                     "No se puede dar de baja la especialidad porque tiene médicos activos asignados.");
         }
+
+    }
+
+    /**
+     * Busca un médico activo por su matrícula.
+     *
+     * @param matricula {@code String} matrícula del médico
+     * @return {@code Medico} el médico activo con esa matrícula
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe un
+     *         médico activo con esa matrícula
+     */
+    public Medico findMedicoActivoByMatricula(String matricula) {
+
+        log.debug("Buscando médico activo por matrícula: {}", matricula);
+
+        return medicoRepository.findByMatriculaAndDeletedAtIsNull(matricula)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró el médico activo: matrícula={}", matricula);
+                    return new RecursoNoEncontradoException(getClass(), "MEDICO_NO_ENCONTRADO",
+                            "No encontramos un médico con la matrícula " + matricula + ".");
+                });
+
+    }
+
+    /**
+     * Lista los médicos activos de una especialidad.
+     *
+     * @param especialidadId {@code UUID} identificador de la especialidad
+     * @return {@code List<Medico>} los médicos activos de esa especialidad
+     */
+    public List<Medico> findMedicosActivosByEspecialidadId(UUID especialidadId) {
+
+        log.debug("Listando médicos activos de la especialidad: {}", especialidadId);
+
+        return medicoRepository.findByEspecialidadIdAndDeletedAtIsNullOrderByApellidoAscNombreAsc(especialidadId);
 
     }
 

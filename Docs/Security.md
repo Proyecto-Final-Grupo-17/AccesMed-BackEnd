@@ -357,6 +357,32 @@ public AuthenticationManager authenticationManager(AuthenticationConfiguration a
   necesario exponerlo como bean porque `AuthApp` lo necesita inyectado (`@RequiredArgsConstructor`
   no lo encuentra si no es un bean explícito).
 
+#### Cadenas del canal chatbot (`/Agente/**` y `/Chatwoot/**`)
+
+Además de la cadena del panel y la de Swagger, hay dos cadenas con `securityMatcher` propio y
+`@Order` anterior a la del panel (la del panel no lleva `@Order`, así que es la última):
+
+| Cadena | `@Order` | Rutas | Autenticación |
+|---|---|---|---|
+| `docsSecurityFilterChain` | 1 | Swagger UI y `/v3/api-docs` | HTTP Basic (`accesmed.docs.*`) |
+| `agenteSecurityFilterChain` | 2 | `/accesmed-api/Agente/**` | API key: header `X-Agente-Api-Key` == `accesmed.agente.api-key` |
+| `chatwootSecurityFilterChain` | 3 | `/accesmed-api/Chatwoot/**` | `permitAll` a nivel de filtro; la autenticidad la valida `ChatwootApp` con la firma HMAC |
+| `securityFilterChain` | (último) | el resto de `/accesmed-api/**` | JWT |
+
+**`/Agente/**`** (stateless, sin JWT ni permisos): `Security/Agente/AgenteApiKeyFilter`
+(`OncePerRequestFilter`, instanciado dentro de la cadena y no como `@Component`, para que Spring
+Boot no lo registre además como filtro global) compara la clave en tiempo constante (huella SHA-256 +
+`MessageDigest.isEqual`). Si coincide, deja autenticado al principal `agente-whatsapp`; si no,
+responde 401 con `AccesMedError` (`AGENTE_NO_AUTENTICADO`). Si `accesmed.agente.api-key` está vacía,
+el back no arranca (igual que la contraseña de la documentación). La identidad del paciente no es de
+esta cadena: la resuelve `AgenteApp` desde el header `X-Paciente-Telefono`.
+
+**`/Chatwoot/**`**: el filtro no puede verificar la firma sin consumir el body, y el App la necesita
+sobre el body crudo, así que la verificación (`sha256=` + HMAC-SHA256 de `"{timestamp}.{body}"` con
+`accesmed.chatwoot.webhook-secret`, ventana de 5 minutos, comparación en tiempo constante) vive en
+`ChatwootApp`. Una firma inválida lanza `ReglaNegocioException` con código `FIRMA_WEBHOOK_INVALIDA` (409). Con el secret vacío no se
+verifica y se loguea un `warn`: es solo para probar la integración, no para producción.
+
 #### `SuperAdminInicializador`
 
 `@Component` que implementa `ApplicationRunner`: corre una vez por arranque, después de

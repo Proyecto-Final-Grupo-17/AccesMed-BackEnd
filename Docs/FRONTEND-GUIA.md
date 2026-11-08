@@ -86,7 +86,7 @@ Reglas que importan del lado del front:
 - **Ya no hay un `GET /{id}` de toda la vida** en las entidades de catálogo (`Especialidad`,
   `ObraSocial`, `Plan`, `TipoIndicacionPrestacion`, `IndicacionPrestacion`): "obtener por id"
   y "listar" comparten el mismo lenguaje de filtros dinámicos. Ver
-  [`FILTRADO-DINAMICO.md`](FILTRADO-DINAMICO.md) — es obligatorio leerlo antes de armar
+  [`Otros/FILTRADO-DINAMICO.md`](Otros/FILTRADO-DINAMICO.md) — es obligatorio leerlo antes de armar
   cualquier pantalla de listado o de detalle de estas entidades.
 
 La lista exacta de rutas está siempre en Swagger (§4).
@@ -303,4 +303,4 @@ usuario cualquiera, indicando su `id` en la ruta:
 - [ ] Manejar fechas en UTC; convertir solo para mostrar.
 - [ ] En `PUT`/`PATCH`, mandar el mismo `id` en la URL y en el body (si difieren, 422).
 - [ ] Disparar transiciones de Turno por sus endpoints de acción, no por un campo estado.
-- [ ] Listados y "obtener por id" de `Especialidad`/`ObraSocial`/`Plan`/`TipoIndicacionPrestacion`/`IndicacionPrestacion` usan filtrado dinámico — ver [`FILTRADO-DINAMICO.md`](FILTRADO-DINAMICO.md).
+- [ ] Listados y "obtener por id" de `Especialidad`/`ObraSocial`/`Plan`/`TipoIndicacionPrestacion`/`IndicacionPrestacion` usan filtrado dinámico — ver [`Otros/FILTRADO-DINAMICO.md`](Otros/FILTRADO-DINAMICO.md).

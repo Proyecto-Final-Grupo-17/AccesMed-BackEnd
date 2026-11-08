@@ -153,6 +153,27 @@ public class ObraSocialDomainService {
 
     }
 
+    /**
+     * Busca una obra social activa por su nombre, sin distinguir mayúsculas.
+     *
+     * @param nombre {@code String} nombre de la obra social
+     * @return {@code ObraSocial} la obra social activa con ese nombre
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si no existe una
+     *         obra social activa con ese nombre
+     */
+    public ObraSocial findObraSocialActivaByNombre(String nombre) {
+
+        log.debug("Buscando obra social activa por nombre: {}", nombre);
+
+        return obraSocialRepository.findByNombreIgnoreCaseAndDeletedAtIsNull(nombre)
+                .orElseThrow(() -> {
+                    log.warn("No se encontró la obra social activa: nombre={}", nombre);
+                    return new RecursoNoEncontradoException(getClass(), "OBRA_SOCIAL_NO_ENCONTRADA",
+                            "No encontramos la obra social \"" + nombre + "\".");
+                });
+
+    }
+
     //endregion
 
 }

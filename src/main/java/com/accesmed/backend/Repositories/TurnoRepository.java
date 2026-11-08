@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Repositorio de acceso a datos para la entidad {@code Turno}. Incluye soporte para
@@ -180,5 +181,27 @@ public interface TurnoRepository extends JpaRepository<Turno, UUID>, JpaSpecific
      */
     @Query("SELECT h.turno FROM HistoricoEstadoTurno h WHERE h.estado = :estado AND h.fechaHoraFin IS NULL")
     List<Turno> findByEstadoVigente(EstadoTurno estado);
+
+    /**
+     * Busca un turno por su código de negocio.
+     *
+     * @param codigo {@code String} código del turno (ej. {@code TURNO_A1B2C3D4})
+     * @return {@code Optional<Turno>} el turno, o vacío si no existe
+     */
+    Optional<Turno> findByCodigo(String codigo);
+
+    /**
+     * Lista los turnos de un paciente cuyo estado vigente está entre los indicados, ordenados
+     * por fecha de inicio.
+     *
+     * @param pacienteId {@code UUID} identificador del paciente
+     * @param estados {@code Collection<EstadoTurno>} estados vigentes buscados
+     * @return {@code List<Turno>} los turnos del paciente en alguno de esos estados
+     */
+    @Query("SELECT h.turno FROM HistoricoEstadoTurno h "
+            + "WHERE h.turno.paciente.id = :pacienteId AND h.fechaHoraFin IS NULL AND h.estado IN :estados "
+            + "ORDER BY h.turno.fechaHoraInicio")
+    List<Turno> findByPacienteIdAndEstadoVigenteIn(@Param("pacienteId") UUID pacienteId,
+            @Param("estados") Collection<EstadoTurno> estados);
 
 }

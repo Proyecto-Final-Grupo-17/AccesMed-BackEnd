@@ -421,6 +421,29 @@ public class AgendaHorariosDiaDomainService {
 
     }
 
+    /**
+     * Busca un horario de agenda activo (sin baja lógica) por su identificador, esté o no
+     * ocupado. Permite resolver médico y prestación a partir de un {@code slotId}.
+     *
+     * @param slotId {@code UUID} identificador del horario
+     * @return {@code AgendaHorariosDia} el horario activo
+     * @throws com.accesmed.backend.Services.Errors.RecursoNoEncontradoException si no existe un
+     *         horario activo con ese id
+     */
+    public AgendaHorariosDia findAgendaHorarioActivoById(UUID slotId) {
+
+        log.debug("Buscando horario activo por id: {}", slotId);
+
+        return agendaHorariosDiaRepository.findByIdAndDeletedAtIsNull(slotId)
+                .orElseThrow(() -> {
+                    log.warn("Horario no encontrado: id={}", slotId);
+                    return new com.accesmed.backend.Services.Errors.RecursoNoEncontradoException(getClass(),
+                            "AGENDA_HORARIO_NO_DISPONIBLE",
+                            "El horario elegido ya no está disponible. Elegí otro horario.");
+                });
+
+    }
+
     //endregion
 
 }

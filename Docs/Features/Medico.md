@@ -100,7 +100,7 @@ Mismo contrato que `CreateMedicoResponse`.
 
 ### Buscar médico — `GET /accesmed-api/Medico/Medico/Buscar`
 
-Recibe filtros de [filtrado dinámico](../FILTRADO-DINAMICO.md) (`id`, `matricula`, `dni`,
+Recibe filtros de [filtrado dinámico](../Otros/FILTRADO-DINAMICO.md) (`id`, `matricula`, `dni`,
 `nombre`, `apellido`, `email`, `especialidadId`, `createdDate`, `lastModifiedDate`) y
 devuelve el primer médico activo que los cumple, con el mismo contrato que
 `GetMedicoResponse`. Pensado para criterios puntuales (ej. `id.equals`).

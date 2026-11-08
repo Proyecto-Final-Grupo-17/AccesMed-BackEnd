@@ -296,6 +296,6 @@ las Fases 1-3 como referencia estable antes de resolverlo.
   `src/test/` solo tiene `AccesMedApplicationTests`, `TestcontainersConfiguration` y
   `GeneradorSlotsAgendaTest`, ninguno los toca) — bajo riesgo de romper suite existente,
   pero repetir la verificación por entidad antes de borrar el método.
-- Revisar `Docs/FILTRADO-DINAMICO.md` (contrato del front) por si documenta la ruta
+- Revisar `../../Docs/Otros/FILTRADO-DINAMICO.md` (contrato del front) por si documenta la ruta
   `/Buscar` o el listado como servida "a través del App" de forma explícita — si lo hace,
   actualizar ese documento también (el contrato HTTP no cambia, pero la doc interna sí).

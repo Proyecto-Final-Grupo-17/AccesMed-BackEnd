@@ -124,4 +124,30 @@ public interface PrestacionRepository extends JpaRepository<Prestacion, UUID>, J
             + "WHERE h.prestacion.especialidad.id = :especialidadId AND h.fechaHoraFin IS NULL AND h.estado <> :estado")
     boolean existsByEspecialidadIdAndEstadoVigenteNot(UUID especialidadId, EstadoPrestacion estado);
 
+    /**
+     * Busca una prestación por su nombre (sin distinguir mayúsculas) cuyo estado vigente no sea
+     * el indicado. Lo usa el canal chatbot para resolver "nombre de prestación" a entidad.
+     *
+     * @param nombre {@code String} nombre de la prestación
+     * @param estado {@code EstadoPrestacion} estado vigente a excluir
+     * @return {@code Optional<Prestacion>} la prestación, o vacío si no existe
+     */
+    @Query("SELECT h.prestacion FROM HistoricoEstadoPrestacion h "
+            + "WHERE LOWER(h.prestacion.nombre) = LOWER(:nombre) AND h.fechaHoraFin IS NULL AND h.estado <> :estado")
+    Optional<Prestacion> findByNombreIgnoreCaseAndEstadoVigenteNot(@Param("nombre") String nombre,
+            @Param("estado") EstadoPrestacion estado);
+
+    /**
+     * Lista las prestaciones de una especialidad cuyo estado vigente es el indicado.
+     *
+     * @param especialidadId {@code UUID} identificador de la especialidad
+     * @param estado {@code EstadoPrestacion} estado vigente buscado
+     * @return {@code List<Prestacion>} las prestaciones de la especialidad en ese estado
+     */
+    @Query("SELECT h.prestacion FROM HistoricoEstadoPrestacion h "
+            + "WHERE h.prestacion.especialidad.id = :especialidadId AND h.fechaHoraFin IS NULL AND h.estado = :estado "
+            + "ORDER BY h.prestacion.nombre")
+    List<Prestacion> findByEspecialidadIdAndEstadoVigente(@Param("especialidadId") UUID especialidadId,
+            @Param("estado") EstadoPrestacion estado);
+
 }

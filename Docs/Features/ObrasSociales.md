@@ -87,7 +87,7 @@ Mismo formato que la respuesta de obtención (ver abajo).
 ### Buscar obra social — `GET /accesmed-api/ObraSocial/ObraSocial/Buscar`
 
 Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
-[`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md) para el formato completo de filtros.
+[`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md) para el formato completo de filtros.
 
 **Flujo simplificado:**
 1. Busca la única obra social activa que cumple el criteria (típico: `id.equals=<uuid>`).
@@ -115,7 +115,7 @@ Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
 
 ### Listar obras sociales — `GET /accesmed-api/ObraSocial/ObraSocial`
 
-Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md).
 
 **Flujo simplificado:**
 1. Recupera las obras sociales activas que cumplen el criteria (sin filtros = todas).
@@ -313,7 +313,7 @@ Igual formato que "Publicar plan", con `estadoActual = DESHABILITADO`.
 ### Buscar plan — `GET /accesmed-api/Plan/Plan/Buscar`
 
 Filtrado dinámico — reemplaza al clásico "obtener por id". Ver
-[`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md) para el formato completo de filtros.
+[`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md) para el formato completo de filtros.
 Trae el plan en **cualquier estado**, incluidos los deshabilitados (a diferencia de otros
 flujos del módulo, que solo ven planes no deshabilitados).
 
@@ -331,7 +331,7 @@ Mismo formato que en "Agregar plan a obra social".
 
 ### Listar planes — `GET /accesmed-api/Plan/Plan`
 
-Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md).
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md).
 `obraSocialId` **dejó de ser obligatorio**: sin filtros trae planes de todas las obras
 sociales; para los planes de una sola, seguí mandando `obraSocialId.equals=<uuid>`.
 
@@ -460,7 +460,7 @@ el `id` de la cobertura en la ruta.
 
 ### Listar coberturas plan-prestación — `GET /accesmed-api/ObraSocialPrestacion/ObraSocialPrestacion`
 
-Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../FILTRADO-DINAMICO.md). Sin
+Filtrado dinámico + paginación. Ver [`FILTRADO-DINAMICO.md`](../Otros/FILTRADO-DINAMICO.md). Sin
 endpoint `/Buscar` — para traer una cobertura puntual, filtrar por `id.equals=<uuid>` en
 este mismo listado.
 
