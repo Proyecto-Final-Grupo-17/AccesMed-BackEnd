@@ -1,5 +1,6 @@
 package com.accesmed.backend.Security.Application;
 
+import com.accesmed.backend.Domain.Clinica;
 import com.accesmed.backend.Domain.Usuario;
 import com.accesmed.backend.Security.Domain.PasswordResetToken;
 import com.accesmed.backend.Security.Domain.RefreshToken;
@@ -14,8 +15,10 @@ import com.accesmed.backend.Security.Records.Auth.Response.LoginResponse;
 import com.accesmed.backend.Security.Records.Auth.Response.RefreshResponse;
 import com.accesmed.backend.Security.Services.DomainServices.PasswordResetTokenDomainService;
 import com.accesmed.backend.Security.Services.DomainServices.RefreshTokenDomainService;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.UsuarioDomainService;
 import com.accesmed.backend.Services.Utils.MailService;
+import com.accesmed.backend.Services.Utils.PlantillaMailHtml.ContenidoMail;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,6 +67,8 @@ class AuthAppTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private MailService mailService;
+    @Mock
+    private ClinicaDomainService clinicaDomainService;
 
     @InjectMocks
     private AuthApp authApp;
@@ -143,9 +148,13 @@ class AuthAppTest {
         when(usuarioDomainService.findUsuarioActivoByMail(usuario.getMail())).thenReturn(Optional.of(usuario));
         when(passwordResetTokenDomainService.generarYGuardarPasswordResetToken(usuario)).thenReturn("token-recuperacion");
 
+        Clinica clinica = new Clinica();
+        when(clinicaDomainService.findClinica()).thenReturn(clinica);
+
         authApp.olvideContrasena(request);
 
-        verify(mailService).enviarMail(eq(usuario.getMail()), anyString(), anyString());
+        verify(mailService).enviarMailConPlantilla(eq(usuario.getMail()), anyString(), any(ContenidoMail.class),
+                eq(clinica));
     }
 
     @Test
@@ -156,7 +165,7 @@ class AuthAppTest {
 
         authApp.olvideContrasena(request);
 
-        verify(mailService, never()).enviarMail(anyString(), anyString(), anyString());
+        verify(mailService, never()).enviarMailConPlantilla(anyString(), anyString(), any(ContenidoMail.class), any());
     }
 
     @Test

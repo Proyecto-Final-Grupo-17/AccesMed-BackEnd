@@ -69,10 +69,31 @@ por integración externa — WhatsApp, mail, etc. — registrado como `@Componen
 canal falla, se loguea y se sigue con el resto: no se pierde la notificación por los
 demás canales por una caída puntual de uno.
 
-Sumar un canal nuevo (ej. mail) es agregar un adaptador que implemente
-`CanalNotificacionTurno` — no hay que tocar el listener ni el `App`. Hoy solo está
-implementado el canal de WhatsApp (`CanalNotificacionTurnoWhatsApp`); el de mail queda
-para cuando se decida encararlo.
+Sumar un canal nuevo es agregar un adaptador que implemente
+`CanalNotificacionTurno` — no hay que tocar el listener ni el `App`. Hoy hay dos canales:
+WhatsApp (`CanalNotificacionTurnoWhatsApp`, todavía stub) y mail (`CanalNotificacionTurnoMail`).
+
+#### Canal de mail: plantilla HTML con logo y datos de la clínica
+
+Todos los mails del sistema (las 7 notificaciones de turno **y** los de cuenta: activación,
+recuperación de contraseña, cambio de mail y baja) pasan por la misma plantilla, para que se
+vean parejos:
+
+- **`Services/Utils/PlantillaMailHtml`** arma el HTML (tablas y estilos en línea, lo único que
+  Gmail y Outlook renderizan parejo) y su versión en texto plano a partir de un
+  `ContenidoMail` (insignia, título, saludo, párrafos, recuadro de detalle, botón opcional y nota).
+  Todo texto variable se escapa. Encabezado con el logo de AccesMed; **pie con los datos de la
+  clínica** (nombre, dirección **solo si la tiene cargada**, teléfono y mail), leídos de
+  `ClinicaDomainService.findClinica()` en cada envío — si el admin los cambia, el próximo mail ya
+  sale con el dato nuevo.
+- **`MailService.enviarMailConPlantilla(destinatario, asunto, contenidoMail, clinica)`** es el
+  camino que usan los callers. Envía multipart (HTML + texto), con nombre visible "AccesMed", y
+  **embebe el logo** (`src/main/resources/mail/logo-accesmed.png`) como imagen inline
+  (`cid:logo-accesmed`): no depende de que el cliente cargue imágenes remotas ni de una URL pública.
+  Para cambiar el logo se reemplaza ese PNG (cuadrado, ~190 px).
+- La fecha y hora del turno se muestran **en la zona horaria de la clínica**
+  (`Clinica.zonaHoraria`), no en UTC.
+- El remitente es la cuenta SMTP (`MAIL_USERNAME`); Gmail siempre envía desde esa casilla.
 
 | Evento | Notificación | Quién lo dispara |
 |---|---|---|

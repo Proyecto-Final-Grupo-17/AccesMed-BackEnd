@@ -1,17 +1,27 @@
 package com.accesmed.backend.Notifications.Canales;
 
+import com.accesmed.backend.Domain.Clinica;
+import com.accesmed.backend.Domain.MotivoCancelacion;
 import com.accesmed.backend.Domain.Turno;
 import com.accesmed.backend.Notifications.TipoNotificacionTurno;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import com.accesmed.backend.Services.Utils.MailService;
+import com.accesmed.backend.Services.Utils.PlantillaMailHtml;
+import com.accesmed.backend.Services.Utils.PlantillaMailHtml.ContenidoMail;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Adaptador de {@link CanalNotificacionTurno} que arma el mensaje según el
- * {@link TipoNotificacionTurno} y lo despacha por correo electrónico. Implementa
+ * {@link TipoNotificacionTurno} y lo despacha por correo electrónico, en HTML con la marca de
+ * AccesMed y los datos de la clínica en el pie (ver {@link PlantillaMailHtml}). Implementa
  * el mismo contrato que {@code CanalNotificacionTurnoWhatsApp}, permitiendo envíos
  * simultáneos por múltiples canales sin acoplar la lógica de notificación a ninguno.
  */
@@ -20,191 +30,210 @@ import java.time.format.DateTimeFormatter;
 @RequiredArgsConstructor
 public class CanalNotificacionTurnoMail implements CanalNotificacionTurno {
 
-    private final MailService mailService;
+    //region ========== Dependencias o inyecciones ==========
 
-    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private final MailService mailService;
+    private final ClinicaDomainService clinicaDomainService;
+
+    //endregion
+
+    //region ========== Métodos ==========
 
     @Override
     public void notificar(TipoNotificacionTurno tipo, Turno turno) {
+
         log.debug("Notificando por mail: tipo={}, turnoId={}", tipo, turno.getId());
 
-        String asunto;
-        String cuerpo;
+        //Los datos de la clínica van en el pie de todos los mails, y su zona horaria define la hora que ve el paciente
+        Clinica clinica = clinicaDomainService.findClinica();
+        ZoneId zonaHorariaClinica = ZoneId.of(clinica.getZonaHoraria());
 
-        switch (tipo) {
-            case REGISTRADO:
-                asunto = "Turno registrado";
-                cuerpo = armarCuerpoRegistrado(turno);
-                break;
+        MensajeMail mensajeMail = switch (tipo) {
+            case REGISTRADO -> armarMensajeRegistrado(turno, zonaHorariaClinica);
+            case CONFIRMADO -> armarMensajeConfirmado(turno, zonaHorariaClinica);
+            case CANCELADO -> armarMensajeCancelado(turno, zonaHorariaClinica);
+            case REPROGRAMADO -> armarMensajeReprogramado(turno, zonaHorariaClinica);
+            case NO_VALIDADO -> armarMensajeNoValidado(turno, zonaHorariaClinica);
+            case RECORDATORIO_CONFIRMACION -> armarMensajeRecordatorioConfirmacion(turno, zonaHorariaClinica);
+            case AUSENTE -> armarMensajeAusente(turno, zonaHorariaClinica);
+        };
 
-            case CONFIRMADO:
-                asunto = "Turno confirmado";
-                cuerpo = armarCuerpoConfirmado(turno);
-                break;
+        mailService.enviarMailConPlantilla(turno.getPaciente().getEmail(), mensajeMail.asunto(),
+                mensajeMail.contenidoMail(), clinica);
 
-            case CANCELADO:
-                asunto = "Turno cancelado";
-                cuerpo = armarCuerpoCancelado(turno);
-                break;
+    }
 
-            case REPROGRAMADO:
-                asunto = "Turno reprogramado";
-                cuerpo = armarCuerpoReprogramado(turno);
-                break;
+    //endregion
 
-            case NO_VALIDADO:
-                asunto = "Turno no validado";
-                cuerpo = armarCuerpoNoValidado(turno);
-                break;
+    //region ========== Métodos auxiliares privados ==========
 
-            case RECORDATORIO_CONFIRMACION:
-                asunto = "Recordatorio: confirma tu turno";
-                cuerpo = armarCuerpoRecordatorioConfirmacion(turno);
-                break;
+    /** Asunto y contenido de un mail de notificación, antes de pasarlo por la plantilla. */
+    private record MensajeMail(String asunto, ContenidoMail contenidoMail) {
 
-            case AUSENTE:
-                asunto = "Turno marcado como ausente";
-                cuerpo = armarCuerpoAusente(turno);
-                break;
+    }
 
-            default:
-                log.warn("Tipo de notificación desconocido: {}", tipo);
-                return;
+    private MensajeMail armarMensajeRegistrado(Turno turno, ZoneId zonaHorariaClinica) {
+
+        ContenidoMail contenidoMail = ContenidoMail.builder()
+                .etiqueta("Turno registrado")
+                .colorAcento(PlantillaMailHtml.ACENTO_INFO)
+                .titulo("Registramos tu turno")
+                .saludo(saludar(turno))
+                .parrafos(List.of("Tu turno fue registrado correctamente.",
+                        "Confirmalo antes de la fecha límite para asegurar tu lugar."))
+                .detalles(detallarTurno(turno, zonaHorariaClinica, "Fecha y hora", true))
+                .build();
+
+        return new MensajeMail("Turno registrado", contenidoMail);
+
+    }
+
+    private MensajeMail armarMensajeConfirmado(Turno turno, ZoneId zonaHorariaClinica) {
+
+        ContenidoMail contenidoMail = ContenidoMail.builder()
+                .etiqueta("Turno confirmado")
+                .colorAcento(PlantillaMailHtml.ACENTO_EXITO)
+                .titulo("Tu turno está confirmado")
+                .saludo(saludar(turno))
+                .parrafos(List.of("Tu turno fue confirmado. Te esperamos en la clínica."))
+                .detalles(detallarTurno(turno, zonaHorariaClinica, "Fecha y hora", true))
+                .build();
+
+        return new MensajeMail("Turno confirmado", contenidoMail);
+
+    }
+
+    private MensajeMail armarMensajeCancelado(Turno turno, ZoneId zonaHorariaClinica) {
+
+        Map<String, String> detalles = detallarTurno(turno, zonaHorariaClinica, "Fecha y hora", false);
+        detalles.put("Motivo", describirMotivoCancelacion(turno.getMotivoCancelacion()));
+
+        ContenidoMail contenidoMail = ContenidoMail.builder()
+                .etiqueta("Turno cancelado")
+                .colorAcento(PlantillaMailHtml.ACENTO_ERROR)
+                .titulo("Tu turno fue cancelado")
+                .saludo(saludar(turno))
+                .parrafos(List.of("Tu turno fue cancelado. Podés reservar otro cuando quieras."))
+                .detalles(detalles)
+                .build();
+
+        return new MensajeMail("Turno cancelado", contenidoMail);
+
+    }
+
+    private MensajeMail armarMensajeReprogramado(Turno turno, ZoneId zonaHorariaClinica) {
+
+        ContenidoMail contenidoMail = ContenidoMail.builder()
+                .etiqueta("Turno reprogramado")
+                .colorAcento(PlantillaMailHtml.ACENTO_INFO)
+                .titulo("Reprogramamos tu turno")
+                .saludo(saludar(turno))
+                .parrafos(List.of("Tu turno fue reprogramado para una nueva fecha.",
+                        "Confirmalo antes de la fecha límite para asegurar tu lugar."))
+                .detalles(detallarTurno(turno, zonaHorariaClinica, "Nueva fecha y hora", true))
+                .build();
+
+        return new MensajeMail("Turno reprogramado", contenidoMail);
+
+    }
+
+    private MensajeMail armarMensajeNoValidado(Turno turno, ZoneId zonaHorariaClinica) {
+
+        Map<String, String> detalles = detallarTurno(turno, zonaHorariaClinica, "Fecha y hora", false);
+        detalles.put("Motivo", describirMotivoCancelacion(turno.getMotivoCancelacion()));
+
+        ContenidoMail contenidoMail = ContenidoMail.builder()
+                .etiqueta("Turno no validado")
+                .colorAcento(PlantillaMailHtml.ACENTO_ERROR)
+                .titulo("No pudimos validar tu turno")
+                .saludo(saludar(turno))
+                .parrafos(List.of("Tu turno no pudo ser validado y fue cancelado. Podés reservar otro cuando quieras."))
+                .detalles(detalles)
+                .build();
+
+        return new MensajeMail("Turno no validado", contenidoMail);
+
+    }
+
+    private MensajeMail armarMensajeRecordatorioConfirmacion(Turno turno, ZoneId zonaHorariaClinica) {
+
+        ContenidoMail contenidoMail = ContenidoMail.builder()
+                .etiqueta("Recordatorio")
+                .colorAcento(PlantillaMailHtml.ACENTO_ALERTA)
+                .titulo("Confirmá tu turno")
+                .saludo(saludar(turno))
+                .parrafos(List.of("Te recordamos que tenés un turno pendiente de confirmación.",
+                        "Confirmalo cuanto antes para no perder tu lugar."))
+                .detalles(detallarTurno(turno, zonaHorariaClinica, "Fecha y hora", true))
+                .build();
+
+        return new MensajeMail("Recordatorio: confirma tu turno", contenidoMail);
+
+    }
+
+    private MensajeMail armarMensajeAusente(Turno turno, ZoneId zonaHorariaClinica) {
+
+        ContenidoMail contenidoMail = ContenidoMail.builder()
+                .etiqueta("Turno ausente")
+                .colorAcento(PlantillaMailHtml.ACENTO_ALERTA)
+                .titulo("Registramos tu ausencia")
+                .saludo(saludar(turno))
+                .parrafos(List.of("Tu turno fue marcado como ausente.",
+                        "Si creés que se trata de un error, comunicate con la clínica cuanto antes."))
+                .detalles(detallarTurno(turno, zonaHorariaClinica, "Fecha y hora", false))
+                .build();
+
+        return new MensajeMail("Turno marcado como ausente", contenidoMail);
+
+    }
+
+    private String saludar(Turno turno) {
+
+        String nombreCompleto = armarNombreCompleto(turno.getPaciente().getNombre(), turno.getPaciente().getApellido());
+        return "Hola " + nombreCompleto + ",";
+
+    }
+
+    private Map<String, String> detallarTurno(Turno turno, ZoneId zonaHorariaClinica, String etiquetaFecha,
+                                              boolean incluirMedicoYPrestacion) {
+
+        Map<String, String> detalles = new LinkedHashMap<>();
+
+        detalles.put("Código del turno", turno.getCodigo());
+        detalles.put(etiquetaFecha, FormatoMensaje.fechaHora(turno.getFechaHoraInicio(), zonaHorariaClinica));
+
+        if (incluirMedicoYPrestacion) {
+            detalles.put("Médico", armarNombreCompleto(turno.getMedico().getNombre(), turno.getMedico().getApellido()));
+            detalles.put("Prestación", turno.getPrestacion().getNombre());
         }
 
-        mailService.enviarMail(turno.getPaciente().getEmail(), asunto, cuerpo);
+        return detalles;
+
     }
 
-    private String armarCuerpoRegistrado(Turno turno) {
-        return String.format(
-                "Estimado/a %s,\n\n" +
-                "Tu turno ha sido registrado exitosamente.\n\n" +
-                "Código del turno: %s\n" +
-                "Fecha y hora: %s\n" +
-                "Médico: %s\n" +
-                "Prestación: %s\n\n" +
-                "Por favor confirma tu turno antes de la fecha límite.\n\n" +
-                "Saludos,\nAccesMed",
-                turno.getPaciente().getNombre(),
-                turno.getCodigo(),
-                turno.getFechaHoraInicio().format(FORMATO_FECHA),
-                turno.getMedico().getNombre(),
-                turno.getPrestacion().getNombre()
-        );
+    private String armarNombreCompleto(String nombre, String apellido) {
+
+        String nombreCompleto = apellido == null || apellido.isBlank() ? nombre : nombre + " " + apellido;
+        return nombreCompleto;
+
     }
 
-    private String armarCuerpoConfirmado(Turno turno) {
-        return String.format(
-                "Estimado/a %s,\n\n" +
-                "Tu turno ha sido confirmado.\n\n" +
-                "Código del turno: %s\n" +
-                "Fecha y hora: %s\n" +
-                "Médico: %s\n" +
-                "Prestación: %s\n\n" +
-                "Te esperamos en la clínica.\n\n" +
-                "Saludos,\nAccesMed",
-                turno.getPaciente().getNombre(),
-                turno.getCodigo(),
-                turno.getFechaHoraInicio().format(FORMATO_FECHA),
-                turno.getMedico().getNombre(),
-                turno.getPrestacion().getNombre()
-        );
+    private String describirMotivoCancelacion(MotivoCancelacion motivoCancelacion) {
+
+        if (motivoCancelacion == null) {
+            return "No especificado";
+        }
+
+        return switch (motivoCancelacion) {
+            case SOLICITUD_DEL_PACIENTE -> "A solicitud del paciente";
+            case VALIDACION_RECHAZADA -> "Tu validación fue rechazada";
+            case VALIDACION_VENCIDA -> "La validación venció";
+            case BAJA_DE_MEDICO -> "El médico ya no atiende";
+            case DECISION_ADMINISTRATIVA -> "Decisión administrativa";
+        };
+
     }
 
-    private String armarCuerpoCancelado(Turno turno) {
-        String motivo = turno.getMotivoCancelacion() != null ?
-                switch (turno.getMotivoCancelacion()) {
-                    case SOLICITUD_DEL_PACIENTE -> "a solicitud del paciente";
-                    case VALIDACION_RECHAZADA -> "tu validación fue rechazada";
-                    case VALIDACION_VENCIDA -> "la validación venció";
-                    case BAJA_DE_MEDICO -> "el médico ya no atiende";
-                    case DECISION_ADMINISTRATIVA -> "decisión administrativa";
-                } : "motivo no especificado";
-
-        return String.format(
-                "Estimado/a %s,\n\n" +
-                "Tu turno ha sido cancelado: %s.\n\n" +
-                "Código del turno: %s\n" +
-                "Fecha y hora: %s\n\n" +
-                "Para reservar otro turno, ingresa a nuestra plataforma.\n\n" +
-                "Saludos,\nAccesMed",
-                turno.getPaciente().getNombre(),
-                motivo,
-                turno.getCodigo(),
-                turno.getFechaHoraInicio().format(FORMATO_FECHA)
-        );
-    }
-
-    private String armarCuerpoReprogramado(Turno turno) {
-        return String.format(
-                "Estimado/a %s,\n\n" +
-                "Tu turno ha sido reprogramado.\n\n" +
-                "Código del turno: %s\n" +
-                "Nueva fecha y hora: %s\n" +
-                "Médico: %s\n" +
-                "Prestación: %s\n\n" +
-                "Por favor confirma tu turno antes de la fecha límite.\n\n" +
-                "Saludos,\nAccesMed",
-                turno.getPaciente().getNombre(),
-                turno.getCodigo(),
-                turno.getFechaHoraInicio().format(FORMATO_FECHA),
-                turno.getMedico().getNombre(),
-                turno.getPrestacion().getNombre()
-        );
-    }
-
-    private String armarCuerpoNoValidado(Turno turno) {
-        String motivo = turno.getMotivoCancelacion() != null ?
-                switch (turno.getMotivoCancelacion()) {
-                    case VALIDACION_RECHAZADA -> "tu validación fue rechazada";
-                    case VALIDACION_VENCIDA -> "la validación venció";
-                    default -> "motivo no especificado";
-                } : "motivo no especificado";
-
-        return String.format(
-                "Estimado/a %s,\n\n" +
-                "Tu turno no pudo ser validado: %s.\n\n" +
-                "Código del turno: %s\n" +
-                "Fecha y hora: %s\n\n" +
-                "Para reservar otro turno, ingresa a nuestra plataforma.\n\n" +
-                "Saludos,\nAccesMed",
-                turno.getPaciente().getNombre(),
-                motivo,
-                turno.getCodigo(),
-                turno.getFechaHoraInicio().format(FORMATO_FECHA)
-        );
-    }
-
-    private String armarCuerpoRecordatorioConfirmacion(Turno turno) {
-        return String.format(
-                "Estimado/a %s,\n\n" +
-                "Te recordamos que tienes un turno pendiente de confirmación.\n\n" +
-                "Código del turno: %s\n" +
-                "Fecha y hora: %s\n" +
-                "Médico: %s\n" +
-                "Prestación: %s\n\n" +
-                "Por favor confirma tu turno cuanto antes.\n\n" +
-                "Saludos,\nAccesMed",
-                turno.getPaciente().getNombre(),
-                turno.getCodigo(),
-                turno.getFechaHoraInicio().format(FORMATO_FECHA),
-                turno.getMedico().getNombre(),
-                turno.getPrestacion().getNombre()
-        );
-    }
-
-    private String armarCuerpoAusente(Turno turno) {
-        return String.format(
-                "Estimado/a %s,\n\n" +
-                "Tu turno ha sido marcado como ausente.\n\n" +
-                "Código del turno: %s\n" +
-                "Fecha y hora: %s\n\n" +
-                "Si consideras que esto es un error, contactanos cuanto antes.\n\n" +
-                "Saludos,\nAccesMed",
-                turno.getPaciente().getNombre(),
-                turno.getCodigo(),
-                turno.getFechaHoraInicio().format(FORMATO_FECHA)
-        );
-    }
+    //endregion
 
 }
