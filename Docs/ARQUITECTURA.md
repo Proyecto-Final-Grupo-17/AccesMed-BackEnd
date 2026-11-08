@@ -57,7 +57,7 @@ preguntas abiertas: cualquier código nuevo debe seguirlas.
 | **Ningún `App` llama a otro `App`.** El canal chatbot tiene su propio `AgenteApp`, que **copia la orquestación** de `PacienteApp`/`TurnoApp` (y reutiliza sus DomainServices, QueryServices y Mappers) | Cambiar el panel no puede romper el agente ni al revés: no hay acoplamiento entre casos de uso. El costo (orquestación duplicada: si una regla de `createTurno` cambia hay que replicarla en `AgenteApp.createTurno`) se acepta a cambio de dejar el panel intacto; la regla de negocio de fondo sigue en los DomainServices compartidos. Mismo criterio para `ChatwootApp` (pasamanos Chatwoot → Flowise → Chatwoot, no toca dominio). |
 | Nombres de package en mayúsculas: `Domain`, `Services`, `Controllers`, `Application`, `Repositories`, `Records`, `Config`, `Security` | Convención de proyecto. **Nota técnica breve**: la convención estándar de Java es minúsculas para packages (el JLS solo lo recomienda, no lo exige); en mayúsculas compila y funciona igual, pero algunas herramientas/linters de estilo Java pueden marcarlo como advertencia. No es un problema funcional. |
 | Subpaquete por entidad dentro de un paquete de tipo, recién cuando supere ~8-10 archivos (ej. `Services/DomainServices/Medico/`) | No crear carpetas de un solo archivo por adelantado. |
-| Plural en `Controllers`, `Services`, `Repositories` (y sus subcarpetas `DomainServices`/`QueryServices`/`Mappers`/`Errors`/`Utils`/`Clients`) | Son colecciones de clases del mismo rol (todos los controllers, todos los services, todos los repositories). `Domain`, `Application`, `Records`, `Config`, `Security` quedan como estaban. |
+| Plural en `Controllers`, `Services`, `Repositories` (y sus subcarpetas `DomainServices`/`QueryServices`/`Mappers`/`Errors`/`Utils`/`Clients`/`ExternalServices`) | Son colecciones de clases del mismo rol (todos los controllers, todos los services, todos los repositories). `Domain`, `Application`, `Records`, `Config`, `Security` quedan como estaban. |
 | El `QueryService` se inyecta y se llama **desde el Controller para lecturas (`GET`)**; el `App` no participa en el camino de lectura | Los endpoints de lectura (`GET /list`, `GET /Buscar`) inyectan el `QueryService` directo; es un passthrough puro (no hay validación, orquestación, ni cambio de estado). El `App` queda solo para mutaciones (`POST`, `PATCH`, `DELETE`), donde sí hay orquestación. El `QueryService` devuelve `Response` mapeado (el `Mapper` vive adentro). Mantiene la separación de responsabilidades: lecturas ≠ mutaciones. |
 | Nombres de método de actualización: **`fullUpdate<Entidad>`** (PUT), **`partialUpdate<Entidad>`** (PATCH genérico) y **`update<Concepto><Entidad>`** (PATCH de un grupo de campos específico, ej. `updateToleranciasPrestacion`) | El nombre distingue de entrada tres casos distintos: reemplazo completo, actualización de un subconjunto arbitrario de campos, y un caso de uso acotado que ya sabe de antemano qué campos toca (no es "parcial genérico" con dos campos, es una operación de negocio propia). |
 | `partialUpdate<Entidad>` (PATCH genérico): un campo en `null` significa **"no lo toques"**, nunca "vacíalo" | Evita la ambigüedad JSON entre "campo ausente" y "campo enviado en `null`" sin necesitar un wrapper (`JsonNullable`) en todos los campos nullable del record. Si un campo necesita poder vaciarse de verdad, no se fuerza acá: se resuelve con la fila siguiente. |
@@ -386,6 +386,8 @@ accesmed-backend/
     │   │   │   ├── Clients/                # integraciones HTTP salientes (RestClient)
     │   │   │   │   ├── ChatwootClient.java
     │   │   │   │   └── FlowiseClient.java
+    │   │   │   ├── ExternalServices/       # lógica de integración con servicios externos (usa Clients)
+    │   │   │   │   └── ChatwootService.java # canal Chatwoot: horario, antispam, ventana, mensajes fijos, tokens
     │   │   │   ├── Errors/
     │   │   │   │   ├── AccesMedException.java
     │   │   │   │   ├── RecursoNoEncontradoException.java
@@ -505,7 +507,13 @@ el inicio.** `Services` no tiene archivos sueltos: se divide en subcarpetas fija
   convertir Record↔entidad; por eso vive junto a los demás, no como package suelto en la raíz.
 - `Services/Errors/` — `AccesMedException` y sus subclases (ver §3).
 - `Services/Clients/` — clientes HTTP salientes (`ChatwootClient`, `FlowiseClient`) sobre `RestClient`, con timeouts
-  explícitos y sin dependencias nuevas. Los usan los `App` que integran sistemas externos (hoy `ChatwootApp`).
+  explícitos y sin dependencias nuevas. Solo hablan HTTP: no deciden nada.
+- `Services/ExternalServices/` — la **lógica de integración** con un servicio externo, sin dueño de
+  entidad: qué mandarle, cuándo y cómo interpretar lo que devuelve (hoy `ChatwootService`: horario de
+  atención, antispam, ventana de inactividad, mensajes fijos del canal, sesión y variables de Flowise,
+  tokens de la respuesta). Usa los `Clients` y lo orquesta un `App` (`ChatwootApp`). Puede guardar
+  estado en memoria del canal (supone una sola instancia del back). No va en `Utils` porque no es un
+  helper genérico ni en `Clients` porque no es transporte HTTP.
 - `Services/Utils/` — helpers genéricos sin dueño de entidad (formateo de fechas,
   generación de códigos, etc.). Mismo razonamiento que con `Mapper`: es un componente de
   soporte que usan los services y apps, así que se agrupa ahí en vez de quedar suelto
@@ -655,9 +663,12 @@ agente (ni al revés); el precio es que una regla de orquestación que cambie en
 necesita el canal (por teléfono, por nombre, por código de turno) se **agregan** a
 Repositories y DomainServices sin tocar los métodos existentes. Records propios en
 `Records/Agente` (`<Accion><Entidad>AgenteRequest/Response`). El webhook de Chatwoot
-(`ChatwootController` + `ChatwootApp`) es un pasamanos que no toca el dominio: solo usa
-`Services/Clients` (`ChatwootClient`, `FlowiseClient`), agrupa los mensajes en ráfaga por
-conversación (`Services/Utils/AgrupadorMensajes`) y responde en segundo plano. Su autenticidad
+(`ChatwootController` + `ChatwootApp`) es un pasamanos: `ChatwootApp` orquesta y la lógica del
+canal vive en `Services/ExternalServices/ChatwootService` (horario de atención, antispam, bienvenida,
+tokens), que usa `Services/Clients` (`ChatwootClient`, `FlowiseClient`). Del dominio solo lee
+(`ClinicaDomainService.findClinica`, `PacienteDomainService.findOptionalPacienteActivoByNumeroTelefono`),
+agrupa los mensajes en ráfaga por conversación (`Services/Utils/AgrupadorMensajes`) y responde en
+segundo plano. Diseño en `Docs/Diseno-Chatbot.md §2.3`. Su autenticidad
 la verifica un filtro de la cadena de seguridad (`Security/Chatwoot/ChatwootFirmaFilter`, firma
 HMAC → 401), igual que la API key del agente. Contrato completo en `Docs/Features/Chatbot.md §6`.
 
