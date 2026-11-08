@@ -13,6 +13,7 @@ import java.util.UUID;
 import com.accesmed.backend.Services.Errors.ValidacionException;
 import com.accesmed.backend.Services.Utils.NormalizadorTelefono;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Lógica de dominio y persistencia para la entidad {@code Paciente}.
@@ -214,6 +215,27 @@ public class PacienteDomainService {
                     return new RecursoNoEncontradoException(getClass(), "PACIENTE_NO_ENCONTRADO",
                             "No encontramos un paciente registrado con este número de teléfono.");
                 });
+
+    }
+
+    /**
+     * Busca un paciente activo por su número de teléfono sin lanzar excepción si no existe: lo
+     * usa el canal de Chatwoot para saber si quien escribe ya está registrado (no es un error que
+     * no lo esté). Un teléfono inválido se trata como "no registrado".
+     *
+     * @param numeroTelefono {@code String} número de teléfono tal como llega del canal (ej. {@code +5492617742682})
+     * @return {@code Optional<Paciente>} el paciente activo dueño de ese teléfono, o vacío si no hay
+     */
+    public Optional<Paciente> findOptionalPacienteActivoByNumeroTelefono(String numeroTelefono) {
+
+        if (!NormalizadorTelefono.esValido(numeroTelefono)) {
+            log.debug("Teléfono del canal no válido: se considera paciente no registrado");
+            return Optional.empty();
+        }
+
+        Optional<Paciente> pacienteActivo = pacienteRepository.findActivoByNumeroTelefonoNormalizado(
+                NormalizadorTelefono.normalizarDigitos(numeroTelefono));
+        return pacienteActivo;
 
     }
 

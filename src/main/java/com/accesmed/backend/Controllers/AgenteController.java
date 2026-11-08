@@ -15,6 +15,7 @@ import com.accesmed.backend.Records.Agente.Response.GetOfertaEspecialidadAgenteR
 import com.accesmed.backend.Records.Agente.Response.GetPacienteAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListEspecialidadAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListHorarioDisponibleAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.ListObraSocialAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ReprogramTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.UpdatePacienteAgenteResponse;
@@ -175,6 +176,23 @@ public class AgenteController {
         List<ListEspecialidadAgenteResponse> listEspecialidadAgenteResponses = agenteApp.listEspecialidades();
 
         return ResponseEntity.ok(listEspecialidadAgenteResponses);
+
+    }
+
+    /**
+     * Lista las obras sociales activas con los planes que el paciente puede declarar como
+     * cobertura (ECU-PAC-1 y ECU-PAC-2).
+     *
+     * @return {@code ResponseEntity<List<ListObraSocialAgenteResponse>>} las obras sociales con status 200
+     */
+    @GetMapping("/ObraSocial")
+    public ResponseEntity<List<ListObraSocialAgenteResponse>> listObrasSociales() {
+
+        log.info("Solicitud recibida: listar obras sociales");
+
+        List<ListObraSocialAgenteResponse> listObraSocialAgenteResponses = agenteApp.listObrasSociales();
+
+        return ResponseEntity.ok(listObraSocialAgenteResponses);
 
     }
 

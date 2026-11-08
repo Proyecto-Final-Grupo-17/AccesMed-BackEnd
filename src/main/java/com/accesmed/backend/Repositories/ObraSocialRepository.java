@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -68,5 +69,12 @@ public interface ObraSocialRepository extends JpaRepository<ObraSocial, UUID>, J
      * @return {@code Optional<ObraSocial>} la obra social activa, o vacío si no existe
      */
     Optional<ObraSocial> findByNombreIgnoreCaseAndDeletedAtIsNull(String nombre);
+
+    /**
+     * Lista las obras sociales activas ordenadas por nombre.
+     *
+     * @return {@code List<ObraSocial>} obras sociales activas
+     */
+    List<ObraSocial> findAllByDeletedAtIsNullOrderByNombreAsc();
 
 }

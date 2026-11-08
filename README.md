@@ -66,7 +66,7 @@ Detalle completo, criterios y fuentes en [`Docs/STACK.md`](Docs/STACK.md).
    (`ACCESMED_SUPERADMIN_MAIL`, con default, y `ACCESMED_SUPERADMIN_PASSWORD`, sin
    default): al arrancar, la app crea ese usuario si todavía no existe. Sin contraseña
    no lo crea y arranca igual, con un aviso en el log. Para cargar datos de demo
-   (médicos, prestaciones, agendas, pacientes y usuarios) ver
+   (médicos sin usuario, prestaciones, agendas y pacientes) ver
    `Scripts/seed-datos-demo.sql`.
 
    `MAIL_PASSWORD` **no** es la contraseña de la cuenta de Google: es una

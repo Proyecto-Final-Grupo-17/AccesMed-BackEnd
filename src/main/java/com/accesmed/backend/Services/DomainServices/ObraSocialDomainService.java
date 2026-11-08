@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -171,6 +172,20 @@ public class ObraSocialDomainService {
                     return new RecursoNoEncontradoException(getClass(), "OBRA_SOCIAL_NO_ENCONTRADA",
                             "No encontramos la obra social \"" + nombre + "\".");
                 });
+
+    }
+
+    /**
+     * Lista las obras sociales activas ordenadas por nombre.
+     *
+     * @return {@code List<ObraSocial>} obras sociales activas
+     */
+    public List<ObraSocial> findObrasSocialesActivas() {
+
+        log.debug("Listando obras sociales activas");
+
+        List<ObraSocial> obrasSocialesActivas = obraSocialRepository.findAllByDeletedAtIsNullOrderByNombreAsc();
+        return obrasSocialesActivas;
 
     }
 

@@ -8,8 +8,8 @@
 --     primera es siempre la consulta), indicaciones, obras sociales, planes
 --     (5 por obra social) y coberturas.
 --   PARTE 2 — PERSONAL
---     Médicos, asignación médico ↔ prestación, administradores, usuarios y
---     pacientes.
+--     Médicos, asignación médico ↔ prestación y pacientes. Sin usuarios ni
+--     administradores: los médicos quedan sin acceso al panel.
 --   PARTE 3 — AGENDAS
 --     Un período de agenda por médico, con sus horarios (slots) ya expandidos.
 --
@@ -38,25 +38,25 @@
 --   · Ningún paciente tiene dos veces el mismo plan; el teléfono y el DNI son
 --     únicos.
 --
--- Contraseñas: no hay ninguna escrita en este archivo, solo hashes bcrypt ya
--- calculados (compatibles con el BCryptPasswordEncoder de la app; ver 2.4).
--- El SuperAdmin NO se siembra acá: lo crea la app al arrancar
+-- Usuarios: el script no siembra ninguno (ni admins ni médicos). El único
+-- usuario es el SuperAdmin, que lo crea la app al arrancar
 -- (SuperAdminInicializador) con ACCESMED_SUPERADMIN_MAIL y
--- ACCESMED_SUPERADMIN_PASSWORD del entorno / .env.
+-- ACCESMED_SUPERADMIN_PASSWORD del entorno / .env; desde el panel se le asigna
+-- usuario a cada médico que lo necesite.
 --
 -- Datos para probar:
 --   · Reprogramación: Cardiología, Clínica Médica, Dermatología y Ginecología
 --     tienen dos médicos con exactamente las mismas prestaciones y horarios
 --     complementarios (uno de mañana, otro de tarde).
 --   · Schedulers: "Prestación Demo" con tolerancias de minutos (ver 1.3), su
---     médico demo (sin usuario) y agenda de 10 minutos durante hoy y los dos
+--     médico demo y agenda de 10 minutos durante hoy y los dos
 --     días siguientes.
 --
 -- Uso (perfil dev, ver docker/dev/docker-compose.yml):
 --   psql "postgresql://accesmed:accesmed@localhost:5432/accesmed" -f Scripts/seed-datos-demo.sql
 --
 -- Precondición: schema ya migrado por Liquibase (arrancar la app una vez), con
--- los roles de sistema "Medico" y "Admin" y la Clínica ya sembrados. Pensado para
+-- la Clínica ya sembrada. Pensado para
 -- una base dev vacía de estas tablas: si se corre dos veces, los UNIQUE rechazan
 -- la reinserción. Las agendas cubren 4 semanas desde el día en que se corre.
 -- ============================================================================
@@ -392,25 +392,25 @@ JOIN prestacion pr ON pr.codigo = spr.codigo;
 --   Una sola especialidad por médico. Cardiología, Clínica Médica,
 --   Dermatología y Ginecología tienen dos médicos (con las mismas
 --   prestaciones) para probar reprogramaciones. Ginecología es la
---   especialidad nueva. El médico demo no tiene usuario.
+--   especialidad nueva. Ningún médico tiene usuario.
 --   turno: 'M' = consulta de mañana y estudios de tarde; 'T' = al revés.
 --   dias: días de atención (1 = lunes ... 5 = viernes).
 --   factor: multiplica el precio base de la prestación.
 -- ====================================================================
 CREATE TEMP TABLE seed_medico ON COMMIT DROP AS
 SELECT * FROM (VALUES
-    ('MP-10234', '30123456', 'Juan',      'Pérez',     'juan.perez@accesmed.com',      '+54 11 4444-1001', 'CARD', 'M', ARRAY[1,2,3,4,5], 1.00, true),
-    ('MP-10456', '29876543', 'Lucía',     'Gómez',     'lucia.gomez@accesmed.com',     '+54 11 4444-1002', 'CLIN', 'M', ARRAY[1,2,3,4,5], 1.00, true),
-    ('MP-10789', '28456123', 'Martín',    'Ibarra',    'martin.ibarra@accesmed.com',   '+54 11 4444-1003', 'CLIN', 'T', ARRAY[1,2,3,4,5], 1.05, false),
-    ('MP-11023', '31567890', 'Sofía',     'Ramírez',   'sofia.ramirez@accesmed.com',   '+54 11 4444-1004', 'PED',  'M', ARRAY[1,2,3,4,5], 1.00, true),
-    ('MP-11345', '27890456', 'Federico',  'Suárez',    'federico.suarez@accesmed.com', '+54 11 4444-1005', 'DERM', 'M', ARRAY[1,3,5],     1.00, false),
-    ('MP-11678', '32234567', 'Valentina', 'Castro',    'valentina.castro@accesmed.com','+54 11 4444-1006', 'TRAU', 'T', ARRAY[1,2,3,4,5], 1.00, true),
-    ('MP-12011', '26345678', 'Ricardo',   'Molina',    'ricardo.molina@accesmed.com',  '+54 11 4444-1007', 'CARD', 'T', ARRAY[2,3,4,5],   1.10, false),
-    ('MP-12134', '33456789', 'Camila',    'Vega',      'camila.vega@accesmed.com',     '+54 11 4444-1008', 'DERM', 'T', ARRAY[2,4],       0.95, false),
-    ('MP-12277', '31890123', 'Mariana',   'Acosta',    'mariana.acosta@accesmed.com',  '+54 11 4444-1009', 'GINE', 'M', ARRAY[1,2,3,4,5], 1.00, true),
-    ('MP-12390', '32901234', 'Paula',     'Domínguez', 'paula.dominguez@accesmed.com', '+54 11 4444-1010', 'GINE', 'T', ARRAY[1,3,4,5],   1.05, false),
-    ('MP-DEMO',  '40000001', 'Médico',    'Demo',      'medico.demo@accesmed.com',     '+54 11 4444-1099', 'DEMO', 'M', ARRAY[1,2,3,4,5], 1.00, false)
-) AS t (matricula, dni, nombre, apellido, email, telefono, esp, turno, dias, factor, con_usuario);
+    ('MP-10234', '30123456', 'Juan',      'Pérez',     'juan.perez@accesmed.com',      '+54 11 4444-1001', 'CARD', 'M', ARRAY[1,2,3,4,5], 1.00),
+    ('MP-10456', '29876543', 'Lucía',     'Gómez',     'lucia.gomez@accesmed.com',     '+54 11 4444-1002', 'CLIN', 'M', ARRAY[1,2,3,4,5], 1.00),
+    ('MP-10789', '28456123', 'Martín',    'Ibarra',    'martin.ibarra@accesmed.com',   '+54 11 4444-1003', 'CLIN', 'T', ARRAY[1,2,3,4,5], 1.05),
+    ('MP-11023', '31567890', 'Sofía',     'Ramírez',   'sofia.ramirez@accesmed.com',   '+54 11 4444-1004', 'PED',  'M', ARRAY[1,2,3,4,5], 1.00),
+    ('MP-11345', '27890456', 'Federico',  'Suárez',    'federico.suarez@accesmed.com', '+54 11 4444-1005', 'DERM', 'M', ARRAY[1,3,5],     1.00),
+    ('MP-11678', '32234567', 'Valentina', 'Castro',    'valentina.castro@accesmed.com','+54 11 4444-1006', 'TRAU', 'T', ARRAY[1,2,3,4,5], 1.00),
+    ('MP-12011', '26345678', 'Ricardo',   'Molina',    'ricardo.molina@accesmed.com',  '+54 11 4444-1007', 'CARD', 'T', ARRAY[2,3,4,5],   1.10),
+    ('MP-12134', '33456789', 'Camila',    'Vega',      'camila.vega@accesmed.com',     '+54 11 4444-1008', 'DERM', 'T', ARRAY[2,4],       0.95),
+    ('MP-12277', '31890123', 'Mariana',   'Acosta',    'mariana.acosta@accesmed.com',  '+54 11 4444-1009', 'GINE', 'M', ARRAY[1,2,3,4,5], 1.00),
+    ('MP-12390', '32901234', 'Paula',     'Domínguez', 'paula.dominguez@accesmed.com', '+54 11 4444-1010', 'GINE', 'T', ARRAY[1,3,4,5],   1.05),
+    ('MP-DEMO',  '40000001', 'Médico',    'Demo',      'medico.demo@accesmed.com',     '+54 11 4444-1099', 'DEMO', 'M', ARRAY[1,2,3,4,5], 1.00)
+) AS t (matricula, dni, nombre, apellido, email, telefono, esp, turno, dias, factor);
 
 INSERT INTO medico (matricula, dni, nombre, apellido, email, numero_telefono, especialidad_id, created_at, created_by)
 SELECT sm.matricula, sm.dni, sm.nombre, sm.apellido, sm.email, sm.telefono, e.id, now(), 'seed-script'
@@ -433,68 +433,7 @@ JOIN prestacion p ON p.codigo = spr.codigo
 CROSS JOIN seed_ctx c;
 
 -- ====================================================================
--- 2.3) Admin
--- ====================================================================
-CREATE TEMP TABLE seed_admin ON COMMIT DROP AS
-SELECT * FROM (VALUES
-    ('Ana',    'Torres',  '33111222', 'ana.torres@accesmed.com'),
-    ('Carlos', 'Medina',  '34222333', 'carlos.medina@accesmed.com'),
-    ('Paula',  'Herrera', '35333444', 'paula.herrera@accesmed.com')
-) AS t (nombre, apellido, dni, email);
-
-INSERT INTO admin (nombre, apellido, dni, email, created_at, created_by)
-SELECT sa.nombre, sa.apellido, sa.dni, sa.email, now(), 'seed-script'
-FROM seed_admin sa;
-
--- ====================================================================
--- 2.4) Usuario y UsuarioRol
---   Solo se guardan hashes bcrypt (costo 10); las contraseñas no están en el
---   repositorio. El mail de acceso es el email de contacto de cada persona.
---   usuario.medico_id es UNIQUE y ck_usuario_medico_xor_admin exige medico_id
---   XOR admin_id: por eso el otro queda NULL. Todos los médicos con
---   con_usuario = true (ver 2.1) tienen que figurar acá, y viceversa.
--- ====================================================================
-CREATE TEMP TABLE seed_credencial ON COMMIT DROP AS
-SELECT * FROM (VALUES
-    ('juan.perez@accesmed.com',         '$2a$10$QrNewihcLT1mCSkY25aG8etoMDGIAfCdaJlIqvlmG1rQAVwb7gCGO'),
-    ('lucia.gomez@accesmed.com',        '$2a$10$yzOqP94tirvSKI3TZqA7YOom62sm808de3ItAhFeT9wevDBlK4eiG'),
-    ('sofia.ramirez@accesmed.com',      '$2a$10$qTQqhKIb3fbQX2LC4ktYWO5K2lWEc9XdR8FIpz41B4onLKJLNz/ue'),
-    ('valentina.castro@accesmed.com',   '$2a$10$pFamT7OBN/PC0SrWJorT3.4Mg6ceH/GER6.gP2B9iYdARrB5x9UNG'),
-    ('mariana.acosta@accesmed.com',     '$2a$10$hrUSgzfdRLwny2dpGq6y5OyowsQJ1p0RINp406/ERgn33Ep4UsFIq'),
-    ('ana.torres@accesmed.com',         '$2a$10$OZyzWvHkiK06CxMxaTh2aesIAgvEccX90BmAbBDXf8XhSzUKOzd0.'),
-    ('carlos.medina@accesmed.com',      '$2a$10$9THVvv3No9dr4NHRtijyT.RF4y6n3kcIaOCFNLyhdz7ZnEnQxuzq6'),
-    ('paula.herrera@accesmed.com',      '$2a$10$EmjTCWIruLlTtvj2g4Ne2OeyK8.KP9S2bXhV7PwoNjukIBUb8YvOm')
-) AS t (mail, password_hash);
-
-WITH usuario_admin AS (
-    INSERT INTO usuario (mail, password_hash, admin_id, created_at, created_by)
-    SELECT a.email, sc.password_hash, a.id, now(), 'seed-script'
-    FROM seed_admin sa
-    JOIN admin a ON a.dni = sa.dni
-    JOIN seed_credencial sc ON sc.mail = a.email
-    RETURNING id
-)
-INSERT INTO usuario_rol (fecha_inicio_vigencia, usuario_id, rol_id, created_at, created_by)
-SELECT now(), ua.id, r.id, now(), 'seed-script'
-FROM usuario_admin ua
-JOIN rol r ON r.nombre = 'Admin' AND r.deleted_at IS NULL;
-
-WITH usuario_medico AS (
-    INSERT INTO usuario (mail, password_hash, medico_id, created_at, created_by)
-    SELECT m.email, sc.password_hash, m.id, now(), 'seed-script'
-    FROM seed_medico sm
-    JOIN medico m ON m.matricula = sm.matricula
-    JOIN seed_credencial sc ON sc.mail = m.email
-    WHERE sm.con_usuario
-    RETURNING id
-)
-INSERT INTO usuario_rol (fecha_inicio_vigencia, usuario_id, rol_id, created_at, created_by)
-SELECT now(), um.id, r.id, now(), 'seed-script'
-FROM usuario_medico um
-JOIN rol r ON r.nombre = 'Medico' AND r.deleted_at IS NULL;
-
--- ====================================================================
--- 2.5) Paciente y ObraSocialPaciente
+-- 2.3) Paciente y ObraSocialPaciente
 --   20 pacientes: 15 con un plan Publicado (repartidos entre las 6 obras
 --   sociales y distintos niveles de plan) y 5 sin obra social (se atienden
 --   como particulares). El teléfono va en formato internacional, como llega
@@ -639,8 +578,11 @@ WHERE m.matricula = 'MP-DEMO'
 -- ############################################################################
 DO $$
 BEGIN
-    ASSERT (SELECT count(*) FROM usuario WHERE created_by = 'seed-script') = 8,
-        'Se esperaban 8 usuarios (5 médicos y 3 admins): revisar seed_credencial';
+    ASSERT NOT EXISTS (SELECT 1 FROM usuario WHERE created_by = 'seed-script')
+       AND NOT EXISTS (SELECT 1 FROM admin WHERE created_by = 'seed-script'),
+        'El seed no debe crear usuarios ni admins';
+    ASSERT (SELECT count(*) FROM medico WHERE created_by = 'seed-script') = 11,
+        'Se esperaban 11 médicos (10 reales y el demo)';
     ASSERT (SELECT count(*) FROM paciente WHERE created_by = 'seed-script') = 20,
         'Se esperaban 20 pacientes';
     ASSERT (SELECT count(*) FROM paciente p WHERE p.created_by = 'seed-script'
