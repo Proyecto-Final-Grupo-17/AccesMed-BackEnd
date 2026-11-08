@@ -81,6 +81,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -287,7 +288,7 @@ public class AgenteApp {
         Paciente pacienteExistente = pacienteDomainService.findPacienteActivoByNumeroTelefono(numeroTelefono);
 
         //Validar que no tenga turnos vivos
-        turnoDomainService.validateSinTurnosVivosDePaciente(pacienteExistente.getId());
+        turnoDomainService.validateSinTurnosVivosDePaciente(pacienteExistente.getId(), clinicaDomainService.findZonaHorariaClinica());
 
         //Dar de baja
         pacienteDomainService.softDeletePaciente(pacienteExistente, "Baja solicitada por el paciente desde el chatbot");
@@ -569,7 +570,7 @@ public class AgenteApp {
         historicoEstadoTurnoDomainService.setEstadoInicialTurno(turnoGuardado, estadoInicial);
 
         //Mapear y devolver
-        CreateTurnoAgenteResponse createTurnoAgenteResponse = agenteMapper.toCreateTurnoResponse(turnoGuardado, estadoInicial);
+        CreateTurnoAgenteResponse createTurnoAgenteResponse = agenteMapper.toCreateTurnoResponse(turnoGuardado, estadoInicial, clinicaDomainService.findZonaHorariaClinica());
 
         applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.REGISTRADO, turnoGuardado));
         return createTurnoAgenteResponse;
@@ -608,8 +609,9 @@ public class AgenteApp {
         log.debug("Listado de turnos por canal: {} de {} turnos dentro de plazo para {}",
                 turnosEnPlazo.size(), turnosDelPaciente.size(), accionTurnoAgente);
 
+        ZoneId zonaHorariaClinica = clinicaDomainService.findZonaHorariaClinica();
         List<ListTurnoAgenteResponse> listTurnoAgenteResponses = turnosEnPlazo.stream()
-                .map(turno -> agenteMapper.toListTurnoResponse(turno, estadosVigentes.get(turno.getId())))
+                .map(turno -> agenteMapper.toListTurnoResponse(turno, estadosVigentes.get(turno.getId()), zonaHorariaClinica))
                 .toList();
         return listTurnoAgenteResponses;
 
@@ -790,7 +792,7 @@ public class AgenteApp {
 
         //Mapear y devolver
         ReprogramTurnoAgenteResponse reprogramTurnoAgenteResponse =
-                agenteMapper.toReprogramTurnoResponse(turnoNuevoGuardado, estadoInicial);
+                agenteMapper.toReprogramTurnoResponse(turnoNuevoGuardado, estadoInicial, clinicaDomainService.findZonaHorariaClinica());
 
         applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.REPROGRAMADO, turnoNuevoGuardado));
         return reprogramTurnoAgenteResponse;
@@ -830,7 +832,7 @@ public class AgenteApp {
         applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.CONFIRMADO, turnoExistente));
 
         ConfirmTurnoAgenteResponse confirmTurnoAgenteResponse =
-                agenteMapper.toConfirmTurnoResponse(turnoExistente, EstadoTurno.CONFIRMADO);
+                agenteMapper.toConfirmTurnoResponse(turnoExistente, EstadoTurno.CONFIRMADO, clinicaDomainService.findZonaHorariaClinica());
         return confirmTurnoAgenteResponse;
 
     }

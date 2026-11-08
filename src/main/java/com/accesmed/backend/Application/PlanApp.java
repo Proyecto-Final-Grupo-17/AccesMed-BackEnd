@@ -18,6 +18,7 @@ import com.accesmed.backend.Services.DomainServices.ObraSocialPacienteDomainServ
 import com.accesmed.backend.Services.DomainServices.ObraSocialPlanPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.PlanDomainService;
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
@@ -49,6 +50,7 @@ public class PlanApp {
     private final ObraSocialDomainService obraSocialDomainService;
     private final HistoricoEstadoPlanDomainService historicoEstadoPlanDomainService;
     private final TurnoDomainService turnoDomainService;
+    private final ClinicaDomainService clinicaDomainService;
     private final ObraSocialPacienteDomainService obraSocialPacienteDomainService;
     private final ObraSocialPlanPrestacionDomainService obraSocialPlanPrestacionDomainService;
     private final PrestacionDomainService prestacionDomainService;
@@ -212,7 +214,7 @@ public class PlanApp {
         log.info("Deshabilitación de plan iniciada: id={}", id);
 
         //Validar que no tenga turnos vivos cubiertos
-        turnoDomainService.validateSinTurnosVivosDePlan(id);
+        turnoDomainService.validateSinTurnosVivosDePlan(id, clinicaDomainService.findZonaHorariaClinica());
 
         //Dar de baja las ObraSocialPaciente que referencian el plan (A5, paso 2)
         obraSocialPacienteDomainService.softDeleteByPlan(id, "Baja de plan");

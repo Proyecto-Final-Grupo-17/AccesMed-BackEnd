@@ -43,6 +43,7 @@ import com.accesmed.backend.Services.DomainServices.HistoricoEstadoPrestacionDom
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionTurnoDomainService;
 import com.accesmed.backend.Services.DomainServices.ObraSocialPacienteDomainService;
 import com.accesmed.backend.Services.DomainServices.ObraSocialPlanPrestacionDomainService;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
@@ -73,6 +74,7 @@ public class TurnoApp {
     //region ========== Dependencias o inyecciones ==========
 
     private final TurnoDomainService turnoDomainService;
+    private final ClinicaDomainService clinicaDomainService;
     private final AdminDomainService adminDomainService;
     private final HistoricoEstadoTurnoDomainService historicoEstadoTurnoDomainService;
     private final AgendaHorariosDiaDomainService agendaHorariosDiaDomainService;
@@ -538,7 +540,7 @@ public class TurnoApp {
             log.warn("No se pudo registrar sala de espera para turno {}: llegada anticipada al horario del turno", id);
             throw new ReglaNegocioException(getClass(), "TURNO_ANUNCIO_ANTICIPADO",
                     "Todavía no es posible registrar la llegada del paciente. El turno es el "
-                            + FormatoMensaje.fechaHora(turnoExistente.getFechaHoraInicio()) + ".");
+                            + FormatoMensaje.fechaHora(turnoExistente.getFechaHoraInicio(), clinicaDomainService.findZonaHorariaClinica()) + ".");
         }
         if (ahora.isAfter(turnoExistente.getFechaLimiteAnuncioTardio())) {
             log.warn("No se pudo registrar sala de espera para turno {}: plazo de llegada vencido", id);
@@ -589,7 +591,7 @@ public class TurnoApp {
             log.warn("No se pudo iniciar atención para turno {}: demasiado anticipado al horario del turno", id);
             throw new ReglaNegocioException(getClass(), "TURNO_ATENCION_ANTICIPADA",
                     "Todavía no es posible iniciar la atención. El turno es el "
-                            + FormatoMensaje.fechaHora(turnoExistente.getFechaHoraInicio()) + ".");
+                            + FormatoMensaje.fechaHora(turnoExistente.getFechaHoraInicio(), clinicaDomainService.findZonaHorariaClinica()) + ".");
         }
 
         historicoEstadoTurnoDomainService.transitionEnSalaDeEsperaToEnCursoTurno(turnoExistente);

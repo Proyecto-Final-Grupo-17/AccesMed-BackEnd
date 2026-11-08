@@ -2,13 +2,13 @@ package com.accesmed.backend.Records.Agente.Response;
 
 import com.accesmed.backend.Domain.EstadoTurno;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 
 /**
  * Turno del paciente para el listado del canal (cancelar, reprogramar, confirmar).
  *
  * @param codigo {@code String} código del turno
- * @param fechaHoraInicio {@code ZonedDateTime} fecha y hora de inicio
+ * @param fechaHoraInicio {@code LocalDateTime} fecha y hora de inicio en la zona horaria de la clínica (sin zona: es la hora que ve el paciente)
  * @param nombrePrestacion {@code String} nombre de la prestación
  * @param nombreMedico {@code String} nombre del médico
  * @param apellidoMedico {@code String} apellido del médico
@@ -17,7 +17,7 @@ import java.time.ZonedDateTime;
  */
 public record ListTurnoAgenteResponse(
         String codigo,
-        ZonedDateTime fechaHoraInicio,
+        LocalDateTime fechaHoraInicio,
         String nombrePrestacion,
         String nombreMedico,
         String apellidoMedico,

@@ -290,7 +290,7 @@ public class PrestacionApp {
         log.info("Deshabilitación de prestación iniciada: id={}", id);
 
         //Validar que no tenga turnos vivos
-        turnoDomainService.validateSinTurnosVivos(id);
+        turnoDomainService.validateSinTurnosVivos(id, clinicaDomainService.findZonaHorariaClinica());
 
         //Validar que no tenga agenda futura ocupada
         agendaHorariosDiaDomainService.validateSinAgendaFuturaOcupada(id);

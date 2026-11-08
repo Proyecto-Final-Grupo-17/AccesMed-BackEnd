@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -41,10 +42,11 @@ public class TurnoDomainService {
      * Precondición real de la baja restrictiva de deshabilitar una prestación.
      *
      * @param prestacionId {@code UUID} identificador de la prestación a validar
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, para mostrar la fecha del último turno
      * @throws ReglaNegocioException {@code ReglaNegocioException} si hay turnos vivos de
      *         esa prestación
      */
-    public void validateSinTurnosVivos(UUID prestacionId) {
+    public void validateSinTurnosVivos(UUID prestacionId, ZoneId zonaHorariaClinica) {
 
         long turnosVivos = turnoRepository.countByPrestacionIdAndEstadoVigenteNotIn(prestacionId, EstadoTurno.FINALES);
 
@@ -56,7 +58,7 @@ public class TurnoDomainService {
                     prestacionId, turnosVivos, fechaMaxima);
             throw new ReglaNegocioException(getClass(), "PRESTACION_CON_TURNOS_VIVOS",
                     "No se puede deshabilitar la prestación porque tiene " + turnosVivos
-                            + " turno(s) pendiente(s); el último es el " + FormatoMensaje.fechaHora(fechaMaxima)
+                            + " turno(s) pendiente(s); el último es el " + FormatoMensaje.fechaHora(fechaMaxima, zonaHorariaClinica)
                             + ". Cancelá o reprogramá esos turnos primero.");
         }
 
@@ -67,10 +69,11 @@ public class TurnoDomainService {
      * Precondición real de la baja restrictiva de deshabilitar un plan.
      *
      * @param planId {@code UUID} identificador del plan a validar
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, para mostrar la fecha del último turno
      * @throws ReglaNegocioException {@code ReglaNegocioException} si hay turnos vivos
      *         cubiertos por ese plan
      */
-    public void validateSinTurnosVivosDePlan(UUID planId) {
+    public void validateSinTurnosVivosDePlan(UUID planId, ZoneId zonaHorariaClinica) {
 
         long turnosVivos = turnoRepository.countByPlanIdAndEstadoVigenteNotIn(planId, EstadoTurno.FINALES);
 
@@ -82,7 +85,7 @@ public class TurnoDomainService {
                     planId, turnosVivos, fechaMaxima);
             throw new ReglaNegocioException(getClass(), "PLAN_CON_TURNOS_VIVOS",
                     "No se puede deshabilitar el plan porque tiene " + turnosVivos + " turno(s) pendiente(s); el último es el "
-                            + FormatoMensaje.fechaHora(fechaMaxima) + ". Cancelá o reprogramá esos turnos primero.");
+                            + FormatoMensaje.fechaHora(fechaMaxima, zonaHorariaClinica) + ". Cancelá o reprogramá esos turnos primero.");
         }
 
     }
@@ -92,10 +95,11 @@ public class TurnoDomainService {
      * real de la baja restrictiva de un médico.
      *
      * @param medicoId {@code UUID} identificador del médico a validar
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, para mostrar la fecha del último turno
      * @throws ReglaNegocioException {@code ReglaNegocioException} si hay turnos vivos de
      *         ese médico
      */
-    public void validateSinTurnosVivosDeMedico(UUID medicoId) {
+    public void validateSinTurnosVivosDeMedico(UUID medicoId, ZoneId zonaHorariaClinica) {
 
         long turnosVivos = turnoRepository.countByMedicoIdAndEstadoVigenteNotIn(medicoId, EstadoTurno.FINALES);
 
@@ -107,7 +111,7 @@ public class TurnoDomainService {
                     medicoId, turnosVivos, fechaMaxima);
             throw new ReglaNegocioException(getClass(), "MEDICO_CON_TURNOS_VIVOS",
                     "No se puede dar de baja al médico porque tiene " + turnosVivos
-                            + " turno(s) pendiente(s); el último es el " + FormatoMensaje.fechaHora(fechaMaxima)
+                            + " turno(s) pendiente(s); el último es el " + FormatoMensaje.fechaHora(fechaMaxima, zonaHorariaClinica)
                             + ". Cancelá o reprogramá esos turnos primero.");
         }
 
@@ -118,10 +122,11 @@ public class TurnoDomainService {
      * real de la baja restrictiva de un paciente.
      *
      * @param pacienteId {@code UUID} identificador del paciente a validar
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, para mostrar la fecha del último turno
      * @throws ReglaNegocioException {@code ReglaNegocioException} si hay turnos vivos de
      *         ese paciente
      */
-    public void validateSinTurnosVivosDePaciente(UUID pacienteId) {
+    public void validateSinTurnosVivosDePaciente(UUID pacienteId, ZoneId zonaHorariaClinica) {
 
         long turnosVivos = turnoRepository.countByPacienteIdAndEstadoVigenteNotIn(pacienteId, EstadoTurno.FINALES);
 
@@ -133,7 +138,7 @@ public class TurnoDomainService {
                     pacienteId, turnosVivos, fechaMaxima);
             throw new ReglaNegocioException(getClass(), "PACIENTE_CON_TURNOS_VIVOS",
                     "No se puede dar de baja al paciente porque tiene " + turnosVivos
-                            + " turno(s) pendiente(s); el último es el " + FormatoMensaje.fechaHora(fechaMaxima)
+                            + " turno(s) pendiente(s); el último es el " + FormatoMensaje.fechaHora(fechaMaxima, zonaHorariaClinica)
                             + ". Cancelá o reprogramá esos turnos primero.");
         }
 

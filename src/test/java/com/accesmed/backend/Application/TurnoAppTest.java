@@ -13,10 +13,12 @@ import com.accesmed.backend.Records.Turno.Response.StartAtencionTurnoResponse;
 import com.accesmed.backend.Records.Turno.Response.StartSalaDeEsperaTurnoResponse;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import java.math.BigDecimal;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import com.accesmed.backend.Services.DomainServices.AgendaHorariosDiaDomainService;
 import com.accesmed.backend.Services.DomainServices.HistoricoEstadoTurnoDomainService;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionTurnoDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoPrestacionDomainService;
@@ -86,6 +88,8 @@ class TurnoAppTest {
     private FabricaEstrategiaCalcularMontoAPagarTurno fabricaEstrategiaCalcularMontoAPagarTurno;
     @Mock
     private TurnoMapper turnoMapper;
+    @Mock
+    private ClinicaDomainService clinicaDomainService;
     @Mock
     private ApplicationEventPublisher applicationEventPublisher;
     @Mock
@@ -280,6 +284,8 @@ class TurnoAppTest {
         turnoExistente.setFechaLimiteAnuncioTemprano(ZonedDateTime.now().plusHours(2));
 
         when(turnoDomainService.findTurnoById(turnoId)).thenReturn(turnoExistente);
+        //El mensaje de error muestra la hora del turno en la zona de la clínica
+        when(clinicaDomainService.findZonaHorariaClinica()).thenReturn(ZoneId.of("America/Argentina/Buenos_Aires"));
 
         assertThrows(ReglaNegocioException.class,
                 () -> turnoApp.startSalaDeEsperaTurno(turnoId, usuarioDetails));
@@ -306,6 +312,8 @@ class TurnoAppTest {
         turnoExistente.setFechaLimiteAnuncioTemprano(ZonedDateTime.now().plusHours(2));
 
         when(turnoDomainService.findTurnoById(turnoId)).thenReturn(turnoExistente);
+        //El mensaje de error muestra la hora del turno en la zona de la clínica
+        when(clinicaDomainService.findZonaHorariaClinica()).thenReturn(ZoneId.of("America/Argentina/Buenos_Aires"));
         //Estado correcto para que el check temporal sea el que dispare el error
         when(historicoEstadoTurnoDomainService.getEstadoVigente(turnoId))
                 .thenReturn(EstadoTurno.EN_SALA_DE_ESPERA);

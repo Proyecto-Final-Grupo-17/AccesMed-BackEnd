@@ -216,7 +216,7 @@ public class MedicoApp {
         Medico medicoExistente = medicoDomainService.findMedicoActivoById(id);
 
         //Validar que no tenga turnos vivos
-        turnoDomainService.validateSinTurnosVivosDeMedico(id);
+        turnoDomainService.validateSinTurnosVivosDeMedico(id, clinicaDomainService.findZonaHorariaClinica());
 
         //Dar de baja
         medicoDomainService.softDeleteMedico(medicoExistente, "Baja de médico");

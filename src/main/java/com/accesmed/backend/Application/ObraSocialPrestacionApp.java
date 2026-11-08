@@ -11,6 +11,7 @@ import com.accesmed.backend.Records.ObraSocialPrestacion.Response.UpdateObraSoci
 import com.accesmed.backend.Services.DomainServices.ObraSocialPlanPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.PlanDomainService;
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
@@ -42,6 +43,7 @@ public class ObraSocialPrestacionApp {
     private final PlanDomainService planDomainService;
     private final PrestacionDomainService prestacionDomainService;
     private final TurnoDomainService turnoDomainService;
+    private final ClinicaDomainService clinicaDomainService;
     private final ObraSocialPlanPrestacionMapper obraSocialPlanPrestacionMapper;
 
     //endregion
@@ -139,7 +141,7 @@ public class ObraSocialPrestacionApp {
                     id, planId, prestacionId, fechaMaximaTurnoVivo.get());
             throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_PLAN_PRESTACION_CON_TURNOS_VIVOS",
                     "No se puede quitar la prestación del plan porque hay turnos pendientes con esa cobertura; el último es el "
-                            + FormatoMensaje.fechaHora(fechaMaximaTurnoVivo.get()) + ". Cancelá o reprogramá esos turnos primero.");
+                            + FormatoMensaje.fechaHora(fechaMaximaTurnoVivo.get(), clinicaDomainService.findZonaHorariaClinica()) + ". Cancelá o reprogramá esos turnos primero.");
         }
 
         //Dar de baja
