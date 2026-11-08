@@ -102,6 +102,33 @@ class HistoricoEstadoTurnoDomainServiceTest {
         verify(historicoEstadoTurnoRepository, never()).save(any());
     }
 
+    // region ========== transitionConfirmadoToEnCursoTurno ==========
+
+    @Test
+    void transitionConfirmadoToEnCursoTurno_estadoVigenteEsCONFIRMADO_transicionaSinExcepcion() {
+        when(historicoEstadoTurnoRepository.findByTurno_IdAndFechaHoraFinIsNull(turnoId))
+                .thenReturn(Optional.of(mockHistoricoEstadoTurno(EstadoTurno.CONFIRMADO)));
+
+        assertDoesNotThrow(() -> historicoEstadoTurnoDomainService.transitionConfirmadoToEnCursoTurno(turno));
+
+        verify(historicoEstadoTurnoRepository, times(2))
+                .findByTurno_IdAndFechaHoraFinIsNull(turnoId);
+        verify(historicoEstadoTurnoRepository).saveAndFlush(any(HistoricoEstadoTurno.class));
+        verify(historicoEstadoTurnoRepository).save(any(HistoricoEstadoTurno.class));
+    }
+
+    @Test
+    void transitionConfirmadoToEnCursoTurno_estadoVigenteNoEsCONFIRMADO_lanzaReglaNegocioException() {
+        when(historicoEstadoTurnoRepository.findByTurno_IdAndFechaHoraFinIsNull(turnoId))
+                .thenReturn(Optional.of(mockHistoricoEstadoTurno(EstadoTurno.EN_SALA_DE_ESPERA)));
+
+        assertThrows(ReglaNegocioException.class,
+                () -> historicoEstadoTurnoDomainService.transitionConfirmadoToEnCursoTurno(turno));
+
+        verify(historicoEstadoTurnoRepository, never()).saveAndFlush(any());
+        verify(historicoEstadoTurnoRepository, never()).save(any());
+    }
+
     // region ========== transitionEnSalaDeEsperaToEnCursoTurno ==========
 
     @Test
