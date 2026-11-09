@@ -3,6 +3,8 @@ package com.accesmed.backend.Records.Chatwoot.Request;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import tools.jackson.databind.JsonNode;
+
 import java.util.List;
 
 /**
@@ -19,6 +21,8 @@ import java.util.List;
  * @param conversation {@code ConversacionChatwootRequest} conversación del mensaje
  * @param sender {@code RemitenteChatwootRequest} contacto que escribió
  * @param attachments {@code List<AdjuntoChatwootRequest>} adjuntos del mensaje (vacía o {@code null} si no trae)
+ * @param createdAt {@code JsonNode} momento en que Chatwoot creó el mensaje; llega como epoch numérico o como
+ *        texto ISO, por eso se mapea sin tipo fijo (solo sirve para el log de latencia)
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ReceiveMensajeChatwootRequest(
@@ -44,7 +48,10 @@ public record ReceiveMensajeChatwootRequest(
         RemitenteChatwootRequest sender,
 
         @JsonProperty("attachments")
-        List<AdjuntoChatwootRequest> attachments
+        List<AdjuntoChatwootRequest> attachments,
+
+        @JsonProperty("created_at")
+        JsonNode createdAt
 
 ) {
 }

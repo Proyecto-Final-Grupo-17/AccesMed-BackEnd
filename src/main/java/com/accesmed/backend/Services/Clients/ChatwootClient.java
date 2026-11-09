@@ -2,19 +2,23 @@ package com.accesmed.backend.Services.Clients;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Cliente HTTP de la API de Chatwoot: responde mensajes del bot y deriva la conversación a una
- * persona. Autentica con el header {@code api_access_token}.
+ * Cliente HTTP de la API de Chatwoot: responde mensajes (texto y notas de voz) del bot, deja notas
+ * privadas, descarga los adjuntos del paciente y deriva la conversación a una persona. Autentica con
+ * el header {@code api_access_token}.
  */
 @Slf4j
 @Component
@@ -46,7 +50,10 @@ public class ChatwootClient {
             @Value("${accesmed.chatwoot.api-token}") String apiToken) {
 
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder().connectTimeout(TIMEOUT_CONEXION).build());
+                HttpClient.newBuilder()
+                        .connectTimeout(TIMEOUT_CONEXION)
+                        .followRedirects(HttpClient.Redirect.NORMAL)
+                        .build());
         requestFactory.setReadTimeout(TIMEOUT_LECTURA);
 
         this.restClient = RestClient.builder()
@@ -77,6 +84,80 @@ public class ChatwootClient {
                 .body(Map.of("content", contenido, "message_type", "outgoing", "private", false))
                 .retrieve()
                 .toBodilessEntity();
+
+    }
+
+    /**
+     * Envía una nota privada (solo la ve el equipo) a una conversación.
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     * @param texto {@code String} texto de la nota
+     * @throws org.springframework.web.client.RestClientException si Chatwoot no responde o devuelve error
+     */
+    public void sendNotaPrivadaChatwoot(long conversationId, String texto) {
+
+        log.debug("Enviando nota privada a la conversación de Chatwoot: id={}", conversationId);
+
+        restClient.post()
+                .uri("/api/v1/accounts/{accountId}/conversations/{conversationId}/messages", accountId, conversationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("content", texto, "message_type", "outgoing", "private", true))
+                .retrieve()
+                .toBodilessEntity();
+
+    }
+
+    /**
+     * Envía un audio saliente (nota de voz, visible para el paciente) a una conversación. Va sin
+     * {@code content}: WhatsApp no manda pie de texto en los audios.
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     * @param audio {@code byte[]} audio en formato OGG/Opus
+     * @param nombreArchivo {@code String} nombre del archivo adjunto (ej. {@code respuesta.ogg})
+     * @throws org.springframework.web.client.RestClientException si Chatwoot no responde o devuelve error
+     */
+    public void sendAudioChatwoot(long conversationId, byte[] audio, String nombreArchivo) {
+
+        log.debug("Enviando audio a la conversación de Chatwoot: id={}, bytes={}", conversationId, audio.length);
+
+        ByteArrayResource archivoAudio = new ByteArrayResource(audio) {
+            @Override
+            public String getFilename() {
+                return nombreArchivo;
+            }
+        };
+        MultipartBodyBuilder cuerpoMultipart = new MultipartBodyBuilder();
+        cuerpoMultipart.part("attachments[]", archivoAudio).contentType(MediaType.parseMediaType("audio/ogg"));
+        cuerpoMultipart.part("message_type", "outgoing");
+        cuerpoMultipart.part("private", "false");
+
+        restClient.post()
+                .uri("/api/v1/accounts/{accountId}/conversations/{conversationId}/messages", accountId, conversationId)
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(cuerpoMultipart.build())
+                .retrieve()
+                .toBodilessEntity();
+
+    }
+
+    /**
+     * Descarga el archivo de un adjunto del paciente. La URL de Chatwoot (ActiveStorage) redirige al
+     * archivo, por eso el cliente sigue redirecciones; también manda el {@code api_access_token}, por
+     * si la URL lo pide.
+     *
+     * @param dataUrl {@code String} URL absoluta del adjunto ({@code data_url} del webhook)
+     * @return {@code byte[]} el contenido del archivo
+     * @throws org.springframework.web.client.RestClientException si Chatwoot no responde o devuelve error
+     */
+    public byte[] downloadAdjuntoChatwoot(String dataUrl) {
+
+        log.debug("Descargando adjunto de Chatwoot");
+
+        byte[] contenidoAdjunto = restClient.get()
+                .uri(URI.create(dataUrl))
+                .retrieve()
+                .body(byte[].class);
+        return contenidoAdjunto;
 
     }
 

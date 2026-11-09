@@ -77,9 +77,10 @@ Estas convenciones se aplican SIEMPRE. El detalle y ejemplos están en `Docs/ARQ
   (`SecurityFilterChainConfig`) vive en `Security/Config/`.
 
 **Servicios externos y canal chatbot:** `Services/Clients` tiene los clientes HTTP salientes
-(`ChatwootClient`, `FlowiseClient`, sobre `RestClient`); `Services/ExternalServices` tiene la
+(`ChatwootClient`, `FlowiseClient`, `OpenAiClient`, sobre `RestClient`); `Services/ExternalServices` tiene la
 lógica de integración con cada servicio externo (`ChatwootService`: horario de atención, antispam,
-bienvenida, sesión/variables de Flowise, tokens de la respuesta). El agente de WhatsApp entra por
+bienvenida, sesión/variables de Flowise, tokens de la respuesta; `OpenAiService`: transcripción de los
+audios del paciente y voz de la respuesta, apagado sin API key). El agente de WhatsApp entra por
 `Controllers/AgenteController` + `Application/AgenteApp` (records en `Records/Agente`) y el
 webhook de Chatwoot por `ChatwootController` + `ChatwootApp`, que solo orquesta
 (diseño en `Docs/Diseno-Chatbot.md §2`). **Ningún `App` llama a otro `App`**:
@@ -187,7 +188,8 @@ es obligatoria en `staging`/`prod` y en `dev` vale `accesmed` por defecto; las d
 (`ACCESMED_AGENTE_API_KEY`, `ACCESMED_CHATWOOT_API_TOKEN`, `ACCESMED_FLOWISE_CHATFLOW_ID`) no tienen
 default y también van en `docker/deploy`; `ACCESMED_CHATWOOT_WEBHOOK_SECRET` y
 `ACCESMED_FLOWISE_API_KEY` son opcionales (vacío = no se verifica la firma / no se manda
-`Authorization`); el health
+`Authorization`); `ACCESMED_OPENAI_API_KEY` también es opcional (vacía = audio apagado, el canal sigue solo
+con texto; puede ser la misma key de OpenAI que usa Flowise) y va en `docker/deploy`; el health
 queda público porque lo usa el healthcheck del contenedor. Los datos de demo se cargan con
 `Scripts/seed-datos-demo.sql`, que no siembra usuarios (el único es el SuperAdmin).
 
