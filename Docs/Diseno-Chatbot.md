@@ -1179,8 +1179,9 @@ reintento sale una sola vez (la segunda verificación de la tanda, el agente reh
 `getPaciente`, `getClinica` y `listObraSocial` no avisan (son rápidas). Sin tanda abierta (una llamada
 desde la UI de Flowise o sin el header `X-Paciente-Telefono`) no se avisa.
 
-Si el paciente habló por audio, el aviso inicial y la bienvenida salen con su **audio fijo** (§5.9) y el
-texto según `accesmed.audio.respuesta-con-texto`; los avisos de herramienta siguen solo en texto.
+Si el paciente habló por audio, el aviso inicial y la bienvenida salen con su **audio fijo** (§5.9). La
+bienvenida suma el texto según `accesmed.audio.respuesta-con-texto`; el aviso inicial en audio **reemplaza**
+al texto (el texto sale solo si el audio no se pudo mandar). Los avisos de herramienta siguen solo en texto.
 
 #### 3.4.7 Documentos (D20)
 
@@ -1743,7 +1744,8 @@ se generan con `Scripts/generar-audios-fijos.py`.
   `OpenAiService` carga los archivos en memoria al arrancar (enum `AudioFijo`); si falta la carpeta o un
   archivo, `log.warn` y ese caso sale en texto (nunca falla el arranque). Con el audio apagado (sin API
   key) no se cargan.
-- **Texto:** se sigue mandando según `accesmed.audio.respuesta-con-texto`, igual que con la voz sintetizada.
+- **Texto:** se sigue mandando según `accesmed.audio.respuesta-con-texto`, igual que con la voz sintetizada,
+  salvo el aviso de espera: en audio reemplaza al texto.
   La bienvenida de texto lleva nombre, clínica y horario; el audio no (un audio grabado no se actualiza solo).
 - **Despedida y derivación:** reemplazan la síntesis de esa respuesta; sin el archivo sale solo el texto
   (no se sintetiza).

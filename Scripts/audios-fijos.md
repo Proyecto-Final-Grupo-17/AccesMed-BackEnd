@@ -32,7 +32,7 @@ El script lee las líneas con el formato `- \`archivo\`: texto`.
 | Archivo | Cuándo |
 |---|---|
 | `bienvenida.ogg` | Primer mensaje de la ventana, si es un audio |
-| `espera.ogg` | Aviso inicial de la tanda, si el mensaje que la abre es un audio |
+| `espera.ogg` | Aviso inicial de la tanda, si el mensaje que la abre es un audio. Reemplaza al texto |
 | `despedida.ogg` | Respuesta con `—FIN—` |
 | `derivacion.ogg` | Respuesta con `—HANDOFF—` |
 | `audio-no-entendido.ogg` | El audio no se pudo transcribir |
