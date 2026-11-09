@@ -1,5 +1,6 @@
 package com.accesmed.backend.Records.Agente.Response;
 
+import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.CoberturaAfirmada;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.CotizacionAfirmada;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.DisponibilidadAfirmada;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.EspecialidadAfirmada;
@@ -24,6 +25,7 @@ import java.util.List;
  * @param turnos {@code List<ItemVerificado<TurnoAfirmado>>} veredicto por turno
  * @param cotizaciones {@code List<ItemVerificado<CotizacionAfirmada>>} veredicto por cotización
  * @param obrasSociales {@code List<ItemVerificado<ObraSocialAfirmada>>} veredicto por obra social
+ * @param coberturas {@code List<ItemVerificado<CoberturaAfirmada>>} veredicto por cobertura
  */
 public record VerifyRespuestaAgenteResponse(
         boolean verdadero,
@@ -34,7 +36,8 @@ public record VerifyRespuestaAgenteResponse(
         List<ItemVerificado<DisponibilidadAfirmada>> disponibilidad,
         List<ItemVerificado<TurnoAfirmado>> turnos,
         List<ItemVerificado<CotizacionAfirmada>> cotizaciones,
-        List<ItemVerificado<ObraSocialAfirmada>> obrasSociales
+        List<ItemVerificado<ObraSocialAfirmada>> obrasSociales,
+        List<ItemVerificado<CoberturaAfirmada>> coberturas
 ) {
 
     /**

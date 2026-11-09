@@ -20,6 +20,7 @@ import java.util.List;
  * @param turnos {@code List<TurnoAfirmado>} turnos del paciente nombrados
  * @param cotizaciones {@code List<CotizacionAfirmada>} montos y coberturas informados
  * @param obrasSociales {@code List<ObraSocialAfirmada>} obras sociales y planes nombrados
+ * @param coberturas {@code List<CoberturaAfirmada>} "cubre" / "no cubre" una prestación un plan
  */
 public record VerifyRespuestaAgenteRequest(
         List<EspecialidadAfirmada> especialidades,
@@ -29,7 +30,8 @@ public record VerifyRespuestaAgenteRequest(
         List<DisponibilidadAfirmada> disponibilidad,
         List<TurnoAfirmado> turnos,
         List<CotizacionAfirmada> cotizaciones,
-        List<ObraSocialAfirmada> obrasSociales
+        List<ObraSocialAfirmada> obrasSociales,
+        List<CoberturaAfirmada> coberturas
 ) {
 
     /**
@@ -124,6 +126,16 @@ public record VerifyRespuestaAgenteRequest(
      * @param planes {@code List<String>} planes que nombró, o {@code null}
      */
     public record ObraSocialAfirmada(String nombre, List<String> planes) {
+    }
+
+    /**
+     * Cobertura afirmada por el agente: que un plan cubre (o no) una prestación.
+     *
+     * @param prestacion {@code String} nombre de la prestación
+     * @param plan {@code String} nombre del plan
+     * @param cubre {@code Boolean} {@code true} si dijo que cubre, {@code false} si dijo que no
+     */
+    public record CoberturaAfirmada(String prestacion, String plan, Boolean cubre) {
     }
 
 }

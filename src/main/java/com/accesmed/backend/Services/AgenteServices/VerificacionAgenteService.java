@@ -15,6 +15,7 @@ import com.accesmed.backend.Records.AgendaMedico.Criteria.AgendaHorariosCriteria
 import com.accesmed.backend.Records.AgendaMedico.Response.ListHorarioDisponibleResponse;
 import com.accesmed.backend.Records.Agente.Request.FranjaHorariaAgente;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest;
+import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.CoberturaAfirmada;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.CotizacionAfirmada;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.DisponibilidadAfirmada;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.EspecialidadAfirmada;
@@ -62,7 +63,7 @@ import java.util.stream.Collectors;
 /**
  * Verificación de las respuestas del agente (capa {@code Services/AgenteServices},
  * {@code Docs/Diseno-Chatbot.md §4.3}): contrasta contra la base cada afirmación que el agente
- * declara (especialidades, prestaciones, médicos, horarios, disponibilidad, turnos, cotizaciones, obras sociales y planes)
+ * declara (especialidades, prestaciones, médicos, horarios, disponibilidad, turnos, cotizaciones, obras sociales, planes y coberturas)
  * y devuelve un veredicto por ítem, con el motivo y el valor correcto cuando se puede dar. Solo lee.
  * <p>
  * Lo usa únicamente {@code AgenteApp}. Con la property {@code accesmed.agente.verificacion.habilitada}
@@ -135,12 +136,16 @@ public class VerificacionAgenteService {
         List<ItemVerificado<ObraSocialAfirmada>> obrasSociales = verifyItems(
                 verifyRespuestaAgenteRequest.obrasSociales(), this::verifyObraSocial);
 
+        List<ItemVerificado<CoberturaAfirmada>> coberturas = verifyItems(
+                verifyRespuestaAgenteRequest.coberturas(), this::verifyCobertura);
+
         boolean verdadero = todosVerdaderos(especialidades) && todosVerdaderos(prestaciones) && todosVerdaderos(medicos)
                 && todosVerdaderos(horarios) && todosVerdaderos(disponibilidad) && todosVerdaderos(turnos)
-                && todosVerdaderos(cotizaciones) && todosVerdaderos(obrasSociales);
+                && todosVerdaderos(cotizaciones) && todosVerdaderos(obrasSociales)
+                && todosVerdaderos(coberturas);
 
         VerifyRespuestaAgenteResponse verifyRespuestaAgenteResponse = new VerifyRespuestaAgenteResponse(verdadero,
-                especialidades, prestaciones, medicos, horarios, disponibilidad, turnos, cotizaciones, obrasSociales);
+                especialidades, prestaciones, medicos, horarios, disponibilidad, turnos, cotizaciones, obrasSociales, coberturas);
         return verifyRespuestaAgenteResponse;
 
     }
@@ -466,6 +471,42 @@ public class VerificacionAgenteService {
         }
 
         return ItemVerificado.aprobado(cotizacionAfirmada);
+
+    }
+
+    /**
+     * Verifica un "cubre" / "no cubre" contra la base: el plan tiene que existir (vigente) y la prestación
+     * estar publicada; cubre si el plan está publicado y tiene una cobertura activa para la prestación. Si
+     * el nombre del plan coincide con varios, alcanza con que alguno cubra.
+     *
+     * @param coberturaAfirmada {@code CoberturaAfirmada} cobertura afirmada
+     * @return {@code ItemVerificado<CoberturaAfirmada>} el veredicto
+     */
+    private ItemVerificado<CoberturaAfirmada> verifyCobertura(CoberturaAfirmada coberturaAfirmada) {
+
+        Optional<Prestacion> prestacionPublicada = findPrestacionPublicadaByNombre(coberturaAfirmada.prestacion());
+        if (prestacionPublicada.isEmpty()) {
+            return rechazar(coberturaAfirmada, "No hay una prestación publicada llamada \"" + coberturaAfirmada.prestacion()
+                    + "\". No afirmes su cobertura.", null);
+        }
+
+        List<Plan> planesDelNombre = obraSocialDomainService.findObrasSocialesActivas().stream()
+                .flatMap(obraSocial -> planDomainService.findPlanesNoDeshabilitadosByObraSocial(obraSocial.getId()).stream())
+                .filter(plan -> sonIguales(plan.getNombre(), coberturaAfirmada.plan()))
+                .toList();
+        if (planesDelNombre.isEmpty()) {
+            return rechazar(coberturaAfirmada, "No hay un plan vigente llamado \"" + coberturaAfirmada.plan()
+                    + "\". No afirmes su cobertura.", null);
+        }
+
+        boolean cubreReal = planesDelNombre.stream()
+                .anyMatch(plan -> cotizacionAgenteService.isPrestacionCubierta(plan, prestacionPublicada.get()));
+        if (coberturaAfirmada.cubre() != null && coberturaAfirmada.cubre() != cubreReal) {
+            return rechazar(coberturaAfirmada, "El plan " + coberturaAfirmada.plan() + (cubreReal ? " sí cubre " : " no cubre ")
+                    + prestacionPublicada.get().getNombre() + ". Consultá la cobertura antes de afirmarla.", String.valueOf(cubreReal));
+        }
+
+        return ItemVerificado.aprobado(coberturaAfirmada);
 
     }
 
