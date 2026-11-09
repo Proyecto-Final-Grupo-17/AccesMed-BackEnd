@@ -77,9 +77,10 @@ que se completan.
   - [x] 6A.4 `particular` en `PATCH /Agente/Paciente`, aviso "Un momento…" inmediato, timeouts de Flowise y cierre por inactividad.
   - [x] 6A.5 Panel: P1 (la cobertura del turno es del paciente) y P2 (unicidad del teléfono por dígitos).
   - [x] 6A.6 Endpoints nuevos probados contra el back local (2026-11-09): cotización, verificación (18 afirmaciones, veredictos correctos), `cobertura` obligatoria, `particular` + `obraSocial` rechazado, "Bilardo" sin resultados.
-  - [ ] 6B Flow en la UI de staging, exportado a `AccesMed-Flowise`: tools nuevas y modificadas, nodos Verificar + Condition + Loop, `<datos>`, prompts (§4.11) y parámetros del modelo (§4.9).
+  - [x] 6B Flow en la UI de staging (2026-11-09), exportado a `AccesMed-Flowise`: tools nuevas y modificadas (`getCotizacionTurno`, `cobertura`, `fecha`, `particular`), nodos Verificar + Condition + Loop en las 4 ramas con `<datos>`, prompts (§4.11), router gpt-5.4 sin razonamiento y `listObraSocial` en Oferta. Probado por la API de predicción de Flowise (turno nuevo hasta la cotización, mis turnos, mis datos, obras sociales, estacionamiento).
   - [x] 6C.1 Retiro de la verificación vieja en el back (§4.13): `TandaAgenteService` solo avisa las escrituras, sin `controlInterno`.
-  - [ ] 6C.2 Sacar `controlInterno` del flow, batería de pruebas (§4.1) y deploy conjunto back + flow.
+  - [x] 6C.2 `controlInterno` fuera del flow y deploy del back a staging.
+  - [ ] 6C.3 Batería de pruebas de §4.1 por WhatsApp (reservar y reprogramar de punta a punta, F1–F8 y B1–B4), medir el delay y decidir Strict Tool Calling / quitar `temperature` (§4.9).
   - [ ] 6D Decidir el código de país del teléfono del panel (P2, parte abierta): exigir el prefijo `+54 9…` en front y back (recomendado), completarlo solo, o guardar el número nacional (ver `Docs/Diseno-Chatbot.md §4`, decisión (a)). Hoy el panel acepta un teléfono sin código de país y el bot no lo reconoce; los duplicados por formato que ya existan en la base siguen sin resolverse.
 
 > Las Fases 1-2 se pueden validar sin WhatsApp usando el chat de prueba de Flowise y la UI
