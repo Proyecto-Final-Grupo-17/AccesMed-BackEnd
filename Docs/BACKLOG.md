@@ -70,6 +70,17 @@ que se completan.
         (`searchPrestacion`, `searchMedico`), variable `controlInterno`, router (despedida + `—FIN—`,
         cancelar acción, documentos), errores traducidos en la tool, indicaciones en la reserva.
   - [ ] 5C Repetir por WhatsApp los casos de `§3.1`.
+- **Fase 6 — Verificación, cobertura y ajustes (`Docs/Diseno-Chatbot.md §4`)**
+  - [x] 6A.1 Fechas legibles (`fechaHoraTexto`), filtro `fecha` en horarios, `coincidencia` en búsquedas y umbral por property.
+  - [x] 6A.2 Cotización (`GET /Agente/Turno/Cotizacion`) y `cobertura` obligatoria en `createTurno`.
+  - [x] 6A.3 `POST /Agente/Verificacion` (`VerificacionAgenteService`) con interruptor `accesmed.agente.verificacion.habilitada`.
+  - [x] 6A.4 `particular` en `PATCH /Agente/Paciente`, aviso "Un momento…" inmediato, timeouts de Flowise y cierre por inactividad.
+  - [x] 6A.5 Panel: P1 (la cobertura del turno es del paciente) y P2 (unicidad del teléfono por dígitos).
+  - [x] 6A.6 Endpoints nuevos probados contra el back local (2026-11-09): cotización, verificación (18 afirmaciones, veredictos correctos), `cobertura` obligatoria, `particular` + `obraSocial` rechazado, "Bilardo" sin resultados.
+  - [ ] 6B Flow en la UI de staging, exportado a `AccesMed-Flowise`: tools nuevas y modificadas, nodos Verificar + Condition + Loop, `<datos>`, prompts (§4.11) y parámetros del modelo (§4.9).
+  - [x] 6C.1 Retiro de la verificación vieja en el back (§4.13): `TandaAgenteService` solo avisa las escrituras, sin `controlInterno`.
+  - [ ] 6C.2 Sacar `controlInterno` del flow, batería de pruebas (§4.1) y deploy conjunto back + flow.
+  - [x] 6D Teléfono del panel guardado como `+<dígitos>` y migración de los datos existentes (los duplicados por formato que ya existan quedan sin tocar para revisión manual).
 
 > Las Fases 1-2 se pueden validar sin WhatsApp usando el chat de prueba de Flowise y la UI
 > de Chatwoot. Notificaciones salientes (NOTIF-1..5) = Fase 2 posterior (contrato §11).
