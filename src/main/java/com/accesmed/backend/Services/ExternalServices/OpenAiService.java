@@ -2,13 +2,19 @@ package com.accesmed.backend.Services.ExternalServices;
 
 import com.accesmed.backend.Services.Clients.OpenAiClient;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Month;
 import java.time.format.TextStyle;
+import java.util.EnumMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -17,7 +23,8 @@ import java.util.regex.Pattern;
  * Lógica del audio del canal (diseño en {@code Docs/Diseno-Chatbot.md §5}): decide si el audio está
  * habilitado, valida y transcribe los audios del paciente, y arma el texto para voz de la respuesta
  * (determinista: sin formato ni emojis, con fechas y montos legibles) antes de sintetizarla. El
- * audio queda apagado si no hay API key de OpenAI.
+ * audio queda apagado si no hay API key de OpenAI. También sirve las notas de voz pregrabadas
+ * ({@link AudioFijo}), que se leen de disco una sola vez al arrancar.
  */
 @Slf4j
 @Service
@@ -64,6 +71,12 @@ public class OpenAiService {
     private final OpenAiClient openAiClient;
     private final boolean audioHabilitado;
     private final long maxBytes;
+    private final Path carpetaAudiosFijos;
+
+    /**
+     * Audios fijos cargados en memoria al arrancar (los que faltan no figuran).
+     */
+    private final Map<AudioFijo, byte[]> audiosFijos = new EnumMap<>(AudioFijo.class);
 
     //endregion
 
@@ -73,14 +86,54 @@ public class OpenAiService {
      * @param openAiClient {@code OpenAiClient} cliente de la API de OpenAI
      * @param apiKey {@code String} API key de OpenAI ({@code accesmed.openai.api-key}); vacía = audio apagado
      * @param maxBytes {@code long} tamaño máximo de un audio a transcribir ({@code accesmed.audio.max-bytes})
+     * @param fijosDir {@code String} carpeta de los audios fijos ({@code accesmed.audio.fijos-dir})
      */
     public OpenAiService(OpenAiClient openAiClient,
             @Value("${accesmed.openai.api-key:}") String apiKey,
-            @Value("${accesmed.audio.max-bytes:10485760}") long maxBytes) {
+            @Value("${accesmed.audio.max-bytes:10485760}") long maxBytes,
+            @Value("${accesmed.audio.fijos-dir:./audios}") String fijosDir) {
 
         this.openAiClient = openAiClient;
         this.audioHabilitado = apiKey != null && !apiKey.isBlank();
         this.maxBytes = maxBytes;
+        this.carpetaAudiosFijos = Path.of(fijosDir);
+
+    }
+
+    /**
+     * Carga en memoria los audios fijos de la carpeta {@code accesmed.audio.fijos-dir}. Si falta la
+     * carpeta o un archivo, lo avisa y sigue: ese caso se manda en texto (nunca falla el arranque).
+     * Con el audio apagado (sin API key) no se cargan: nunca se usarían.
+     */
+    @PostConstruct
+    void loadAudiosFijos() {
+
+        if (!audioHabilitado) {
+            log.debug("Audio apagado: no se cargan los audios fijos");
+            return;
+        }
+        if (!Files.isDirectory(carpetaAudiosFijos)) {
+            log.warn("No existe la carpeta de audios fijos {}: esos mensajes saldrán solo en texto",
+                    carpetaAudiosFijos.toAbsolutePath());
+            return;
+        }
+
+        for (AudioFijo audioFijo : AudioFijo.values()) {
+            Path archivo = carpetaAudiosFijos.resolve(audioFijo.nombreArchivo());
+            try {
+                byte[] contenido = Files.readAllBytes(archivo);
+                if (contenido.length == 0) {
+                    log.warn("El audio fijo {} está vacío: ese mensaje saldrá en texto", archivo.toAbsolutePath());
+                    continue;
+                }
+                audiosFijos.put(audioFijo, contenido);
+            } catch (IOException excepcion) {
+                log.warn("No se pudo leer el audio fijo {}: ese mensaje saldrá en texto ({})",
+                        archivo.toAbsolutePath(), excepcion.getMessage());
+            }
+        }
+        log.info("Audios fijos cargados: {} de {} desde {}", audiosFijos.size(), AudioFijo.values().length,
+                carpetaAudiosFijos.toAbsolutePath());
 
     }
 
@@ -94,6 +147,19 @@ public class OpenAiService {
     public boolean isAudioHabilitado() {
 
         return audioHabilitado;
+
+    }
+
+    /**
+     * Obtiene el contenido de un audio fijo.
+     *
+     * @param audioFijo {@code AudioFijo} audio pregrabado que se quiere mandar
+     * @return {@code Optional<byte[]>} el audio OGG/Opus, o vacío si el archivo no se cargó
+     */
+    public Optional<byte[]> findAudioFijo(AudioFijo audioFijo) {
+
+        Optional<byte[]> audioFijoCargado = Optional.ofNullable(audiosFijos.get(audioFijo));
+        return audioFijoCargado;
 
     }
 

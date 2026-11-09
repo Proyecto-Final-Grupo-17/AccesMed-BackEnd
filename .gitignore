@@ -34,3 +34,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Audios fijos del canal (viven en el servidor; textos en Scripts/audios-fijos.md) ###
+/audios/

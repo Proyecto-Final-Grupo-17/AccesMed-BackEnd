@@ -6,6 +6,7 @@
 #   /root/docker/accesmed/<entorno>/
 #   ├── back/{docker-compose.yml, .env}   ← este archivo
 #   ├── front/
+#   ├── audios/                           ← notas de voz fijas del canal (solo lectura en el back)
 #   └── postgres-data/                    ← datos de la Postgres (fuera de back/)
 #
 # El workflow .github/workflows/deploy.yml copia este archivo en cada deploy, así que
@@ -66,8 +67,11 @@ services:
       ACCESMED_FLOWISE_CHATFLOW_ID: ${ACCESMED_FLOWISE_CHATFLOW_ID}
       ACCESMED_FLOWISE_API_KEY: ${ACCESMED_FLOWISE_API_KEY:-}
       ACCESMED_OPENAI_API_KEY: ${ACCESMED_OPENAI_API_KEY:-}
+      ACCESMED_AUDIO_FIJOS_DIR: /app/audios
       JAVA_OPTS: ${JAVA_OPTS}
       TZ: America/Argentina/Buenos_Aires
+    volumes:
+      - ../audios:/app/audios:ro
     mem_limit: ${BACK_MEM_LIMIT}
     ports:
       - "${BACK_PORT}:8080"

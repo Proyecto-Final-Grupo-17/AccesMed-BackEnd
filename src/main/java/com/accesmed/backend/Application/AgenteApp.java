@@ -7,6 +7,7 @@ import com.accesmed.backend.Domain.EstadoTurno;
 import com.accesmed.backend.Domain.IndicacionPrestacion;
 import com.accesmed.backend.Domain.IndicacionPrestacionTurno;
 import com.accesmed.backend.Domain.Medico;
+import com.accesmed.backend.Domain.MedicoPrestacion;
 import com.accesmed.backend.Domain.MotivoCancelacion;
 import com.accesmed.backend.Domain.ObraSocial;
 import com.accesmed.backend.Domain.ObraSocialPaciente;
@@ -27,11 +28,13 @@ import com.accesmed.backend.Records.Agente.Response.VerifyRespuestaAgenteRespons
 import com.accesmed.backend.Records.Agente.Request.FranjaHorariaAgente;
 import com.accesmed.backend.Records.Agente.Request.ObraSocialAgenteRequest;
 import com.accesmed.backend.Records.Agente.Request.ReprogramTurnoAgenteRequest;
+import com.accesmed.backend.Records.Agente.Request.SearchHorarioAgenteRequest;
 import com.accesmed.backend.Records.Agente.Request.UpdatePacienteAgenteRequest;
 import com.accesmed.backend.Records.Agente.Response.ConfirmTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.CreatePacienteAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.CreateTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetClinicaAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.GetCoberturaPrestacionAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetCotizacionTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetOfertaEspecialidadAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetPacienteAgenteResponse;
@@ -42,6 +45,7 @@ import com.accesmed.backend.Records.Agente.Response.ListObraSocialAgenteResponse
 import com.accesmed.backend.Records.Agente.Response.ListTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ObraSocialAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ReprogramTurnoAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.SearchHorarioAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.SearchMedicoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.SearchPrestacionAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.UpdatePacienteAgenteResponse;
@@ -51,6 +55,7 @@ import com.accesmed.backend.Services.AgenteServices.AccionAgente;
 import com.accesmed.backend.Services.AgenteServices.CatalogoAgenteService;
 import com.accesmed.backend.Services.AgenteServices.CotizacionAgenteService;
 import com.accesmed.backend.Services.AgenteServices.CotizacionTurnoAgente;
+import com.accesmed.backend.Services.AgenteServices.PlanesResueltosAgente;
 import com.accesmed.backend.Services.AgenteServices.TandaAgenteService;
 import com.accesmed.backend.Services.AgenteServices.VerificacionAgenteService;
 import com.accesmed.backend.Services.ExternalServices.ChatwootService;
@@ -358,6 +363,10 @@ public class AgenteApp {
 
         log.info("Verificación de respuesta del agente iniciada");
 
+        //La segunda verificación de la tanda es un reintento: se le avisa al paciente
+        tandaAgenteService.registerVerificacion(numeroTelefono)
+                .ifPresent(conversationId -> chatwootService.sendMensajeEsperaAsync(conversationId, AccionAgente.REINTENTO_VERIFICACION));
+
         //Contrastar cada afirmación con la base
         VerifyRespuestaAgenteResponse verifyRespuestaAgenteResponse =
                 verificacionAgenteService.verifyRespuesta(numeroTelefono, verifyRespuestaAgenteRequest);
@@ -398,6 +407,7 @@ public class AgenteApp {
     public List<ListEspecialidadAgenteResponse> listEspecialidades(String numeroTelefono) {
 
         log.info("Listado de especialidades por canal");
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
 
         List<ListEspecialidadAgenteResponse> listEspecialidadAgenteResponses =
                 agenteMapper.toListEspecialidadResponses(especialidadDomainService.findEspecialidadesActivas());
@@ -444,6 +454,7 @@ public class AgenteApp {
     public GetOfertaEspecialidadAgenteResponse getOfertaEspecialidad(String numeroTelefono, String nombreEspecialidad) {
 
         log.info("Consulta de oferta de especialidad por canal: especialidad={}", nombreEspecialidad);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
 
         //Resolver la especialidad por parecido y armar la oferta con la relación prestación ↔ médico
         Especialidad especialidadExistente = catalogoAgenteService.findEspecialidadByNombreAproximado(nombreEspecialidad);
@@ -466,6 +477,7 @@ public class AgenteApp {
     public List<SearchPrestacionAgenteResponse> searchPrestaciones(String numeroTelefono, String nombrePrestacion) {
 
         log.info("Búsqueda de prestaciones por canal: nombre={}", nombrePrestacion);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
 
         List<SearchPrestacionAgenteResponse> searchPrestacionAgenteResponses = catalogoAgenteService.searchPrestaciones(nombrePrestacion);
 
@@ -474,19 +486,33 @@ public class AgenteApp {
     }
 
     /**
-     * Busca médicos activos por parecido con su nombre o apellido, con su especialidad y las
-     * prestaciones que atienden.
+     * Busca médicos activos por parecido con su nombre o apellido, por especialidad o por prestación (hace
+     * falta al menos uno). Cada médico trae su especialidad, las prestaciones que atiende, si hace la
+     * prestación pedida y si la atiende particular, y los días con agenda en las próximas semanas.
      *
      * @param numeroTelefono {@code String} teléfono del canal (solo para la tanda), o {@code null}
-     * @param nombreMedico {@code String} nombre o apellido aproximado del médico
+     * @param nombreMedico {@code String} nombre o apellido aproximado del médico, o {@code null}
+     * @param nombreEspecialidad {@code String} nombre aproximado de la especialidad, o {@code null}
+     * @param nombrePrestacion {@code String} nombre aproximado de la prestación, o {@code null}
      * @return {@code List<SearchMedicoAgenteResponse>} hasta 10 coincidencias (vacía si no hay)
+     * @throws ValidacionException {@code ValidacionException} si no viene ningún filtro
      */
     @Transactional(readOnly = true)
-    public List<SearchMedicoAgenteResponse> searchMedicos(String numeroTelefono, String nombreMedico) {
+    public List<SearchMedicoAgenteResponse> searchMedicos(String numeroTelefono, String nombreMedico,
+            String nombreEspecialidad, String nombrePrestacion) {
 
-        log.info("Búsqueda de médicos por canal: nombre={}", nombreMedico);
+        log.info("Búsqueda de médicos por canal: nombre={}, especialidad={}, prestación={}",
+                nombreMedico, nombreEspecialidad, nombrePrestacion);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
 
-        List<SearchMedicoAgenteResponse> searchMedicoAgenteResponses = catalogoAgenteService.searchMedicos(nombreMedico);
+        if (isBlank(nombreMedico) && isBlank(nombreEspecialidad) && isBlank(nombrePrestacion)) {
+            log.warn("Búsqueda de médicos por canal sin ningún filtro");
+            throw new ValidacionException(getClass(),
+                    List.of("Indicá al menos uno de estos filtros: nombre del médico, especialidad o prestación."));
+        }
+
+        List<SearchMedicoAgenteResponse> searchMedicoAgenteResponses =
+                catalogoAgenteService.searchMedicos(nombreMedico, nombreEspecialidad, nombrePrestacion);
 
         return searchMedicoAgenteResponses;
 
@@ -518,6 +544,7 @@ public class AgenteApp {
             String matricula, FranjaHorariaAgente franjaHorariaAgente, LocalDate fecha, Pageable pageable) {
 
         log.info("Consulta de horarios disponibles por canal: prestación={}, matrícula={}", nombrePrestacion, matricula);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_HORARIOS);
 
         //Resolver médico por matrícula y, entre sus prestaciones, la que se parece al nombre
         Medico medicoExistente = medicoDomainService.findMedicoActivoByMatricula(matricula);
@@ -556,6 +583,126 @@ public class AgenteApp {
     }
 
     /**
+     * Busca horarios disponibles con filtros flexibles (médico, prestación, especialidad, día, franja y
+     * hora; al menos uno de médico, prestación o especialidad), agrupados por día, médico y prestación. No
+     * exige que el paciente esté registrado. Delega la resolución por parecido y la consulta en
+     * {@code CatalogoAgenteService}.
+     *
+     * @param numeroTelefono {@code String} teléfono del canal (solo para la tanda), o {@code null}
+     * @param searchHorarioAgenteRequest {@code SearchHorarioAgenteRequest} filtros de la búsqueda
+     * @return {@code SearchHorarioAgenteResponse} horarios agrupados, o el motivo por el que no hay
+     * @throws ValidacionException {@code ValidacionException} si no viene médico, prestación ni especialidad,
+     *         si la hora desde es posterior a la hora hasta o si la fecha desde es posterior a la fecha hasta
+     */
+    @Transactional(readOnly = true)
+    public SearchHorarioAgenteResponse searchHorarios(String numeroTelefono, SearchHorarioAgenteRequest searchHorarioAgenteRequest) {
+
+        log.info("Búsqueda de horarios por canal: {}", searchHorarioAgenteRequest);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_HORARIOS);
+
+        //Validar los filtros antes de consultar
+        List<String> errores = new ArrayList<>();
+        if (isBlank(searchHorarioAgenteRequest.medico()) && isBlank(searchHorarioAgenteRequest.prestacion())
+                && isBlank(searchHorarioAgenteRequest.especialidad())) {
+            errores.add("Indicá al menos uno de estos filtros: médico, prestación o especialidad.");
+        }
+        if (searchHorarioAgenteRequest.horaDesde() != null && searchHorarioAgenteRequest.horaHasta() != null
+                && !searchHorarioAgenteRequest.horaDesde().isBefore(searchHorarioAgenteRequest.horaHasta())) {
+            errores.add("La hora desde tiene que ser anterior a la hora hasta.");
+        }
+        if (searchHorarioAgenteRequest.fechaDesde() != null && searchHorarioAgenteRequest.fechaHasta() != null
+                && searchHorarioAgenteRequest.fechaDesde().isAfter(searchHorarioAgenteRequest.fechaHasta())) {
+            errores.add("La fecha desde tiene que ser anterior o igual a la fecha hasta.");
+        }
+        if (!errores.isEmpty()) {
+            log.warn("Búsqueda de horarios por canal con filtros inválidos: {}", errores);
+            throw new ValidacionException(getClass(), errores);
+        }
+
+        SearchHorarioAgenteResponse searchHorarioAgenteResponse = catalogoAgenteService.searchHorarios(searchHorarioAgenteRequest);
+
+        return searchHorarioAgenteResponse;
+
+    }
+
+    /**
+     * Consulta qué cubre una obra social y plan para una prestación y cuánto se pagaría, sin elegir un
+     * horario. La prestación se resuelve por parecido; la obra social y el plan, por nombre. Si no se
+     * nombra ninguno, usa la cobertura del paciente registrado (identificado por el teléfono del canal).
+     * Con {@code medico} calcula el monto de ese médico; sin él, el de cada médico que hace la prestación.
+     * Que la obra social o el plan no existan se informa en la respuesta ({@code cubre = false} con su motivo).
+     *
+     * @param numeroTelefono {@code String} teléfono del canal (identifica al paciente si no nombra obra social)
+     * @param nombrePrestacion {@code String} nombre aproximado de la prestación
+     * @param nombreObraSocial {@code String} obra social dicha por el paciente, o {@code null}
+     * @param nombrePlan {@code String} plan dicho por el paciente, o {@code null}
+     * @param nombreMedico {@code String} matrícula o nombre del médico, o {@code null} para todos los que la hacen
+     * @return {@code GetCoberturaPrestacionAgenteResponse} cobertura y montos por plan
+     * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si la prestación o el médico no existen
+     * @throws ReglaNegocioException {@code ReglaNegocioException} si la prestación o el médico son ambiguos, ningún
+     *         médico (o el elegido) hace la prestación, o no se nombró obra social y el paciente no está
+     *         registrado o no tiene una obra social cargada
+     */
+    @Transactional(readOnly = true)
+    public GetCoberturaPrestacionAgenteResponse getCoberturaPrestacion(String numeroTelefono, String nombrePrestacion,
+            String nombreObraSocial, String nombrePlan, String nombreMedico) {
+
+        log.info("Consulta de cobertura de prestación por canal: prestación={}, obraSocial={}, plan={}, médico={}",
+                nombrePrestacion, nombreObraSocial, nombrePlan, nombreMedico);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_COBERTURA);
+
+        //Resolver la prestación y los médicos que la hacen hoy (el precio particular es de cada médico)
+        Prestacion prestacionExistente = catalogoAgenteService.findPrestacionPublicadaByNombreAproximado(nombrePrestacion);
+        List<MedicoPrestacion> asignacionesVigentes = medicoPrestacionDomainService
+                .findAsignacionesVigentesByPrestacion(prestacionExistente.getId(), LocalDate.now()).stream()
+                .filter(asignacion -> asignacion.getMedico().getDeletedAt() == null)
+                .toList();
+        if (!isBlank(nombreMedico)) {
+            Medico medicoElegido = catalogoAgenteService.findMedicoActivoByMatriculaONombreAproximado(nombreMedico);
+            asignacionesVigentes = asignacionesVigentes.stream()
+                    .filter(asignacion -> asignacion.getMedico().getId().equals(medicoElegido.getId()))
+                    .toList();
+            if (asignacionesVigentes.isEmpty()) {
+                log.warn("El médico {} no atiende la prestación {}", medicoElegido.getId(), prestacionExistente.getId());
+                throw new ReglaNegocioException(getClass(), "MEDICO_NO_ATIENDE_PRESTACION",
+                        "El médico elegido no atiende esa prestación.");
+            }
+        } else if (asignacionesVigentes.isEmpty()) {
+            log.warn("Ningún médico atiende hoy la prestación {}", prestacionExistente.getId());
+            throw new ReglaNegocioException(getClass(), "PRESTACION_SIN_MEDICOS",
+                    "Hoy ningún médico atiende esa prestación.");
+        }
+
+        //Planes consultados: los que nombra el paciente o, si no nombra ninguno, los de su cobertura
+        PlanesResueltosAgente planesResueltos;
+        if (isBlank(nombreObraSocial) && isBlank(nombrePlan)) {
+            Paciente pacienteExistente = pacienteDomainService.findOptionalPacienteActivoByNumeroTelefono(numeroTelefono)
+                    .orElseThrow(() -> {
+                        log.warn("Cobertura propia consultada por un teléfono sin paciente registrado");
+                        return new ReglaNegocioException(getClass(), "PACIENTE_NO_REGISTRADO",
+                                "Para consultar la cobertura de tu obra social tenés que estar registrado, "
+                                        + "o decime qué obra social y plan tenés.");
+                    });
+            List<ObraSocialPaciente> coberturasActivas = obraSocialPacienteDomainService.findCoberturasActivasByPaciente(pacienteExistente.getId());
+            if (coberturasActivas.isEmpty()) {
+                log.warn("Cobertura propia consultada por un paciente sin obra social cargada");
+                throw new ReglaNegocioException(getClass(), "PACIENTE_SIN_OBRA_SOCIAL",
+                        "No tenés una obra social cargada. Decime qué obra social y plan querés consultar.");
+            }
+            planesResueltos = new PlanesResueltosAgente(
+                    coberturasActivas.stream().map(ObraSocialPaciente::getPlan).toList(), null, null, null, null);
+        } else {
+            planesResueltos = cotizacionAgenteService.findPlanesByNombres(nombreObraSocial, nombrePlan);
+        }
+
+        GetCoberturaPrestacionAgenteResponse getCoberturaPrestacionAgenteResponse =
+                cotizacionAgenteService.getCoberturaPrestacion(prestacionExistente, planesResueltos, asignacionesVigentes);
+
+        return getCoberturaPrestacionAgenteResponse;
+
+    }
+
+    /**
      * Cotiza un turno antes de reservarlo o reprogramarlo (Diseno-Chatbot §4.4): valida el horario
      * con los mismos criterios que la reserva y calcula cobertura y monto sin guardar nada. Con
      * {@code codigoTurno} cotiza la reprogramación de ese turno (conserva su cobertura).
@@ -577,6 +724,7 @@ public class AgenteApp {
             TipoCobertura tipoCobertura, String codigoTurno) {
 
         log.info("Cotización de turno por canal iniciada: slot={}, cobertura={}, turno={}", slotId, tipoCobertura, codigoTurno);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_COBERTURA);
 
         //Para un turno nuevo la cobertura la elige el paciente; para reprogramar se conserva la del turno
         if (codigoTurno == null && tipoCobertura == null) {
@@ -788,6 +936,7 @@ public class AgenteApp {
     public List<ListTurnoAgenteResponse> listTurnos(String numeroTelefono, AccionTurnoAgente accionTurnoAgente) {
 
         log.info("Listado de turnos por canal iniciado: acción={}", accionTurnoAgente);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_TURNOS);
 
         Paciente pacienteExistente = pacienteDomainService.findPacienteActivoByNumeroTelefono(numeroTelefono);
 
@@ -1071,8 +1220,9 @@ public class AgenteApp {
     }
 
     /**
-     * Registra en la tanda que el agente pidió una acción de escritura y, si es la primera de la
-     * tanda, manda el aviso de espera al paciente ("Reservando tu turno…").
+     * Registra en la tanda que el agente pidió una acción (escritura o consulta que tarda) y, si
+     * corresponde según las reglas de {@code TandaAgenteService} (uno por tipo, hasta dos por tanda),
+     * manda el aviso de espera al paciente ("Reservando tu turno…", "Revisando la cartilla…").
      *
      * @param numeroTelefono {@code String} teléfono del canal, o {@code null} (sin tanda no hay aviso)
      * @param accionAgente {@code AccionAgente} acción pedida
@@ -1081,6 +1231,18 @@ public class AgenteApp {
 
         tandaAgenteService.registerInicioAccion(numeroTelefono, accionAgente)
                 .ifPresent(conversationId -> chatwootService.sendMensajeEsperaAsync(conversationId, accionAgente));
+
+    }
+
+    /**
+     * Indica si un texto es {@code null} o está en blanco.
+     *
+     * @param texto {@code String} filtro de texto, o {@code null}
+     * @return {@code boolean} {@code true} si no tiene contenido
+     */
+    private boolean isBlank(String texto) {
+
+        return texto == null || texto.isBlank();
 
     }
 
