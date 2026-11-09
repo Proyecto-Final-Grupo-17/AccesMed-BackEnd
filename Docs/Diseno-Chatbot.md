@@ -1571,8 +1571,8 @@ en `AccesMed-Flowise` `Docs/AGENTE.md`.
 > diferida de audio (§2.5) y tres ajustes de mensajes pedidos tras usar el bot por WhatsApp.
 >
 > **Decisiones tomadas al implementar:**
-> - **D37** quedó como property `accesmed.audio.respuesta-con-texto` (default `true` = opción (a): nota
->   de voz y el mismo texto después; `false` = solo la nota de voz).
+> - **D37** quedó como property `accesmed.audio.respuesta-con-texto` (default `false` = si el paciente habló por
+>   audio, la respuesta va solo en nota de voz; `true` = nota de voz y el mismo texto después).
 > - `ACCESMED_OPENAI_API_KEY` puede ser **la misma key de OpenAI que usa Flowise** (no hace falta una aparte).
 > - Con la key vacía el audio queda apagado y el canal sigue como antes (incluido el aviso "solo texto").
 > - Un audio que no se puede usar (descarga fallida, más pesado que `max-bytes`, transcripción vacía o

@@ -170,7 +170,7 @@ public class ChatwootService {
      * @param fueraDeTemaMaxSeguidos {@code int} respuestas fuera de tema seguidas que derivan a una persona ({@code accesmed.chatwoot.fuera-de-tema.max-seguidos})
      */
     public ChatwootService(ObjectMapper objectMapper, ChatwootClient chatwootClient, OpenAiService openAiService,
-            @Value("${accesmed.audio.respuesta-con-texto:true}") boolean audioRespuestaConTexto,
+            @Value("${accesmed.audio.respuesta-con-texto:false}") boolean audioRespuestaConTexto,
             @Qualifier("chatwootTaskExecutor") Executor chatwootTaskExecutor,
             @Value("${accesmed.chatwoot.ventana-inactividad-minutos:30}") long ventanaInactividadMinutos,
             @Value("${accesmed.chatwoot.antispam.max-mensajes:10}") int antispamMaxMensajes,
