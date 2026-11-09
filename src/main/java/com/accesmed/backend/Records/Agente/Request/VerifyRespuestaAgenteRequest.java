@@ -19,6 +19,8 @@ import java.util.List;
  * @param disponibilidad {@code List<DisponibilidadAfirmada>} "hay" / "no hay" turnos un día
  * @param turnos {@code List<TurnoAfirmado>} turnos del paciente nombrados
  * @param cotizaciones {@code List<CotizacionAfirmada>} montos y coberturas informados
+ * @param obrasSociales {@code List<ObraSocialAfirmada>} obras sociales y planes nombrados
+ * @param coberturas {@code List<CoberturaAfirmada>} "cubre" / "no cubre" una prestación un plan
  */
 public record VerifyRespuestaAgenteRequest(
         List<EspecialidadAfirmada> especialidades,
@@ -27,7 +29,9 @@ public record VerifyRespuestaAgenteRequest(
         List<HorarioAfirmado> horarios,
         List<DisponibilidadAfirmada> disponibilidad,
         List<TurnoAfirmado> turnos,
-        List<CotizacionAfirmada> cotizaciones
+        List<CotizacionAfirmada> cotizaciones,
+        List<ObraSocialAfirmada> obrasSociales,
+        List<CoberturaAfirmada> coberturas
 ) {
 
     /**
@@ -75,14 +79,18 @@ public record VerifyRespuestaAgenteRequest(
     }
 
     /**
-     * Afirmación de disponibilidad de un día ("hay turnos para el lunes").
+     * Afirmación de disponibilidad ("hay turnos el lunes", "no hay a la tarde", "el jueves a las 10 no
+     * está libre"). La fecha, la franja y la hora son opcionales; con {@code hora} la fecha es obligatoria.
      *
-     * @param fecha {@code LocalDate} día consultado
+     * @param fecha {@code LocalDate} día consultado, o {@code null} si habló de cualquier día
+     * @param franjaHoraria {@code FranjaHorariaAgente} franja del día que consultó, o {@code null}
+     * @param hora {@code LocalTime} hora puntual que consultó, o {@code null}
      * @param prestacion {@code String} nombre de la prestación
      * @param matricula {@code String} matrícula del médico, o {@code null} si habló de la prestación en general
      * @param hay {@code Boolean} {@code true} si dijo que hay turnos, {@code false} si dijo que no
      */
-    public record DisponibilidadAfirmada(LocalDate fecha, String prestacion, String matricula, Boolean hay) {
+    public record DisponibilidadAfirmada(LocalDate fecha, FranjaHorariaAgente franjaHoraria, LocalTime hora,
+            String prestacion, String matricula, Boolean hay) {
     }
 
     /**
@@ -109,6 +117,25 @@ public record VerifyRespuestaAgenteRequest(
      */
     public record CotizacionAfirmada(LocalDate fecha, LocalTime hora, String matricula, String prestacion,
             TipoCobertura cobertura, String plan, BigDecimal monto) {
+    }
+
+    /**
+     * Obra social nombrada por el agente, con los planes que nombró de ella.
+     *
+     * @param nombre {@code String} nombre de la obra social
+     * @param planes {@code List<String>} planes que nombró, o {@code null}
+     */
+    public record ObraSocialAfirmada(String nombre, List<String> planes) {
+    }
+
+    /**
+     * Cobertura afirmada por el agente: que un plan cubre (o no) una prestación.
+     *
+     * @param prestacion {@code String} nombre de la prestación
+     * @param plan {@code String} nombre del plan
+     * @param cubre {@code Boolean} {@code true} si dijo que cubre, {@code false} si dijo que no
+     */
+    public record CoberturaAfirmada(String prestacion, String plan, Boolean cubre) {
     }
 
 }

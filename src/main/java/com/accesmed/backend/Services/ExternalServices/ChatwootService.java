@@ -38,7 +38,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.function.Supplier;
 
 /**
  * Lógica del canal Chatwoot (diseño en {@code Docs/Diseno-Chatbot.md §2.3}, contrato en
@@ -99,9 +98,10 @@ public class ChatwootService {
     static final String TOKEN_FIN = "—FIN—";
 
     /**
-     * Aviso inmediato al despachar la tanda a Flowise (el agente tarda unos segundos en responder).
+     * Aviso inmediato al despachar la tanda a Flowise (el agente tarda unos segundos en responder). No
+     * sale en el primer mensaje de la ventana: ahí la bienvenida ya termina con "Ya reviso tu mensaje".
      */
-    static final String MENSAJE_ESPERA = "⏳ Un momento…";
+    static final String MENSAJE_ESPERA = "⏳ Aguardá un momento, estoy procesando tu mensaje…";
 
     /**
      * Cierre de una conversación del bot que quedó sin mensajes más allá de la ventana de inactividad.
@@ -692,6 +692,31 @@ public class ChatwootService {
     }
 
     /**
+     * Indica qué audio fijo corresponde a la respuesta del agente según su token: {@code —HANDOFF—}
+     * es la derivación y {@code —FIN—} (sin handoff) la despedida. Cualquier otra respuesta se
+     * sintetiza.
+     *
+     * @param respuestaFlowise {@code String} texto que devolvió el agente, o {@code null}
+     * @return {@code Optional<AudioFijo>} el audio fijo de la respuesta, o vacío si no corresponde ninguno
+     */
+    public Optional<AudioFijo> findAudioFijoRespuesta(String respuestaFlowise) {
+
+        if (respuestaFlowise == null) {
+            return Optional.empty();
+        }
+        Optional<AudioFijo> audioFijoRespuesta;
+        if (respuestaFlowise.contains(TOKEN_HANDOFF)) {
+            audioFijoRespuesta = Optional.of(AudioFijo.DERIVACION);
+        } else if (respuestaFlowise.contains(TOKEN_FIN)) {
+            audioFijoRespuesta = Optional.of(AudioFijo.DESPEDIDA);
+        } else {
+            audioFijoRespuesta = Optional.empty();
+        }
+        return audioFijoRespuesta;
+
+    }
+
+    /**
      * Quita los tokens de control ({@code —HANDOFF—}, {@code —FUERA_DE_TEMA—}, {@code —FIN—}) de la
      * respuesta de Flowise y devuelve el texto que ve el paciente.
      *
@@ -756,7 +781,7 @@ public class ChatwootService {
 
         //La nota de voz va primero; si falla, el texto sale igual
         boolean audioEnviado = false;
-        if (audioRespuesta != null && audioRespuesta.length > 0 && !textoRespuesta.isEmpty()) {
+        if (audioRespuesta != null && audioRespuesta.length > 0) {
             try {
                 chatwootClient.sendAudioChatwoot(conversationId, audioRespuesta, NOMBRE_ARCHIVO_AUDIO_RESPUESTA);
                 audioEnviado = true;
@@ -809,8 +834,9 @@ public class ChatwootService {
     }
 
     /**
-     * Compone la bienvenida de la ventana: asistente virtual de la clínica y horario de atención.
-     * Saluda por el nombre solo si el paciente está registrado. Si el nombre de la clínica ya
+     * Compone la bienvenida de la ventana: asistente virtual de la clínica, horario de atención, un
+     * consejo para conversar mejor y el cierre "Ya reviso tu mensaje" (hace de aviso de espera del
+     * primer mensaje de la ventana). Saluda por el nombre solo si el paciente está registrado. Si el nombre de la clínica ya
      * empieza con "clínica" (sin importar mayúsculas ni tildes), no repite la palabra.
      *
      * @param clinica {@code Clinica} configuración de la clínica (nombre y horario)
@@ -825,89 +851,65 @@ public class ChatwootService {
                 .replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT);
         String clinicaConArticulo = nombreSinTildes.startsWith("clinica") ? nombreClinica : "clínica " + nombreClinica;
         String mensajeBienvenida = saludo + " Soy el asistente virtual de la " + clinicaConArticulo
-                + ". Nuestro horario de atención es de " + buildRangoHorarioAtencion(clinica) + ".";
+                + ". Atendemos de " + buildRangoHorarioAtencion(clinica) + ".\n"
+                + "Un consejo para que te entienda mejor: contame lo que necesitás en un solo mensaje (o en un audio) "
+                + "y esperá mi respuesta antes de mandar el siguiente 🙂 Ya reviso tu mensaje.";
         return mensajeBienvenida;
 
     }
 
     /**
      * Manda, en segundo plano y en una sola tarea (para que lleguen en orden), la bienvenida de la
-     * ventana (si corresponde) y el aviso "Un momento" (si el mensaje abrió una tanda nueva;
-     * Diseno-Chatbot §5, D41 y D42).
+     * ventana (si corresponde) o, si no hay bienvenida, el aviso "Aguardá un momento" (si el mensaje
+     * abrió una tanda nueva; Diseno-Chatbot §3.4.6, D41 y D42). Nunca salen los dos: la bienvenida ya
+     * termina con "Ya reviso tu mensaje". Si el paciente habló por audio, cada mensaje va con su audio
+     * fijo ({@link AudioFijo#BIENVENIDA} o {@link AudioFijo#ESPERA}, sin síntesis) y el texto después,
+     * si {@code accesmed.audio.respuesta-con-texto} lo pide; si falta el archivo, sale el texto.
      *
      * @param conversationId {@code long} identificador de la conversación
      * @param mensajeBienvenida {@code String} bienvenida a mandar, o {@code null} si no corresponde
-     * @param avisoEspera {@code boolean} {@code true} si hay que mandar "Un momento"
-     */
-    public void sendMensajesInicioTandaAsync(long conversationId, String mensajeBienvenida, boolean avisoEspera) {
-
-        sendMensajesInicioTandaAsync(conversationId, mensajeBienvenida, avisoEspera, null);
-
-    }
-
-    /**
-     * Igual que {@link #sendMensajesInicioTandaAsync(long, String, boolean)}, pero la bienvenida puede
-     * ir como nota de voz (si el primer mensaje de la ventana fue un audio). La voz se genera dentro
-     * de la tarea en segundo plano (la síntesis tarda). Va como en las respuestas: el audio y, si
-     * {@code accesmed.audio.respuesta-con-texto} lo pide, el texto después; si la voz falla, sale el texto.
-     *
-     * @param conversationId {@code long} identificador de la conversación
-     * @param mensajeBienvenida {@code String} bienvenida a mandar, o {@code null} si no corresponde
-     * @param avisoEspera {@code boolean} {@code true} si hay que mandar "Un momento"
-     * @param vozBienvenida {@code Supplier<byte[]>} genera la nota de voz OGG/Opus de la bienvenida
-     *        (puede devolver {@code null}), o {@code null} si la bienvenida va solo en texto
+     * @param avisoEspera {@code boolean} {@code true} si el mensaje abrió una tanda nueva
+     * @param entradaAudio {@code boolean} {@code true} si el mensaje que abre la ventana o la tanda es un audio
      */
     public void sendMensajesInicioTandaAsync(long conversationId, String mensajeBienvenida, boolean avisoEspera,
-            Supplier<byte[]> vozBienvenida) {
+            boolean entradaAudio) {
 
         if (mensajeBienvenida == null && !avisoEspera) {
             return;
         }
         executeEnviosAsync(conversationId, () -> {
             if (mensajeBienvenida != null) {
-                boolean audioEnviado = false;
-                if (vozBienvenida != null) {
-                    try {
-                        byte[] audioBienvenida = vozBienvenida.get();
-                        if (audioBienvenida != null && audioBienvenida.length > 0) {
-                            chatwootClient.sendAudioChatwoot(conversationId, audioBienvenida, NOMBRE_ARCHIVO_AUDIO_RESPUESTA);
-                            audioEnviado = true;
-                        }
-                    } catch (RuntimeException excepcion) {
-                        log.error("No se pudo mandar la bienvenida en voz a la conversación {}: se manda el texto",
-                                conversationId, excepcion);
-                    }
-                }
-                if (!audioEnviado || audioRespuestaConTexto) {
-                    sendMensajeSeguro(conversationId, mensajeBienvenida);
-                }
-            }
-            if (avisoEspera) {
-                sendMensajeSeguro(conversationId, MENSAJE_ESPERA);
+                sendAudioFijoOTexto(conversationId, entradaAudio ? AudioFijo.BIENVENIDA : null, mensajeBienvenida);
+            } else {
+                sendAudioFijoOTexto(conversationId, entradaAudio ? AudioFijo.ESPERA : null, MENSAJE_ESPERA);
             }
         });
 
     }
 
     /**
-     * Avisa, en segundo plano, que el audio no se pudo entender.
+     * Avisa, en segundo plano, que el audio no se pudo entender (el paciente habló por audio: va con
+     * el audio fijo, y el texto si {@code accesmed.audio.respuesta-con-texto} lo pide).
      *
      * @param conversationId {@code long} identificador de la conversación
      */
     public void sendMensajeAudioNoEntendidoAsync(long conversationId) {
 
-        executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, MENSAJE_AUDIO_NO_ENTENDIDO));
+        executeEnviosAsync(conversationId,
+                () -> sendAudioFijoOTexto(conversationId, AudioFijo.AUDIO_NO_ENTENDIDO, MENSAJE_AUDIO_NO_ENTENDIDO));
 
     }
 
     /**
-     * Avisa, en segundo plano, que el audio es demasiado largo.
+     * Avisa, en segundo plano, que el audio es demasiado largo (con el audio fijo y, según
+     * {@code accesmed.audio.respuesta-con-texto}, el texto).
      *
      * @param conversationId {@code long} identificador de la conversación
      */
     public void sendMensajeAudioLargoAsync(long conversationId) {
 
-        executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, MENSAJE_AUDIO_LARGO));
+        executeEnviosAsync(conversationId,
+                () -> sendAudioFijoOTexto(conversationId, AudioFijo.AUDIO_LARGO, MENSAJE_AUDIO_LARGO));
 
     }
 
@@ -1075,6 +1077,11 @@ public class ChatwootService {
             case REPROGRAMACION_TURNO -> "⏳ Reprogramando tu turno…";
             case CONFIRMACION_TURNO -> "⏳ Confirmando tu turno…";
             case REGISTRO_PACIENTE, MODIFICACION_PACIENTE, BAJA_PACIENTE -> "⏳ Guardando tus datos…";
+            case CONSULTA_CATALOGO -> "🔎 Revisando la cartilla…";
+            case CONSULTA_HORARIOS -> "🔎 Buscando horarios disponibles…";
+            case CONSULTA_TURNOS -> "🔎 Revisando tus turnos…";
+            case CONSULTA_COBERTURA -> "🔎 Revisando tu cobertura…";
+            case REINTENTO_VERIFICACION -> "🔁 Estoy chequeando la información, ya te respondo…";
         };
         return mensajeEspera;
 
@@ -1107,6 +1114,36 @@ public class ChatwootService {
             chatwootTaskExecutor.execute(envio);
         } catch (RejectedExecutionException excepcion) {
             log.error("Executor saturado: se descarta un envío a la conversación {}", conversationId, excepcion);
+        }
+
+    }
+
+    /**
+     * Manda, dentro de una tarea de envío, un audio fijo y/o el texto: con audio fijo disponible sube la
+     * nota de voz y manda el texto después solo si {@code accesmed.audio.respuesta-con-texto} lo pide; sin
+     * audio fijo (no corresponde, falta el archivo o Chatwoot falla) manda el texto.
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     * @param audioFijo {@code AudioFijo} audio pregrabado a mandar, o {@code null} si va solo texto
+     * @param texto {@code String} texto del mensaje
+     */
+    private void sendAudioFijoOTexto(long conversationId, AudioFijo audioFijo, String texto) {
+
+        boolean audioEnviado = false;
+        if (audioFijo != null) {
+            Optional<byte[]> contenidoAudio = openAiService.findAudioFijo(audioFijo);
+            if (contenidoAudio.isPresent()) {
+                try {
+                    chatwootClient.sendAudioChatwoot(conversationId, contenidoAudio.get(), NOMBRE_ARCHIVO_AUDIO_RESPUESTA);
+                    audioEnviado = true;
+                } catch (RuntimeException excepcion) {
+                    log.error("Chatwoot falló al enviar el audio fijo {} a la conversación {}: se manda el texto",
+                            audioFijo, conversationId, excepcion);
+                }
+            }
+        }
+        if (!audioEnviado || audioRespuestaConTexto) {
+            sendMensajeSeguro(conversationId, texto);
         }
 
     }

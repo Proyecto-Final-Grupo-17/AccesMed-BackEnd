@@ -201,12 +201,17 @@ diseño en `Docs/Diseno-Chatbot.md §2.3`):
    con `ACCESMED_OPENAI_API_KEY` (opcional; vacía = apagado).
 6. **Primer mensaje aceptado de la ventana** (texto o audio) → bienvenida inmediata, antes de
    agrupar: *"¡Hola, {nombre del Paciente}! 👋 Soy el asistente virtual de la clínica {clínica}.
-   Nuestro horario de atención es de {inicio} a {fin} h."* (sin nombre si el teléfono no está
-   registrado; si el nombre de la clínica ya empieza con "Clínica" no se repite la palabra). **El
-   agente de Flowise no saluda.**
-7. **Con texto o audio** → se agrupa (6.C). El mensaje que **abre** una tanda nueva dispara *"⏳ Un
-   momento…"* en el acto (no se repite dentro de la misma tanda); si corresponde bienvenida, salen
-   las dos en una sola tarea y en ese orden.
+   Atendemos de {inicio} a {fin} h.
+Un consejo para que te entienda mejor: contame lo que necesitás
+   en un solo mensaje (o en un audio) y esperá mi respuesta antes de mandar el siguiente 🙂 Ya reviso tu
+   mensaje."* (sin nombre si el teléfono no está registrado; si el nombre de la clínica ya empieza con
+   "Clínica" no se repite la palabra). Si el mensaje es un audio, sale el audio fijo de bienvenida (sin
+   nombre, clínica ni horario) y el texto según `accesmed.audio.respuesta-con-texto`. **El agente de
+   Flowise no saluda.**
+7. **Con texto o audio** → se agrupa (6.C). El mensaje que **abre** una tanda nueva dispara *"⏳ Aguardá un
+   momento, estoy procesando tu mensaje…"* en el acto (no se repite dentro de la misma tanda; si el mensaje
+   es un audio, sale el audio fijo de espera); **si corresponde bienvenida, sale solo ella** (ya termina
+   con "Ya reviso tu mensaje") y no el aviso aparte.
 
 **Audio como entrada.** Al procesar la tanda, cada mensaje con adjunto `file_type = audio` se
 descarga de `data_url` (con `api_access_token` y siguiendo redirecciones), se transcribe con OpenAI
@@ -366,19 +371,25 @@ back de **staging**) y conectado al inbox **AccesMed WhatsApp**. El inbox "Whats
 ### 6.H Tanda y avisos de espera
 
 Diseño en `Docs/Diseno-Chatbot.md §3.4.6` y `§4.7`; código en `Services/AgenteServices/TandaAgenteService`.
-El back manda *"⏳ Un momento…"* al paciente apenas **recibe el mensaje que abre la tanda** (no al
-despacharla; `Docs/Diseno-Chatbot.md §5`, D41). Mientras
-Flowise la procesa, el back la tiene **abierta** por teléfono: los endpoints de **escritura** que llama el
-agente (con `X-Paciente-Telefono`) mandan un aviso propio, uno por tanda, a la primera que lo amerita:
+El back manda *"⏳ Aguardá un momento, estoy procesando tu mensaje…"* al paciente apenas **recibe el
+mensaje que abre la tanda** (no al despacharla; `Docs/Diseno-Chatbot.md §5`, D41). **En el primer mensaje
+de la ventana no sale aparte**: la bienvenida termina con *"Ya reviso tu mensaje"*. Mientras Flowise la
+procesa, el back la tiene **abierta** por teléfono: los endpoints que llama el agente (con
+`X-Paciente-Telefono`) mandan un aviso propio, en texto, con estas reglas: **uno por tipo por tanda**,
+**máximo dos de herramienta por tanda** (las escrituras cuentan) y ninguno después del reintento:
 
 | Tool | Aviso |
 |------|-------|
+| catálogo (`Especialidad`, `Especialidad/{nombre}/Oferta`, `Prestacion`, `Medico`) | *"🔎 Revisando la cartilla…"* |
+| `Turno/Disponibilidad`, `Horario` | *"🔎 Buscando horarios disponibles…"* |
+| `GET Turno` (mis turnos) | *"🔎 Revisando tus turnos…"* |
+| `Turno/Cotizacion`, `Prestacion/Cobertura` | *"🔎 Revisando tu cobertura…"* |
 | `createTurno` | *"⏳ Reservando tu turno…"* |
 | `cancelTurno` / `reprogramTurno` / `confirmTurno` | *"⏳ Cancelando / Reprogramando / Confirmando tu turno…"* |
 | `createPaciente` / `updatePaciente` / `softDeletePaciente` | *"⏳ Guardando tus datos…"* |
+| **2.ª** llamada a `POST /Agente/Verificacion` de la misma tanda | *"🔁 Estoy chequeando la información, ya te respondo…"* (una vez; no cuenta como herramienta) |
 
-Las consultas (catálogo, horarios, turnos, cotización, paciente, clínica, obras sociales) no avisan.
-Estado en memoria por teléfono (una sola instancia del back).
+`getPaciente`, `Clinica` y `ObraSocial` no avisan. Estado en memoria por teléfono (una sola instancia del back).
 
 **La verificación de la respuesta ya no la hace el back al entregarla** (se retiró el 2026-11-09, el
 reintento con `controlInterno` incluido): la hace el flow llamando a `POST /Agente/Verificacion`
@@ -514,9 +525,11 @@ Consulta abierta (no requiere registro). Igual se exige `X-Agente-Api-Key`.
 - **`GET /Agente/Prestacion?nombre=…`** → prestaciones publicadas parecidas al nombre ("¿hacen
   electrocardiogramas?"), hasta 10: `{ nombre, especialidad, requiereValidacion, indicaciones[], medicos[] }`,
   con `indicaciones[] = { nombre, descripcion, requiereValidacion }`. Lista vacía si no hay.
-- **`GET /Agente/Medico?nombre=…`** → médicos activos parecidos por nombre o apellido ("Raúl",
-  "dra gómez"), hasta 10: `{ nombre, apellido, matricula, especialidad, prestaciones[] }` (nombres de
-  las prestaciones publicadas que atiende hoy). Lista vacía si no hay.
+- **`GET /Agente/Medico?nombre=…&especialidad=…&prestacion=…`** → médicos activos parecidos por nombre o
+  apellido ("Raúl", "dra gómez"), por especialidad o por prestación; los tres son opcionales pero hace
+  falta al menos uno (`422` si no viene ninguno). Hasta 10: `{ nombre, apellido, matricula, especialidad,
+  prestaciones[], coincidencia, haceLaPrestacion, atiendeParticular, proximosDiasConAgenda[] }`. Detalle
+  y semántica en §7.11. Lista vacía si no hay.
 
 **Búsqueda por parecido** (`search<Entidad>ByNombre` en los DomainServices): se normaliza la consulta
 (minúsculas, sin tildes ni signos, sin "dr/dra/la/de…"); primero **cada palabra** tiene que estar
@@ -624,6 +637,136 @@ Sin body. **Resolución:** `codigo` → `Turno`; scope por teléfono; delegar en
 **Response:** bloque base, `estadoActual = CONFIRMADO`. **Errores:**
 `TURNO_FUERA_DE_PLAZO_CONFIRMACION` (Excepción 5), turno no `PENDIENTE`, no encontrado/ajeno.
 
+### 7.11 Consulta flexible · Médicos — `GET /Agente/Medico`
+
+Todos los parámetros son opcionales, pero hace falta al menos uno de `nombre`, `especialidad` o `prestacion`
+(`422 VALIDACION` si no viene ninguno). Sin registro. Se resuelven por parecido (§7.4). Compatible con el uso
+anterior (`?nombre=`): los campos nuevos son aditivos.
+
+| Parámetro | Efecto |
+|-----------|--------|
+| `nombre` | nombre o apellido aproximado del médico |
+| `especialidad` | **filtra** a los médicos de esa especialidad |
+| `prestacion` | si no se nombró al médico ni la especialidad, **filtra** a quienes la hacen hoy; si se nombró, no filtra: se informa por médico |
+
+**Response** (lista, hasta 10):
+
+```json
+[{ "nombre": "Ricardo", "apellido": "Molina", "matricula": "MP-12011", "especialidad": "Cardiología",
+   "prestaciones": ["Consulta Cardiológica", "Electrocardiograma"], "coincidencia": "EXACTA",
+   "haceLaPrestacion": true, "atiendeParticular": true,
+   "proximosDiasConAgenda": [{ "fecha": "2026-11-12", "fechaTexto": "jueves 12/11/2026", "hayHorariosLibres": false }] }]
+```
+
+- `haceLaPrestacion` / `atiendeParticular`: `null` si no se pidió `prestacion`; con ella, `true`/`false` según
+  la asignación `MedicoPrestacion` vigente hoy. "¿El traumatólogo Pérez hace consultas generales?" →
+  `?nombre=Pérez&especialidad=traumatología&prestacion=consulta` → `haceLaPrestacion` sí o no.
+- `proximosDiasConAgenda`: días con agenda en las próximas 4 semanas (con la prestación pedida, si vino);
+  `hayHorariosLibres` = queda algún horario libre y dentro del plazo de reserva. El agente copia `fechaTexto`.
+- Lista vacía si lo nombrado no existe.
+
+### 7.12 Consulta flexible · Horarios — `GET /Agente/Horario`
+
+Busca horarios disponibles con filtros, en **una sola llamada**, agrupados por día, médico y prestación. Sin
+registro. Es la herramienta pensada para "¿turno con el Dr. Molina el jueves?" (reemplaza el recorrido
+especialidad → prestación → médico → horario cuando el paciente ya sabe qué quiere).
+`GET /Agente/Turno/Disponibilidad` sigue funcionando.
+
+**Query params** (todos opcionales, pero **al menos uno de `medico`, `prestacion` o `especialidad`**; si no,
+`422 VALIDACION`):
+
+| Parámetro | Tipo | Significado |
+|-----------|------|-------------|
+| `medico` | texto | matrícula o nombre/apellido aproximado |
+| `prestacion` | texto | nombre aproximado |
+| `especialidad` | texto | nombre aproximado |
+| `fecha` | `AAAA-MM-DD` | día puntual (pisa el rango) |
+| `fechaDesde` / `fechaHasta` | `AAAA-MM-DD` | rango, inclusive |
+| `diaSemana` | `LUNES`…`DOMINGO` | "los jueves": se expande a las fechas del período dentro del horizonte de reserva |
+| `franjaHoraria` | `MANANA`/`TARDE`/`NOCHE` | franja del día |
+| `horaDesde` / `horaHasta` | `HH:mm` | hora de **inicio** del horario: desde (inclusive) hasta (exclusive); se intersecta con la franja |
+| `pagina` | entero ≥ 0 | página de días (default 0), para pedir más cuando `hayMas` es `true` |
+
+`422` también si `horaDesde >= horaHasta` o `fechaDesde > fechaHasta`.
+
+**Reglas fijas** (como `findHorariosDisponibles`): horario libre, no borrado, dentro del plazo de reserva y de
+`diasMaximosAnticipacionReserva`; médico activo; el médico **sigue haciendo la prestación en la fecha del
+horario**; prestación **publicada**.
+
+**Response** (`SearchHorarioAgenteResponse`):
+
+```json
+{ "dias": [{
+    "fecha": "2026-11-19", "fechaTexto": "jueves 19/11/2026",
+    "medicos": [{
+      "nombre": "Ricardo", "apellido": "Molina", "matricula": "MP-12011", "especialidad": "Cardiología",
+      "atiendeDesde": "09:00:00", "atiendeHasta": "18:00:00",
+      "prestaciones": [{
+        "prestacion": "Consulta Cardiológica", "hayMas": false,
+        "horarios": [{ "slotId": "0b612a5d-…", "fechaHora": "2026-11-19T14:00:00",
+                       "fechaHoraTexto": "jueves 19/11/2026 14:00", "franja": "TARDE" }] }] }] }],
+  "hayMas": false, "codigoMotivo": null, "motivo": null }
+```
+
+- Tope: 3 días por página y 10 horarios por prestación (de un médico en un día). `hayMas` (global) es `true`
+  si hay más días (pedir `pagina+1`) o más horarios (afinar con `franjaHoraria`, `horaDesde`, `fecha`).
+  Cada `prestaciones[].hayMas` indica cuál se recortó.
+- `atiendeDesde`/`atiendeHasta`: rango en que el médico atiende ese día (primer inicio a último fin de sus
+  horarios cargados, libres u ocupados).
+- `slotId` es el UUID opaco para `Turno/Cotizacion` y `POST /Turno`; el agente muestra `fechaHoraTexto`.
+- **Sin resultados:** `dias: []`, `hayMas: false` y el porqué en `codigoMotivo` / `motivo` (no es un error HTTP):
+  `NO_ENCONTRADO` (el médico, la prestación o la especialidad no existen), `NO_HACE_PRESTACION`,
+  `TODO_OCUPADO` (hay horarios cargados pero ocupados o vencidos), `NO_ATIENDE_ESE_DIA` (nada cargado para esos
+  filtros) y `FUERA_DE_HORIZONTE`.
+
+### 7.13 Consulta flexible · Cobertura — `GET /Agente/Prestacion/Cobertura`
+
+Qué cubre una obra social y plan para una prestación y cuánto se paga, **sin elegir un horario**. El monto final
+del turno lo sigue dando `Turno/Cotizacion` antes de reservar.
+
+**Query params:** `prestacion` (**obligatorio**, aproximado), `obraSocial`, `plan`, `medico` (matrícula o nombre).
+
+- Con `obraSocial` y `plan`: ese plan. Solo `obraSocial`: todos sus planes vigentes. Solo `plan`: los planes
+  vigentes de ese nombre en cualquier obra social. El nombre se compara sin mayúsculas ni tildes, igual o contenido.
+- **Sin `obraSocial` ni `plan`:** usa la cobertura del paciente registrado (`X-Paciente-Telefono`). Sin paciente
+  registrado → `409 PACIENTE_NO_REGISTRADO`; sin obra social cargada → `409 PACIENTE_SIN_OBRA_SOCIAL`.
+- Con `medico`: el monto de ese médico (`409 MEDICO_NO_ATIENDE_PRESTACION` si no la hace); sin `medico`: el de
+  cada médico que la hace hoy (`409 PRESTACION_SIN_MEDICOS` si ninguno).
+
+**Response** (`GetCoberturaPrestacionAgenteResponse`):
+
+```json
+{ "prestacion": "Electrocardiograma",
+  "coberturas": [{
+    "obraSocial": "OSDE", "plan": "OSDE 450", "cubre": true, "modalidad": "PORCENTUAL",
+    "porcentajeCobertura": 80.00, "coseguro": null, "codigoMotivo": null, "motivo": null,
+    "montos": [{ "nombre": "Ricardo", "apellido": "Molina", "matricula": "MP-12011",
+                 "precioParticular": 24200.00, "montoAPagar": 19360.00 }] }] }
+```
+
+- `cubre: false` con `codigoMotivo` / `motivo`: `OBRA_SOCIAL_NO_ENCONTRADA` ("No trabajamos con la obra social X"),
+  `PLAN_NO_ENCONTRADO`, `PLAN_NO_PUBLICADO` o `PLAN_NO_CUBRE_PRESTACION`. En esos casos `montos[].montoAPagar` es el
+  precio particular. No es un error HTTP.
+- Errores: `404 PRESTACION_NO_ENCONTRADA`, `409 PRESTACION_AMBIGUA`, `404 MEDICO_NO_ENCONTRADO`, `409 MEDICO_AMBIGUO`.
+
+### 7.14 Lista de claves de verificación — `POST /Agente/Verificacion`
+
+Claves (todas opcionales) del request y qué se contrasta con la base. Detalle en `Docs/Diseno-Chatbot.md §4.3`.
+
+| Clave | Campos | Se verifica |
+|-------|--------|-------------|
+| `especialidades` | `nombre` | existe y está activa |
+| `prestaciones` | `nombre`, `especialidad?`, `indicaciones?[]`, `requiereValidacion?` | publicada y datos declarados |
+| `medicos` | `matricula`, `nombre?`, `especialidad?`, `prestacion?` | activo y datos declarados |
+| `horarios` | `fecha`, `diaSemana?`, `hora`, `matricula`, `prestacion` | existe un slot libre y el día corresponde |
+| `disponibilidad` | `prestacion`, `matricula?`, `fecha?`, `franjaHoraria?`, `hora?`, `hay` | hay (o no) horarios libres en ese día, franja u hora (`hora` exige `fecha`) |
+| `turnos` | `codigo`, `fecha?`, `hora?`, `estado?` | es del paciente del teléfono y datos reales |
+| `cotizaciones` | `fecha`, `hora`, `matricula`, `prestacion`, `cobertura`, `plan?`, `monto?` | monto, cobertura y plan |
+| `obrasSociales` | `nombre`, `planes?[]` | obra social activa y planes vigentes suyos |
+| `coberturas` | `prestacion`, `plan`, `cubre` | el plan cubre (o no) la prestación hoy |
+
+El response repite las listas con `{dato, verdadero, motivo, correcto}` por ítem.
+
 ---
 
 ## 8. Trabajo nuevo en el back (gaps del diseño inicial, ya resueltos)
@@ -699,7 +842,9 @@ No modifica el dominio (el CU lo dice: "el sistema no crea ni modifica instancia
 | GET | `/accesmed-api/Agente/Especialidad` | TURN-1/2/3 | `EspecialidadQueryService` |
 | GET | `/accesmed-api/Agente/Especialidad/{nombre}/Oferta` | TURN-1/2/3 | `CatalogoAgenteService` (por parecido, prestación ↔ médico) |
 | GET | `/accesmed-api/Agente/Prestacion?nombre=` | TURN-1/2/3 | `CatalogoAgenteService.searchPrestaciones` |
-| GET | `/accesmed-api/Agente/Medico?nombre=` | TURN-1/2/3 | `CatalogoAgenteService.searchMedicos` |
+| GET | `/accesmed-api/Agente/Medico?nombre=&especialidad=&prestacion=` | TURN-1/2/3 | `CatalogoAgenteService.searchMedicos` |
+| GET | `/accesmed-api/Agente/Horario` | TURN-2/3/5 | `CatalogoAgenteService.searchHorarios` → `AgendaHorariosDiaQueryService` |
+| GET | `/accesmed-api/Agente/Prestacion/Cobertura` | TURN-3 | `CotizacionAgenteService.getCoberturaPrestacion` |
 | GET | `/accesmed-api/Agente/Turno/Disponibilidad` | TURN-2/3/5 | `findHorariosDisponibles` |
 | GET | `/accesmed-api/Agente/Turno/Cotizacion` | TURN-3/5 | `CotizacionAgenteService` (sin guardar) |
 | POST | `/accesmed-api/Agente/Verificacion` | canal | `VerificacionAgenteService` (solo lectura) |
@@ -754,3 +899,21 @@ Detalle y decisiones en `Docs/Diseno-Chatbot.md §5`.
 - **"⏳ Un momento…" al recibir** el mensaje que abre la tanda; ya no al despacharla.
 - **Properties:** `accesmed.openai.base-url`, `accesmed.openai.api-key`, `accesmed.audio.modelo-transcripcion`,
   `modelo-voz`, `voz`, `instrucciones-voz`, `max-bytes`, `timeout-segundos` y `respuesta-con-texto`.
+
+---
+
+## 15. Cambios de contrato de la etapa 6 (2026-11-09)
+
+Detalle en `Docs/Diseno-Chatbot.md §6` y `Docs/Planes/Propuesta-Prompts-Verificacion-Agente.md`. Todo es
+aditivo: el flow actual sigue funcionando.
+
+- **Verificación:** `disponibilidad` suma `franjaHoraria` y `hora`; listas nuevas `obrasSociales` y `coberturas` (§7.14).
+- **Consultas nuevas:** `GET /Agente/Horario` (§7.12), `GET /Agente/Prestacion/Cobertura` (§7.13) y filtros
+  `especialidad`/`prestacion` en `GET /Agente/Medico` (§7.11).
+- **Avisos de espera:** aviso inicial "⏳ Aguardá un momento, estoy procesando tu mensaje…"; las consultas vuelven a
+  avisar en texto y hay un aviso de reintento (6.H). En el primer mensaje de la ventana, la bienvenida hace de aviso.
+- **Bienvenida** nueva (6.B): "…Atendemos de {inicio} a {fin} h.\nUn consejo para que te entienda mejor: contame lo
+  que necesitás en un solo mensaje (o en un audio) y esperá mi respuesta antes de mandar el siguiente 🙂 Ya reviso tu mensaje."
+- **Audios fijos** pregrabados (bienvenida, espera, despedida, derivación, audio no entendido, audio largo) cuando el
+  paciente habló por audio: property `accesmed.audio.fijos-dir` (`ACCESMED_AUDIO_FIJOS_DIR`, default `./audios`;
+  opcional, sin archivo sale el texto). `Docs/Diseno-Chatbot.md §5.9`.

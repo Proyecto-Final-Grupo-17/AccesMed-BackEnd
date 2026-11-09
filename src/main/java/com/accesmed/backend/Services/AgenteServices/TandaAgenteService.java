@@ -7,7 +7,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -17,9 +19,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * consultar a Flowise y la cierra al responder; mientras tanto {@code AgenteApp} avisa cuando el
  * agente pide una acción de escritura.
  * <p>
- * Resuelve una sola cosa: el <b>aviso de espera de las escrituras</b> (uno por tanda, al primer
- * pedido que lo amerita, y solo con la tanda abierta: una llamada desde la UI de Flowise no avisa).
- * La verificación de las respuestas del agente ya no vive acá: la hace el flow contra el back con
+ * Resuelve una sola cosa: los <b>avisos de espera de la tanda</b>. De herramienta (escrituras y
+ * consultas que tardan): uno por tipo de acción y como máximo {@value #MAX_AVISOS_HERRAMIENTA} por
+ * tanda. De reintento: uno, cuando el agente llama por segunda vez a la verificación; a partir de ahí
+ * los avisos de herramienta no se repiten. Solo con la tanda abierta: una llamada desde la UI de
+ * Flowise no avisa. La verificación de las respuestas del agente ya no vive acá: la hace el flow contra el back con
  * {@code POST /Agente/Verificacion} ({@code VerificacionAgenteService}, {@code Docs/Diseno-Chatbot.md §4.3}).
  * <p>
  * Vive en memoria: supone una sola instancia del back, igual que el resto del estado del canal.
@@ -34,6 +38,11 @@ public class TandaAgenteService {
      * Tiempo sin uso después del cual se borra el estado de un teléfono.
      */
     private static final Duration VENCIMIENTO_ESTADO = Duration.ofHours(2);
+
+    /**
+     * Tope de avisos de herramienta (escrituras y consultas) por tanda, para no saturar al paciente.
+     */
+    private static final int MAX_AVISOS_HERRAMIENTA = 2;
 
     //endregion
 
@@ -61,7 +70,8 @@ public class TandaAgenteService {
         synchronized (estadoTanda) {
             estadoTanda.conversationId = conversationId;
             estadoTanda.abierta = true;
-            estadoTanda.avisoEsperaEnviado = false;
+            estadoTanda.accionesAvisadas.clear();
+            estadoTanda.verificaciones = 0;
             estadoTanda.ultimoUso = Instant.now();
         }
 
@@ -86,8 +96,10 @@ public class TandaAgenteService {
     }
 
     /**
-     * Registra que el agente pidió una acción e indica si corresponde mandar el aviso de espera: uno
-     * solo por tanda, y solo con la tanda abierta (una llamada desde la UI de Flowise no avisa).
+     * Registra que el agente pidió una acción (escritura o consulta) e indica si corresponde mandar su
+     * aviso de espera: solo con la tanda abierta (una llamada desde la UI de Flowise no avisa), una vez
+     * por tipo de acción, hasta {@value #MAX_AVISOS_HERRAMIENTA} avisos por tanda y nunca después de que
+     * el agente entró en reintento de verificación.
      *
      * @param numeroTelefono {@code String} teléfono del paciente (header del canal), o {@code null}
      * @param accionAgente {@code AccionAgente} acción pedida
@@ -95,21 +107,48 @@ public class TandaAgenteService {
      */
     public OptionalLong registerInicioAccion(String numeroTelefono, AccionAgente accionAgente) {
 
-        if (numeroTelefono == null || numeroTelefono.isBlank()) {
-            return OptionalLong.empty();
-        }
-
-        EstadoTanda estadoTanda = estadosPorTelefono.get(buildClave(numeroTelefono));
+        EstadoTanda estadoTanda = findEstadoTanda(numeroTelefono);
         if (estadoTanda == null) {
             return OptionalLong.empty();
         }
 
         synchronized (estadoTanda) {
-            if (!estadoTanda.abierta || estadoTanda.avisoEsperaEnviado) {
+            if (!estadoTanda.abierta || estadoTanda.verificaciones >= 2
+                    || estadoTanda.accionesAvisadas.contains(accionAgente)
+                    || estadoTanda.accionesAvisadas.size() >= MAX_AVISOS_HERRAMIENTA) {
                 return OptionalLong.empty();
             }
-            estadoTanda.avisoEsperaEnviado = true;
+            estadoTanda.accionesAvisadas.add(accionAgente);
             log.debug("Aviso de espera para {}: conversación={}", accionAgente, estadoTanda.conversationId);
+            return OptionalLong.of(estadoTanda.conversationId);
+        }
+
+    }
+
+    /**
+     * Registra que el agente llamó a la verificación de su respuesta e indica si corresponde el aviso
+     * de reintento: la segunda llamada de la misma tanda es el agente rehaciendo su respuesta (el aviso
+     * sale una sola vez). Solo con la tanda abierta.
+     *
+     * @param numeroTelefono {@code String} teléfono del paciente (header del canal), o {@code null}
+     * @return {@code OptionalLong} la conversación a la que hay que avisar, o vacío si no corresponde
+     */
+    public OptionalLong registerVerificacion(String numeroTelefono) {
+
+        EstadoTanda estadoTanda = findEstadoTanda(numeroTelefono);
+        if (estadoTanda == null) {
+            return OptionalLong.empty();
+        }
+
+        synchronized (estadoTanda) {
+            if (!estadoTanda.abierta) {
+                return OptionalLong.empty();
+            }
+            estadoTanda.verificaciones++;
+            if (estadoTanda.verificaciones != 2) {
+                return OptionalLong.empty();
+            }
+            log.debug("Aviso de reintento de verificación: conversación={}", estadoTanda.conversationId);
             return OptionalLong.of(estadoTanda.conversationId);
         }
 
@@ -148,6 +187,22 @@ public class TandaAgenteService {
 
     }
 
+    /**
+     * Obtiene el estado de la tanda de un teléfono.
+     *
+     * @param numeroTelefono {@code String} teléfono del paciente, o {@code null}
+     * @return {@code EstadoTanda} el estado, o {@code null} si no hay teléfono o nunca abrió una tanda
+     */
+    private EstadoTanda findEstadoTanda(String numeroTelefono) {
+
+        if (numeroTelefono == null || numeroTelefono.isBlank()) {
+            return null;
+        }
+        EstadoTanda estadoTanda = estadosPorTelefono.get(buildClave(numeroTelefono));
+        return estadoTanda;
+
+    }
+
     //endregion
 
     /**
@@ -157,7 +212,8 @@ public class TandaAgenteService {
 
         private long conversationId;
         private boolean abierta;
-        private boolean avisoEsperaEnviado;
+        private final Set<AccionAgente> accionesAvisadas = EnumSet.noneOf(AccionAgente.class);
+        private int verificaciones;
         private Instant ultimoUso = Instant.now();
 
     }

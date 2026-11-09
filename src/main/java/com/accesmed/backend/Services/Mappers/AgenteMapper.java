@@ -24,6 +24,7 @@ import com.accesmed.backend.Records.Agente.Response.ListEspecialidadAgenteRespon
 import com.accesmed.backend.Records.Agente.Response.ListObraSocialAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListHorarioDisponibleAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListIndicacionPrestacionAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.DiaAgendaAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.SearchMedicoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.SearchPrestacionAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListMedicoAgenteResponse;
@@ -174,14 +175,18 @@ public interface AgenteMapper {
      * @param medico {@code Medico} entidad
      * @param prestaciones {@code List<String>} nombres de las prestaciones publicadas que atiende
      * @param coincidencia {@code CoincidenciaBusqueda} cómo se encontró (exacta o aproximada)
-     * @return {@code SearchMedicoAgenteResponse} médico con su especialidad y sus prestaciones
+     * @param haceLaPrestacion {@code Boolean} si hace la prestación pedida, o {@code null} si no se pidió ninguna
+     * @param atiendeParticular {@code Boolean} si atiende particular la prestación pedida, o {@code null} si no se pidió ninguna
+     * @param proximosDiasConAgenda {@code List<DiaAgendaAgenteResponse>} días con agenda en las próximas semanas
+     * @return {@code SearchMedicoAgenteResponse} médico con su especialidad, sus prestaciones y sus días con agenda
      */
     @Mapping(target = "nombre", source = "medico.nombre")
     @Mapping(target = "apellido", source = "medico.apellido")
     @Mapping(target = "matricula", source = "medico.matricula")
     @Mapping(target = "especialidad", source = "medico.especialidad.nombre")
     SearchMedicoAgenteResponse toSearchMedicoResponse(Medico medico, List<String> prestaciones,
-            CoincidenciaBusqueda coincidencia);
+            CoincidenciaBusqueda coincidencia, Boolean haceLaPrestacion, Boolean atiendeParticular,
+            List<DiaAgendaAgenteResponse> proximosDiasConAgenda);
 
     /**
      * Convierte una indicación de prestación a {@code ListIndicacionPrestacionAgenteResponse}.

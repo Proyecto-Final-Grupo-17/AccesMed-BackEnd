@@ -7,12 +7,14 @@ import com.accesmed.backend.Records.Agente.Request.CreatePacienteAgenteRequest;
 import com.accesmed.backend.Records.Agente.Request.CreateTurnoAgenteRequest;
 import com.accesmed.backend.Records.Agente.Request.FranjaHorariaAgente;
 import com.accesmed.backend.Records.Agente.Request.ReprogramTurnoAgenteRequest;
+import com.accesmed.backend.Records.Agente.Request.SearchHorarioAgenteRequest;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest;
 import com.accesmed.backend.Records.Agente.Request.UpdatePacienteAgenteRequest;
 import com.accesmed.backend.Records.Agente.Response.ConfirmTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.CreatePacienteAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.CreateTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetClinicaAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.GetCoberturaPrestacionAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetCotizacionTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetOfertaEspecialidadAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetPacienteAgenteResponse;
@@ -21,6 +23,7 @@ import com.accesmed.backend.Records.Agente.Response.ListHorarioDisponibleAgenteR
 import com.accesmed.backend.Records.Agente.Response.ListObraSocialAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ReprogramTurnoAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.SearchHorarioAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.SearchMedicoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.SearchPrestacionAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.UpdatePacienteAgenteResponse;
@@ -275,29 +278,85 @@ public class AgenteController {
     }
 
     /**
-     * Busca médicos activos por parecido con su nombre o apellido ("turno con Raúl"), con su
-     * especialidad y las prestaciones que atienden (ECU-TURN-1).
+     * Busca médicos activos por parecido con su nombre o apellido ("turno con Raúl"), por especialidad o
+     * por prestación (al menos uno de los tres), con su especialidad, las prestaciones que atienden, si
+     * hacen la prestación pedida y los días con agenda en las próximas semanas (ECU-TURN-1).
      *
      * @param numeroTelefono {@code String} teléfono del canal (header {@code X-Paciente-Telefono}, opcional: solo para la tanda)
-     * @param nombre {@code String} nombre o apellido aproximado del médico
+     * @param nombre {@code String} nombre o apellido aproximado del médico (opcional)
+     * @param especialidad {@code String} nombre aproximado de la especialidad (opcional)
+     * @param prestacion {@code String} nombre aproximado de la prestación (opcional)
      * @return {@code ResponseEntity<List<SearchMedicoAgenteResponse>>} las coincidencias con status 200 (vacía si no hay)
      */
     @GetMapping("/Medico")
     public ResponseEntity<List<SearchMedicoAgenteResponse>> searchMedicos(
             @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
-            @RequestParam String nombre) {
+            @RequestParam(required = false) String nombre,
+            @RequestParam(required = false) String especialidad,
+            @RequestParam(required = false) String prestacion) {
 
-        log.info("Solicitud recibida: buscar médicos parecidos a {}", nombre);
+        log.info("Solicitud recibida: buscar médicos (nombre={}, especialidad={}, prestación={})", nombre, especialidad, prestacion);
 
-        List<SearchMedicoAgenteResponse> searchMedicoAgenteResponses = agenteApp.searchMedicos(numeroTelefono, nombre);
+        List<SearchMedicoAgenteResponse> searchMedicoAgenteResponses =
+                agenteApp.searchMedicos(numeroTelefono, nombre, especialidad, prestacion);
 
         return ResponseEntity.ok(searchMedicoAgenteResponses);
+
+    }
+
+    /**
+     * Consulta qué cubre una obra social y plan para una prestación y cuánto se pagaría, sin elegir un
+     * horario. Sin obra social ni plan usa la cobertura del paciente registrado.
+     *
+     * @param numeroTelefono {@code String} teléfono del canal (header {@code X-Paciente-Telefono}; hace falta si no se nombra obra social)
+     * @param prestacion {@code String} nombre aproximado de la prestación
+     * @param obraSocial {@code String} obra social dicha por el paciente (opcional)
+     * @param plan {@code String} plan dicho por el paciente (opcional)
+     * @param medico {@code String} matrícula o nombre del médico (opcional; sin él, el monto de cada médico que la hace)
+     * @return {@code ResponseEntity<GetCoberturaPrestacionAgenteResponse>} la cobertura y los montos con status 200
+     */
+    @GetMapping("/Prestacion/Cobertura")
+    public ResponseEntity<GetCoberturaPrestacionAgenteResponse> getCoberturaPrestacion(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @RequestParam String prestacion,
+            @RequestParam(required = false) String obraSocial,
+            @RequestParam(required = false) String plan,
+            @RequestParam(required = false) String medico) {
+
+        log.info("Solicitud recibida: consultar cobertura de la prestación {}", prestacion);
+
+        GetCoberturaPrestacionAgenteResponse getCoberturaPrestacionAgenteResponse =
+                agenteApp.getCoberturaPrestacion(numeroTelefono, prestacion, obraSocial, plan, medico);
+
+        return ResponseEntity.ok(getCoberturaPrestacionAgenteResponse);
 
     }
 
     //endregion
 
     //region ========== Turnos ==========
+
+    /**
+     * Busca horarios disponibles con filtros flexibles (médico, prestación, especialidad, día, franja y
+     * hora), agrupados por día, médico y prestación (ECU-TURN-2). Hace falta al menos uno de médico,
+     * prestación o especialidad.
+     *
+     * @param numeroTelefono {@code String} teléfono del canal (header {@code X-Paciente-Telefono}, opcional: solo para la tanda)
+     * @param searchHorarioAgenteRequest {@code SearchHorarioAgenteRequest} filtros, como parámetros de la URL
+     * @return {@code ResponseEntity<SearchHorarioAgenteResponse>} los horarios agrupados (o el motivo por el que no hay) con status 200
+     */
+    @GetMapping("/Horario")
+    public ResponseEntity<SearchHorarioAgenteResponse> searchHorarios(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            SearchHorarioAgenteRequest searchHorarioAgenteRequest) {
+
+        log.info("Solicitud recibida: buscar horarios disponibles");
+
+        SearchHorarioAgenteResponse searchHorarioAgenteResponse = agenteApp.searchHorarios(numeroTelefono, searchHorarioAgenteRequest);
+
+        return ResponseEntity.ok(searchHorarioAgenteResponse);
+
+    }
 
     /**
      * Lista los horarios disponibles de un médico para una prestación (ECU-TURN-2).
