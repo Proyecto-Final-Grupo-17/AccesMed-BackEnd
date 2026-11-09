@@ -1246,17 +1246,22 @@ verificación), `Docs/BACKLOG.md`.
 > despachar la tanda; las consultas ya no avisan), §4.8 (`accesmed.flowise.timeout-*-segundos` y
 > cierre por inactividad con `@Scheduled` cada minuto), §4.10 (`particular` en `PATCH /Agente/Paciente`)
 > y los bugs del panel P1 (la cobertura del turno tiene que ser del paciente) y P2 (unicidad del
-> teléfono por dígitos y formato `+<dígitos>` con migración), más el retiro de la verificación vieja (§4.13) y `Docs/BACKLOG.md`.
+> teléfono por dígitos), más el retiro de la verificación vieja (§4.13) y `Docs/BACKLOG.md`.
 > **Pendiente:** el flow en Flowise (D34) y la prueba por WhatsApp. Los endpoints nuevos se probaron
 > contra el back local con los datos demo.
 >
-> **Decisiones tomadas al implementar.** (a) P2 se resolvió con tres cosas: la unicidad del teléfono se valida **por
-> dígitos**; el panel guarda el teléfono como `+<dígitos>` (igual que el canal, en
-> `PacienteDomainService.savePaciente`); y el changeset `20261109120000-updated-table-Paciente-numero-telefono-e164`
-> normaliza los datos existentes. La migración normaliza siempre a los pacientes dados de baja y a los
-> activos cuyos dígitos no se repiten en otro activo; los **duplicados por formato que ya existan quedan
-> sin tocar** (normalizarlos violaría `uq_paciente_numero_telefono`) y los tiene que resolver una persona.
-> Probada contra la base local con cuatro casos (limpio, par duplicado y dado de baja). (b) El cierre por inactividad no cierra las
+> **Decisiones tomadas al implementar.** (a) P2 se resolvió **solo en parte**: la unicidad del teléfono del panel se
+> valida **por dígitos** (dos formatos del mismo número ya no pasan). **No se normaliza el formato
+> guardado ni se migraron datos**: se implementó (`+<dígitos>` al guardar y un changeset sobre
+> `paciente`) y se **retiró el mismo día** a pedido del usuario, hasta decidir qué hacer con el código
+> de país. Queda abierto: el panel acepta un teléfono sin código de país (`351 000-0001`), que el bot
+> nunca va a reconocer (WhatsApp manda `+5493510000001`), y los duplicados por formato que ya existan en
+> la base siguen haciendo fallar la búsqueda por teléfono del canal. Opciones evaluadas: (A) exigir el
+> prefijo (`+54 9…`) en el front y el back, la recomendada; (B) completar `+54 9` automáticamente si falta,
+> que adivina y falla con fijos o números de otros países; (C) guardar el número nacional sin código de
+> país y comparar quitando `549` al número del canal, que supone que todos son argentinos y exige
+> reglas para el `0` y el `15`, cambiar la consulta, migrar datos y reconstruir el número completo para
+> notificaciones por WhatsApp. (b) El cierre por inactividad no cierra las
 > conversaciones que el back derivó a una persona (`derivadaAPersona`); si un agente humano toma una
 > conversación sin pasar por una derivación del back, el bot puede cerrarla. (c) La verificación de
 > horarios y cotizaciones reutiliza las guardas de `findHorariosDisponibles` (libre, en plazo y dentro

@@ -80,7 +80,7 @@ que se completan.
   - [ ] 6B Flow en la UI de staging, exportado a `AccesMed-Flowise`: tools nuevas y modificadas, nodos Verificar + Condition + Loop, `<datos>`, prompts (§4.11) y parámetros del modelo (§4.9).
   - [x] 6C.1 Retiro de la verificación vieja en el back (§4.13): `TandaAgenteService` solo avisa las escrituras, sin `controlInterno`.
   - [ ] 6C.2 Sacar `controlInterno` del flow, batería de pruebas (§4.1) y deploy conjunto back + flow.
-  - [x] 6D Teléfono del panel guardado como `+<dígitos>` y migración de los datos existentes (los duplicados por formato que ya existan quedan sin tocar para revisión manual).
+  - [ ] 6D Decidir el código de país del teléfono del panel (P2, parte abierta): exigir el prefijo `+54 9…` en front y back (recomendado), completarlo solo, o guardar el número nacional (ver `Docs/Diseno-Chatbot.md §4`, decisión (a)). Hoy el panel acepta un teléfono sin código de país y el bot no lo reconoce; los duplicados por formato que ya existan en la base siguen sin resolverse.
 
 > Las Fases 1-2 se pueden validar sin WhatsApp usando el chat de prueba de Flowise y la UI
 > de Chatwoot. Notificaciones salientes (NOTIF-1..5) = Fase 2 posterior (contrato §11).

@@ -33,8 +33,7 @@ public class PacienteDomainService {
     //region ========== Métodos ==========
 
     /**
-     * Guarda un paciente en la base de datos. El teléfono se guarda en formato {@code +<dígitos>}
-     * (el mismo que usa el canal chatbot), así un mismo número no queda guardado con dos formatos.
+     * Guarda un paciente en la base de datos.
      *
      * @param paciente {@code Paciente} entidad a persistir
      * @return {@code Paciente} el paciente guardado
@@ -42,11 +41,6 @@ public class PacienteDomainService {
     public Paciente savePaciente(Paciente paciente) {
 
         log.debug("Guardando paciente: dni={}", paciente.getDni());
-
-        //Normalizar el teléfono si tiene la forma de un teléfono (si no, lo rechaza Bean Validation antes)
-        if (NormalizadorTelefono.esValido(paciente.getNumeroTelefono())) {
-            paciente.setNumeroTelefono(NormalizadorTelefono.normalizarE164(paciente.getNumeroTelefono()));
-        }
 
         return pacienteRepository.save(paciente);
 
