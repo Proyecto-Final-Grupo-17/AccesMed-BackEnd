@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Supplier;
 
 /**
  * Lógica del canal Chatwoot (diseño en {@code Docs/Diseno-Chatbot.md §2.3}, contrato en
@@ -840,12 +841,46 @@ public class ChatwootService {
      */
     public void sendMensajesInicioTandaAsync(long conversationId, String mensajeBienvenida, boolean avisoEspera) {
 
+        sendMensajesInicioTandaAsync(conversationId, mensajeBienvenida, avisoEspera, null);
+
+    }
+
+    /**
+     * Igual que {@link #sendMensajesInicioTandaAsync(long, String, boolean)}, pero la bienvenida puede
+     * ir como nota de voz (si el primer mensaje de la ventana fue un audio). La voz se genera dentro
+     * de la tarea en segundo plano (la síntesis tarda). Va como en las respuestas: el audio y, si
+     * {@code accesmed.audio.respuesta-con-texto} lo pide, el texto después; si la voz falla, sale el texto.
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     * @param mensajeBienvenida {@code String} bienvenida a mandar, o {@code null} si no corresponde
+     * @param avisoEspera {@code boolean} {@code true} si hay que mandar "Un momento"
+     * @param vozBienvenida {@code Supplier<byte[]>} genera la nota de voz OGG/Opus de la bienvenida
+     *        (puede devolver {@code null}), o {@code null} si la bienvenida va solo en texto
+     */
+    public void sendMensajesInicioTandaAsync(long conversationId, String mensajeBienvenida, boolean avisoEspera,
+            Supplier<byte[]> vozBienvenida) {
+
         if (mensajeBienvenida == null && !avisoEspera) {
             return;
         }
         executeEnviosAsync(conversationId, () -> {
             if (mensajeBienvenida != null) {
-                sendMensajeSeguro(conversationId, mensajeBienvenida);
+                boolean audioEnviado = false;
+                if (vozBienvenida != null) {
+                    try {
+                        byte[] audioBienvenida = vozBienvenida.get();
+                        if (audioBienvenida != null && audioBienvenida.length > 0) {
+                            chatwootClient.sendAudioChatwoot(conversationId, audioBienvenida, NOMBRE_ARCHIVO_AUDIO_RESPUESTA);
+                            audioEnviado = true;
+                        }
+                    } catch (RuntimeException excepcion) {
+                        log.error("No se pudo mandar la bienvenida en voz a la conversación {}: se manda el texto",
+                                conversationId, excepcion);
+                    }
+                }
+                if (!audioEnviado || audioRespuestaConTexto) {
+                    sendMensajeSeguro(conversationId, mensajeBienvenida);
+                }
             }
             if (avisoEspera) {
                 sendMensajeSeguro(conversationId, MENSAJE_ESPERA);
