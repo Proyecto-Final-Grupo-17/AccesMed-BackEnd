@@ -1,5 +1,7 @@
 package com.accesmed.backend.Records.Agente.Response;
 
+import com.accesmed.backend.Services.Utils.CoincidenciaBusqueda;
+
 import java.util.List;
 
 /**
@@ -11,12 +13,14 @@ import java.util.List;
  * @param requiereValidacion {@code boolean} {@code true} si alguna indicación vigente requiere validación: el turno arranca en {@code ESPERA_VALIDACION}
  * @param indicaciones {@code List<ListIndicacionPrestacionAgenteResponse>} indicaciones vigentes
  * @param medicos {@code List<ListMedicoAgenteResponse>} médicos activos que atienden la prestación
+ * @param coincidencia {@code CoincidenciaBusqueda} {@code EXACTA} si coincide lo que escribió el paciente, {@code APROXIMADA} si es solo parecido (puede ser otra cosa)
  */
 public record SearchPrestacionAgenteResponse(
         String nombre,
         String especialidad,
         boolean requiereValidacion,
         List<ListIndicacionPrestacionAgenteResponse> indicaciones,
-        List<ListMedicoAgenteResponse> medicos
+        List<ListMedicoAgenteResponse> medicos,
+        CoincidenciaBusqueda coincidencia
 ) {
 }

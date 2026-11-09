@@ -51,4 +51,25 @@
         </rollback>
     </changeSet>
 
+    <!--
+        Normaliza numero_telefono a '+<dígitos>' (el formato del canal chatbot; Diseno-Chatbot §4.12 P2).
+        Los pacientes dados de baja se normalizan siempre (el índice único no los alcanza). Los activos
+        solo si ningún otro activo tiene los mismos dígitos: los duplicados por formato que ya existan
+        quedan sin tocar para que los resuelva una persona (normalizarlos violaría uq_paciente_numero_telefono).
+    -->
+    <changeSet id="20261109120000-updated-table-Paciente-numero-telefono-e164" author="claude">
+        <sql>
+            UPDATE paciente p
+            SET numero_telefono = '+' || regexp_replace(p.numero_telefono, '\D', '', 'g')
+            WHERE p.numero_telefono &lt;&gt; '+' || regexp_replace(p.numero_telefono, '\D', '', 'g')
+              AND length(regexp_replace(p.numero_telefono, '\D', '', 'g')) BETWEEN 7 AND 15
+              AND (p.deleted_at IS NOT NULL
+                   OR NOT EXISTS (SELECT 1 FROM paciente o
+                                  WHERE o.id &lt;&gt; p.id AND o.deleted_at IS NULL
+                                    AND regexp_replace(o.numero_telefono, '\D', '', 'g')
+                                      = regexp_replace(p.numero_telefono, '\D', '', 'g')));
+        </sql>
+        <rollback/>
+    </changeSet>
+
 </databaseChangeLog>

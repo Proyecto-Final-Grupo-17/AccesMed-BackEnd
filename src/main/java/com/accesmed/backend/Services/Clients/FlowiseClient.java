@@ -19,13 +19,6 @@ import java.util.Map;
 @Component
 public class FlowiseClient {
 
-    //region ========== Constantes ==========
-
-    private static final Duration TIMEOUT_CONEXION = Duration.ofSeconds(5);
-    private static final Duration TIMEOUT_LECTURA = Duration.ofSeconds(60);
-
-    //endregion
-
     //region ========== Dependencias o inyecciones ==========
 
     private final RestClient restClient;
@@ -40,14 +33,19 @@ public class FlowiseClient {
      * @param baseUrl {@code String} URL base de Flowise ({@code accesmed.flowise.base-url})
      * @param chatflowId {@code String} id del chatflow del agente ({@code accesmed.flowise.chatflow-id})
      * @param apiKey {@code String} API key del chatflow ({@code accesmed.flowise.api-key}); vacía si no se usa
+     * @param timeoutConexionSegundos {@code long} segundos máximos para conectar ({@code accesmed.flowise.timeout-conexion-segundos})
+     * @param timeoutLecturaSegundos {@code long} segundos máximos esperando la respuesta del agente ({@code accesmed.flowise.timeout-lectura-segundos});
+     *        al vencer, el canal deriva la conversación a una persona
      */
     public FlowiseClient(@Value("${accesmed.flowise.base-url}") String baseUrl,
             @Value("${accesmed.flowise.chatflow-id}") String chatflowId,
-            @Value("${accesmed.flowise.api-key:}") String apiKey) {
+            @Value("${accesmed.flowise.api-key:}") String apiKey,
+            @Value("${accesmed.flowise.timeout-conexion-segundos:5}") long timeoutConexionSegundos,
+            @Value("${accesmed.flowise.timeout-lectura-segundos:60}") long timeoutLecturaSegundos) {
 
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder().connectTimeout(TIMEOUT_CONEXION).build());
-        requestFactory.setReadTimeout(TIMEOUT_LECTURA);
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(timeoutConexionSegundos)).build());
+        requestFactory.setReadTimeout(Duration.ofSeconds(timeoutLecturaSegundos));
 
         this.restClient = RestClient.builder().baseUrl(baseUrl).requestFactory(requestFactory).build();
         this.chatflowId = chatflowId;

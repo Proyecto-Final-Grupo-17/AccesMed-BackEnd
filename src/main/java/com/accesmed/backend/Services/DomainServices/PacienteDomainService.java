@@ -33,7 +33,8 @@ public class PacienteDomainService {
     //region ========== Métodos ==========
 
     /**
-     * Guarda un paciente en la base de datos.
+     * Guarda un paciente en la base de datos. El teléfono se guarda en formato {@code +<dígitos>}
+     * (el mismo que usa el canal chatbot), así un mismo número no queda guardado con dos formatos.
      *
      * @param paciente {@code Paciente} entidad a persistir
      * @return {@code Paciente} el paciente guardado
@@ -41,6 +42,11 @@ public class PacienteDomainService {
     public Paciente savePaciente(Paciente paciente) {
 
         log.debug("Guardando paciente: dni={}", paciente.getDni());
+
+        //Normalizar el teléfono si tiene la forma de un teléfono (si no, lo rechaza Bean Validation antes)
+        if (NormalizadorTelefono.esValido(paciente.getNumeroTelefono())) {
+            paciente.setNumeroTelefono(NormalizadorTelefono.normalizarE164(paciente.getNumeroTelefono()));
+        }
 
         return pacienteRepository.save(paciente);
 
@@ -104,7 +110,8 @@ public class PacienteDomainService {
     }
 
     /**
-     * Valida que el número de teléfono del paciente sea único entre los pacientes activos.
+     * Valida que el número de teléfono del paciente sea único entre los pacientes activos,
+     * comparando solo los dígitos (así "351 000-0001" y "+3510000001" son el mismo número).
      *
      * @param numeroTelefono {@code String} número de teléfono a verificar
      * @throws ReglaNegocioException {@code ReglaNegocioException} si ya existe un paciente
@@ -112,7 +119,10 @@ public class PacienteDomainService {
      */
     public void validateNumeroTelefonoPacienteIsUnique(String numeroTelefono) {
 
-        if (pacienteRepository.existsByNumeroTelefonoAndDeletedAtIsNull(numeroTelefono)) {
+        boolean telefonoDuplicado = NormalizadorTelefono.esValido(numeroTelefono)
+                ? pacienteRepository.existsActivoByNumeroTelefonoNormalizado(NormalizadorTelefono.normalizarDigitos(numeroTelefono))
+                : pacienteRepository.existsByNumeroTelefonoAndDeletedAtIsNull(numeroTelefono);
+        if (telefonoDuplicado) {
             log.warn("No se pudo crear el paciente: número de teléfono {} ya existe", numeroTelefono);
             throw new ReglaNegocioException(getClass(), "PACIENTE_NUMERO_TELEFONO_DUPLICADO",
                     "Ya existe un paciente con el número de teléfono " + numeroTelefono + ".");
@@ -131,7 +141,11 @@ public class PacienteDomainService {
      */
     public void validateNumeroTelefonoPacienteIsUnique(String numeroTelefono, UUID idExcluido) {
 
-        if (pacienteRepository.existsByNumeroTelefonoAndDeletedAtIsNullAndIdNot(numeroTelefono, idExcluido)) {
+        boolean telefonoDuplicado = NormalizadorTelefono.esValido(numeroTelefono)
+                ? pacienteRepository.existsActivoByNumeroTelefonoNormalizadoAndIdNot(
+                        NormalizadorTelefono.normalizarDigitos(numeroTelefono), idExcluido)
+                : pacienteRepository.existsByNumeroTelefonoAndDeletedAtIsNullAndIdNot(numeroTelefono, idExcluido);
+        if (telefonoDuplicado) {
             log.warn("No se pudo actualizar el paciente: número de teléfono {} ya existe en otro paciente", numeroTelefono);
             throw new ReglaNegocioException(getClass(), "PACIENTE_NUMERO_TELEFONO_DUPLICADO",
                     "Ya existe otro paciente con el número de teléfono " + numeroTelefono + ".");

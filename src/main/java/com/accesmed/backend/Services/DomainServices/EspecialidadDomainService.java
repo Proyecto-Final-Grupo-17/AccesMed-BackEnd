@@ -5,6 +5,8 @@ import com.accesmed.backend.Domain.Especialidad_;
 import com.accesmed.backend.Repositories.EspecialidadRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import com.accesmed.backend.Services.Utils.CoincidenciaBusqueda;
+import com.accesmed.backend.Services.Utils.ResultadoBusqueda;
 import com.accesmed.backend.Services.Utils.EspecificacionBusquedaPalabras;
 import com.accesmed.backend.Services.Utils.NormalizadorBusqueda;
 import lombok.RequiredArgsConstructor;
@@ -29,10 +31,8 @@ public class EspecialidadDomainService {
     //region ========== Constantes ==========
 
     /**
-     * Similitud mínima de trigramas para el fallback de la búsqueda por parecido.
+     * Máximo de resultados del fallback por similitud de trigramas.
      */
-    private static final double UMBRAL_SIMILITUD = 0.35;
-
     private static final int LIMITE_SIMILITUD = 5;
 
     //endregion
@@ -210,15 +210,16 @@ public class EspecialidadDomainService {
      * coincidencias, por similitud de trigramas para tolerar errores de tipeo.
      *
      * @param nombre {@code String} texto libre que escribió el paciente
-     * @return {@code List<Especialidad>} las coincidencias (vacía si no hay ninguna)
+     * @param umbralSimilitud {@code double} similitud mínima de trigramas para el fallback (0 a 1)
+     * @return {@code ResultadoBusqueda<Especialidad>} las coincidencias (vacía si no hay ninguna) y si fueron exactas o aproximadas
      */
-    public List<Especialidad> searchEspecialidadesActivasByNombre(String nombre) {
+    public ResultadoBusqueda<Especialidad> searchEspecialidadesActivasByNombre(String nombre, double umbralSimilitud) {
 
         log.debug("Buscando especialidades activas por parecido: {}", nombre);
 
         List<String> palabrasBusqueda = NormalizadorBusqueda.findPalabrasBusqueda(nombre);
         if (palabrasBusqueda.isEmpty()) {
-            return List.of();
+            return ResultadoBusqueda.vacio();
         }
 
         //Coincidencia por palabras: cada una contenida en el nombre
@@ -228,13 +229,14 @@ public class EspecialidadDomainService {
         List<Especialidad> especialidadesEncontradas = especialidadRepository.findAll(specificationBusqueda,
                 Sort.by(Especialidad_.NOMBRE));
 
-        //Sin coincidencias exactas por palabra: probar por similitud (errores de tipeo)
+        //Sin coincidencias exactas por palabra: probar por similitud (errores de tipeo), avisando que es aproximada
+        ResultadoBusqueda<Especialidad> resultadoBusqueda = new ResultadoBusqueda<>(especialidadesEncontradas, CoincidenciaBusqueda.EXACTA);
         if (especialidadesEncontradas.isEmpty()) {
-            especialidadesEncontradas = especialidadRepository.findActivasBySimilitudNombre(
-                    String.join(" ", palabrasBusqueda), UMBRAL_SIMILITUD, LIMITE_SIMILITUD);
+            resultadoBusqueda = new ResultadoBusqueda<>(especialidadRepository.findActivasBySimilitudNombre(
+                    String.join(" ", palabrasBusqueda), umbralSimilitud, LIMITE_SIMILITUD), CoincidenciaBusqueda.APROXIMADA);
         }
 
-        return especialidadesEncontradas;
+        return resultadoBusqueda;
 
     }
 

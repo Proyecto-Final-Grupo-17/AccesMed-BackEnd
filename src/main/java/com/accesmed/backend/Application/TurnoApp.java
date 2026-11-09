@@ -170,6 +170,13 @@ public class TurnoApp {
                 ? obraSocialPacienteDomainService.findObraSocialPacienteActivaById(createTurnoRequest.obraSocialPacienteId())
                 : null;
         if (obraSocialPacienteExistente != null
+                && !obraSocialPacienteExistente.getPaciente().getId().equals(pacienteExistente.getId())) {
+            log.warn("No se pudo crear el turno: la cobertura {} no es del paciente {}",
+                    obraSocialPacienteExistente.getId(), pacienteExistente.getId());
+            throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_PACIENTE_AJENA",
+                    "La cobertura elegida no pertenece al paciente del turno.");
+        }
+        if (obraSocialPacienteExistente != null
                 && !historicoEstadoPlanDomainService.isPlanPublicado(obraSocialPacienteExistente.getPlan().getId())) {
             log.info("Plan {} no publicado: el turno se registra como particular", obraSocialPacienteExistente.getPlan().getId());
             obraSocialPacienteExistente = null;
