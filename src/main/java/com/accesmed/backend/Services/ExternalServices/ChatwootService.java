@@ -22,6 +22,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
@@ -74,9 +75,18 @@ public class ChatwootService {
      */
     static final String TOKEN_FIN = "—FIN—";
 
-    static final String MENSAJE_DOCUMENTO_RECIBIDO = "📎 Recibimos tu archivo. Alguien del equipo lo va a revisar.";
+    /**
+     * Aviso inmediato al despachar la tanda a Flowise (el agente tarda unos segundos en responder).
+     */
+    static final String MENSAJE_ESPERA = "⏳ Un momento…";
 
-    static final String MENSAJE_RESPUESTA_NO_VERIFICADA = "Perdón, no pude completar eso. ¿Lo intentamos de nuevo?";
+    /**
+     * Cierre de una conversación del bot que quedó sin mensajes más allá de la ventana de inactividad.
+     */
+    static final String MENSAJE_CIERRE_INACTIVIDAD = "Cerramos esta conversación por inactividad. "
+            + "Cuando quieras, escribinos de nuevo. 👋";
+
+    static final String MENSAJE_DOCUMENTO_RECIBIDO = "📎 Recibimos tu archivo. Alguien del equipo lo va a revisar.";
 
     /**
      * Etiqueta de Chatwoot para las conversaciones con archivos del paciente (la crea el equipo en Chatwoot).
@@ -87,11 +97,6 @@ public class ChatwootService {
      * Tipos de adjunto que se toman como documento del paciente (audio y video siguen con "solo texto").
      */
     private static final Set<String> TIPOS_ADJUNTO_DOCUMENTO = Set.of("image", "file");
-
-    /**
-     * Variable de Flowise con la instrucción de corrección cuando la respuesta del agente no pasó la verificación.
-     */
-    static final String VARIABLE_CONTROL_INTERNO = "controlInterno";
 
     private static final DateTimeFormatter FORMATO_HORA = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -394,6 +399,45 @@ public class ChatwootService {
     }
 
     /**
+     * Cierra las conversaciones atendidas por el bot que quedaron sin mensajes más allá de la
+     * ventana de inactividad (Diseno-Chatbot §4.8): manda un cierre fijo, resuelve la conversación
+     * en Chatwoot y cierra la ventana, igual que {@code —FIN—}. No toca las derivadas a una persona
+     * ni las que el bot no llegó a atender (sin bienvenida). Corre cada minuto.
+     */
+    @Scheduled(fixedDelayString = "PT1M")
+    public void closeConversacionesInactivas() {
+
+        Instant ahora = Instant.now();
+
+        //Elegir las vencidas y cerrar su ventana adentro del monitor, para no cerrar dos veces
+        List<Long> conversacionesACerrar = new ArrayList<>();
+        estadosConversacion.forEach((conversationId, estadoConversacion) -> {
+            synchronized (estadoConversacion) {
+                boolean atendidaPorElBot = estadoConversacion.bienvenidaEnviada && !estadoConversacion.derivadaAPersona;
+                boolean ventanaVencida = estadoConversacion.ultimoMensaje != null
+                        && estadoConversacion.ultimoMensaje.plus(ventanaInactividad).isBefore(ahora);
+                if (atendidaPorElBot && ventanaVencida) {
+                    estadoConversacion.ultimoMensaje = null;
+                    estadoConversacion.inicioVentana = null;
+                    conversacionesACerrar.add(conversationId);
+                }
+            }
+        });
+
+        //Avisar y resolver fuera del monitor (son llamadas HTTP)
+        for (long conversationId : conversacionesACerrar) {
+            try {
+                log.info("Cierre por inactividad: se resuelve la conversación {}", conversationId);
+                chatwootClient.sendMensajeChatwoot(conversationId, MENSAJE_CIERRE_INACTIVIDAD);
+                chatwootClient.resolveConversacionChatwoot(conversationId);
+            } catch (RuntimeException excepcion) {
+                log.error("Chatwoot falló al cerrar por inactividad la conversación {}", conversationId, excepcion);
+            }
+        }
+
+    }
+
+    /**
      * Borra el estado de las conversaciones inactivas y sin silencio vigente, para que el mapa no
      * crezca sin límite. Corre cada 10 minutos.
      */
@@ -451,7 +495,7 @@ public class ChatwootService {
      * @param nombreContacto {@code String} nombre del perfil de WhatsApp (puede ser vacío)
      * @param pacienteRegistrado {@code Optional<Paciente>} paciente activo dueño del teléfono, si existe
      * @param clinica {@code Clinica} configuración de la clínica (zona horaria)
-     * @return {@code Map<String, String>} {@code numeroTelefono}, {@code nombreContacto}, {@code pacienteRegistrado}, {@code nombrePaciente}, {@code fechaHoraActual} y {@code controlInterno} (vacío)
+     * @return {@code Map<String, String>} {@code numeroTelefono}, {@code nombreContacto}, {@code pacienteRegistrado}, {@code nombrePaciente} y {@code fechaHoraActual}
      */
     public Map<String, String> buildVariablesFlowise(String numeroTelefono, String nombreContacto,
             Optional<Paciente> pacienteRegistrado, Clinica clinica) {
@@ -463,26 +507,8 @@ public class ChatwootService {
                 "nombreContacto", nombreContacto == null ? "" : nombreContacto,
                 "pacienteRegistrado", String.valueOf(pacienteRegistrado.isPresent()),
                 "nombrePaciente", pacienteRegistrado.map(Paciente::getNombre).orElse(""),
-                "fechaHoraActual", fechaHoraActual,
-                VARIABLE_CONTROL_INTERNO, "");
+                "fechaHoraActual", fechaHoraActual);
         return variablesFlowise;
-
-    }
-
-    /**
-     * Copia las variables de sesión agregando la instrucción de corrección para el agente, para
-     * volver a preguntarle cuando su respuesta no pasó la verificación ({@code Docs/Diseno-Chatbot.md §3.4.5}).
-     *
-     * @param variablesFlowise {@code Map<String, String>} variables de la primera consulta
-     * @param instruccionCorreccion {@code String} qué hizo mal el agente y qué tiene que hacer
-     * @return {@code Map<String, String>} las mismas variables con {@code controlInterno} completo
-     */
-    public Map<String, String> buildVariablesFlowiseConCorreccion(Map<String, String> variablesFlowise,
-            String instruccionCorreccion) {
-
-        Map<String, String> variablesFlowiseConCorreccion = new HashMap<>(variablesFlowise);
-        variablesFlowiseConCorreccion.put(VARIABLE_CONTROL_INTERNO, instruccionCorreccion);
-        return variablesFlowiseConCorreccion;
 
     }
 
@@ -527,6 +553,10 @@ public class ChatwootService {
             if (terminaCharla) {
                 estadoConversacion.ultimoMensaje = null;
                 estadoConversacion.inicioVentana = null;
+            }
+            //Derivada a una persona: el cierre por inactividad ya no es del bot
+            if (pideHandoff || derivaPorFueraDeTema) {
+                estadoConversacion.derivadaAPersona = true;
             }
         }
 
@@ -629,6 +659,18 @@ public class ChatwootService {
     }
 
     /**
+     * Manda, en segundo plano, el aviso de espera genérico ("⏳ Un momento…") apenas se despacha la
+     * tanda a Flowise (Diseno-Chatbot §4.7).
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     */
+    public void sendMensajeEsperaGenericoAsync(long conversationId) {
+
+        executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, MENSAJE_ESPERA));
+
+    }
+
+    /**
      * Manda, en segundo plano, el aviso de espera de la acción que pidió el agente ("Buscando
      * horarios disponibles…"), para que el paciente sepa que su pedido se está procesando.
      *
@@ -639,18 +681,6 @@ public class ChatwootService {
 
         String mensajeEspera = buildMensajeEspera(accionAgente);
         executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, mensajeEspera));
-
-    }
-
-    /**
-     * Avisa que no se pudo completar el pedido: se usa cuando la respuesta del agente no pasó la
-     * verificación ni siquiera después de pedirle que la corrija. Si Chatwoot falla, solo se loguea.
-     *
-     * @param conversationId {@code long} identificador de la conversación
-     */
-    public void sendMensajeRespuestaNoVerificada(long conversationId) {
-
-        sendMensajeSeguro(conversationId, MENSAJE_RESPUESTA_NO_VERIFICADA);
 
     }
 
@@ -671,6 +701,12 @@ public class ChatwootService {
      * @param conversationId {@code long} identificador de la conversación
      */
     public void transferConversacionPorErrorTecnico(long conversationId) {
+
+        //Derivada a una persona: el cierre por inactividad ya no es del bot
+        EstadoConversacion estadoConversacion = findEstadoConversacion(conversationId);
+        synchronized (estadoConversacion) {
+            estadoConversacion.derivadaAPersona = true;
+        }
 
         try {
             chatwootClient.sendMensajeChatwoot(conversationId, MENSAJE_ERROR_TECNICO);
@@ -716,6 +752,7 @@ public class ChatwootService {
             estadoConversacion.bienvenidaEnviada = false;
             estadoConversacion.avisoFueraHorarioEnviado = false;
             estadoConversacion.fueraDeTemaSeguidos = 0;
+            estadoConversacion.derivadaAPersona = false;
         }
         estadoConversacion.ultimoMensaje = ahora;
 
@@ -730,9 +767,6 @@ public class ChatwootService {
     private String buildMensajeEspera(AccionAgente accionAgente) {
 
         String mensajeEspera = switch (accionAgente) {
-            case CONSULTA_CATALOGO -> "🔎 Buscando en la cartilla…";
-            case CONSULTA_HORARIOS -> "🔎 Buscando horarios disponibles…";
-            case CONSULTA_TURNOS -> "🔎 Revisando tus turnos…";
             case RESERVA_TURNO -> "⏳ Reservando tu turno…";
             case CANCELACION_TURNO -> "⏳ Cancelando tu turno…";
             case REPROGRAMACION_TURNO -> "⏳ Reprogramando tu turno…";
@@ -818,6 +852,7 @@ public class ChatwootService {
         private final Deque<Instant> marcasMensajes = new ArrayDeque<>();
         private Instant silenciadoHasta;
         private int fueraDeTemaSeguidos;
+        private boolean derivadaAPersona;
 
     }
 

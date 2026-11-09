@@ -5,7 +5,10 @@
 > Canal** (back: `ChatwootApp` + `ChatwootService`, **implementada el 2026-11-08**) y **Fase 2 —
 > Flow** (Flowise, construida y probada en staging el 2026-11-08). Etapa 3 (§3, 2026-11-08):
 > ajustes tras la primera prueba real por WhatsApp — **Fase 3A (back) implementada y probada en
-> local**, sin desplegar; Fase 3B (flow) pendiente.
+> local**, sin desplegar; Fase 3B (flow) pendiente. Etapa 4 (§4, 2026-11-08): verificación contra
+> el back desde el flow, cobertura elegida y cotizada, paridad agente ↔ panel — diseño acordado;
+> **parte back implementada el 2026-11-09 y probada en local (tests en verde), sin desplegar** (ver
+> el estado de §4); el flow (D34) y el retiro de §4.13 siguen pendientes.
 >
 > **Para qué sirve este documento.** Traducir los casos de uso del actor Paciente en los
 > **pasos de una conversación de WhatsApp**: qué escribe el paciente, qué tiene que razonar el
@@ -1230,3 +1233,312 @@ verificación), `Docs/BACKLOG.md`.
 2. Deploy del back a staging.
 3. Fase 3B: repo `AccesMed-Flowise` → staging por el navegador.
 4. Prueba real por WhatsApp.
+
+## 4. Etapa 4 — Verificación contra el back, cobertura y ajustes (2026-11-08)
+
+> **Estado:** diseño acordado con el usuario el 2026-11-08. Sale de la batería de pruebas directa a
+> Flowise (≈75 mensajes, staging) y de una prueba real por WhatsApp.
+>
+> **Implementado en el back (2026-11-09, `feature/Agente`, sin commitear ni desplegar):** §4.3
+> (`POST /Agente/Verificacion` + `VerificacionAgenteService` + property
+> `accesmed.agente.verificacion.habilitada`), §4.4 (cotización y `cobertura` obligatoria), §4.5
+> (umbral y `coincidencia`), §4.6 (`fechaHoraTexto` y `fecha`), §4.7 (aviso "⏳ Un momento…" al
+> despachar la tanda; las consultas ya no avisan), §4.8 (`accesmed.flowise.timeout-*-segundos` y
+> cierre por inactividad con `@Scheduled` cada minuto), §4.10 (`particular` en `PATCH /Agente/Paciente`)
+> y los bugs del panel P1 (la cobertura del turno tiene que ser del paciente) y P2 (unicidad del
+> teléfono por dígitos), más el retiro de la verificación vieja (§4.13) y `Docs/BACKLOG.md`.
+> **Pendiente:** el flow en Flowise (D34) y la prueba por WhatsApp. Los endpoints nuevos se probaron
+> contra el back local con los datos demo.
+>
+> **Decisiones tomadas al implementar.** (a) P2 se resolvió **solo en parte**: la unicidad del teléfono del panel se
+> valida **por dígitos** (dos formatos del mismo número ya no pasan). **No se normaliza el formato
+> guardado ni se migraron datos**: se implementó (`+<dígitos>` al guardar y un changeset sobre
+> `paciente`) y se **retiró el mismo día** a pedido del usuario, hasta decidir qué hacer con el código
+> de país. Queda abierto: el panel acepta un teléfono sin código de país (`351 000-0001`), que el bot
+> nunca va a reconocer (WhatsApp manda `+5493510000001`), y los duplicados por formato que ya existan en
+> la base siguen haciendo fallar la búsqueda por teléfono del canal. Opciones evaluadas: (A) exigir el
+> prefijo (`+54 9…`) en el front y el back, la recomendada; (B) completar `+54 9` automáticamente si falta,
+> que adivina y falla con fijos o números de otros países; (C) guardar el número nacional sin código de
+> país y comparar quitando `549` al número del canal, que supone que todos son argentinos y exige
+> reglas para el `0` y el `15`, cambiar la consulta, migrar datos y reconstruir el número completo para
+> notificaciones por WhatsApp. (b) El cierre por inactividad no cierra las
+> conversaciones que el back derivó a una persona (`derivadaAPersona`); si un agente humano toma una
+> conversación sin pasar por una derivación del back, el bot puede cerrarla. (c) La verificación de
+> horarios y cotizaciones reutiliza las guardas de `findHorariosDisponibles` (libre, en plazo y dentro
+> del horizonte de reserva).
+
+### 4.1 Qué pasó en las pruebas
+
+Sin errores técnicos (todas las llamadas 200, tools bien invocadas). Los problemas son de
+**información falsa** y de flujo:
+
+| # | Caso | Qué pasó |
+|---|------|----------|
+| F1 | Día de la semana | "Miércoles 12/11" (es jueves); el paciente eligió "jueves 9:30" y quedó reservado el **viernes 13/11**. Intermitente: el LLM deduce el día desde `fechaHora` ISO. |
+| F2 | "¿Hay algo para mañana con un dermatólogo?" | "Sí, tenemos…" **sin llamar a `listHorariosDisponibles`**. Lo mismo por WhatsApp ("en Cardiología hay turnos para…"). |
+| F3 | Paciente con OSDE 310 | Turno reservado como PARTICULAR ($85.800) y el monto se ve **recién después** de reservar. |
+| F4 | "¿Tienen guardia 24 hs?" | Afirma "no tenemos" en una corrida y "no está confirmado" en otra: deduce desde el horario. |
+| F5 | Prestación inexistente | Sugiere "hemograma, glucemia…", que no salen de ninguna tool. |
+| F6 | Baja con turno CONFIRMADO | Ofrece "reprogramarlo" (no se puede y no habilita la baja). |
+| F7 | Estacionamiento / tarjeta | "Te paso las opciones", que no existen. |
+| F8 | "Bilardo" (WhatsApp) | El fallback `pg_trgm` (umbral 0.35) devuelve a Ricardo Molina (3 de 8 trigramas = 0.375) y el agente lo ofrece como "coincidencia más cercana". |
+| B1 | Pasarse a particular | Loop: el contrato de `PATCH /Agente/Paciente` no permite quitar la obra social. |
+| B2 | "¿Ya validaron mi orden?" | El router lo manda a "Documento"; no consulta el turno. |
+| B3 | "¿Aceptan IOMA?" | No llama a `listObraSocial` y deriva (`—HANDOFF—`) sin que el paciente lo pida. |
+| B4 | Avisos de espera | Llegan 8–12 s tarde: salen cuando la tool le pega al back, no al recibir el mensaje. |
+
+**Por qué la verificación de §3.4.5 no alcanza:** compara contra lo que las tools devolvieron en
+la tanda (no contra la BD), solo por regex de cuatro tokens (escritura, `TURNO_`, matrícula,
+`dd/mm hh:mm`) y solo en el camino de Chatwoot. F1 pasa (el 13/11 09:30 existe); F2–F8 no tienen
+tokens que revisar.
+
+### 4.2 Decisiones
+
+| # | Decisión | Resolución |
+|---|----------|------------|
+| D25 | Verificación | **La corre el flow siempre** (guardrail determinista), no queda a criterio del LLM. Endpoint del back que verifica **contra la BD** listas de afirmaciones por entidad y devuelve verdadero/falso por ítem (§4.3). |
+| D26 | Verificación vieja (§3.4.5) | **Se retira** cuando la nueva funcione (§4.13). |
+| D27 | Cobertura del turno | El paciente **elige** particular u obra social; se **cotiza antes** de reservar; el resumen previo al "¿Confirmás?" es completo (§4.4). |
+| D28 | Búsqueda por parecido | Umbral y límite como **properties**; la respuesta indica `coincidencia` EXACTA/APROXIMADA (§4.5). |
+| D29 | Temperatura | **No aplica**: Flowise 3.1.3 la borra para todo `gpt-5*` (`isReasoningModelOpenAI` → `delete obj.temperature`). Se saca del flow; las palancas son reasoning effort, *Strict Tool Calling*, timeout y la verificación (§4.9). |
+| D30 | Aviso de espera | **Inmediato y genérico** al despachar la tanda; los específicos solo para escrituras (§4.7). |
+| D31 | Timeouts | Timeout de Flowise como property → **derivación** a humano (como hoy). Inactividad del paciente → **cierre** de la conversación (§4.8). |
+| D32 | Quitar la obra social | **Sí**: `PATCH /Agente/Paciente` permite pasarse a particular (§4.10). |
+| D33 | Fechas | El back entrega la fecha **legible con día de la semana**; el agente la copia tal cual (§4.6). |
+| D34 | Cómo se edita Flowise (reemplaza a D23) | **Se edita en la UI de Flowise** (staging, desde el navegador) y, al terminar, se **exporta** (agentflow y Custom Tools) y se pegan los archivos en el repo `AccesMed-Flowise`. El repo pasa a ser la copia versionada de lo exportado, no la fuente que se genera e importa. Se abandona la carga por API/base64 (`build-flow.mjs`, `import-flow.mjs`), que falló varias veces en la Fase 3B. |
+
+### 4.3 Verificación (D25)
+
+**Flow:**
+
+```
+Agent ─► Verificar (CustomFunction) ─► Condition ¿verdadero?
+  ▲                                     ├─ sí ─► Parseo ─► Respuesta
+  └─ Loop (máx. 2) ◄── feedback ◄────────┘ no ─► agotado: respuesta fija + —HANDOFF—
+```
+
+Verificado en Flowise 3.1.3: `CustomFunction` tiene `fetch` y *Update Flow State*; `Loop` tiene
+*Max Loop Count*. El feedback viaja en `$flow.state.verificacion` y el prompt común lo muestra
+(reemplaza a `controlInterno`). Si el endpoint falla, **falla cerrado**: respuesta fija + derivación.
+
+**Interruptor:** property `accesmed.agente.verificacion.habilitada` (default `true`). En `false` el
+endpoint responde todo verdadero sin chequear, así se apaga sin tocar el flow si en staging da
+falsos positivos. Cada ítem rechazado se loguea con su motivo, para medir falsos positivos en la
+batería de pruebas.
+
+**Disponibilidad sin herramienta:** `Verificar` detecta en el texto frases que afirman
+disponibilidad ("hay turnos", "hay lugar", "tiene horarios", "no hay turnos"…). Si aparecen y en ese
+mensaje no se llamó a `listHorariosDisponibles` (los `usedTools` del nodo Agent), la respuesta se
+rechaza aunque no traiga fechas (caso F2).
+
+**Afirmaciones del agente.** Cada respuesta trae, además de `<respuesta>`, un bloque `<datos>` (JSON)
+con todo dato concreto que afirma, en **listas por entidad** (una o varias). `Verificar` además
+extrae por regex del texto visible fechas, días de la semana, horas, `MP-…` y `TURNO_…`: lo que
+aparezca en el texto y no en `<datos>` cuenta como **no verificado**. Si el *JSON Structured Output*
+del nodo Agent funciona con tools + razonamiento (dio 400 en la Fase 2), se usa en lugar de la
+etiqueta; se prueba primero en staging.
+
+**Endpoint `POST /accesmed-api/Agente/Verificacion`** (`X-Agente-Api-Key`; `X-Paciente-Telefono`
+para los turnos). Request `VerifyRespuestaAgenteRequest`, todas las listas opcionales:
+
+```json
+{
+  "especialidades": [{"nombre": "Cardiología"}],
+  "prestaciones":   [{"nombre": "Electrocardiograma", "especialidad": "Cardiología",
+                      "indicaciones": ["Ropa de dos piezas"], "requiereValidacion": false}],
+  "medicos":        [{"matricula": "MP-10234", "nombre": "Juan Pérez",
+                      "especialidad": "Cardiología", "prestacion": "Electrocardiograma"}],
+  "horarios":       [{"fecha": "2026-11-12", "diaSemana": "jueves", "hora": "09:30",
+                      "matricula": "MP-10234", "prestacion": "Consulta Cardiológica"}],
+  "disponibilidad": [{"fecha": "2026-11-09", "prestacion": "Consulta Dermatológica",
+                      "matricula": null, "hay": true}],
+  "turnos":         [{"codigo": "TURNO_72514CEE", "fecha": "2026-11-16", "hora": "12:00",
+                      "estado": "CONFIRMADO"}],
+  "cotizaciones":   [{"fecha": "2026-11-18", "hora": "09:00", "matricula": "MP-12011",
+                      "prestacion": "Ecocardiograma Doppler Color", "cobertura": "OBRA_SOCIAL",
+                      "plan": "OSDE 310", "monto": 85800}]
+}
+```
+
+Response `VerifyRespuestaAgenteResponse`: `verdadero` global y la **misma estructura**, cada ítem
+con `{dato, verdadero, motivo, correcto}` (`motivo` en español para el modelo; `correcto`, el valor
+real cuando se puede dar, p. ej. `"viernes"`).
+
+| Lista | Qué se chequea (contra la BD) |
+|-------|-------------------------------|
+| especialidades | existe y está activa |
+| prestaciones | publicada; de esa especialidad; cada indicación nombrada es vigente de la prestación; `requiereValidacion` real |
+| medicos | matrícula activa; nombre coincide (normalizado); de esa especialidad; atiende esa prestación hoy |
+| horarios | el día de la semana corresponde a la fecha; existe un slot libre en plazo de reserva para ese médico, prestación, fecha y hora |
+| disponibilidad | hay (o no hay) slots libres ese día para la prestación (y médico, si viene) |
+| turnos | el código es del paciente del teléfono; fecha, hora y estado vigente reales |
+| cotizaciones | el monto y la cobertura coinciden con el cálculo de §4.4 para ese slot |
+
+Vive en `Services/AgenteServices/VerificacionAgenteService` (capa del canal, §3.3), orquestado
+por `AgenteApp.verifyRespuestaAgente`. Solo lectura.
+
+**Límite:** las afirmaciones abiertas (guardia, estacionamiento) no se verifican con una función:
+quedan en las reglas del prompt (§4.11).
+
+### 4.4 Cobertura y cotización (D27)
+
+Hoy el agente no elige: `findObraSocialPacienteCubridora` toma la primera obra social que cubre o
+cae a particular, y el monto se conoce después de reservar.
+
+- **`GET /Agente/Turno/Cotizacion?slotId=&cobertura=PARTICULAR|OBRA_SOCIAL[&codigoTurno=]`** →
+  `GetCotizacionTurnoAgenteResponse`: prestación, médico, matrícula, `fechaHoraInicio`,
+  `fechaHoraTexto`, `cobertura` (`tipo`, `obraSocial`, `plan`, `cubre`, `motivo`), `montoAPagar`,
+  `precioParticular`, `indicaciones`, `requiereValidacion`. Mismo cálculo que `createTurno`
+  (estrategia por `ModalidadCobertura`), sin guardar. Con `codigoTurno` cotiza una reprogramación
+  (usa la cobertura del turno original). `cubre=false` con motivo si el paciente no tiene obra social,
+  el plan no está publicado o no cubre la prestación.
+- **`createTurno`** suma `cobertura` (obligatorio). Con `OBRA_SOCIAL` y un plan que no cubre →
+  `ReglaNegocioException` `PLAN_NO_CUBRE_PRESTACION` (no cae a particular en silencio).
+- **Agente "Turno nuevo":** pregunta particular u obra social → al elegir horario, cotiza → si no
+  cubre, lo dice y ofrece particular con su precio → resumen completo antes del "¿Confirmás?":
+  prestación, médico y matrícula, `fechaHoraTexto`, cobertura (obra social + plan o particular),
+  monto, indicaciones y si queda en espera de validación. Si dice "obra social" y no tiene una
+  cargada, ofrece cargarla (`updatePaciente`).
+- **Reprogramar:** el mismo resumen con la cotización de la reprogramación (el monto puede cambiar).
+
+### 4.5 Búsqueda por parecido (D28)
+
+- Properties `accesmed.agente.busqueda.umbral-similitud` (propuesto 0.5) y
+  `accesmed.agente.busqueda.limite-similitud`, leídas por los DomainServices de Médico, Prestación
+  y Especialidad (hoy constantes `UMBRAL_SIMILITUD = 0.35`).
+- `searchMedico`, `searchPrestacion` y la oferta devuelven `coincidencia`: `EXACTA` (búsqueda por
+  palabras) o `APROXIMADA` (fallback por trigramas).
+- Prompt: con `APROXIMADA`, primero "ese médico no trabaja con nosotros" y después "¿quisiste decir…?";
+  sin resultados, solo lo primero.
+
+### 4.6 Fechas legibles y filtro por fecha (D33)
+
+- Todo Response del agente con fecha suma `fechaHoraTexto` ("jueves 12/11 09:30", con
+  `FormatoMensaje.fechaHora` en la zona de la clínica): horarios, turnos, crear, reprogramar,
+  confirmar y cotización. Regla del prompt: copiarlo tal cual, nunca calcular el día.
+- `listHorariosDisponibles` suma `fecha` (opcional, `AAAA-MM-DD`): hoy no se puede pedir "el martes
+  17" y el agente solo ve la primera página.
+
+### 4.7 Aviso de espera (D30)
+
+Al despachar la tanda a Flowise, `ChatwootApp` manda "⏳ Un momento…". Los avisos de consulta
+(`CONSULTA_*`) se eliminan; quedan los de escritura ("Reservando tu turno…").
+
+### 4.8 Timeouts (D31)
+
+- **Flowise:** `TIMEOUT_CONEXION`/`TIMEOUT_LECTURA` de `FlowiseClient` pasan a properties
+  (`accesmed.flowise.timeout-*`). Al vencer, sigue `transferConversacionPorErrorTecnico`
+  (derivación). En el flow, *Timeout* del modelo por debajo del de lectura del back.
+- **Inactividad:** hoy `ventana-inactividad-minutos` solo se evalúa cuando llega un mensaje y la
+  conversación queda abierta. Un `@Scheduled` revisa las conversaciones **atendidas por el bot**
+  (no las derivadas a humano) y, vencida la ventana, manda un cierre fijo, resuelve la conversación
+  en Chatwoot y cierra la sesión (igual que `—FIN—`).
+
+### 4.9 Parámetros de Flowise (D29)
+
+| Parámetro | Hoy | Cambio |
+|-----------|-----|--------|
+| `temperature` | 0.2 (ignorado) | Se saca. |
+| Reasoning effort | `low` | `medium` en "Turno nuevo" y "Mis turnos" si la latencia lo permite (a medir). |
+| *Strict Tool Calling* | sin usar | Activar; probar con los parámetros opcionales de las tools. |
+| *Timeout* del modelo | sin usar | Por debajo del timeout de lectura del back. |
+| *JSON Structured Output* (Agent) | sin usar | Para `<datos>` si funciona con tools + razonamiento (§4.3). |
+| *Max Loop Count* | — | 2 (verificación). |
+
+### 4.10 Pasarse a particular (D32)
+
+`UpdatePacienteAgenteRequest` suma `particular` (Boolean). `true` da de baja las coberturas activas;
+junto con `obraSocial` → `ValidacionException`. Tool `updatePaciente` y prompt "Mis datos" actualizados.
+
+### 4.11 Prompts y router
+
+**Regla de datos: SOLO los datos de la API.** Revisión de los prompts (2026-11-08): `comun.md`
+pide que "cada dato concreto" salga de una herramienta, pero no dice *solo* ni prohíbe el
+conocimiento general ni deducir; `oferta.md` (paso 6) y `turno-nuevo.md` (paso 3) le **piden al
+modelo que escriba el día de la semana**, causa directa de F1; `mis-turnos.md` y `mis-datos.md` no
+restringen el texto a los datos de las tools; `info-clinica.md` no prohíbe deducir (F4).
+
+El bloque siguiente va **en cada prompt** (`comun.md`, las cuatro ramas e `info-clinica.md`, adaptando
+"herramientas" por "estos datos" en este último), al principio y con este énfasis:
+
+> ## SOLO usás los datos que te da el sistema
+> - **Respondé ÚNICAMENTE con los datos que te devolvieron las herramientas en ESTE mensaje.** Es
+>   la única información verdadera que tenés sobre la clínica.
+> - **Tu conocimiento general NO es un dato.** No sabés nada de esta clínica fuera de lo que
+>   devuelven las herramientas: ni médicos, ni prestaciones, ni estudios, ni obras sociales, ni
+>   precios, ni servicios (guardia, estacionamiento, medios de pago), ni políticas.
+> - **No deduzcas ni calcules.** El día de la semana, la fecha y la hora se copian tal cual de
+>   `fechaHoraTexto`; nunca los calcules. Tampoco deduzcas precios, coberturas, duraciones ni
+>   disponibilidad: si no llamaste a la herramienta, no lo sabés.
+> - **No completes ni des ejemplos** de nada que no haya salido de una herramienta.
+> - **Si un dato no está, decí "no tengo ese dato"** y ofrecé lo que sí podés hacer (buscar,
+>   mostrar el listado, pasar con una persona). No prometas opciones que no existen.
+> - Todo lo que afirmes lo vas a declarar en `<datos>`, y el sistema lo verifica contra la base
+>   antes de mandarlo: lo que no salga de la API se rechaza.
+
+Además, en `oferta.md`, `turno-nuevo.md` y `mis-turnos.md` se reemplaza "día de la semana, fecha y
+hora legibles" por "copiá `fechaHoraTexto` tal cual".
+
+Reglas puntuales:
+
+- No afirmar disponibilidad sin `listHorariosDisponibles` en el mismo mensaje (F2).
+- Si un dato no está en la salida de una tool, decir que no se tiene: sin sugerir, deducir ni
+  prometer opciones (F4, F5, F7).
+- "Mis datos" no ofrece reprogramar un turno confirmado; para la baja, solo cancelar (F6).
+- Router: "¿ya validaron…?" → mis turnos (B2). Oferta: preguntas por obras sociales →
+  `listObraSocial`, sin derivar (B3).
+- Estados legibles (no `ESPERA_VALIDACION`); sin pedir una confirmación de más al reprogramar.
+
+### 4.12 Paridad de validaciones agente ↔ panel
+
+`AgenteApp` copia la orquestación de `TurnoApp`/`PacienteApp`. Las **reglas de estado** viven en
+`HistoricoEstadoTurnoDomainService` (compartidas: reprogramar y confirmar solo desde PENDIENTE,
+cancelar desde no finales); los **plazos** y la publicación están duplicados en ambas `App` y hoy
+coinciden. Diferencias encontradas (revisión del 2026-11-08):
+
+| # | CU | Diferencia | Tipo |
+|---|----|-----------|------|
+| P1 | Crear turno (panel) | `TurnoApp.createTurno` busca `obraSocialPacienteId` sin validar que sea **del paciente** del turno: se puede facturar con la cobertura de otro paciente. | **Bug del panel** |
+| P2 | Paciente (panel) | El panel guarda el teléfono tal cual y valida unicidad por texto exacto; el agente busca por dígitos normalizados. Un "351 000-0001" cargado en el panel no se encuentra desde "+5493510000001", y dos formatos del mismo número pasan la unicidad: `findActivoByNumeroTelefonoNormalizado` (`Optional`) falla con más de un resultado. | **Bug del panel** (normalizar al guardar + migrar datos) |
+| P3 | Crear turno | Panel: si el plan elegido no está publicado, pasa a particular **en silencio**; si no cubre, `OBRA_SOCIAL_PLAN_PRESTACION_NO_ENCONTRADA`. Agente: elige solo. Con §4.4 el agente informa en ambos casos. | Diferencia; el silencio del panel es discutible |
+| P4 | Cancelar | Agente solo desde PENDIENTE, CONFIRMADO o ESPERA_VALIDACION y siempre con plazo; panel desde cualquier estado no final y sin plazo si el motivo no es del paciente. | Intencional |
+| P5 | Modificar paciente | El agente no cambia DNI ni teléfono y reemplaza la cobertura; el panel edita DNI/teléfono y no toca coberturas. | Intencional |
+| P6 | Crear/reprogramar/confirmar | Mismas validaciones de plazo, slot, publicación y médico-prestación; el agente suma pertenencia del turno al paciente. | Igual |
+
+P1 y P2 tocan lógica del panel: se corrigen con OK explícito (regla de no tocar lógica existente).
+
+### 4.13 Qué se retira (D26)
+
+> **Retirado en el back el 2026-11-09** (junto con la verificación nueva; el flow la reemplaza al
+> desplegar). Quedan fuera: `TandaAgenteService.verifyRespuestaAgente` y los registros de códigos,
+> matrículas, fechas y acciones exitosas; el reintento en `ChatwootApp`;
+> `ChatwootService.buildVariablesFlowiseConCorreccion` y `sendMensajeRespuestaNoVerificada`; la variable
+> de sesión `controlInterno`; `AccionAgente.getHerramienta` y los avisos de consulta. Pendiente: sacar
+> `controlInterno` del flow (estado de Start y bloque "Corrección del sistema" del prompt común).
+
+Con la verificación nueva andando: `TandaAgenteService.registerCodigosTurno/Matriculas/FechasHoras`,
+`verifyRespuestaAgente`, el reintento con `controlInterno` en `ChatwootApp`,
+`buildVariablesFlowiseConCorreccion`, `sendMensajeRespuestaNoVerificada` y la variable de sesión
+`controlInterno`. La tanda queda solo para los avisos de escritura.
+
+### 4.14 Documentación a actualizar en la misma implementación
+
+`Docs/Features/Chatbot.md` (verificación, cotización, `cobertura`, `particular`, `coincidencia`,
+`fechaHoraTexto`, `fecha` en horarios, avisos, cierre por inactividad), `CLAUDE.md` y
+`ARQUITECTURA.md` (verificación en el flow, `VerificacionAgenteService`), `Docs/BACKLOG.md`,
+`.env.example` / `application-test.yml` / `docker/deploy` si alguna property nueva es obligatoria, y
+en `AccesMed-Flowise` `Docs/AGENTE.md`.
+
+### 4.15 Orden de trabajo
+
+1. Back en `feature/Agente`: §4.3 a §4.8 y §4.10 (+ P1/P2 si se aprueban), probado contra el back
+   local; tests existentes en verde.
+2. Deploy a staging (PR).
+3. Flowise (D34): se edita **en la UI de staging desde el navegador** (Verificar + Condition +
+   Loop, `<datos>`, tools nuevas o modificadas, parámetros, prompts). Al terminar se exportan el
+   agentflow y las Custom Tools y se copian a `AccesMed-Flowise` (rama desde `develop`): JSON
+   exportados en `flows/` y `tools/`, y el texto de cada prompt en `prompts/` como referencia legible.
+   Se retiran `scripts/build-flow.mjs` e `import-flow.mjs`, y se actualizan `CLAUDE.md`,
+   `Docs/AGENTE.md` y `README.md` de ese repo con el flujo nuevo.
+4. Prueba: batería de §4.1 + casos trampa, directa a Flowise y por WhatsApp.
+5. Retiro de §4.13 y documentación de §4.14.

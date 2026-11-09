@@ -86,8 +86,10 @@ webhook de Chatwoot por `ChatwootController` + `ChatwootApp`, que solo orquesta
 `AgenteApp` copia la orquestación de `PacienteApp`/`TurnoApp` para no tocar el panel.
 **Excepción de capas, solo del canal:** `Services/AgenteServices` es una capa intermedia entre
 `AgenteApp`/`ChatwootApp` y los DomainServices/QueryServices (`CatalogoAgenteService`: catálogo por
-parecido con relación prestación↔médico e indicaciones; `TandaAgenteService`: avisos de espera y
-verificación de que la respuesta del agente no afirme algo que ninguna tool hizo o devolvió). La
+parecido con relación prestación↔médico e indicaciones; `CotizacionAgenteService`: cobertura y monto
+de un turno sin guardar; `VerificacionAgenteService`: contrasta contra la BD las afirmaciones de la
+respuesta del agente, `POST /Agente/Verificacion`, que llama el flow; `TandaAgenteService`: avisos
+de espera de las escrituras). La
 usan solo esos dos `App`; nunca llama a un `App` ni a `ExternalServices`. Las búsquedas por parecido
 (`search<Entidad>ByNombre`) usan `LIKE` sobre `lower(unaccent(...))` con fallback `pg_trgm`.
 Detalle en `Docs/ARQUITECTURA.md §4` y `Docs/Diseno-Chatbot.md §3`.

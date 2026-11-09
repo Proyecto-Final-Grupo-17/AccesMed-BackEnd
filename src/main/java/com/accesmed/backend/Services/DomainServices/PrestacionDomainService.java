@@ -7,6 +7,8 @@ import com.accesmed.backend.Repositories.PrestacionRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.Utils.CoincidenciaBusqueda;
+import com.accesmed.backend.Services.Utils.ResultadoBusqueda;
 import com.accesmed.backend.Services.Utils.EspecificacionBusquedaPalabras;
 import com.accesmed.backend.Services.Utils.NormalizadorBusqueda;
 import lombok.RequiredArgsConstructor;
@@ -33,10 +35,8 @@ public class PrestacionDomainService {
     //region ========== Constantes ==========
 
     /**
-     * Similitud mínima de trigramas para el fallback de la búsqueda por parecido.
+     * Máximo de resultados del fallback por similitud de trigramas.
      */
-    private static final double UMBRAL_SIMILITUD = 0.35;
-
     private static final int LIMITE_SIMILITUD = 10;
 
     //endregion
@@ -326,15 +326,16 @@ public class PrestacionDomainService {
      * trigramas para tolerar errores de tipeo.
      *
      * @param nombre {@code String} texto libre que escribió el paciente ("electro", "crioterapia")
-     * @return {@code List<Prestacion>} las coincidencias (vacía si no hay ninguna)
+     * @param umbralSimilitud {@code double} similitud mínima de trigramas para el fallback (0 a 1)
+     * @return {@code ResultadoBusqueda<Prestacion>} las coincidencias (vacía si no hay ninguna) y si fueron exactas o aproximadas
      */
-    public List<Prestacion> searchPrestacionesByNombre(String nombre) {
+    public ResultadoBusqueda<Prestacion> searchPrestacionesByNombre(String nombre, double umbralSimilitud) {
 
         log.debug("Buscando prestaciones por parecido: {}", nombre);
 
         List<String> palabrasBusqueda = NormalizadorBusqueda.findPalabrasBusqueda(nombre);
         if (palabrasBusqueda.isEmpty()) {
-            return List.of();
+            return ResultadoBusqueda.vacio();
         }
 
         //Coincidencia por palabras: cada una contenida en el nombre
@@ -343,13 +344,14 @@ public class PrestacionDomainService {
         List<Prestacion> prestacionesEncontradas = prestacionRepository.findAll(specificationBusqueda,
                 Sort.by(Prestacion_.NOMBRE));
 
-        //Sin coincidencias exactas por palabra: probar por similitud (errores de tipeo)
+        //Sin coincidencias exactas por palabra: probar por similitud (errores de tipeo), avisando que es aproximada
+        ResultadoBusqueda<Prestacion> resultadoBusqueda = new ResultadoBusqueda<>(prestacionesEncontradas, CoincidenciaBusqueda.EXACTA);
         if (prestacionesEncontradas.isEmpty()) {
-            prestacionesEncontradas = prestacionRepository.findBySimilitudNombre(
-                    String.join(" ", palabrasBusqueda), UMBRAL_SIMILITUD, LIMITE_SIMILITUD);
+            resultadoBusqueda = new ResultadoBusqueda<>(prestacionRepository.findBySimilitudNombre(
+                    String.join(" ", palabrasBusqueda), umbralSimilitud, LIMITE_SIMILITUD), CoincidenciaBusqueda.APROXIMADA);
         }
 
-        return prestacionesEncontradas;
+        return resultadoBusqueda;
 
     }
 

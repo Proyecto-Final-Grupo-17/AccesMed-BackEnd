@@ -170,6 +170,13 @@ public class TurnoApp {
                 ? obraSocialPacienteDomainService.findObraSocialPacienteActivaById(createTurnoRequest.obraSocialPacienteId())
                 : null;
         if (obraSocialPacienteExistente != null
+                && !obraSocialPacienteExistente.getPaciente().getId().equals(pacienteExistente.getId())) {
+            log.warn("No se pudo crear el turno: la cobertura {} no es del paciente {}",
+                    obraSocialPacienteExistente.getId(), pacienteExistente.getId());
+            throw new ReglaNegocioException(getClass(), "OBRA_SOCIAL_PACIENTE_AJENA",
+                    "La cobertura elegida no pertenece al paciente del turno.");
+        }
+        if (obraSocialPacienteExistente != null
                 && !historicoEstadoPlanDomainService.isPlanPublicado(obraSocialPacienteExistente.getPlan().getId())) {
             log.info("Plan {} no publicado: el turno se registra como particular", obraSocialPacienteExistente.getPlan().getId());
             obraSocialPacienteExistente = null;
@@ -555,15 +562,21 @@ public class TurnoApp {
     }
 
     /**
-     * Inicia la atención de un turno en estado EN_SALA_DE_ESPERA, transicionándolo
-     * a estado EN_CURSO.
+     * Inicia la atención de un turno, transicionándolo a estado EN_CURSO. Acepta el
+     * turno en dos estados de origen (DTE 3.0, evento "Iniciar Turno" del médico):
+     * {@code EN_SALA_DE_ESPERA} (el camino normal, después de que admin o médico
+     * anunciaron al paciente) o directamente {@code CONFIRMADO} (el médico se salta
+     * la sala de espera). Sobre {@code CONFIRMADO} exige la ventana de anuncio
+     * completa (temprano y tardío), igual que "Anunciar Paciente", porque nadie la
+     * validó todavía; sobre {@code EN_SALA_DE_ESPERA} alcanza con el piso, porque esa
+     * ventana ya se validó al entrar a sala de espera.
      *
      * @param id {@code UUID} identificador del turno
      * @param usuarioDetails {@code UsuarioDetails} identidad autenticada
      * @return {@code StartAtencionTurnoResponse} el turno en atención
      * @throws RecursoNoEncontradoException {@code RecursoNoEncontradoException} si el turno no existe
      * @throws ReglaNegocioException {@code ReglaNegocioException} si el turno no está en estado
-     *         {@code EN_SALA_DE_ESPERA} o la atención se intenta antes de {@code fechaLimiteAnuncioTemprano}
+     *         {@code EN_SALA_DE_ESPERA} o {@code CONFIRMADO}, o se intenta fuera de la ventana de anuncio
      */
     @Transactional
     public StartAtencionTurnoResponse startAtencionTurno(UUID id, UsuarioDetails usuarioDetails) {
@@ -576,12 +589,12 @@ public class TurnoApp {
         alcanceMedicoService.validateMedicoPropietario(usuarioDetails, turnoExistente.getMedico().getId());
 
         //Pre-verificar estado sin ejecutar la transición: el error de estado tiene prioridad
-        //sobre el temporal (el turno ni siquiera está en sala de espera para atenderse)
+        //sobre el temporal (el turno ni siquiera está en un estado desde el que se pueda atender)
         EstadoTurno estadoVigenteAtencion = historicoEstadoTurnoDomainService.getEstadoVigente(turnoExistente.getId());
-        if (estadoVigenteAtencion != EstadoTurno.EN_SALA_DE_ESPERA) {
-            log.warn("No se pudo iniciar atención para turno {}: estado vigente {} no es EN_SALA_DE_ESPERA", id, estadoVigenteAtencion);
+        if (estadoVigenteAtencion != EstadoTurno.EN_SALA_DE_ESPERA && estadoVigenteAtencion != EstadoTurno.CONFIRMADO) {
+            log.warn("No se pudo iniciar atención para turno {}: estado vigente {} no es EN_SALA_DE_ESPERA ni CONFIRMADO", id, estadoVigenteAtencion);
             throw new ReglaNegocioException(getClass(), "TURNO_TRANSICION_INVALIDA",
-                    "Esta acción solo se puede realizar sobre un turno que está en sala de espera. El turno está "
+                    "Esta acción solo se puede realizar sobre un turno confirmado o en sala de espera. El turno está "
                             + FormatoMensaje.estado(estadoVigenteAtencion) + ".");
         }
 
@@ -594,7 +607,17 @@ public class TurnoApp {
                             + FormatoMensaje.fechaHora(turnoExistente.getFechaHoraInicio(), clinicaDomainService.findZonaHorariaClinica()) + ".");
         }
 
-        historicoEstadoTurnoDomainService.transitionEnSalaDeEsperaToEnCursoTurno(turnoExistente);
+        if (estadoVigenteAtencion == EstadoTurno.CONFIRMADO) {
+            //Saltea sala de espera: nadie validó todavía el techo de la ventana de anuncio.
+            if (ahora.isAfter(turnoExistente.getFechaLimiteAnuncioTardio())) {
+                log.warn("No se pudo iniciar atención para turno {}: plazo de llegada vencido", id);
+                throw new ReglaNegocioException(getClass(), "TURNO_ANUNCIO_TARDIO",
+                        "Ya pasó el plazo para atender este turno sin haber registrado la llegada del paciente.");
+            }
+            historicoEstadoTurnoDomainService.transitionConfirmadoToEnCursoTurno(turnoExistente);
+        } else {
+            historicoEstadoTurnoDomainService.transitionEnSalaDeEsperaToEnCursoTurno(turnoExistente);
+        }
 
         return turnoMapper.toStartAtencionResponse(turnoExistente, EstadoTurno.EN_CURSO);
 

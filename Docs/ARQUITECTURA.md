@@ -390,7 +390,9 @@ accesmed-backend/
     │   │   │   │   └── ChatwootService.java # canal Chatwoot: horario, antispam, ventana, mensajes fijos, tokens
     │   │   │   ├── AgenteServices/         # EXCEPCIÓN: capa intermedia solo del canal chatbot (ver §4 notas)
     │   │   │   │   ├── CatalogoAgenteService.java # catálogo por parecido con relación prestación↔médico e indicaciones
-    │   │   │   │   ├── TandaAgenteService.java    # tanda en curso: aviso de espera y verificación de la respuesta del agente
+    │   │   │   │   ├── CotizacionAgenteService.java   # cobertura y monto de un turno sin guardar
+    │   │   │   │   ├── VerificacionAgenteService.java # contrasta contra la BD las afirmaciones de la respuesta del agente
+    │   │   │   │   ├── TandaAgenteService.java    # tanda en curso: aviso de espera de las escrituras
     │   │   │   │   └── AccionAgente.java
     │   │   │   ├── Errors/
     │   │   │   │   ├── AccesMedException.java
@@ -400,6 +402,8 @@ accesmed-backend/
     │   │   │   └── Utils/
     │   │   │       ├── NormalizadorTelefono.java
     │   │   │       ├── AgrupadorMensajes.java   # agrupa mensajes en ráfaga por clave (webhook de Chatwoot)
+    │   │   │       ├── MailService.java         # envío SMTP (texto, HTML y con plantilla + logo embebido)
+    │   │   │       ├── PlantillaMailHtml.java   # HTML/texto de todos los mails: logo + contenido + pie con datos de la clínica
     │   │   │       └── <HelperGenerico>.java
     │   │   │
     │   │   ├── Repositories/
@@ -522,9 +526,9 @@ el inicio.** `Services` no tiene archivos sueltos: se divide en subcarpetas fija
   (decisión D16 de `Docs/Diseno-Chatbot.md §3.3`): una capa intermedia entre `AgenteApp`/`ChatwootApp`
   y los DomainServices/QueryServices, con la lógica que es del canal y no de una entidad ni de la
   orquestación: `CatalogoAgenteService` (resolver especialidad, prestación y médico por parecido y
-  armar la relación prestación↔médico con indicaciones) y `TandaAgenteService` (registro de las tools
-  que llamó el agente en la tanda en curso: aviso de espera y verificación de que la respuesta no
-  afirme algo que ninguna tool hizo o devolvió). Reglas: la usan **solo** `AgenteApp` y `ChatwootApp`
+  armar la relación prestación↔médico con indicaciones), `CotizacionAgenteService` (cobertura y monto
+  de un turno sin guardar), `VerificacionAgenteService` (verifica contra la BD las afirmaciones de la
+  respuesta del agente, solo lectura) y `TandaAgenteService` (aviso de espera de las escrituras de la tanda en curso). Reglas: la usan **solo** `AgenteApp` y `ChatwootApp`
   (el panel no); puede llamar a DomainServices, QueryServices y Mappers, nunca a un `App` ni a
   `ExternalServices`; lanza las 3 excepciones de siempre con `log.warn` en el `throw`. Lo nuevo del
   canal va acá; lo que ya está en `AgenteApp` se mueve solo si se toca por otro motivo.

@@ -104,7 +104,8 @@ public class PacienteDomainService {
     }
 
     /**
-     * Valida que el número de teléfono del paciente sea único entre los pacientes activos.
+     * Valida que el número de teléfono del paciente sea único entre los pacientes activos,
+     * comparando solo los dígitos (así "351 000-0001" y "+3510000001" son el mismo número).
      *
      * @param numeroTelefono {@code String} número de teléfono a verificar
      * @throws ReglaNegocioException {@code ReglaNegocioException} si ya existe un paciente
@@ -112,7 +113,10 @@ public class PacienteDomainService {
      */
     public void validateNumeroTelefonoPacienteIsUnique(String numeroTelefono) {
 
-        if (pacienteRepository.existsByNumeroTelefonoAndDeletedAtIsNull(numeroTelefono)) {
+        boolean telefonoDuplicado = NormalizadorTelefono.esValido(numeroTelefono)
+                ? pacienteRepository.existsActivoByNumeroTelefonoNormalizado(NormalizadorTelefono.normalizarDigitos(numeroTelefono))
+                : pacienteRepository.existsByNumeroTelefonoAndDeletedAtIsNull(numeroTelefono);
+        if (telefonoDuplicado) {
             log.warn("No se pudo crear el paciente: número de teléfono {} ya existe", numeroTelefono);
             throw new ReglaNegocioException(getClass(), "PACIENTE_NUMERO_TELEFONO_DUPLICADO",
                     "Ya existe un paciente con el número de teléfono " + numeroTelefono + ".");
@@ -131,7 +135,11 @@ public class PacienteDomainService {
      */
     public void validateNumeroTelefonoPacienteIsUnique(String numeroTelefono, UUID idExcluido) {
 
-        if (pacienteRepository.existsByNumeroTelefonoAndDeletedAtIsNullAndIdNot(numeroTelefono, idExcluido)) {
+        boolean telefonoDuplicado = NormalizadorTelefono.esValido(numeroTelefono)
+                ? pacienteRepository.existsActivoByNumeroTelefonoNormalizadoAndIdNot(
+                        NormalizadorTelefono.normalizarDigitos(numeroTelefono), idExcluido)
+                : pacienteRepository.existsByNumeroTelefonoAndDeletedAtIsNullAndIdNot(numeroTelefono, idExcluido);
+        if (telefonoDuplicado) {
             log.warn("No se pudo actualizar el paciente: número de teléfono {} ya existe en otro paciente", numeroTelefono);
             throw new ReglaNegocioException(getClass(), "PACIENTE_NUMERO_TELEFONO_DUPLICADO",
                     "Ya existe otro paciente con el número de teléfono " + numeroTelefono + ".");

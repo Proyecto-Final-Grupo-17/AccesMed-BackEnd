@@ -131,12 +131,10 @@ public class ChatwootApp {
     /**
      * Procesa una tanda de mensajes de una conversación: identifica al paciente, une los mensajes
      * en una sola pregunta, consulta a Flowise con la sesión de la ventana y las variables del
-     * canal, verifica la respuesta y la entrega. Mientras Flowise trabaja, la tanda queda abierta en
-     * {@code TandaAgenteService}: cada tool que llama el agente se registra ahí (aviso de espera y
-     * datos devueltos). Si la respuesta afirma algo que ninguna tool hizo o devolvió, se le vuelve a
-     * preguntar una vez con la corrección; si tampoco pasa, se manda un mensaje fijo
-     * ({@code Docs/Diseno-Chatbot.md §3.4.5}). Si algo falla antes de tener respuesta, avisa al
-     * paciente y deriva la conversación a una persona.
+     * canal y la entrega. Apenas se despacha la tanda manda el aviso "Un momento…"; mientras Flowise
+     * trabaja, la tanda queda abierta en {@code TandaAgenteService} (aviso de las escrituras). La
+     * verificación de la respuesta contra la base la hace el flow ({@code Docs/Diseno-Chatbot.md §4.3}).
+     * Si algo falla antes de tener respuesta, avisa al paciente y deriva la conversación a una persona.
      *
      * @param tanda {@code List<ReceiveMensajeChatwootRequest>} mensajes de la misma conversación, en orden de llegada
      */
@@ -165,24 +163,13 @@ public class ChatwootApp {
                     numeroTelefono, nombreContacto, pacienteRegistrado, clinica);
 
             //Abrir la tanda: las tools que llame el agente se registran contra este teléfono
-            tandaAgenteService.openTanda(numeroTelefono, conversationId, sessionIdFlowise);
+            tandaAgenteService.openTanda(numeroTelefono, conversationId);
+
+            //Aviso inmediato: Flowise tarda unos segundos y el paciente tiene que saber que se está procesando
+            chatwootService.sendMensajeEsperaGenericoAsync(conversationId);
 
             //Consultar al agente
             respuestaFlowise = flowiseClient.sendPreguntaFlowise(pregunta, sessionIdFlowise, variablesFlowise);
-
-            //Verificar la respuesta: si afirma algo que ninguna tool hizo o devolvió, se le pide que corrija una vez
-            Optional<String> instruccionCorreccion = tandaAgenteService.verifyRespuestaAgente(numeroTelefono, respuestaFlowise);
-            if (instruccionCorreccion.isPresent()) {
-                log.info("Se le pide al agente que corrija su respuesta: conversación={}", conversationId);
-                respuestaFlowise = flowiseClient.sendPreguntaFlowise(pregunta, sessionIdFlowise,
-                        chatwootService.buildVariablesFlowiseConCorreccion(variablesFlowise, instruccionCorreccion.get()));
-
-                if (tandaAgenteService.verifyRespuestaAgente(numeroTelefono, respuestaFlowise).isPresent()) {
-                    log.warn("La respuesta corregida del agente tampoco pasó la verificación: conversación={}", conversationId);
-                    chatwootService.sendMensajeRespuestaNoVerificada(conversationId);
-                    return;
-                }
-            }
 
         } catch (RuntimeException excepcion) {
             log.error("No se pudo obtener la respuesta del agente para la conversación {}", conversationId, excepcion);

@@ -244,8 +244,7 @@ con cardiología",
       "nombreContacto": "Ana",
       "pacienteRegistrado": "true",
       "nombrePaciente": "Ana",
-      "fechaHoraActual": "sábado 08/11/2026 10:35",
-      "controlInterno": ""
+      "fechaHoraActual": "sábado 08/11/2026 10:35"
     }
   }
 }
@@ -261,7 +260,6 @@ ventana de inactividad (6.B): la memoria del agente arranca limpia después de 3
 | `pacienteRegistrado` | `"true"` / `"false"`: hay un paciente activo con ese teléfono (se consulta en cada tanda) |
 | `nombrePaciente` | nombre del `Paciente` registrado, o vacío |
 | `fechaHoraActual` | día, fecha y hora en la zona de la clínica, para interpretar "mañana", "el jueves" |
-| `controlInterno` | vacío; en el reintento de la verificación (6.H), la instrucción de corrección para el agente |
 
 En el flow se leen como `$vars.<nombre>`. El chatflow tiene que tener el override activado
 (`apiConfig.overrideConfig.status = true`) y **cada variable habilitada** en
@@ -332,39 +330,25 @@ back de **staging**) y conectado al inbox **AccesMed WhatsApp**. El inbox "Whats
 - Chatwoot también manda al webhook otros eventos (`conversation_created`, `message_updated`, etc.):
   el back responde 200 y los descarta.
 
-### 6.H Tanda, avisos de espera y verificación de la respuesta
+### 6.H Tanda y avisos de espera
 
-Diseño en `Docs/Diseno-Chatbot.md §3.4.5–§3.4.6`; código en `Services/AgenteServices/TandaAgenteService`.
-Mientras Flowise procesa una tanda, el back la tiene **abierta** por teléfono: cada endpoint de
-`/Agente/*` que llama el agente (con `X-Paciente-Telefono`) se registra ahí. Por eso las consultas de
-catálogo y disponibilidad también aceptan ese header (opcional: sin él no hay aviso ni registro).
-
-**Aviso de espera** (uno por tanda, a la primera tool que lo amerita):
+Diseño en `Docs/Diseno-Chatbot.md §3.4.6` y `§4.7`; código en `Services/AgenteServices/TandaAgenteService`.
+Apenas `ChatwootApp` despacha una tanda a Flowise, el back manda *"⏳ Un momento…"* al paciente. Mientras
+Flowise la procesa, el back la tiene **abierta** por teléfono: los endpoints de **escritura** que llama el
+agente (con `X-Paciente-Telefono`) mandan un aviso propio, uno por tanda, a la primera que lo amerita:
 
 | Tool | Aviso |
 |------|-------|
-| `listEspecialidades`, `getOfertaEspecialidad`, `searchPrestacion`, `searchMedico` | *"🔎 Buscando en la cartilla…"* |
-| `listHorariosDisponibles` | *"🔎 Buscando horarios disponibles…"* |
-| `listTurnos` | *"🔎 Revisando tus turnos…"* |
 | `createTurno` | *"⏳ Reservando tu turno…"* |
 | `cancelTurno` / `reprogramTurno` / `confirmTurno` | *"⏳ Cancelando / Reprogramando / Confirmando tu turno…"* |
 | `createPaciente` / `updatePaciente` / `softDeletePaciente` | *"⏳ Guardando tus datos…"* |
 
-`getPaciente`, `getClinica` y `listObraSocial` no avisan.
+Las consultas (catálogo, horarios, turnos, cotización, paciente, clínica, obras sociales) no avisan.
+Estado en memoria por teléfono (una sola instancia del back).
 
-**Verificación:** antes de entregar la respuesta, el back la compara con lo registrado:
-
-| Regla | Se detecta en el texto | Tiene que haber |
-|-------|------------------------|-----------------|
-| Escritura anunciada | "te reservé", "quedó cancelado", "ya estás registrado", "listo, te lo confirmo"… (se ignoran oraciones con `?` o con "no") | una llamada **exitosa** a esa acción **en esta tanda** |
-| Código de turno | `TURNO_XXXXXXXX` | devuelto por alguna tool **en la sesión** de Flowise |
-| Matrícula | `matrícula X` / `MP-…` | devuelta por alguna tool en la sesión |
-| Fecha con hora | `dd/MM … HH:mm` en la misma línea | un horario o inicio de turno devuelto en la sesión |
-
-Si no pasa, el back loguea `warn` y le vuelve a preguntar **una vez** a Flowise con la misma
-`question` y la variable `controlInterno` con la instrucción de corrección (el flow la tiene que
-leer). Si la segunda respuesta tampoco pasa, envía *"Perdón, no pude completar eso. ¿Lo intentamos
-de nuevo?"*. Estado en memoria por teléfono (una sola instancia del back).
+**La verificación de la respuesta ya no la hace el back al entregarla** (se retiró el 2026-11-09, el
+reintento con `controlInterno` incluido): la hace el flow llamando a `POST /Agente/Verificacion`
+(ver §13 y `Docs/Diseno-Chatbot.md §4.3`).
 
 ---
 
@@ -683,8 +667,43 @@ No modifica el dominio (el CU lo dice: "el sistema no crea ni modifica instancia
 | GET | `/accesmed-api/Agente/Prestacion?nombre=` | TURN-1/2/3 | `CatalogoAgenteService.searchPrestaciones` |
 | GET | `/accesmed-api/Agente/Medico?nombre=` | TURN-1/2/3 | `CatalogoAgenteService.searchMedicos` |
 | GET | `/accesmed-api/Agente/Turno/Disponibilidad` | TURN-2/3/5 | `findHorariosDisponibles` |
+| GET | `/accesmed-api/Agente/Turno/Cotizacion` | TURN-3/5 | `CotizacionAgenteService` (sin guardar) |
+| POST | `/accesmed-api/Agente/Verificacion` | canal | `VerificacionAgenteService` (solo lectura) |
 | POST | `/accesmed-api/Agente/Turno` | TURN-3 | `TurnoApp.createTurno` |
 | GET | `/accesmed-api/Agente/Turno` | TURN-4/5/6 | `TurnoQueryService` |
 | DELETE | `/accesmed-api/Agente/Turno/{codigo}` | TURN-4 | `TurnoApp.cancelTurno` |
 | PATCH | `/accesmed-api/Agente/Turno/{codigo}/Reprogramacion` | TURN-5 | `TurnoApp.reprogramTurno` |
 | PATCH | `/accesmed-api/Agente/Turno/{codigo}/Confirmacion` | TURN-6 | `TurnoApp.confirmTurno` |
+
+---
+
+## 13. Cambios de contrato de la etapa 4 (2026-11-09)
+
+Detalle y decisiones en `Docs/Diseno-Chatbot.md §4`. El flow tiene que adaptarse antes de desplegar
+este back: con `cobertura` obligatoria, el flow anterior no puede reservar.
+
+- **Fechas legibles.** Los responses con fecha (horarios, turnos, crear, reprogramar, confirmar y
+  cotización) traen `fechaHoraTexto` (`jueves 12/11/2026 09:30`): el agente la copia tal cual, no calcula el día.
+  `GET /Agente/Turno/Disponibilidad` acepta `fecha=AAAA-MM-DD` para pedir un día puntual.
+- **Búsqueda por parecido.** `searchMedico` y `searchPrestacion` traen `coincidencia`: `EXACTA` o
+  `APROXIMADA` (fallback por trigramas). Umbral: `accesmed.agente.busqueda.umbral-similitud` (0.5).
+- **Cotización.** `GET /Agente/Turno/Cotizacion?slotId=&cobertura=PARTICULAR|OBRA_SOCIAL[&codigoTurno=]`
+  devuelve cobertura, monto, indicaciones y si requiere validación, sin guardar. Con `codigoTurno`
+  cotiza la reprogramación (conserva la cobertura del turno). `cubre=false` con `motivo` si no aplica.
+- **Reserva.** `POST /Agente/Turno` exige `cobertura`. Con `OBRA_SOCIAL` y un plan que no cubre falla
+  con `PLAN_NO_CUBRE_PRESTACION` (ya no cae a particular en silencio).
+- **Pasarse a particular.** `PATCH /Agente/Paciente` acepta `particular: true`, que da de baja las
+  coberturas activas; no se combina con `obraSocial` (422).
+- **Verificación.** `POST /Agente/Verificacion` (`X-Agente-Api-Key`; `X-Paciente-Telefono` para turnos y
+  cotizaciones): recibe afirmaciones por entidad (`especialidades`, `prestaciones`, `medicos`,
+  `horarios`, `disponibilidad`, `turnos`, `cotizaciones`; todas opcionales) y responde `verdadero` más
+  la misma estructura, con `{dato, verdadero, motivo, correcto}` por ítem. Property
+  `accesmed.agente.verificacion.habilitada` (default `true`): en `false` todo da verdadero.
+- **Avisos de espera.** El back manda "⏳ Un momento…" apenas despacha la tanda a Flowise; las
+  consultas ya no avisan, las escrituras siguen con su aviso propio.
+- **Timeouts.** `accesmed.flowise.timeout-conexion-segundos` (5) y `timeout-lectura-segundos` (60); al
+  vencer, el canal deriva la conversación a una persona.
+- **Cierre por inactividad.** Un `@Scheduled` (cada minuto) cierra las conversaciones atendidas por el
+  bot sin mensajes más allá de `ventana-inactividad-minutos`: manda un cierre fijo y las resuelve en
+  Chatwoot. No toca las derivadas a una persona.
+

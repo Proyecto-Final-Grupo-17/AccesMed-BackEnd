@@ -94,4 +94,27 @@ public interface PacienteRepository extends JpaRepository<Paciente, UUID>, JpaSp
             + "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(p.numeroTelefono, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = :digitos")
     Optional<Paciente> findActivoByNumeroTelefonoNormalizado(@Param("digitos") String digitos);
 
+    /**
+     * Indica si existe un paciente activo con ese teléfono comparando solo los dígitos (ignora el
+     * formato con el que esté guardado cada número). Lo usa el panel para la unicidad.
+     *
+     * @param digitos {@code String} número de teléfono normalizado a solo dígitos
+     * @return {@code boolean} {@code true} si existe un paciente activo con ese teléfono
+     */
+    @Query("SELECT COUNT(p) > 0 FROM Paciente p WHERE p.deletedAt IS NULL AND "
+            + "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(p.numeroTelefono, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = :digitos")
+    boolean existsActivoByNumeroTelefonoNormalizado(@Param("digitos") String digitos);
+
+    /**
+     * Igual que {@code existsActivoByNumeroTelefonoNormalizado}, excluyendo un paciente (para la
+     * actualización).
+     *
+     * @param digitos {@code String} número de teléfono normalizado a solo dígitos
+     * @param id {@code UUID} id del paciente a excluir
+     * @return {@code boolean} {@code true} si existe otro paciente activo con ese teléfono
+     */
+    @Query("SELECT COUNT(p) > 0 FROM Paciente p WHERE p.deletedAt IS NULL AND p.id <> :id AND "
+            + "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(p.numeroTelefono, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = :digitos")
+    boolean existsActivoByNumeroTelefonoNormalizadoAndIdNot(@Param("digitos") String digitos, @Param("id") UUID id);
+
 }

@@ -1,16 +1,19 @@
 package com.accesmed.backend.Controllers;
 
 import com.accesmed.backend.Application.AgenteApp;
+import com.accesmed.backend.Domain.TipoCobertura;
 import com.accesmed.backend.Records.Agente.Request.AccionTurnoAgente;
 import com.accesmed.backend.Records.Agente.Request.CreatePacienteAgenteRequest;
 import com.accesmed.backend.Records.Agente.Request.CreateTurnoAgenteRequest;
 import com.accesmed.backend.Records.Agente.Request.FranjaHorariaAgente;
 import com.accesmed.backend.Records.Agente.Request.ReprogramTurnoAgenteRequest;
+import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest;
 import com.accesmed.backend.Records.Agente.Request.UpdatePacienteAgenteRequest;
 import com.accesmed.backend.Records.Agente.Response.ConfirmTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.CreatePacienteAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.CreateTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetClinicaAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.GetCotizacionTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetOfertaEspecialidadAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetPacienteAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListEspecialidadAgenteResponse;
@@ -21,6 +24,7 @@ import com.accesmed.backend.Records.Agente.Response.ReprogramTurnoAgenteResponse
 import com.accesmed.backend.Records.Agente.Response.SearchMedicoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.SearchPrestacionAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.UpdatePacienteAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.VerifyRespuestaAgenteResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +43,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Controller REST del canal chatbot: los endpoints que consumen como Custom Tools los agentes de
@@ -142,6 +148,32 @@ public class AgenteController {
         agenteApp.softDeletePaciente(numeroTelefono);
 
         return ResponseEntity.noContent().build();
+
+    }
+
+    //endregion
+
+    //region ========== Verificación ==========
+
+    /**
+     * Verifica contra la base las afirmaciones de una respuesta del agente antes de mandarla al
+     * paciente (Diseno-Chatbot §4.3).
+     *
+     * @param numeroTelefono {@code String} teléfono del canal (header {@code X-Paciente-Telefono}, opcional: solo para turnos y cotizaciones)
+     * @param verifyRespuestaAgenteRequest {@code VerifyRespuestaAgenteRequest} afirmaciones agrupadas por entidad
+     * @return {@code ResponseEntity<VerifyRespuestaAgenteResponse>} el veredicto por ítem con status 200
+     */
+    @PostMapping("/Verificacion")
+    public ResponseEntity<VerifyRespuestaAgenteResponse> verifyRespuestaAgente(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @RequestBody VerifyRespuestaAgenteRequest verifyRespuestaAgenteRequest) {
+
+        log.info("Solicitud recibida: verificar respuesta del agente");
+
+        VerifyRespuestaAgenteResponse verifyRespuestaAgenteResponse =
+                agenteApp.verifyRespuestaAgente(numeroTelefono, verifyRespuestaAgenteRequest);
+
+        return ResponseEntity.ok(verifyRespuestaAgenteResponse);
 
     }
 
@@ -274,6 +306,7 @@ public class AgenteController {
      * @param nombrePrestacion {@code String} nombre aproximado de la prestación
      * @param matricula {@code String} matrícula del médico
      * @param franjaHoraria {@code FranjaHorariaAgente} franja del día (opcional)
+     * @param fecha {@code LocalDate} día puntual, {@code AAAA-MM-DD} (opcional)
      * @param pageable {@code Pageable} paginación
      * @return {@code ResponseEntity<List<ListHorarioDisponibleAgenteResponse>>} los horarios con status 200
      */
@@ -283,14 +316,40 @@ public class AgenteController {
             @RequestParam String nombrePrestacion,
             @RequestParam String matricula,
             @RequestParam(required = false) FranjaHorariaAgente franjaHoraria,
+            @RequestParam(required = false) LocalDate fecha,
             @PageableDefault(size = 10, sort = {"fecha", "horaDesde"}) Pageable pageable) {
 
         log.info("Solicitud recibida: consultar horarios disponibles de la prestación {}", nombrePrestacion);
 
         List<ListHorarioDisponibleAgenteResponse> listHorarioDisponibleAgenteResponses =
-                agenteApp.listHorariosDisponibles(numeroTelefono, nombrePrestacion, matricula, franjaHoraria, pageable);
+                agenteApp.listHorariosDisponibles(numeroTelefono, nombrePrestacion, matricula, franjaHoraria, fecha, pageable);
 
         return ResponseEntity.ok(listHorarioDisponibleAgenteResponses);
+
+    }
+
+    /**
+     * Cotiza un turno antes de reservarlo o reprogramarlo: cobertura, monto e indicaciones (Diseno-Chatbot §4.4).
+     *
+     * @param numeroTelefono {@code String} teléfono verificado del canal (header {@code X-Paciente-Telefono})
+     * @param slotId {@code UUID} horario elegido
+     * @param cobertura {@code TipoCobertura} cobertura pedida (obligatoria para un turno nuevo)
+     * @param codigoTurno {@code String} código del turno a reprogramar (opcional)
+     * @return {@code ResponseEntity<GetCotizacionTurnoAgenteResponse>} la cotización con status 200
+     */
+    @GetMapping("/Turno/Cotizacion")
+    public ResponseEntity<GetCotizacionTurnoAgenteResponse> getCotizacionTurno(
+            @RequestHeader(value = HEADER_TELEFONO, required = false) String numeroTelefono,
+            @RequestParam UUID slotId,
+            @RequestParam(required = false) TipoCobertura cobertura,
+            @RequestParam(required = false) String codigoTurno) {
+
+        log.info("Solicitud recibida: cotizar turno desde el canal");
+
+        GetCotizacionTurnoAgenteResponse getCotizacionTurnoAgenteResponse =
+                agenteApp.getCotizacionTurno(numeroTelefono, slotId, cobertura, codigoTurno);
+
+        return ResponseEntity.ok(getCotizacionTurnoAgenteResponse);
 
     }
 

@@ -18,6 +18,7 @@ import com.accesmed.backend.Records.Agente.Response.CreatePacienteAgenteResponse
 import com.accesmed.backend.Records.Agente.Response.CreateTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetClinicaAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetOfertaEspecialidadAgenteResponse;
+import com.accesmed.backend.Records.Agente.Response.GetCotizacionTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.GetPacienteAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListEspecialidadAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ListObraSocialAgenteResponse;
@@ -31,6 +32,9 @@ import com.accesmed.backend.Records.Agente.Response.ListTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ObraSocialAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.ReprogramTurnoAgenteResponse;
 import com.accesmed.backend.Records.Agente.Response.UpdatePacienteAgenteResponse;
+import com.accesmed.backend.Services.AgenteServices.CotizacionTurnoAgente;
+import com.accesmed.backend.Services.Utils.CoincidenciaBusqueda;
+import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -44,7 +48,7 @@ import java.util.List;
  * {@code Records/Agente}, que solo exponen claves de negocio (nombres, matrículas, códigos) y
  * nunca ids internos, salvo el {@code slotId} opaco de la disponibilidad.
  */
-@Mapper(componentModel = "spring", imports = FranjaHorariaAgente.class)
+@Mapper(componentModel = "spring", imports = {FranjaHorariaAgente.class, FormatoMensaje.class})
 public interface AgenteMapper {
 
     //region ========== Paciente ==========
@@ -155,25 +159,29 @@ public interface AgenteMapper {
      * @param requiereValidacion {@code boolean} si alguna indicación vigente requiere validación
      * @param indicaciones {@code List<ListIndicacionPrestacionAgenteResponse>} indicaciones vigentes, ya mapeadas
      * @param medicos {@code List<ListMedicoAgenteResponse>} médicos que la atienden, ya mapeados
+     * @param coincidencia {@code CoincidenciaBusqueda} cómo se encontró (exacta o aproximada)
      * @return {@code SearchPrestacionAgenteResponse} prestación con su especialidad, indicaciones y médicos
      */
     @Mapping(target = "nombre", source = "prestacion.nombre")
     @Mapping(target = "especialidad", source = "prestacion.especialidad.nombre")
     SearchPrestacionAgenteResponse toSearchPrestacionResponse(Prestacion prestacion, boolean requiereValidacion,
-            List<ListIndicacionPrestacionAgenteResponse> indicaciones, List<ListMedicoAgenteResponse> medicos);
+            List<ListIndicacionPrestacionAgenteResponse> indicaciones, List<ListMedicoAgenteResponse> medicos,
+            CoincidenciaBusqueda coincidencia);
 
     /**
      * Convierte un médico a {@code SearchMedicoAgenteResponse}.
      *
      * @param medico {@code Medico} entidad
      * @param prestaciones {@code List<String>} nombres de las prestaciones publicadas que atiende
+     * @param coincidencia {@code CoincidenciaBusqueda} cómo se encontró (exacta o aproximada)
      * @return {@code SearchMedicoAgenteResponse} médico con su especialidad y sus prestaciones
      */
     @Mapping(target = "nombre", source = "medico.nombre")
     @Mapping(target = "apellido", source = "medico.apellido")
     @Mapping(target = "matricula", source = "medico.matricula")
     @Mapping(target = "especialidad", source = "medico.especialidad.nombre")
-    SearchMedicoAgenteResponse toSearchMedicoResponse(Medico medico, List<String> prestaciones);
+    SearchMedicoAgenteResponse toSearchMedicoResponse(Medico medico, List<String> prestaciones,
+            CoincidenciaBusqueda coincidencia);
 
     /**
      * Convierte una indicación de prestación a {@code ListIndicacionPrestacionAgenteResponse}.
@@ -230,6 +238,7 @@ public interface AgenteMapper {
      */
     @Mapping(target = "slotId", source = "id")
     @Mapping(target = "fechaHora", expression = "java(toFechaHora(listHorarioDisponibleResponse))")
+    @Mapping(target = "fechaHoraTexto", expression = "java(FormatoMensaje.fechaHoraTexto(toFechaHora(listHorarioDisponibleResponse)))")
     @Mapping(target = "franja", expression = "java(FranjaHorariaAgente.of(listHorarioDisponibleResponse.horaDesde()))")
     ListHorarioDisponibleAgenteResponse toListHorarioDisponibleResponse(ListHorarioDisponibleResponse listHorarioDisponibleResponse);
 
@@ -271,6 +280,7 @@ public interface AgenteMapper {
     @Mapping(target = "matricula", source = "turno.medico.matricula")
     @Mapping(target = "codigo", source = "turno.codigo")
     @Mapping(target = "fechaHoraInicio", expression = "java(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica))")
+    @Mapping(target = "fechaHoraTexto", expression = "java(FormatoMensaje.fechaHoraTexto(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica)))")
     @Mapping(target = "montoAPagar", source = "turno.montoAPagar")
     @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura")
     @Mapping(target = "estadoActual", source = "estadoActual")
@@ -292,6 +302,7 @@ public interface AgenteMapper {
     @Mapping(target = "matricula", source = "turno.medico.matricula")
     @Mapping(target = "codigo", source = "turno.codigo")
     @Mapping(target = "fechaHoraInicio", expression = "java(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica))")
+    @Mapping(target = "fechaHoraTexto", expression = "java(FormatoMensaje.fechaHoraTexto(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica)))")
     @Mapping(target = "montoAPagar", source = "turno.montoAPagar")
     @Mapping(target = "tipoCobertura", source = "turno.tipoCobertura")
     @Mapping(target = "estadoActual", source = "estadoActual")
@@ -312,6 +323,7 @@ public interface AgenteMapper {
     @Mapping(target = "matricula", source = "turno.medico.matricula")
     @Mapping(target = "codigo", source = "turno.codigo")
     @Mapping(target = "fechaHoraInicio", expression = "java(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica))")
+    @Mapping(target = "fechaHoraTexto", expression = "java(FormatoMensaje.fechaHoraTexto(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica)))")
     @Mapping(target = "estadoActual", source = "estadoActual")
     ConfirmTurnoAgenteResponse toConfirmTurnoResponse(Turno turno, EstadoTurno estadoActual, ZoneId zonaHorariaClinica);
 
@@ -329,8 +341,48 @@ public interface AgenteMapper {
     @Mapping(target = "matricula", source = "turno.medico.matricula")
     @Mapping(target = "codigo", source = "turno.codigo")
     @Mapping(target = "fechaHoraInicio", expression = "java(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica))")
+    @Mapping(target = "fechaHoraTexto", expression = "java(FormatoMensaje.fechaHoraTexto(toFechaHoraClinica(turno.getFechaHoraInicio(), zonaHorariaClinica)))")
     @Mapping(target = "estadoActual", source = "estadoActual")
     ListTurnoAgenteResponse toListTurnoResponse(Turno turno, EstadoTurno estadoActual, ZoneId zonaHorariaClinica);
+
+    /**
+     * Arma la cotización de un turno ({@code GetCotizacionTurnoAgenteResponse}) a partir del slot ya
+     * resuelto y del resultado de {@code CotizacionAgenteService}.
+     *
+     * @param medico {@code Medico} médico del horario
+     * @param prestacion {@code Prestacion} prestación del horario
+     * @param fechaHoraInicio {@code ZonedDateTime} inicio del turno que se reservaría
+     * @param zonaHorariaClinica {@code ZoneId} zona horaria de la clínica, para la hora que ve el paciente
+     * @param cotizacionTurnoAgente {@code CotizacionTurnoAgente} cobertura y monto calculados
+     * @param indicaciones {@code List<ListIndicacionPrestacionAgenteResponse>} indicaciones vigentes, ya mapeadas
+     * @return {@code GetCotizacionTurnoAgenteResponse} la cotización sin ids internos
+     */
+    default GetCotizacionTurnoAgenteResponse toGetCotizacionTurnoResponse(Medico medico, Prestacion prestacion,
+            ZonedDateTime fechaHoraInicio, ZoneId zonaHorariaClinica, CotizacionTurnoAgente cotizacionTurnoAgente,
+            List<ListIndicacionPrestacionAgenteResponse> indicaciones) {
+
+        LocalDateTime fechaHoraInicioClinica = toFechaHoraClinica(fechaHoraInicio, zonaHorariaClinica);
+        ObraSocialPaciente coberturaQueCubre = cotizacionTurnoAgente.obraSocialPaciente();
+
+        GetCotizacionTurnoAgenteResponse getCotizacionTurnoAgenteResponse = new GetCotizacionTurnoAgenteResponse(
+                fechaHoraInicioClinica,
+                FormatoMensaje.fechaHoraTexto(fechaHoraInicioClinica),
+                prestacion.getNombre(),
+                medico.getNombre(),
+                medico.getApellido(),
+                medico.getMatricula(),
+                cotizacionTurnoAgente.tipoCobertura(),
+                coberturaQueCubre != null ? coberturaQueCubre.getPlan().getObraSocial().getNombre() : null,
+                coberturaQueCubre != null ? coberturaQueCubre.getPlan().getNombre() : null,
+                cotizacionTurnoAgente.cubre(),
+                cotizacionTurnoAgente.motivo(),
+                cotizacionTurnoAgente.montoAPagar(),
+                cotizacionTurnoAgente.precioParticular(),
+                indicaciones.stream().anyMatch(ListIndicacionPrestacionAgenteResponse::requiereValidacion),
+                indicaciones);
+        return getCotizacionTurnoAgenteResponse;
+
+    }
 
     //endregion
 

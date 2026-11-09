@@ -6,12 +6,16 @@ import com.accesmed.backend.Domain.Usuario;
 import com.accesmed.backend.Security.Services.DomainServices.CambioMailTokenDomainService;
 import com.accesmed.backend.Security.Services.DomainServices.PasswordResetTokenDomainService;
 import com.accesmed.backend.Security.Services.DomainServices.RefreshTokenDomainService;
+import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.Utils.MailService;
+import com.accesmed.backend.Services.Utils.PlantillaMailHtml;
+import com.accesmed.backend.Services.Utils.PlantillaMailHtml.ContenidoMail;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -31,6 +35,7 @@ public class GestionUsuarioAdapter implements GestionUsuarioPort {
     private final CambioMailTokenDomainService cambioMailTokenDomainService;
     private final RefreshTokenDomainService refreshTokenDomainService;
     private final MailService mailService;
+    private final ClinicaDomainService clinicaDomainService;
 
     @Value("${accesmed.frontend.base-url}")
     private String frontendBaseUrl;
@@ -68,22 +73,50 @@ public class GestionUsuarioAdapter implements GestionUsuarioPort {
 
     @Override
     public void dispararResetContrasena(UUID usuarioId) {
+
         Usuario usuario = usuarioApp.findUsuarioActivo(usuarioId);
         String token = passwordResetTokenDomainService.generarYGuardarPasswordResetToken(usuario);
         String link = frontendBaseUrl + "/restablecer-contrasena?token=" + token;
-        mailService.enviarMail(usuario.getMail(), "Restablecé tu contraseña — AccesMed",
-                "Ingresá a este link para definir una contraseña nueva:\n\n" + link
-                        + "\n\nSi no pediste esto, contactá a un administrador.");
+
+        ContenidoMail contenidoMail = ContenidoMail.builder()
+                .etiqueta("Tu cuenta")
+                .colorAcento(PlantillaMailHtml.ACENTO_INFO)
+                .titulo("Restablecé tu contraseña")
+                .saludo("Hola,")
+                .parrafos(List.of("Podés definir una contraseña nueva para tu cuenta de AccesMed."))
+                .textoBoton("Definir contraseña nueva")
+                .urlBoton(link)
+                .nota("El link vence en 1 hora y se puede usar una sola vez. "
+                        + "Si no pediste esto, contactá a un administrador.")
+                .build();
+
+        mailService.enviarMailConPlantilla(usuario.getMail(), "Restablecé tu contraseña — AccesMed",
+                contenidoMail, clinicaDomainService.findClinica());
+
     }
 
     @Override
     public void iniciarCambioMail(UUID usuarioId, String mailNuevo) {
+
         Usuario usuario = usuarioApp.prepararCambioMail(usuarioId, mailNuevo);
         String token = cambioMailTokenDomainService.generarYGuardarCambioMailToken(usuario, mailNuevo);
         String link = frontendBaseUrl + "/confirmar-cambio-mail?token=" + token;
-        mailService.enviarMail(mailNuevo, "Confirmá tu mail nuevo — AccesMed",
-                "Ingresá a este link para confirmar tu mail nuevo de acceso a AccesMed:\n\n" + link
-                        + "\n\nTu mail actual sigue funcionando hasta que confirmes.");
+
+        ContenidoMail contenidoMail = ContenidoMail.builder()
+                .etiqueta("Tu cuenta")
+                .colorAcento(PlantillaMailHtml.ACENTO_INFO)
+                .titulo("Confirmá tu mail nuevo")
+                .saludo("Hola,")
+                .parrafos(List.of("Confirmá este mail para usarlo como acceso a tu cuenta de AccesMed."))
+                .textoBoton("Confirmar mail nuevo")
+                .urlBoton(link)
+                .nota("Tu mail actual sigue funcionando hasta que confirmes. "
+                        + "El link vence en 1 hora y se puede usar una sola vez.")
+                .build();
+
+        mailService.enviarMailConPlantilla(mailNuevo, "Confirmá tu mail nuevo — AccesMed",
+                contenidoMail, clinicaDomainService.findClinica());
+
     }
 
     //endregion
@@ -91,19 +124,44 @@ public class GestionUsuarioAdapter implements GestionUsuarioPort {
     //region ========== Métodos auxiliares privados ==========
 
     private void enviarMailActivacion(Usuario usuario) {
+
         String token = passwordResetTokenDomainService.generarYGuardarPasswordResetToken(usuario);
         String link = frontendBaseUrl + "/activar-cuenta?token=" + token;
-        mailService.enviarMail(usuario.getMail(), "Activá tu cuenta — AccesMed",
-                "Ingresá a este link para activar tu cuenta y definir tu contraseña:\n\n" + link);
+
+        ContenidoMail contenidoMail = ContenidoMail.builder()
+                .etiqueta("Tu cuenta")
+                .colorAcento(PlantillaMailHtml.ACENTO_EXITO)
+                .titulo("Activá tu cuenta")
+                .saludo("¡Te damos la bienvenida a AccesMed!")
+                .parrafos(List.of("Ya creamos tu cuenta. Para empezar a usarla, definí tu contraseña."))
+                .textoBoton("Activar mi cuenta")
+                .urlBoton(link)
+                .nota("El link vence en 1 hora y se puede usar una sola vez.")
+                .build();
+
+        mailService.enviarMailConPlantilla(usuario.getMail(), "Activá tu cuenta — AccesMed",
+                contenidoMail, clinicaDomainService.findClinica());
+
     }
 
     private void enviarMailBajaSiCorresponde(Usuario usuario) {
+
         if (usuario != null) {
             refreshTokenDomainService.revocarTodosLosRefreshTokensDeUsuario(usuario);
-            mailService.enviarMail(usuario.getMail(), "Tu cuenta fue dada de baja — AccesMed",
-                    "Tu acceso al sistema de AccesMed fue desactivado. Si creés que es un error, "
-                            + "contactá a un administrador.");
+
+            ContenidoMail contenidoMail = ContenidoMail.builder()
+                    .etiqueta("Tu cuenta")
+                    .colorAcento(PlantillaMailHtml.ACENTO_ERROR)
+                    .titulo("Tu cuenta fue dada de baja")
+                    .saludo("Hola,")
+                    .parrafos(List.of("Tu acceso al sistema de AccesMed fue desactivado.",
+                            "Si creés que es un error, contactá a un administrador."))
+                    .build();
+
+            mailService.enviarMailConPlantilla(usuario.getMail(), "Tu cuenta fue dada de baja — AccesMed",
+                    contenidoMail, clinicaDomainService.findClinica());
         }
+
     }
 
     //endregion

@@ -1,5 +1,7 @@
 package com.accesmed.backend.Records.Agente.Response;
 
+import com.accesmed.backend.Services.Utils.CoincidenciaBusqueda;
+
 import java.util.List;
 
 /**
@@ -11,12 +13,14 @@ import java.util.List;
  * @param matricula {@code String} matrícula del médico
  * @param especialidad {@code String} nombre de su especialidad
  * @param prestaciones {@code List<String>} nombres de las prestaciones publicadas que atiende
+ * @param coincidencia {@code CoincidenciaBusqueda} {@code EXACTA} si coincide lo que escribió el paciente, {@code APROXIMADA} si es solo parecido (puede ser otra cosa)
  */
 public record SearchMedicoAgenteResponse(
         String nombre,
         String apellido,
         String matricula,
         String especialidad,
-        List<String> prestaciones
+        List<String> prestaciones,
+        CoincidenciaBusqueda coincidencia
 ) {
 }
