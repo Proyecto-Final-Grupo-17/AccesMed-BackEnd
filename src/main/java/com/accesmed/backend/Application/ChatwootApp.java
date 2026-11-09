@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Caso de uso del pasamanos Chatwoot, Flowise y Chatwoot (diseño en
@@ -137,7 +138,14 @@ public class ChatwootApp {
                 conversationId, receiveMensajeChatwootRequest, this::processTandaChatwoot);
 
         //Bienvenida y "Un momento" en una sola tarea, en orden: "Un momento" solo con el mensaje que abre la tanda
-        chatwootService.sendMensajesInicioTandaAsync(conversationId, mensajeBienvenida, abreTandaNueva);
+        //Si el mensaje que abre la ventana es un audio, la bienvenida también va en voz (se genera en segundo plano)
+        Supplier<byte[]> vozBienvenida = null;
+        if (mensajeBienvenida != null && traeAudio) {
+            String textoBienvenida = mensajeBienvenida;
+            vozBienvenida = () -> openAiService.createVozRespuesta(textoBienvenida, chatwootService.isAudioRespuestaConTexto())
+                    .orElse(null);
+        }
+        chatwootService.sendMensajesInicioTandaAsync(conversationId, mensajeBienvenida, abreTandaNueva, vozBienvenida);
 
     }
 

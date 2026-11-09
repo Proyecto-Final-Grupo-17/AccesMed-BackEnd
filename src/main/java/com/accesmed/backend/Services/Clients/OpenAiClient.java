@@ -3,10 +3,13 @@ package com.accesmed.backend.Services.Clients;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
 import java.net.http.HttpClient;
@@ -96,16 +99,19 @@ public class OpenAiClient {
                 return nombreArchivo;
             }
         };
-        MultipartBodyBuilder cuerpoMultipart = new MultipartBodyBuilder();
-        cuerpoMultipart.part("file", archivoAudio).contentType(MediaType.parseMediaType(mime));
-        cuerpoMultipart.part("model", modeloTranscripcion);
-        cuerpoMultipart.part("language", "es");
-        cuerpoMultipart.part("response_format", "json");
+        //MultipartBodyBuilder no sirve acá: pide reactive-streams, que el back no trae (sin WebFlux)
+        HttpHeaders cabecerasArchivo = new HttpHeaders();
+        cabecerasArchivo.setContentType(MediaType.parseMediaType(mime));
+        MultiValueMap<String, Object> cuerpoMultipart = new LinkedMultiValueMap<>();
+        cuerpoMultipart.add("file", new HttpEntity<>(archivoAudio, cabecerasArchivo));
+        cuerpoMultipart.add("model", modeloTranscripcion);
+        cuerpoMultipart.add("language", "es");
+        cuerpoMultipart.add("response_format", "json");
 
         Map<String, Object> respuestaTranscripcion = restClient.post()
                 .uri("/v1/audio/transcriptions")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
-                .body(cuerpoMultipart.build())
+                .body(cuerpoMultipart)
                 .retrieve()
                 .body(Map.class);
 
