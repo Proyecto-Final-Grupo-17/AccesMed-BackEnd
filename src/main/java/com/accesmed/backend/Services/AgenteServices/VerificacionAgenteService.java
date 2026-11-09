@@ -51,6 +51,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -125,9 +126,9 @@ public class VerificacionAgenteService {
         List<ItemVerificado<MedicoAfirmado>> medicos = verifyItems(
                 verifyRespuestaAgenteRequest.medicos(), this::verifyMedico);
         List<ItemVerificado<HorarioAfirmado>> horarios = verifyItems(
-                verifyRespuestaAgenteRequest.horarios(), this::verifyHorario);
+                verifyRespuestaAgenteRequest.horarios(), horarioAfirmado -> verifyHorario(numeroTelefono, horarioAfirmado));
         List<ItemVerificado<DisponibilidadAfirmada>> disponibilidad = verifyItems(
-                verifyRespuestaAgenteRequest.disponibilidad(), this::verifyDisponibilidad);
+                verifyRespuestaAgenteRequest.disponibilidad(), disponibilidadAfirmada -> verifyDisponibilidad(numeroTelefono, disponibilidadAfirmada));
         List<ItemVerificado<TurnoAfirmado>> turnos = verifyItems(
                 verifyRespuestaAgenteRequest.turnos(), turnoAfirmado -> verifyTurno(numeroTelefono, turnoAfirmado));
         List<ItemVerificado<CotizacionAfirmada>> cotizaciones = verifyItems(
@@ -268,10 +269,13 @@ public class VerificacionAgenteService {
      * Verifica que el día de la semana corresponda a la fecha y que exista un horario libre, dentro
      * del plazo de reserva, para ese médico, prestación, fecha y hora.
      *
+     * Si el horario ya no está libre pero lo ocupa un turno vivo del propio paciente (recién reservado), también es verdadero.
+     *
+     * @param numeroTelefono {@code String} teléfono del canal
      * @param horarioAfirmado {@code HorarioAfirmado} horario ofrecido
      * @return {@code ItemVerificado<HorarioAfirmado>} el veredicto
      */
-    private ItemVerificado<HorarioAfirmado> verifyHorario(HorarioAfirmado horarioAfirmado) {
+    private ItemVerificado<HorarioAfirmado> verifyHorario(String numeroTelefono, HorarioAfirmado horarioAfirmado) {
 
         //Día de la semana
         String diaSemanaReal = FormatoMensaje.diaSemana(horarioAfirmado.fecha());
@@ -283,7 +287,8 @@ public class VerificacionAgenteService {
         //Horario libre
         Optional<ListHorarioDisponibleResponse> slotLibre = findSlotLibre(horarioAfirmado.matricula(),
                 horarioAfirmado.prestacion(), horarioAfirmado.fecha(), horarioAfirmado.hora());
-        if (slotLibre.isEmpty()) {
+        if (slotLibre.isEmpty() && findTurnoVivoDelPacienteEnHorario(numeroTelefono, horarioAfirmado.matricula(),
+                horarioAfirmado.prestacion(), horarioAfirmado.fecha(), horarioAfirmado.hora()).isEmpty()) {
             return rechazar(horarioAfirmado, "No hay un horario libre el " + FormatoMensaje.diaSemana(horarioAfirmado.fecha())
                     + " " + FormatoMensaje.fecha(horarioAfirmado.fecha()) + " a las " + horarioAfirmado.hora()
                     + " con la matrícula " + horarioAfirmado.matricula() + " para " + horarioAfirmado.prestacion()
@@ -299,10 +304,12 @@ public class VerificacionAgenteService {
      * declaró el agente consulta un día ({@code fecha}), una franja del día ({@code franjaHoraria}),
      * ambos, o una hora puntual ({@code hora}, que exige {@code fecha}).
      *
+     * @param numeroTelefono {@code String} teléfono del canal (un horario ocupado por un turno vivo del paciente no se rechaza)
      * @param disponibilidadAfirmada {@code DisponibilidadAfirmada} afirmación de disponibilidad
      * @return {@code ItemVerificado<DisponibilidadAfirmada>} el veredicto
      */
-    private ItemVerificado<DisponibilidadAfirmada> verifyDisponibilidad(DisponibilidadAfirmada disponibilidadAfirmada) {
+    private ItemVerificado<DisponibilidadAfirmada> verifyDisponibilidad(String numeroTelefono,
+            DisponibilidadAfirmada disponibilidadAfirmada) {
 
         Optional<Prestacion> prestacionPublicada = findPrestacionPublicadaByNombre(disponibilidadAfirmada.prestacion());
         if (prestacionPublicada.isEmpty()) {
@@ -333,6 +340,15 @@ public class VerificacionAgenteService {
                 ? slotsLibres.stream().anyMatch(slot -> slot.horaDesde().truncatedTo(ChronoUnit.MINUTES)
                         .equals(disponibilidadAfirmada.hora().truncatedTo(ChronoUnit.MINUTES)))
                 : !slotsLibres.isEmpty();
+
+        //Un "hay turno" a una hora que ocupa un turno vivo del propio paciente (recién reservado) es verdadero
+        boolean ocupadoPorTurnoDelPaciente = !hayReal && disponibilidadAfirmada.hora() != null
+                && disponibilidadAfirmada.matricula() != null
+                && findTurnoVivoDelPacienteEnHorario(numeroTelefono, disponibilidadAfirmada.matricula(),
+                        disponibilidadAfirmada.prestacion(), disponibilidadAfirmada.fecha(), disponibilidadAfirmada.hora()).isPresent();
+        if (ocupadoPorTurnoDelPaciente) {
+            return ItemVerificado.aprobado(disponibilidadAfirmada);
+        }
 
         if (disponibilidadAfirmada.hay() != null && disponibilidadAfirmada.hay() != hayReal) {
             return rechazar(disponibilidadAfirmada, buildMotivoDisponibilidad(disponibilidadAfirmada, hayReal),
@@ -439,6 +455,20 @@ public class VerificacionAgenteService {
         //El horario cotizado tiene que existir
         Optional<ListHorarioDisponibleResponse> slotLibre = findSlotLibre(cotizacionAfirmada.matricula(),
                 cotizacionAfirmada.prestacion(), cotizacionAfirmada.fecha(), cotizacionAfirmada.hora());
+
+        //Ya reservado por el propio paciente: el monto real es el del turno guardado
+        if (slotLibre.isEmpty()) {
+            Optional<Turno> turnoDelPaciente = findTurnoVivoDelPacienteEnHorario(numeroTelefono, cotizacionAfirmada.matricula(),
+                    cotizacionAfirmada.prestacion(), cotizacionAfirmada.fecha(), cotizacionAfirmada.hora());
+            if (turnoDelPaciente.isPresent()) {
+                BigDecimal montoReal = turnoDelPaciente.get().getMontoAPagar();
+                if (cotizacionAfirmada.monto() != null && montoReal != null && cotizacionAfirmada.monto().compareTo(montoReal) != 0) {
+                    return rechazar(cotizacionAfirmada, "El monto a pagar del turno " + turnoDelPaciente.get().getCodigo()
+                            + " no es " + cotizacionAfirmada.monto() + ".", String.valueOf(montoReal));
+                }
+                return ItemVerificado.aprobado(cotizacionAfirmada);
+            }
+        }
         if (slotLibre.isEmpty()) {
             return rechazar(cotizacionAfirmada, "No hay un horario libre para ese médico, prestación, fecha y hora: no se puede cotizar.", null);
         }
@@ -662,6 +692,42 @@ public class VerificacionAgenteService {
                 .filter(slot -> slot.horaDesde().truncatedTo(ChronoUnit.MINUTES).equals(hora.truncatedTo(ChronoUnit.MINUTES)))
                 .findFirst();
         return slotLibre;
+
+    }
+
+    /**
+     * Busca un turno vivo (no final) del paciente del canal con ese médico, prestación, fecha y hora. Sirve
+     * para no rechazar un horario que dejó de estar libre justamente porque el paciente lo acaba de reservar.
+     *
+     * @param numeroTelefono {@code String} teléfono del canal, o {@code null}
+     * @param matricula {@code String} matrícula del médico
+     * @param nombrePrestacion {@code String} nombre de la prestación
+     * @param fecha {@code LocalDate} fecha del turno
+     * @param hora {@code LocalTime} hora de inicio del turno
+     * @return {@code Optional<Turno>} el turno del paciente en ese horario, o vacío si no hay
+     */
+    private Optional<Turno> findTurnoVivoDelPacienteEnHorario(String numeroTelefono, String matricula,
+            String nombrePrestacion, LocalDate fecha, LocalTime hora) {
+
+        Optional<Paciente> pacienteDelCanal = pacienteDomainService.findOptionalPacienteActivoByNumeroTelefono(numeroTelefono);
+        if (pacienteDelCanal.isEmpty() || matricula == null || nombrePrestacion == null || fecha == null || hora == null) {
+            return Optional.empty();
+        }
+
+        ZoneId zonaHorariaClinica = clinicaDomainService.findZonaHorariaClinica();
+        List<EstadoTurno> estadosVivos = java.util.Arrays.stream(EstadoTurno.values())
+                .filter(estado -> !estado.esFinal()).toList();
+        Optional<Turno> turnoDelPaciente = turnoDomainService
+                .findTurnosByPacienteIdAndEstadosVigentes(pacienteDelCanal.get().getId(), estadosVivos).stream()
+                .filter(turno -> matricula.equalsIgnoreCase(turno.getMedico().getMatricula()))
+                .filter(turno -> sonIguales(turno.getPrestacion().getNombre(), nombrePrestacion))
+                .filter(turno -> {
+                    var inicioClinica = turno.getFechaHoraInicio().withZoneSameInstant(zonaHorariaClinica);
+                    return inicioClinica.toLocalDate().equals(fecha)
+                            && inicioClinica.toLocalTime().truncatedTo(ChronoUnit.MINUTES).equals(hora.truncatedTo(ChronoUnit.MINUTES));
+                })
+                .findFirst();
+        return turnoDelPaciente;
 
     }
 
