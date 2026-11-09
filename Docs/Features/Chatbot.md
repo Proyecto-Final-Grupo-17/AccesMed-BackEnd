@@ -155,6 +155,8 @@ Campos del body que usa el back (el resto se ignora):
 | `event` | solo `message_created` |
 | `id` | id del mensaje (log) |
 | `content` | texto del paciente |
+| `created_at` | momento de creación del mensaje (epoch o ISO); solo para el log de latencia Chatwoot → back |
+| `attachments[].file_type`, `.data_url`, `.file_size` | tipo, URL de descarga y tamaño del adjunto (los audios se descargan para transcribirlos) |
 | `message_type` | solo `incoming` (o `0`) |
 | `private` | descarta notas privadas |
 | `conversation.id` | clave de agrupación, sesión de Flowise y destino de la respuesta |
@@ -182,21 +184,38 @@ diseño en `Docs/Diseno-Chatbot.md §2.3`):
 
 1. **Sin teléfono** → mensaje de error técnico y handoff (no llama a Flowise).
 2. **Fuera del horario de atención** (`Clinica.horarioInicioAtencion` ≤ ahora < `horarioFinAtencion`,
-   en `Clinica.zonaHoraria`) → *"Hola, somos {nombre}. Nuestro horario de atención es de {inicio} a
-   {fin} h. Escribinos en ese horario y te ayudamos."*, **una vez por ventana**; no llama a Flowise.
+   en `Clinica.zonaHoraria`) → *"¡Hola, {nombre del Paciente}! Lo sentimos, en este momento no estamos
+   atendiendo. Nuestro horario de atención es de {inicio} a {fin} h. Escribinos en ese horario y con
+   gusto te ayudamos. 🙂"* (sin nombre si el teléfono no está registrado), **una vez por ventana**; no
+   llama a Flowise.
 3. **Antispam**: más de 10 mensajes en 60 s → *"Recibimos muchos mensajes seguidos…"* una vez y
    la conversación se ignora 5 min.
 4. **Documento** (adjunto `image` o `file`) → *"📎 Recibimos tu archivo. Alguien del equipo lo va a
    revisar."* y la conversación se etiqueta `documentacion` (la etiqueta la crea el equipo en
    Chatwoot). El archivo queda en Chatwoot: **nunca le llega a Flowise**. Si trae pie de texto, el
    texto sigue su curso (punto 6).
-5. **Sin texto** y sin documento (audio, video, sticker) → *"Por ahora solo puedo leer mensajes de
-   texto. ¿Me lo escribís?"* (no llama a Flowise ni entra en la agrupación).
-6. **Primer mensaje de texto de la ventana** → bienvenida inmediata, antes de agrupar: *"¡Hola,
-   {nombre del Paciente}! Somos {clínica}, atendemos de {inicio} a {fin} h. Ya estamos revisando tu
-   mensaje, aguardá un momento."* (sin nombre si el teléfono no está registrado). **El agente de
-   Flowise no saluda.**
-7. **Con texto** → se agrupa (6.C).
+5. **Sin texto ni audio** y sin documento (video, sticker; y audio si el audio está apagado) →
+   con el audio habilitado, *"Por ahora puedo leer mensajes de texto y escuchar audios. ¿Me lo
+   escribís o me mandás un audio?"*; con el audio apagado, *"Por ahora solo puedo leer mensajes de
+   texto. ¿Me lo escribís?"* (no llama a Flowise ni entra en la agrupación). El audio se habilita
+   con `ACCESMED_OPENAI_API_KEY` (opcional; vacía = apagado).
+6. **Primer mensaje aceptado de la ventana** (texto o audio) → bienvenida inmediata, antes de
+   agrupar: *"¡Hola, {nombre del Paciente}! 👋 Soy el asistente virtual de la clínica {clínica}.
+   Nuestro horario de atención es de {inicio} a {fin} h."* (sin nombre si el teléfono no está
+   registrado; si el nombre de la clínica ya empieza con "Clínica" no se repite la palabra). **El
+   agente de Flowise no saluda.**
+7. **Con texto o audio** → se agrupa (6.C). El mensaje que **abre** una tanda nueva dispara *"⏳ Un
+   momento…"* en el acto (no se repite dentro de la misma tanda); si corresponde bienvenida, salen
+   las dos en una sola tarea y en ese orden.
+
+**Audio como entrada.** Al procesar la tanda, cada mensaje con adjunto `file_type = audio` se
+descarga de `data_url` (con `api_access_token` y siguiendo redirecciones), se transcribe con OpenAI
+(`language=es`) y la transcripción queda como **nota privada** *"🎤 Transcripción: …"* en la
+conversación (la ve el equipo, no el paciente). Un audio que no se puede usar se avisa y se omite
+(sin derivar): transcripción vacía o error → *"🎧 No pude escuchar bien tu audio. ¿Me lo mandás de
+nuevo o me lo escribís?"*; más pesado que `accesmed.audio.max-bytes` → *"🎧 Tu audio es un poco largo
+para mí. ¿Me lo mandás en uno más corto o me lo escribís?"*. Si la tanda queda sin texto, no se
+llama a Flowise.
 
 **Ventana de inactividad** por conversación: arranca con el primer mensaje, se renueva con cada
 uno y vence a los 30 min sin mensajes. Reinicia la bienvenida, el aviso de fuera de horario, el
@@ -244,13 +263,14 @@ con cardiología",
       "nombreContacto": "Ana",
       "pacienteRegistrado": "true",
       "nombrePaciente": "Ana",
-      "fechaHoraActual": "sábado 08/11/2026 10:35"
+      "fechaHoraActual": "sábado 08/11/2026 10:35",
+      "entradaAudio": "false"
     }
   }
 }
 ```
 
-`question` = los mensajes de la tanda unidos por salto de línea. El `sessionId` cambia con cada
+`question` = los textos de la tanda unidos por salto de línea (los audios, ya transcriptos). El `sessionId` cambia con cada
 ventana de inactividad (6.B): la memoria del agente arranca limpia después de 30 min sin mensajes.
 
 | Variable | Valor |
@@ -260,6 +280,7 @@ ventana de inactividad (6.B): la memoria del agente arranca limpia después de 3
 | `pacienteRegistrado` | `"true"` / `"false"`: hay un paciente activo con ese teléfono (se consulta en cada tanda) |
 | `nombrePaciente` | nombre del `Paciente` registrado, o vacío |
 | `fechaHoraActual` | día, fecha y hora en la zona de la clínica, para interpretar "mañana", "el jueves" |
+| `entradaAudio` | `"true"` / `"false"`: en la tanda hubo al menos un audio transcripto (la respuesta se le va a leer en voz alta) |
 
 En el flow se leen como `$vars.<nombre>`. El chatflow tiene que tener el override activado
 (`apiConfig.overrideConfig.status = true`) y **cada variable habilitada** en
@@ -278,6 +299,15 @@ desde la UI.
   nueva de Flowise). Si la misma respuesta trae `—HANDOFF—`, gana el handoff.
 - Respuesta vacía o error de Flowise → mensaje de error técnico y handoff.
 
+**Respuesta con voz.** Si `entradaAudio` es `true` y hay texto (sin tokens), el back genera una nota de
+voz con OpenAI (`POST /v1/audio/speech`, `opus`) a partir de un *texto para voz* determinista: sin
+`* _ ~ #`, viñetas ni emojis; `jueves 12/11/2026 09:30` se lee "jueves 12 de noviembre a las 9:30",
+`12/11/2026` "12 de noviembre de 2026" y `$85.800` "85.800 pesos"; los códigos `TURNO_…` se reemplazan
+por "(te lo dejo por escrito)" si el texto también se manda. Sube primero la nota de voz y, con
+`accesmed.audio.respuesta-con-texto: true` (default), después el mismo texto; con `false`, solo la voz.
+Si la voz falla o el texto para voz supera 4096 caracteres, sale solo el texto. Handoff, fuera de tema
+y fin se interpretan igual.
+
 Antes de entregar la respuesta, el back la **verifica** (6.H).
 
 ### 6.E Back → Chatwoot (API)
@@ -290,6 +320,9 @@ los mensajes figuran como enviados por el bot.
 | Responder | `POST /api/v1/accounts/{account}/conversations/{id}/messages` `{content, message_type: "outgoing", private: false}` |
 | Derivar a persona | `POST /api/v1/accounts/{account}/conversations/{id}/toggle_status` `{status: "open"}` |
 | Fin de la charla (`—FIN—`) | `POST /api/v1/accounts/{account}/conversations/{id}/toggle_status` `{status: "resolved"}` |
+| Nota de voz | `POST /api/v1/accounts/{account}/conversations/{id}/messages` multipart: `attachments[]` (`audio/ogg`, `respuesta.ogg`), `message_type=outgoing`, `private=false`, sin `content` |
+| Nota privada (transcripción) | `POST /api/v1/accounts/{account}/conversations/{id}/messages` `{content: "🎤 Transcripción: …", message_type: "outgoing", private: true}` |
+| Descargar adjunto | `GET {data_url}` (con `api_access_token`, sigue redirecciones) |
 | Etiquetar documento | `POST /api/v1/accounts/{account}/conversations/{id}/labels` `{labels: ["documentacion"]}` |
 
 Se deriva cuando: la respuesta de Flowise trae `—HANDOFF—` (se quita el token y se envía el resto, §9);
@@ -333,7 +366,8 @@ back de **staging**) y conectado al inbox **AccesMed WhatsApp**. El inbox "Whats
 ### 6.H Tanda y avisos de espera
 
 Diseño en `Docs/Diseno-Chatbot.md §3.4.6` y `§4.7`; código en `Services/AgenteServices/TandaAgenteService`.
-Apenas `ChatwootApp` despacha una tanda a Flowise, el back manda *"⏳ Un momento…"* al paciente. Mientras
+El back manda *"⏳ Un momento…"* al paciente apenas **recibe el mensaje que abre la tanda** (no al
+despacharla; `Docs/Diseno-Chatbot.md §5`, D41). Mientras
 Flowise la procesa, el back la tiene **abierta** por teléfono: los endpoints de **escritura** que llama el
 agente (con `X-Paciente-Telefono`) mandan un aviso propio, uno por tanda, a la primera que lo amerita:
 
@@ -699,7 +733,7 @@ este back: con `cobertura` obligatoria, el flow anterior no puede reservar.
   `horarios`, `disponibilidad`, `turnos`, `cotizaciones`; todas opcionales) y responde `verdadero` más
   la misma estructura, con `{dato, verdadero, motivo, correcto}` por ítem. Property
   `accesmed.agente.verificacion.habilitada` (default `true`): en `false` todo da verdadero.
-- **Avisos de espera.** El back manda "⏳ Un momento…" apenas despacha la tanda a Flowise; las
+- **Avisos de espera.** El back manda "⏳ Un momento…" al recibir el mensaje que abre la tanda (etapa 5); las
   consultas ya no avisan, las escrituras siguen con su aviso propio.
 - **Timeouts.** `accesmed.flowise.timeout-conexion-segundos` (5) y `timeout-lectura-segundos` (60); al
   vencer, el canal deriva la conversación a una persona.
@@ -707,3 +741,16 @@ este back: con `cobertura` obligatoria, el flow anterior no puede reservar.
   bot sin mensajes más allá de `ventana-inactividad-minutos`: manda un cierre fijo y las resuelve en
   Chatwoot. No toca las derivadas a una persona.
 
+---
+
+## 14. Cambios de contrato de la etapa 5 (2026-11-09)
+
+Detalle y decisiones en `Docs/Diseno-Chatbot.md §5`.
+
+- **Audio como entrada y salida** (opcional, `ACCESMED_OPENAI_API_KEY`; vacía = apagado): ver 6.B y 6.D.
+- **Variable nueva `entradaAudio`** en `$vars` (`"true"`/`"false"`); el flow tiene que habilitarla en
+  *Override Config* (`Diseno-Chatbot.md §5.6`).
+- **Textos nuevos** de bienvenida, fuera de horario y "texto o audio" (6.B).
+- **"⏳ Un momento…" al recibir** el mensaje que abre la tanda; ya no al despacharla.
+- **Properties:** `accesmed.openai.base-url`, `accesmed.openai.api-key`, `accesmed.audio.modelo-transcripcion`,
+  `modelo-voz`, `voz`, `instrucciones-voz`, `max-bytes`, `timeout-segundos` y `respuesta-con-texto`.

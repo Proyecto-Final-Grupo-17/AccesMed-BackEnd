@@ -385,9 +385,11 @@ accesmed-backend/
     │   │   │   │   └── <NombreEntidad>Mapper.java
     │   │   │   ├── Clients/                # integraciones HTTP salientes (RestClient)
     │   │   │   │   ├── ChatwootClient.java
-    │   │   │   │   └── FlowiseClient.java
+    │   │   │   │   ├── FlowiseClient.java
+    │   │   │   │   └── OpenAiClient.java       # transcripción y voz (audio del canal)
     │   │   │   ├── ExternalServices/       # lógica de integración con servicios externos (usa Clients)
-    │   │   │   │   └── ChatwootService.java # canal Chatwoot: horario, antispam, ventana, mensajes fijos, tokens
+    │   │   │   │   ├── ChatwootService.java # canal Chatwoot: horario, antispam, ventana, mensajes fijos, tokens
+    │   │   │   │   └── OpenAiService.java   # audio del canal: transcribir y texto para voz
     │   │   │   ├── AgenteServices/         # EXCEPCIÓN: capa intermedia solo del canal chatbot (ver §4 notas)
     │   │   │   │   ├── CatalogoAgenteService.java # catálogo por parecido con relación prestación↔médico e indicaciones
     │   │   │   │   ├── CotizacionAgenteService.java   # cobertura y monto de un turno sin guardar
@@ -514,12 +516,13 @@ el inicio.** `Services` no tiene archivos sueltos: se divide en subcarpetas fija
   negocio, pero es un componente de soporte que solo usan los services y apps para
   convertir Record↔entidad; por eso vive junto a los demás, no como package suelto en la raíz.
 - `Services/Errors/` — `AccesMedException` y sus subclases (ver §3).
-- `Services/Clients/` — clientes HTTP salientes (`ChatwootClient`, `FlowiseClient`) sobre `RestClient`, con timeouts
+- `Services/Clients/` — clientes HTTP salientes (`ChatwootClient`, `FlowiseClient`, `OpenAiClient`) sobre `RestClient`, con timeouts
   explícitos y sin dependencias nuevas. Solo hablan HTTP: no deciden nada.
 - `Services/ExternalServices/` — la **lógica de integración** con un servicio externo, sin dueño de
   entidad: qué mandarle, cuándo y cómo interpretar lo que devuelve (hoy `ChatwootService`: horario de
   atención, antispam, ventana de inactividad, mensajes fijos del canal, sesión y variables de Flowise,
-  tokens de la respuesta). Usa los `Clients` y lo orquesta un `App` (`ChatwootApp`). Puede guardar
+  tokens de la respuesta; `OpenAiService`: transcripción de los audios del paciente y texto para voz
+  de la respuesta, apagado si no hay `ACCESMED_OPENAI_API_KEY`). Usa los `Clients` y lo orquesta un `App` (`ChatwootApp`). Puede guardar
   estado en memoria del canal (supone una sola instancia del back). No va en `Utils` porque no es un
   helper genérico ni en `Clients` porque no es transporte HTTP.
 - `Services/AgenteServices/` — **excepción a la arquitectura de capas, solo para el canal chatbot**
@@ -686,7 +689,8 @@ coincidencias, similitud de trigramas con `pg_trgm`) también, y las usa la capa
 `Records/Agente` (`<Accion><Entidad>AgenteRequest/Response`). El webhook de Chatwoot
 (`ChatwootController` + `ChatwootApp`) es un pasamanos: `ChatwootApp` orquesta y la lógica del
 canal vive en `Services/ExternalServices/ChatwootService` (horario de atención, antispam, bienvenida,
-tokens), que usa `Services/Clients` (`ChatwootClient`, `FlowiseClient`). Del dominio solo lee
+tokens) y `OpenAiService` (audio: transcripción y voz, opcional), que usan `Services/Clients`
+(`ChatwootClient`, `FlowiseClient`, `OpenAiClient`). Del dominio solo lee
 (`ClinicaDomainService.findClinica`, `PacienteDomainService.findOptionalPacienteActivoByNumeroTelefono`),
 agrupa los mensajes en ráfaga por conversación (`Services/Utils/AgrupadorMensajes`) y responde en
 segundo plano. Diseño en `Docs/Diseno-Chatbot.md §2.3`. Su autenticidad

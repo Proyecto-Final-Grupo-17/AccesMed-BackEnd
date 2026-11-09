@@ -161,6 +161,7 @@ servidor (plantilla `docker/deploy/.env.example`) y mapeadas en `docker/deploy/d
 | `ACCESMED_CHATWOOT_WEBHOOK_SECRET` | No | vacío | Secret del Agent Bot; vacío = no se verifica la firma |
 | `ACCESMED_FLOWISE_BASE_URL` | No | `http://accesmed-flowise:3000` | URL de Flowise (red `accesmed-staging`) |
 | `ACCESMED_FLOWISE_API_KEY` | No | vacío | API key del chatflow, si la exige |
+| `ACCESMED_OPENAI_API_KEY` | No | vacío | API key de OpenAI para transcribir los audios del paciente y responder con voz; vacía = audio apagado (el bot sigue solo con texto) |
 
 Las tres obligatorias **no tienen default: si faltan en el `.env` del servidor, el back no arranca**.
 Cargarlas antes de desplegar una imagen con este cambio.
