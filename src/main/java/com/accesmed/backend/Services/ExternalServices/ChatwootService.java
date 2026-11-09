@@ -2,6 +2,7 @@ package com.accesmed.backend.Services.ExternalServices;
 
 import com.accesmed.backend.Domain.Clinica;
 import com.accesmed.backend.Domain.Paciente;
+import com.accesmed.backend.Records.Chatwoot.Request.AdjuntoChatwootRequest;
 import com.accesmed.backend.Records.Chatwoot.Request.ReceiveMensajeChatwootRequest;
 import com.accesmed.backend.Records.Chatwoot.Request.RemitenteChatwootRequest;
 import com.accesmed.backend.Services.AgenteServices.AccionAgente;
@@ -13,11 +14,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.net.URI;
+import java.text.Normalizer;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -64,6 +69,23 @@ public class ChatwootService {
 
     static final String MENSAJE_SOLO_TEXTO = "Por ahora solo puedo leer mensajes de texto. ¿Me lo escribís?";
 
+    /**
+     * Aviso cuando el mensaje no trae texto ni audio y el audio está habilitado.
+     */
+    static final String MENSAJE_TEXTO_O_AUDIO =
+            "Por ahora puedo leer mensajes de texto y escuchar audios. ¿Me lo escribís o me mandás un audio?";
+
+    static final String MENSAJE_AUDIO_NO_ENTENDIDO =
+            "🎧 No pude escuchar bien tu audio. ¿Me lo mandás de nuevo o me lo escribís?";
+
+    static final String MENSAJE_AUDIO_LARGO =
+            "🎧 Tu audio es un poco largo para mí. ¿Me lo mandás en uno más corto o me lo escribís?";
+
+    /**
+     * Nombre del archivo de la nota de voz de la respuesta.
+     */
+    static final String NOMBRE_ARCHIVO_AUDIO_RESPUESTA = "respuesta.ogg";
+
     static final String MENSAJE_ANTISPAM = "Recibimos muchos mensajes seguidos. Por favor, escribí tu consulta "
             + "en un solo mensaje; en unos minutos seguimos.";
 
@@ -98,6 +120,13 @@ public class ChatwootService {
      */
     private static final Set<String> TIPOS_ADJUNTO_DOCUMENTO = Set.of("image", "file");
 
+    /**
+     * Extensión del archivo de audio a tipo MIME, para los formatos que acepta la transcripción.
+     */
+    private static final Map<String, String> MIME_AUDIO_POR_EXTENSION = Map.of(
+            "ogg", "audio/ogg", "opus", "audio/ogg", "mp3", "audio/mpeg", "m4a", "audio/mp4",
+            "mp4", "audio/mp4", "wav", "audio/wav", "webm", "audio/webm", "aac", "audio/aac");
+
     private static final DateTimeFormatter FORMATO_HORA = DateTimeFormatter.ofPattern("HH:mm");
 
     private static final DateTimeFormatter FORMATO_FECHA_HORA_ACTUAL =
@@ -109,6 +138,8 @@ public class ChatwootService {
 
     private final ObjectMapper objectMapper;
     private final ChatwootClient chatwootClient;
+    private final OpenAiService openAiService;
+    private final boolean audioRespuestaConTexto;
     private final Executor chatwootTaskExecutor;
     private final Duration ventanaInactividad;
     private final int antispamMaxMensajes;
@@ -128,6 +159,8 @@ public class ChatwootService {
      *
      * @param objectMapper {@code ObjectMapper} parser del payload del webhook
      * @param chatwootClient {@code ChatwootClient} cliente de la API de Chatwoot
+     * @param openAiService {@code OpenAiService} audio del canal (acá solo para saber si está habilitado)
+     * @param audioRespuestaConTexto {@code boolean} si la nota de voz va seguida del mismo texto ({@code accesmed.audio.respuesta-con-texto})
      * @param chatwootTaskExecutor {@code Executor} hilos de los mensajes que se envían en segundo plano
      * @param ventanaInactividadMinutos {@code long} minutos sin mensajes que cierran la ventana ({@code accesmed.chatwoot.ventana-inactividad-minutos})
      * @param antispamMaxMensajes {@code int} mensajes tolerados dentro de la ventana de antispam ({@code accesmed.chatwoot.antispam.max-mensajes})
@@ -135,7 +168,8 @@ public class ChatwootService {
      * @param antispamSilencioMinutos {@code long} silencio después del aviso de antispam ({@code accesmed.chatwoot.antispam.silencio-minutos})
      * @param fueraDeTemaMaxSeguidos {@code int} respuestas fuera de tema seguidas que derivan a una persona ({@code accesmed.chatwoot.fuera-de-tema.max-seguidos})
      */
-    public ChatwootService(ObjectMapper objectMapper, ChatwootClient chatwootClient,
+    public ChatwootService(ObjectMapper objectMapper, ChatwootClient chatwootClient, OpenAiService openAiService,
+            @Value("${accesmed.audio.respuesta-con-texto:true}") boolean audioRespuestaConTexto,
             @Qualifier("chatwootTaskExecutor") Executor chatwootTaskExecutor,
             @Value("${accesmed.chatwoot.ventana-inactividad-minutos:30}") long ventanaInactividadMinutos,
             @Value("${accesmed.chatwoot.antispam.max-mensajes:10}") int antispamMaxMensajes,
@@ -145,6 +179,8 @@ public class ChatwootService {
 
         this.objectMapper = objectMapper;
         this.chatwootClient = chatwootClient;
+        this.openAiService = openAiService;
+        this.audioRespuestaConTexto = audioRespuestaConTexto;
         this.chatwootTaskExecutor = chatwootTaskExecutor;
         this.ventanaInactividad = Duration.ofMinutes(ventanaInactividadMinutos);
         this.antispamMaxMensajes = antispamMaxMensajes;
@@ -247,6 +283,118 @@ public class ChatwootService {
                 && receiveMensajeChatwootRequest.attachments().stream()
                         .anyMatch(adjunto -> adjunto != null && TIPOS_ADJUNTO_DOCUMENTO.contains(adjunto.fileType()));
         return tieneDocumento;
+
+    }
+
+    /**
+     * Indica si el mensaje trae un audio del paciente (adjunto {@code file_type = audio}).
+     *
+     * @param receiveMensajeChatwootRequest {@code ReceiveMensajeChatwootRequest} payload parseado
+     * @return {@code boolean} {@code true} si trae al menos un adjunto de audio
+     */
+    public boolean hasAudioMensaje(ReceiveMensajeChatwootRequest receiveMensajeChatwootRequest) {
+
+        boolean tieneAudio = findAdjuntoAudio(receiveMensajeChatwootRequest).isPresent();
+        return tieneAudio;
+
+    }
+
+    /**
+     * Obtiene el primer adjunto de audio del mensaje.
+     *
+     * @param receiveMensajeChatwootRequest {@code ReceiveMensajeChatwootRequest} payload parseado
+     * @return {@code Optional<AdjuntoChatwootRequest>} el adjunto de audio, si el mensaje trae uno
+     */
+    public Optional<AdjuntoChatwootRequest> findAdjuntoAudio(ReceiveMensajeChatwootRequest receiveMensajeChatwootRequest) {
+
+        Optional<AdjuntoChatwootRequest> adjuntoAudio = receiveMensajeChatwootRequest.attachments() == null
+                ? Optional.empty()
+                : receiveMensajeChatwootRequest.attachments().stream()
+                        .filter(adjunto -> adjunto != null && "audio".equals(adjunto.fileType()))
+                        .findFirst();
+        return adjuntoAudio;
+
+    }
+
+    /**
+     * Descarga el archivo de un adjunto de audio desde Chatwoot.
+     *
+     * @param adjuntoAudio {@code AdjuntoChatwootRequest} adjunto de audio del mensaje
+     * @return {@code byte[]} el contenido del audio
+     * @throws ValidacionException {@code ValidacionException} si el adjunto no trae URL de descarga
+     * @throws org.springframework.web.client.RestClientException si Chatwoot no responde o devuelve error
+     */
+    public byte[] downloadAudio(AdjuntoChatwootRequest adjuntoAudio) {
+
+        if (adjuntoAudio.dataUrl() == null || adjuntoAudio.dataUrl().isBlank()) {
+            log.warn("El adjunto de audio no trae data_url: no se puede descargar");
+            throw new ValidacionException(getClass(), List.of("El adjunto de audio no trae URL de descarga."));
+        }
+
+        byte[] contenidoAudio = chatwootClient.downloadAdjuntoChatwoot(adjuntoAudio.dataUrl());
+        byte[] audio = contenidoAudio != null ? contenidoAudio : new byte[0];
+        return audio;
+
+    }
+
+    /**
+     * Deduce el nombre de archivo de un audio a partir de su URL (OpenAI toma el formato de la
+     * extensión); si no tiene una extensión conocida, asume {@code audio.ogg} (nota de voz de WhatsApp).
+     *
+     * @param adjuntoAudio {@code AdjuntoChatwootRequest} adjunto de audio del mensaje
+     * @return {@code String} nombre de archivo con extensión
+     */
+    public String findNombreArchivoAudio(AdjuntoChatwootRequest adjuntoAudio) {
+
+        String extension = "ogg";
+        try {
+            String ruta = URI.create(adjuntoAudio.dataUrl()).getPath();
+            int posicionPunto = ruta == null ? -1 : ruta.lastIndexOf('.');
+            String extensionUrl = posicionPunto >= 0 ? ruta.substring(posicionPunto + 1).toLowerCase(Locale.ROOT) : "";
+            if (MIME_AUDIO_POR_EXTENSION.containsKey(extensionUrl)) {
+                extension = extensionUrl;
+            }
+        } catch (RuntimeException excepcion) {
+            log.debug("No se pudo leer la extensión del audio, se asume ogg");
+        }
+        String nombreArchivoAudio = "audio." + extension;
+        return nombreArchivoAudio;
+
+    }
+
+    /**
+     * Obtiene el tipo MIME de un audio según la extensión de su nombre de archivo.
+     *
+     * @param nombreArchivo {@code String} nombre de archivo del audio (ej. {@code audio.ogg})
+     * @return {@code String} el tipo MIME ({@code audio/ogg} por defecto)
+     */
+    public String findMimeAudio(String nombreArchivo) {
+
+        String extension = nombreArchivo.substring(nombreArchivo.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+        String mimeAudio = MIME_AUDIO_POR_EXTENSION.getOrDefault(extension, "audio/ogg");
+        return mimeAudio;
+
+    }
+
+    /**
+     * Loguea la latencia Chatwoot a back del mensaje ({@code created_at} del payload contra ahora).
+     * Tolera el epoch en segundos o milisegundos y el texto ISO; si no se puede leer, no loguea y
+     * nunca falla.
+     *
+     * @param receiveMensajeChatwootRequest {@code ReceiveMensajeChatwootRequest} payload parseado
+     */
+    public void logLatenciaMensaje(ReceiveMensajeChatwootRequest receiveMensajeChatwootRequest) {
+
+        try {
+            Instant creadoEn = parseCreatedAt(receiveMensajeChatwootRequest.createdAt());
+            if (creadoEn != null) {
+                log.info("Latencia Chatwoot → back: conversación={}, mensaje={}, {} ms",
+                        receiveMensajeChatwootRequest.conversation().id(), receiveMensajeChatwootRequest.id(),
+                        Duration.between(creadoEn, Instant.now()).toMillis());
+            }
+        } catch (RuntimeException excepcion) {
+            log.debug("No se pudo calcular la latencia del mensaje: {}", excepcion.getMessage());
+        }
 
     }
 
@@ -495,10 +643,11 @@ public class ChatwootService {
      * @param nombreContacto {@code String} nombre del perfil de WhatsApp (puede ser vacío)
      * @param pacienteRegistrado {@code Optional<Paciente>} paciente activo dueño del teléfono, si existe
      * @param clinica {@code Clinica} configuración de la clínica (zona horaria)
-     * @return {@code Map<String, String>} {@code numeroTelefono}, {@code nombreContacto}, {@code pacienteRegistrado}, {@code nombrePaciente} y {@code fechaHoraActual}
+     * @param entradaAudio {@code boolean} {@code true} si el paciente habló por audio en la tanda (la respuesta se le lee en voz alta)
+     * @return {@code Map<String, String>} {@code numeroTelefono}, {@code nombreContacto}, {@code pacienteRegistrado}, {@code nombrePaciente}, {@code fechaHoraActual} y {@code entradaAudio}
      */
     public Map<String, String> buildVariablesFlowise(String numeroTelefono, String nombreContacto,
-            Optional<Paciente> pacienteRegistrado, Clinica clinica) {
+            Optional<Paciente> pacienteRegistrado, Clinica clinica, boolean entradaAudio) {
 
         String fechaHoraActual = FORMATO_FECHA_HORA_ACTUAL.format(ZonedDateTime.now(ZoneId.of(clinica.getZonaHoraria())));
 
@@ -507,7 +656,8 @@ public class ChatwootService {
                 "nombreContacto", nombreContacto == null ? "" : nombreContacto,
                 "pacienteRegistrado", String.valueOf(pacienteRegistrado.isPresent()),
                 "nombrePaciente", pacienteRegistrado.map(Paciente::getNombre).orElse(""),
-                "fechaHoraActual", fechaHoraActual);
+                "fechaHoraActual", fechaHoraActual,
+                "entradaAudio", String.valueOf(entradaAudio));
         return variablesFlowise;
 
     }
@@ -525,6 +675,50 @@ public class ChatwootService {
      */
     public void sendRespuestaFlowise(long conversationId, String respuestaFlowise) {
 
+        sendRespuestaFlowise(conversationId, respuestaFlowise, null, audioRespuestaConTexto);
+
+    }
+
+    /**
+     * Indica si la nota de voz de la respuesta va seguida del mismo texto ({@code accesmed.audio.respuesta-con-texto}).
+     *
+     * @return {@code boolean} {@code true} si el texto se manda también; {@code false} si va solo la voz
+     */
+    public boolean isAudioRespuestaConTexto() {
+
+        return audioRespuestaConTexto;
+
+    }
+
+    /**
+     * Quita los tokens de control ({@code —HANDOFF—}, {@code —FUERA_DE_TEMA—}, {@code —FIN—}) de la
+     * respuesta de Flowise y devuelve el texto que ve el paciente.
+     *
+     * @param respuestaFlowise {@code String} texto que devolvió el agente, o {@code null}
+     * @return {@code String} el texto sin tokens (vacío si no había texto)
+     */
+    public String removeTokensRespuesta(String respuestaFlowise) {
+
+        String textoSinTokens = respuestaFlowise == null ? "" : respuestaFlowise.replace(TOKEN_HANDOFF, "")
+                .replace(TOKEN_FUERA_DE_TEMA, "").replace(TOKEN_FIN, "").trim();
+        return textoSinTokens;
+
+    }
+
+    /**
+     * Igual que {@link #sendRespuestaFlowise(long, String)}, pero con la nota de voz de la respuesta:
+     * sube primero el audio y después el texto (o solo el audio si {@code respuestaConTexto} es
+     * {@code false}). Sin audio, manda el texto. Si el audio no se puede enviar, manda el texto igual.
+     * La lógica de tokens (handoff, fuera de tema y fin) no cambia.
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     * @param respuestaFlowise {@code String} texto que devolvió el agente, o {@code null}
+     * @param audioRespuesta {@code byte[]} nota de voz OGG/Opus de la respuesta, o {@code null} si va solo texto
+     * @param respuestaConTexto {@code boolean} {@code true} si el texto va después del audio
+     */
+    public void sendRespuestaFlowise(long conversationId, String respuestaFlowise, byte[] audioRespuesta,
+            boolean respuestaConTexto) {
+
         //Sin respuesta no hay qué decirle al paciente: lo atiende una persona
         if (respuestaFlowise == null || respuestaFlowise.isBlank()) {
             log.error("Flowise devolvió una respuesta vacía para la conversación {}", conversationId);
@@ -535,8 +729,7 @@ public class ChatwootService {
         boolean pideHandoff = respuestaFlowise.contains(TOKEN_HANDOFF);
         boolean fueraDeTema = respuestaFlowise.contains(TOKEN_FUERA_DE_TEMA);
         boolean terminaCharla = respuestaFlowise.contains(TOKEN_FIN) && !pideHandoff;
-        String textoRespuesta = respuestaFlowise.replace(TOKEN_HANDOFF, "").replace(TOKEN_FUERA_DE_TEMA, "")
-                .replace(TOKEN_FIN, "").trim();
+        String textoRespuesta = removeTokensRespuesta(respuestaFlowise);
 
         //Contar los fuera de tema seguidos: al llegar al máximo, la conversación pasa a una persona
         boolean derivaPorFueraDeTema = false;
@@ -560,9 +753,20 @@ public class ChatwootService {
             }
         }
 
+        //La nota de voz va primero; si falla, el texto sale igual
+        boolean audioEnviado = false;
+        if (audioRespuesta != null && audioRespuesta.length > 0 && !textoRespuesta.isEmpty()) {
+            try {
+                chatwootClient.sendAudioChatwoot(conversationId, audioRespuesta, NOMBRE_ARCHIVO_AUDIO_RESPUESTA);
+                audioEnviado = true;
+            } catch (RuntimeException excepcion) {
+                log.error("Chatwoot falló al enviar la nota de voz a la conversación {}: se manda el texto", conversationId, excepcion);
+            }
+        }
+
         //Entregar el texto y, si corresponde, derivar
         try {
-            if (!textoRespuesta.isEmpty()) {
+            if (!textoRespuesta.isEmpty() && (!audioEnviado || respuestaConTexto)) {
                 chatwootClient.sendMensajeChatwoot(conversationId, textoRespuesta);
             }
             if (derivaPorFueraDeTema) {
@@ -590,30 +794,104 @@ public class ChatwootService {
      * Avisa, en segundo plano, el horario de atención a quien escribe fuera de él.
      *
      * @param conversationId {@code long} identificador de la conversación
-     * @param clinica {@code Clinica} configuración de la clínica (nombre y horario)
+     * @param clinica {@code Clinica} configuración de la clínica (horario)
+     * @param pacienteRegistrado {@code Optional<Paciente>} paciente activo dueño del teléfono, si existe (se saluda por su nombre)
      */
-    public void sendMensajeFueraHorarioAsync(long conversationId, Clinica clinica) {
+    public void sendMensajeFueraHorarioAsync(long conversationId, Clinica clinica, Optional<Paciente> pacienteRegistrado) {
 
-        String mensajeFueraHorario = "Hola, somos " + clinica.getNombre() + ". Nuestro horario de atención es de "
-                + buildRangoHorarioAtencion(clinica) + ". Escribinos en ese horario y te ayudamos.";
+        String saludo = pacienteRegistrado.map(paciente -> "¡Hola, " + paciente.getNombre() + "!").orElse("¡Hola!");
+        String mensajeFueraHorario = saludo + " Lo sentimos, en este momento no estamos atendiendo. "
+                + "Nuestro horario de atención es de " + buildRangoHorarioAtencion(clinica)
+                + ". Escribinos en ese horario y con gusto te ayudamos. 🙂";
         executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, mensajeFueraHorario));
 
     }
 
     /**
-     * Manda, en segundo plano, la bienvenida de la ventana: nombre de la clínica, horario y aviso de
-     * que el mensaje se está revisando. Saluda por el nombre solo si el paciente está registrado.
+     * Compone la bienvenida de la ventana: asistente virtual de la clínica y horario de atención.
+     * Saluda por el nombre solo si el paciente está registrado. Si el nombre de la clínica ya
+     * empieza con "clínica" (sin importar mayúsculas ni tildes), no repite la palabra.
      *
-     * @param conversationId {@code long} identificador de la conversación
      * @param clinica {@code Clinica} configuración de la clínica (nombre y horario)
      * @param pacienteRegistrado {@code Optional<Paciente>} paciente activo dueño del teléfono, si existe
+     * @return {@code String} el texto de la bienvenida
      */
-    public void sendMensajeBienvenidaAsync(long conversationId, Clinica clinica, Optional<Paciente> pacienteRegistrado) {
+    public String buildMensajeBienvenida(Clinica clinica, Optional<Paciente> pacienteRegistrado) {
 
-        String saludo = pacienteRegistrado.map(paciente -> "¡Hola, " + paciente.getNombre() + "!").orElse("¡Hola!");
-        String mensajeBienvenida = saludo + " Somos " + clinica.getNombre() + ", atendemos de "
-                + buildRangoHorarioAtencion(clinica) + ". Ya estamos revisando tu mensaje, aguardá un momento.";
-        executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, mensajeBienvenida));
+        String saludo = pacienteRegistrado.map(paciente -> "¡Hola, " + paciente.getNombre() + "! 👋").orElse("¡Hola! 👋");
+        String nombreClinica = clinica.getNombre().trim();
+        String nombreSinTildes = Normalizer.normalize(nombreClinica, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT);
+        String clinicaConArticulo = nombreSinTildes.startsWith("clinica") ? nombreClinica : "clínica " + nombreClinica;
+        String mensajeBienvenida = saludo + " Soy el asistente virtual de la " + clinicaConArticulo
+                + ". Nuestro horario de atención es de " + buildRangoHorarioAtencion(clinica) + ".";
+        return mensajeBienvenida;
+
+    }
+
+    /**
+     * Manda, en segundo plano y en una sola tarea (para que lleguen en orden), la bienvenida de la
+     * ventana (si corresponde) y el aviso "Un momento" (si el mensaje abrió una tanda nueva;
+     * Diseno-Chatbot §5, D41 y D42).
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     * @param mensajeBienvenida {@code String} bienvenida a mandar, o {@code null} si no corresponde
+     * @param avisoEspera {@code boolean} {@code true} si hay que mandar "Un momento"
+     */
+    public void sendMensajesInicioTandaAsync(long conversationId, String mensajeBienvenida, boolean avisoEspera) {
+
+        if (mensajeBienvenida == null && !avisoEspera) {
+            return;
+        }
+        executeEnviosAsync(conversationId, () -> {
+            if (mensajeBienvenida != null) {
+                sendMensajeSeguro(conversationId, mensajeBienvenida);
+            }
+            if (avisoEspera) {
+                sendMensajeSeguro(conversationId, MENSAJE_ESPERA);
+            }
+        });
+
+    }
+
+    /**
+     * Avisa, en segundo plano, que el audio no se pudo entender.
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     */
+    public void sendMensajeAudioNoEntendidoAsync(long conversationId) {
+
+        executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, MENSAJE_AUDIO_NO_ENTENDIDO));
+
+    }
+
+    /**
+     * Avisa, en segundo plano, que el audio es demasiado largo.
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     */
+    public void sendMensajeAudioLargoAsync(long conversationId) {
+
+        executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, MENSAJE_AUDIO_LARGO));
+
+    }
+
+    /**
+     * Deja, en segundo plano, la transcripción de un audio como nota privada de la conversación
+     * (la ve el equipo, no el paciente).
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     * @param textoTranscripto {@code String} texto transcripto del audio
+     */
+    public void sendNotaTranscripcionAsync(long conversationId, String textoTranscripto) {
+
+        executeEnviosAsync(conversationId, () -> {
+            try {
+                chatwootClient.sendNotaPrivadaChatwoot(conversationId, "🎤 Transcripción: " + textoTranscripto);
+            } catch (RuntimeException excepcion) {
+                log.error("Chatwoot falló al dejar la nota de transcripción en la conversación {}", conversationId, excepcion);
+            }
+        });
 
     }
 
@@ -629,13 +907,15 @@ public class ChatwootService {
     }
 
     /**
-     * Avisa, en segundo plano, que el bot solo lee mensajes de texto.
+     * Avisa, en segundo plano, qué tipos de mensaje lee el bot: "texto o audio" si el audio está
+     * habilitado, "solo texto" si no.
      *
      * @param conversationId {@code long} identificador de la conversación
      */
     public void sendMensajeSoloTextoAsync(long conversationId) {
 
-        executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, MENSAJE_SOLO_TEXTO));
+        String mensajeMedioNoSoportado = openAiService.isAudioHabilitado() ? MENSAJE_TEXTO_O_AUDIO : MENSAJE_SOLO_TEXTO;
+        executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, mensajeMedioNoSoportado));
 
     }
 
@@ -655,18 +935,6 @@ public class ChatwootService {
                 log.error("Chatwoot falló al etiquetar la conversación {} con {}", conversationId, ETIQUETA_DOCUMENTACION, excepcion);
             }
         });
-
-    }
-
-    /**
-     * Manda, en segundo plano, el aviso de espera genérico ("⏳ Un momento…") apenas se despacha la
-     * tanda a Flowise (Diseno-Chatbot §4.7).
-     *
-     * @param conversationId {@code long} identificador de la conversación
-     */
-    public void sendMensajeEsperaGenericoAsync(long conversationId) {
-
-        executeEnviosAsync(conversationId, () -> sendMensajeSeguro(conversationId, MENSAJE_ESPERA));
 
     }
 
@@ -820,6 +1088,39 @@ public class ChatwootService {
             chatwootClient.sendMensajeChatwoot(conversationId, mensaje);
         } catch (RuntimeException excepcion) {
             log.error("Chatwoot falló al responder la conversación {}", conversationId, excepcion);
+        }
+
+    }
+
+    /**
+     * Interpreta el {@code created_at} del payload: epoch en segundos o milisegundos (numérico o en
+     * texto) o fecha ISO.
+     *
+     * @param createdAt {@code JsonNode} valor del payload, o {@code null}
+     * @return {@code Instant} el momento de creación, o {@code null} si no se puede interpretar
+     */
+    private Instant parseCreatedAt(JsonNode createdAt) {
+
+        if (createdAt == null || createdAt.isNull() || createdAt.isMissingNode()) {
+            return null;
+        }
+        String valor = createdAt.asString().trim();
+        if (valor.isEmpty()) {
+            return null;
+        }
+        try {
+            double epoch = Double.parseDouble(valor);
+            Instant creadoEn = epoch > 100_000_000_000d ? Instant.ofEpochMilli((long) epoch)
+                    : Instant.ofEpochMilli((long) (epoch * 1000));
+            return creadoEn;
+        } catch (NumberFormatException excepcion) {
+            //No es numérico: se prueba como fecha ISO
+        }
+        try {
+            Instant creadoEnIso = OffsetDateTime.parse(valor).toInstant();
+            return creadoEnIso;
+        } catch (RuntimeException excepcion) {
+            return null;
         }
 
     }

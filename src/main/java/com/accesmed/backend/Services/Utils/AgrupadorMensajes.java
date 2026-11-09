@@ -69,17 +69,20 @@ public class AgrupadorMensajes<T> implements AutoCloseable {
      * @param clave {@code Long} clave de agrupación (ej. id de conversación)
      * @param elemento {@code T} elemento a agrupar
      * @param procesador {@code Consumer<List<T>>} qué hacer con la tanda cerrada
+     * @return {@code boolean} {@code true} si el elemento abrió una tanda nueva (la clave no tenía
+     *         pendientes antes de agregarlo); {@code false} si se sumó a una tanda ya abierta
      */
-    public synchronized void addElemento(Long clave, T elemento, Consumer<List<T>> procesador) {
+    public synchronized boolean addElemento(Long clave, T elemento, Consumer<List<T>> procesador) {
 
         Grupo<T> grupo = grupos.computeIfAbsent(clave, claveNueva -> new Grupo<>());
+        boolean abreTandaNueva = grupo.pendientes.isEmpty();
         grupo.procesador = procesador;
         grupo.pendientes.add(elemento);
 
         if (grupo.pendientes.size() >= maxElementos) {
             cancelTemporizadores(grupo);
             closeTanda(clave, grupo);
-            return;
+            return abreTandaNueva;
         }
 
         if (grupo.temporizadorEspera != null) {
@@ -89,6 +92,7 @@ public class AgrupadorMensajes<T> implements AutoCloseable {
         if (grupo.temporizadorMaximo == null) {
             grupo.temporizadorMaximo = scheduler.schedule(() -> onTemporizador(clave), esperaMaxima.toMillis(), TimeUnit.MILLISECONDS);
         }
+        return abreTandaNueva;
 
     }
 

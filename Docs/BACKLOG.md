@@ -83,5 +83,11 @@ que se completan.
   - [ ] 6C.3 Batería de pruebas de §4.1 por WhatsApp (reservar y reprogramar de punta a punta, F1–F8 y B1–B4), medir el delay y decidir Strict Tool Calling / quitar `temperature` (§4.9).
   - [ ] 6D Decidir el código de país del teléfono del panel (P2, parte abierta): exigir el prefijo `+54 9…` en front y back (recomendado), completarlo solo, o guardar el número nacional (ver `Docs/Diseno-Chatbot.md §4`, decisión (a)). Hoy el panel acepta un teléfono sin código de país y el bot no lo reconoce; los duplicados por formato que ya existan en la base siguen sin resolverse.
 
+- **Fase 7 — Audio y mensajes del canal (`Docs/Diseno-Chatbot.md §5`)**
+  - [x] 7A Back: transcripción y voz con OpenAI (`OpenAiClient`, `OpenAiService`), audio como entrada en `ChatwootApp`, nota privada con la transcripción, `entradaAudio`, "Un momento" al recibir, textos nuevos de bienvenida y fuera de horario, log de latencia.
+  - [ ] 7B Deploy a staging + `ACCESMED_OPENAI_API_KEY` en el servidor.
+  - [ ] 7C Flow: variable `entradaAudio` y bloque de voz en `comun.md`; export a `AccesMed-Flowise`.
+  - [ ] 7D Prueba por WhatsApp (§5.8.5).
+
 > Las Fases 1-2 se pueden validar sin WhatsApp usando el chat de prueba de Flowise y la UI
 > de Chatwoot. Notificaciones salientes (NOTIF-1..5) = Fase 2 posterior (contrato §11).

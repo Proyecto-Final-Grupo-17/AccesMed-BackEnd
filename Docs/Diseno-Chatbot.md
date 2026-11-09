@@ -162,7 +162,7 @@ especificación; las demás las resuelve el canal antes de llegar al agente.
 | `EX-OPE` | El paciente pide una persona o dice que no entiende | Ir a `CB-OPE` | Fin del bot en esa conversación | Spec (Excepción 2 de todos) |
 | `EX-NOREG` | `F-ID` devuelve `404 PACIENTE_NO_ENCONTRADO` en un CU del grupo C | Presentación de la clínica + invitación a registrarse → `CB-REG` | Fin del CU (spec); ver §1.9 D3 | Spec (Excepción 3 de TURN-2..6) |
 | `EX-BACK` | Una tool falla de forma no prevista (`5xx`, timeout, `CLINICA_NO_ENCONTRADA`) | Disculpa + `CB-OPE` | — | Código |
-| `EX-MEDIA` | Audio, imagen, sticker | "Por ahora solo puedo leer mensajes de texto" | El paciente reescribe | Canal (no llega al LLM) |
+| `EX-MEDIA` | Video, sticker (y audio, solo si el audio está apagado: sin `ACCESMED_OPENAI_API_KEY`; con el audio habilitado se transcribe, §5) | "Por ahora solo puedo leer mensajes de texto" (con audio habilitado: "texto o audio", §5.5) | El paciente reescribe | Canal (no llega al LLM) |
 | `EX-TEC` | Flowise falla o responde vacío | "Estamos con problemas técnicos…" + handoff | — | Canal |
 | `EX-SINTEL` | El mensaje no trae teléfono | Mensaje de error + handoff | — | Canal |
 
@@ -638,7 +638,7 @@ Preguntas que el análisis deja planteadas y se resuelven en la etapa 2:
 | D10 | ¿El bot atiende fuera de horario? | **No.** Solo dentro de `Clinica.horarioInicioAtencion`–`horarioFinAtencion` (zona `Clinica.zonaHoraria`). Fuera de ese rango, el back responde un mensaje fijo y no llama a Flowise. | Decisión del negocio (2026-11-08). |
 | D11 | ¿Mensajes fijos en el back o en Flowise? | **En el back** todo lo que no requiere entender al paciente: aviso de espera/bienvenida, fuera de horario, antispam, solo texto, error técnico. | La predicción de Flowise devuelve una sola respuesta al terminar el flow: un mensaje intermedio desde Flowise exigiría darle el token de Chatwoot. Además, cortar en el back no gasta tokens. |
 | D12 | ¿Pertinencia e intención en uno o dos nodos? | **Un solo *Condition Agent*** con escenarios de intención **y** de rechazo (fuera de tema, abusivo, urgencia). | Una llamada al LLM menos por mensaje: la latencia es el problema principal del canal. |
-| D13 | Audio | **Diferido a después de texto.** Mientras tanto, `EX-MEDIA`. Ver §2.5. | — |
+| D13 | Audio | **Resuelto en §5** (transcripción y voz en el back con OpenAI). Sin `ACCESMED_OPENAI_API_KEY`, el audio sigue cayendo en `EX-MEDIA`. | — |
 | D14 | Memoria de la conversación | El `sessionId` que el back manda a Flowise cambia cuando la conversación queda inactiva más de 30 min (§2.3.4). | Una conversación de Chatwoot vive días: sin corte, un CU a medias de ayer desviaría al router hoy. |
 | D15 | Días de atención | **Hoy no se modelan**: `Clinica` solo tiene horario, así que el bot atiende todos los días dentro de ese horario. Agregar días es un cambio de dominio (skill `domain-schema-generator`), fuera de estas fases. | — |
 
@@ -985,7 +985,7 @@ en que llega el dato; una corrección no es confirmación), `listTurnos` = todo 
 
 | Tema | Estado | Notas |
 |------|--------|-------|
-| **Audio** | Después de texto | Dos caminos: (A) el back manda el audio en `uploads` y Flowise lo transcribe con *Speech to Text*; (B) el back lo transcribe con la API de OpenAI y manda solo texto. Inclinación: **B** (el flow no cambia; la transcripción puede quedar como nota privada en Chatwoot). Bloqueante de A a verificar: WhatsApp manda `audio/ogg` y la guía de Flowise no lo lista (el esquema de la API sí). |
+| **Audio** | Resuelto en §5 (camino B, implementado en el back) | Dos caminos: (A) el back manda el audio en `uploads` y Flowise lo transcribe con *Speech to Text*; (B) el back lo transcribe con la API de OpenAI y manda solo texto. Inclinación: **B** (el flow no cambia; la transcripción puede quedar como nota privada en Chatwoot). Bloqueante de A a verificar: WhatsApp manda `audio/ogg` y la guía de Flowise no lo lista (el esquema de la API sí). |
 | Monto antes de reservar (D6) | Diferido | Endpoint de previsualización. |
 | Días de atención (D15) | Diferido | Cambio de dominio en `Clinica`. |
 | Aviso "sigo revisando" > 15 s | Diferido | §2.3.4. |
@@ -1542,3 +1542,173 @@ en `AccesMed-Flowise` `Docs/AGENTE.md`.
    `Docs/AGENTE.md` y `README.md` de ese repo con el flujo nuevo.
 4. Prueba: batería de §4.1 + casos trampa, directa a Flowise y por WhatsApp.
 5. Retiro de §4.13 y documentación de §4.14.
+
+---
+
+## 5. Etapa 5 — Audio y mensajes del canal (2026-11-09)
+
+> **Estado:** implementado en el back (2026-11-09, `feature/Agente`, sin commitear ni desplegar).
+> Falta el deploy, la configuración de Flowise (§5.6) y la prueba por WhatsApp. Resuelve la decisión
+> diferida de audio (§2.5) y tres ajustes de mensajes pedidos tras usar el bot por WhatsApp.
+>
+> **Decisiones tomadas al implementar:**
+> - **D37** quedó como property `accesmed.audio.respuesta-con-texto` (default `true` = opción (a): nota
+>   de voz y el mismo texto después; `false` = solo la nota de voz).
+> - `ACCESMED_OPENAI_API_KEY` puede ser **la misma key de OpenAI que usa Flowise** (no hace falta una aparte).
+> - Con la key vacía el audio queda apagado y el canal sigue como antes (incluido el aviso "solo texto").
+> - Un audio que no se puede usar (descarga fallida, más pesado que `max-bytes`, transcripción vacía o
+>   error de OpenAI) **solo avisa ese audio**: no deriva la conversación a una persona.
+> - Si en la tanda hay texto y audio, la pregunta une todo en el orden de llegada (audio transcripto
+>   primero, después el pie de texto del mismo mensaje).
+> - El nombre del archivo y el MIME del audio se deducen de la extensión de la `data_url` (default `audio.ogg`).
+> - `OpenAiService.createVozRespuesta` devuelve `Optional` vacío (solo texto) si el texto para voz queda
+>   vacío o supera los 4096 caracteres.
+
+### 5.1 Qué se pidió y diagnóstico
+
+| # | Pedido | Diagnóstico |
+|---|--------|-------------|
+| A1 | El agente recibe audios y responde con audio. | Hoy un audio cae en `EX-MEDIA` ("solo puedo leer texto"). |
+| M1 | "⏳ Un momento…" no es instantáneo. | Sale **al despachar la tanda**: después de los 4 s de agrupación (`accesmed.chatwoot.agrupacion.espera-segundos`) y de dos lecturas a la BD. Log de staging del 2026-11-09: recibido 11:15:24.910 → tanda 11:15:28.922 (4,0 s exactos), más el salto back → Chatwoot → WhatsApp. |
+| M2 | La bienvenida tarda después del primer "Hola". | La manda el **back** (`ChatwootService.sendMensajeBienvenidaAsync`), no el agente: sale en el mismo webhook, en segundo plano y sin esperar la agrupación. El tramo del back es de milisegundos; la demora está en los saltos de Chatwoot (WhatsApp → Chatwoot → Sidekiq → webhook, y back → Chatwoot → Sidekiq → WhatsApp). No se pudo medir el tramo de Chatwoot desde acá: se agrega un log de latencia (§5.4) para medirlo en staging. |
+| M3 | Texto de la bienvenida y de fuera de horario. | Textos nuevos en §5.5. |
+
+### 5.2 Decisiones
+
+| # | Decisión | Resolución |
+|---|----------|------------|
+| D35 | Dónde se transcribe y se sintetiza | **En el back** (camino B de §2.5). El "nodo de entrada que interpreta si es audio" es el back: Chatwoot ya marca el adjunto con `file_type: audio`, no hay que adivinarlo. Flowise recibe **solo texto** y la marca `entradaAudio`. Motivos, verificados en el código de Flowise 3.1.3: (1) su *Speech to Text* **reemplaza** la pregunta (`buildChatflow.js`: `incomingInput.question = speechToTextResult`), así que en una tanda con texto + audio, o con dos audios, se pierde lo demás; (2) su *Text to Speech* no viaja en la respuesta de `prediction`: es un endpoint aparte para el chat embebido (`/api/v1/text-to-speech/generate`, streaming SSE por fragmentos `tts_data`); (3) el que le habla a Chatwoot es el back, así que el audio de respuesta lo tiene que subir él igual; (4) la verificación del flow (§4.3) trabaja sobre texto: la voz se genera después, con el texto ya verificado. El flow casi no cambia (§5.6). |
+| D36 | Proveedor | **OpenAI** (el flow ya lo usa). Transcripción `gpt-4o-mini-transcribe` con `language=es`; voz `gpt-4o-mini-tts` con `instructions` (español rioplatense, tono cálido y profesional) y `response_format=opus` (OGG/Opus, el formato de las notas de voz de WhatsApp). Modelos, voz e instrucciones por property. API key **propia del back** (`ACCESMED_OPENAI_API_KEY`), **opcional**: vacía = audio apagado y todo sigue como hoy. Recomendado: una key aparte en OpenAI con límite de gasto. |
+| D37 | Cuándo se responde con audio | Si la tanda trae **al menos un audio**. **A decidir:** (a) nota de voz **+ el mismo texto** después (recomendada: códigos de turno, horarios y montos de oído se pierden, y en WhatsApp el audio no lleva pie de texto); (b) solo la nota de voz. |
+| D38 | Mensajes fijos | Bienvenida, "Un momento", avisos de escritura, errores y derivación siguen **en texto**. |
+| D39 | Transcripción para el equipo | Cada transcripción queda como **nota privada** en la conversación de Chatwoot ("🎤 Transcripción: …"). Chatwoot CE no transcribe (eso es de *Captain*); sirve cuando una persona toma la conversación. |
+| D40 | Fallas y límites | Transcripción vacía o con error → aviso (§5.5) y ese audio no pasa al agente; si la tanda queda sin nada, no se llama a Flowise. Audio más pesado que `accesmed.audio.max-bytes` → aviso de audio largo. Falla la voz → se manda solo el texto (nunca se pierde la respuesta). Respuesta de más de 4096 caracteres (tope de la API) → solo texto. Video y sticker siguen sin procesarse, con el aviso actualizado. |
+| D41 | "Un momento" | Sale **al recibir** el mensaje que abre una tanda nueva (en el webhook), no al despacharla: se ahorran los 4 s de agrupación. En la misma tanda no se repite. |
+| D42 | Orden de los avisos | Bienvenida y "Un momento" salen en **una sola tarea, en orden** (hoy serían dos tareas del executor y podrían llegar invertidas). |
+
+### 5.3 Flujo con audio
+
+```
+Webhook ─► horario ─► antispam ─► ¿documento? ─► ¿texto o audio? ──no──► aviso "texto o audio"
+                                                      │sí
+                                                      ▼
+                         [1.º de la ventana] bienvenida ─► [abre tanda] "⏳ Un momento…"   (una tarea, en orden)
+                                                      ▼
+                                        agrupador (4 s / 5 msj / 15 s)
+                                                      ▼
+processTandaChatwoot: por cada mensaje, en orden
+   texto  ─► se usa tal cual
+   audio  ─► descarga data_url ─► transcribe (OpenAI) ─► nota privada "🎤 Transcripción" ─► texto
+   pregunta = unión de los textos; vars + entradaAudio=true si hubo audio
+                                                      ▼
+                          Flowise (router, rama, verificación §4.3) ─► texto con tokens
+                                                      ▼
+sendRespuestaFlowise: saca tokens ─► [entradaAudio] texto para voz ─► TTS ─► sube respuesta.ogg
+                                   ─► texto (según D37) ─► handoff / fin como hoy
+```
+
+**Texto para voz** (en el back, determinista, sin tocar al agente): se quitan formato (`*`, `_`, `~`,
+`#`, viñetas) y emojis; `jueves 12/11/2026 09:30` se lee "jueves 12 de noviembre a las 9:30";
+`$85.800` se lee "85.800 pesos"; los códigos `TURNO_…` no se leen si el texto va aparte (D37 a)
+("te lo dejo por escrito"). El texto escrito no cambia.
+
+### 5.4 Cambios en el back (todos en la misma implementación)
+
+**Configuración**
+
+- `application.yml`: `accesmed.openai.base-url` (`https://api.openai.com`), `accesmed.openai.api-key`
+  (`${ACCESMED_OPENAI_API_KEY:}`), `accesmed.audio.modelo-transcripcion`, `accesmed.audio.modelo-voz`,
+  `accesmed.audio.voz`, `accesmed.audio.instrucciones-voz`, `accesmed.audio.max-bytes`,
+  `accesmed.audio.timeout-segundos`.
+- `ACCESMED_OPENAI_API_KEY` en `.env.example`, `docker/deploy/docker-compose.yml` (y su `.env.example`)
+  y el `.env` del servidor. Al ser opcional, `application-test.yml` no cambia.
+
+**Records**
+
+- `AdjuntoChatwootRequest`: suma `dataUrl` (`data_url`) y `fileSize` (`file_size`).
+- `ReceiveMensajeChatwootRequest`: suma `createdAt` (`created_at`), solo para el log de latencia.
+
+**Clientes (`Services/Clients`)**
+
+- `ChatwootClient`: sigue redirecciones (la `data_url` de ActiveStorage redirige);
+  `downloadAdjuntoChatwoot(dataUrl)`; `sendAudioChatwoot(conversationId, audio)` (multipart con
+  `attachments[]`, `audio/ogg`); `sendNotaPrivadaChatwoot(conversationId, texto)`.
+- `OpenAiClient` (nuevo, `RestClient`): `transcribeAudio` (`POST /v1/audio/transcriptions`, multipart)
+  y `createVoz` (`POST /v1/audio/speech`, devuelve los bytes OGG/Opus).
+
+**Servicios externos (`Services/ExternalServices`)**
+
+- `OpenAiService` (nuevo): `isAudioHabilitado`, `transcribeAudioMensaje` (límite de tamaño, idioma,
+  vacío = falla) y `createVozRespuesta` (arma el texto para voz y llama a TTS).
+- `ChatwootService`: `hasAudioMensaje`; `findAdjuntoAudio`; `downloadAudio`; nota de transcripción;
+  envío de la respuesta con audio (audio primero y, según D37, el texto); `entradaAudio` en
+  `buildVariablesFlowise`; textos nuevos (§5.5); `sendMensajesInicioTandaAsync` (bienvenida
+  opcional + "Un momento", en orden); el aviso de "solo texto" pasa a "texto o audio" si el audio está
+  habilitado; log de latencia Chatwoot → back con `created_at`.
+
+**Aplicación y utilidades**
+
+- `AgrupadorMensajes.addElemento` devuelve si el elemento **abrió** una tanda (para D41).
+- `ChatwootApp.receiveMensajeChatwoot`: acepta audio como entrada; bienvenida con el primer mensaje
+  aceptado (texto o audio); "Un momento" al abrir tanda; fuera de horario con el nombre del paciente.
+- `ChatwootApp.processTandaChatwoot`: transcribe los audios de la tanda, marca `entradaAudio`, ya no
+  manda "Un momento" y, si hubo audio, pide la voz antes de entregar.
+
+**Tests:** se ajustan los existentes que rompan por los cambios de firma; no se agregan nuevos salvo
+que se pidan.
+
+**Documentación:** este §5; §1.5 (`EX-MEDIA`) y §2.5 (audio resuelto); `Docs/Features/Chatbot.md`
+(contrato del canal: audio, `entradaAudio`, mensajes fijos); `CLAUDE.md` y `ARQUITECTURA.md`
+(`OpenAiClient`, `OpenAiService`, secreto opcional nuevo); `Docs/DEPLOY.md` si lista las variables;
+`Docs/BACKLOG.md`.
+
+### 5.5 Textos
+
+| Mensaje | Texto |
+|---------|-------|
+| Bienvenida (registrado) | "¡Hola, {nombre}! 👋 Soy el asistente virtual de la clínica {Clinica.nombre}. Nuestro horario de atención es de {inicio} a {fin} h." |
+| Bienvenida (no registrado) | "¡Hola! 👋 Soy el asistente virtual de la clínica {Clinica.nombre}. Nuestro horario de atención es de {inicio} a {fin} h." |
+| Fuera de horario | "¡Hola, {nombre}! Lo sentimos, en este momento no estamos atendiendo. Nuestro horario de atención es de {inicio} a {fin} h. Escribinos en ese horario y con gusto te ayudamos. 🙂" (sin nombre si no está registrado) |
+| Audio no entendido | "🎧 No pude escuchar bien tu audio. ¿Me lo mandás de nuevo o me lo escribís?" |
+| Audio largo | "🎧 Tu audio es un poco largo para mí. ¿Me lo mandás en uno más corto o me lo escribís?" |
+| Otro medio (audio habilitado) | "Por ahora puedo leer mensajes de texto y escuchar audios. ¿Me lo escribís o me mandás un audio?" |
+
+Si `Clinica.nombre` ya empieza con "Clínica", no se repite la palabra ("de la Clínica San José").
+
+### 5.6 Cambios en Flowise (UI de staging, después del deploy del back — D34)
+
+- Variable de sesión `entradaAudio` (*Static*, vacía) y habilitada en *Override Config*.
+- Nodo "Contexto de sesión": la copia a `$flow.state.entradaAudio`.
+- `prompts/comun.md`, un bloque corto: si `entradaAudio` es `true`, el paciente habló por audio y la
+  respuesta se le va a leer en voz alta → frases cortas, sin emojis ni formato, como mucho 3 opciones
+  por mensaje; los datos (`fechaHoraTexto`, códigos, montos) se copian igual que siempre (la
+  verificación no cambia).
+- *Speech to Text* y *Text to Speech* del agentflow quedan **apagados**.
+- Exportar al repo `AccesMed-Flowise`: `flows/agente-chatbot.json`, `prompts/comun.md` y la variable
+  nueva en `Docs/AGENTE.md`.
+
+### 5.7 A verificar antes o durante
+
+1. **Cómo llega un audio saliente a WhatsApp.** Prueba de un minuto: desde la UI de Chatwoot, grabar
+   un audio en una conversación propia y ver si llega como nota de voz. Si llega como archivo de
+   audio, igual se reproduce; no bloquea.
+2. **El pie de texto no viaja con audios** en WhatsApp: por eso, en D37 (a), el texto va como mensaje
+   aparte.
+3. **`data_url` accesible** desde el contenedor del back (URL firmada de ActiveStorage en
+   `chat.accesmed.site`); si pide autenticación, se descarga con el `api_access_token`.
+4. **Modelos habilitados** en la cuenta de OpenAI (por eso van por property).
+5. **Latencia y costo:** la transcripción suma ~1–2 s y la voz ~1–3 s (las cubre el "Un momento");
+   el costo es del orden de centavos de dólar por minuto de audio (confirmar precios vigentes).
+
+### 5.8 Orden de trabajo
+
+0. Usuario: prueba de §5.7.1, key de OpenAI para el back y decisión de D37.
+1. Back completo en `feature/Agente` (§5.4), compilado, tests existentes en verde y probado contra el
+   back local con un webhook simulado (texto, audio, texto + audio, audio vacío, video).
+2. Documentación de §5.4 en el mismo cambio.
+3. Deploy a staging (PR) y `ACCESMED_OPENAI_API_KEY` en el `.env` del servidor.
+4. Flowise en la UI (§5.6) y export al repo.
+5. Prueba por WhatsApp: bienvenida y "Un momento" (medir con el log de latencia), fuera de horario,
+   audio simple, ráfaga texto + audio, dos audios, reserva de punta a punta por audio, audio
+   ininteligible, video. Si el log muestra que la demora de la bienvenida es de Chatwoot (Sidekiq), se
+   evalúa aparte (configuración de colas de Chatwoot), sin tocar el back.

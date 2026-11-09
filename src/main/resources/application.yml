@@ -123,3 +123,18 @@ accesmed:
     # (Docs/Diseno-Chatbot.md 4.8); en el flow, el timeout del modelo va por debajo de este.
     timeout-conexion-segundos: 5
     timeout-lectura-segundos: 60
+  # OpenAI: transcripcion de los audios del paciente y voz de la respuesta (Docs/Diseno-Chatbot.md 5).
+  # La api-key es opcional: vacia = audio apagado (el canal sigue solo con texto).
+  openai:
+    base-url: ${ACCESMED_OPENAI_BASE_URL:https://api.openai.com}
+    api-key: ${ACCESMED_OPENAI_API_KEY:}
+  # Audio del canal: modelos, voz y limites. respuesta-con-texto: true = la nota de voz va seguida del
+  # mismo texto (recomendado: codigos, horarios y montos de oido se pierden); false = solo la nota de voz.
+  audio:
+    modelo-transcripcion: gpt-4o-mini-transcribe
+    modelo-voz: gpt-4o-mini-tts
+    voz: coral
+    instrucciones-voz: Hablá en español rioplatense, con un tono cálido y profesional, a un ritmo pausado y claro.
+    max-bytes: 10485760
+    timeout-segundos: 30
+    respuesta-con-texto: true
