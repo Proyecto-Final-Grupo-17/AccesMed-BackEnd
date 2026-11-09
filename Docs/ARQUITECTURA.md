@@ -402,6 +402,8 @@ accesmed-backend/
     │   │   │   └── Utils/
     │   │   │       ├── NormalizadorTelefono.java
     │   │   │       ├── AgrupadorMensajes.java   # agrupa mensajes en ráfaga por clave (webhook de Chatwoot)
+    │   │   │       ├── MailService.java         # envío SMTP (texto, HTML y con plantilla + logo embebido)
+    │   │   │       ├── PlantillaMailHtml.java   # HTML/texto de todos los mails: logo + contenido + pie con datos de la clínica
     │   │   │       └── <HelperGenerico>.java
     │   │   │
     │   │   ├── Repositories/
