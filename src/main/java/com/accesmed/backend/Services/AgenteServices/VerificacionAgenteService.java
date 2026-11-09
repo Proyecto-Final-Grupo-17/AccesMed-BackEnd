@@ -5,18 +5,22 @@ import com.accesmed.backend.Domain.EstadoPrestacion;
 import com.accesmed.backend.Domain.EstadoTurno;
 import com.accesmed.backend.Domain.IndicacionPrestacion;
 import com.accesmed.backend.Domain.Medico;
+import com.accesmed.backend.Domain.ObraSocial;
+import com.accesmed.backend.Domain.Plan;
 import com.accesmed.backend.Domain.MedicoPrestacion;
 import com.accesmed.backend.Domain.Paciente;
 import com.accesmed.backend.Domain.Prestacion;
 import com.accesmed.backend.Domain.Turno;
 import com.accesmed.backend.Records.AgendaMedico.Criteria.AgendaHorariosCriteria;
 import com.accesmed.backend.Records.AgendaMedico.Response.ListHorarioDisponibleResponse;
+import com.accesmed.backend.Records.Agente.Request.FranjaHorariaAgente;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.CotizacionAfirmada;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.DisponibilidadAfirmada;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.EspecialidadAfirmada;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.HorarioAfirmado;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.MedicoAfirmado;
+import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.ObraSocialAfirmada;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.PrestacionAfirmada;
 import com.accesmed.backend.Records.Agente.Request.VerifyRespuestaAgenteRequest.TurnoAfirmado;
 import com.accesmed.backend.Records.Agente.Response.VerifyRespuestaAgenteResponse;
@@ -28,11 +32,14 @@ import com.accesmed.backend.Services.DomainServices.HistoricoEstadoTurnoDomainSe
 import com.accesmed.backend.Services.DomainServices.IndicacionPrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoDomainService;
 import com.accesmed.backend.Services.DomainServices.MedicoPrestacionDomainService;
+import com.accesmed.backend.Services.DomainServices.ObraSocialDomainService;
 import com.accesmed.backend.Services.DomainServices.PacienteDomainService;
+import com.accesmed.backend.Services.DomainServices.PlanDomainService;
 import com.accesmed.backend.Services.DomainServices.PrestacionDomainService;
 import com.accesmed.backend.Services.DomainServices.TurnoDomainService;
 import com.accesmed.backend.Services.QueryServices.AgendaHorariosDiaQueryService;
 import com.accesmed.backend.Services.QueryServices.Filtering.LocalDateFilter;
+import com.accesmed.backend.Services.QueryServices.Filtering.LocalTimeFilter;
 import com.accesmed.backend.Services.QueryServices.Filtering.UUIDFilter;
 import com.accesmed.backend.Services.Utils.FormatoMensaje;
 import com.accesmed.backend.Services.Utils.NormalizadorBusqueda;
@@ -50,11 +57,12 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Verificación de las respuestas del agente (capa {@code Services/AgenteServices},
  * {@code Docs/Diseno-Chatbot.md §4.3}): contrasta contra la base cada afirmación que el agente
- * declara (especialidades, prestaciones, médicos, horarios, disponibilidad, turnos y cotizaciones)
+ * declara (especialidades, prestaciones, médicos, horarios, disponibilidad, turnos, cotizaciones, obras sociales y planes)
  * y devuelve un veredicto por ítem, con el motivo y el valor correcto cuando se puede dar. Solo lee.
  * <p>
  * Lo usa únicamente {@code AgenteApp}. Con la property {@code accesmed.agente.verificacion.habilitada}
@@ -84,6 +92,8 @@ public class VerificacionAgenteService {
     private final TurnoDomainService turnoDomainService;
     private final PacienteDomainService pacienteDomainService;
     private final ClinicaDomainService clinicaDomainService;
+    private final ObraSocialDomainService obraSocialDomainService;
+    private final PlanDomainService planDomainService;
     private final AgendaHorariosDiaQueryService agendaHorariosDiaQueryService;
     private final CotizacionAgenteService cotizacionAgenteService;
 
@@ -122,12 +132,15 @@ public class VerificacionAgenteService {
         List<ItemVerificado<CotizacionAfirmada>> cotizaciones = verifyItems(
                 verifyRespuestaAgenteRequest.cotizaciones(), cotizacionAfirmada -> verifyCotizacion(numeroTelefono, cotizacionAfirmada));
 
+        List<ItemVerificado<ObraSocialAfirmada>> obrasSociales = verifyItems(
+                verifyRespuestaAgenteRequest.obrasSociales(), this::verifyObraSocial);
+
         boolean verdadero = todosVerdaderos(especialidades) && todosVerdaderos(prestaciones) && todosVerdaderos(medicos)
                 && todosVerdaderos(horarios) && todosVerdaderos(disponibilidad) && todosVerdaderos(turnos)
-                && todosVerdaderos(cotizaciones);
+                && todosVerdaderos(cotizaciones) && todosVerdaderos(obrasSociales);
 
         VerifyRespuestaAgenteResponse verifyRespuestaAgenteResponse = new VerifyRespuestaAgenteResponse(verdadero,
-                especialidades, prestaciones, medicos, horarios, disponibilidad, turnos, cotizaciones);
+                especialidades, prestaciones, medicos, horarios, disponibilidad, turnos, cotizaciones, obrasSociales);
         return verifyRespuestaAgenteResponse;
 
     }
@@ -277,7 +290,9 @@ public class VerificacionAgenteService {
     }
 
     /**
-     * Verifica un "hay turnos" / "no hay turnos" de un día contra los horarios libres de la base.
+     * Verifica un "hay turnos" / "no hay turnos" contra los horarios libres de la base. Según lo que
+     * declaró el agente consulta un día ({@code fecha}), una franja del día ({@code franjaHoraria}),
+     * ambos, o una hora puntual ({@code hora}, que exige {@code fecha}).
      *
      * @param disponibilidadAfirmada {@code DisponibilidadAfirmada} afirmación de disponibilidad
      * @return {@code ItemVerificado<DisponibilidadAfirmada>} el veredicto
@@ -288,6 +303,11 @@ public class VerificacionAgenteService {
         if (prestacionPublicada.isEmpty()) {
             return rechazar(disponibilidadAfirmada, "No hay una prestación publicada llamada \""
                     + disponibilidadAfirmada.prestacion() + "\".", null);
+        }
+
+        //Una hora puntual solo tiene sentido en un día concreto
+        if (disponibilidadAfirmada.hora() != null && disponibilidadAfirmada.fecha() == null) {
+            return rechazar(disponibilidadAfirmada, "Para afirmar si una hora está libre hay que declarar también la fecha.", null);
         }
 
         //Médico opcional
@@ -301,15 +321,51 @@ public class VerificacionAgenteService {
             medicoExistente = medicoActivo.get();
         }
 
-        boolean hayReal = !findSlotsLibres(medicoExistente, prestacionPublicada.get(), disponibilidadAfirmada.fecha()).isEmpty();
+        //Con hora: existe un horario libre justo a esa hora; sin hora: algún horario libre en el día y la franja
+        List<ListHorarioDisponibleResponse> slotsLibres = findSlotsLibres(medicoExistente, prestacionPublicada.get(),
+                disponibilidadAfirmada.fecha(), disponibilidadAfirmada.hora() != null ? null : disponibilidadAfirmada.franjaHoraria());
+        boolean hayReal = disponibilidadAfirmada.hora() != null
+                ? slotsLibres.stream().anyMatch(slot -> slot.horaDesde().truncatedTo(ChronoUnit.MINUTES)
+                        .equals(disponibilidadAfirmada.hora().truncatedTo(ChronoUnit.MINUTES)))
+                : !slotsLibres.isEmpty();
+
         if (disponibilidadAfirmada.hay() != null && disponibilidadAfirmada.hay() != hayReal) {
-            return rechazar(disponibilidadAfirmada, hayReal
-                    ? "Sí hay horarios libres el " + FormatoMensaje.fecha(disponibilidadAfirmada.fecha()) + ". Consultalos antes de decir que no hay."
-                    : "No hay horarios libres el " + FormatoMensaje.fecha(disponibilidadAfirmada.fecha()) + ".",
+            return rechazar(disponibilidadAfirmada, buildMotivoDisponibilidad(disponibilidadAfirmada, hayReal),
                     String.valueOf(hayReal));
         }
 
         return ItemVerificado.aprobado(disponibilidadAfirmada);
+
+    }
+
+    /**
+     * Verifica que la obra social exista y esté activa y que cada plan nombrado sea suyo y esté vigente
+     * (no deshabilitado, la misma consulta que alimenta el listado de obras sociales del canal).
+     *
+     * @param obraSocialAfirmada {@code ObraSocialAfirmada} obra social y planes nombrados
+     * @return {@code ItemVerificado<ObraSocialAfirmada>} el veredicto
+     */
+    private ItemVerificado<ObraSocialAfirmada> verifyObraSocial(ObraSocialAfirmada obraSocialAfirmada) {
+
+        Optional<ObraSocial> obraSocialActiva = obraSocialDomainService.findObrasSocialesActivas().stream()
+                .filter(obraSocial -> sonIguales(obraSocial.getNombre(), obraSocialAfirmada.nombre()))
+                .findFirst();
+        if (obraSocialActiva.isEmpty()) {
+            return rechazar(obraSocialAfirmada, "No hay una obra social activa llamada \"" + obraSocialAfirmada.nombre()
+                    + "\". No la nombres como aceptada.", null);
+        }
+        ObraSocial obraSocialExistente = obraSocialActiva.get();
+
+        List<Plan> planesVigentes = planDomainService.findPlanesNoDeshabilitadosByObraSocial(obraSocialExistente.getId());
+        for (String planAfirmado : orEmpty(obraSocialAfirmada.planes())) {
+            if (planesVigentes.stream().noneMatch(plan -> sonIguales(plan.getNombre(), planAfirmado))) {
+                return rechazar(obraSocialAfirmada, "El plan \"" + planAfirmado + "\" no es un plan vigente de "
+                        + obraSocialExistente.getNombre() + ".",
+                        planesVigentes.stream().map(Plan::getNombre).collect(Collectors.joining(", ")));
+            }
+        }
+
+        return ItemVerificado.aprobado(obraSocialAfirmada);
 
     }
 
@@ -561,7 +617,7 @@ public class VerificacionAgenteService {
             return Optional.empty();
         }
 
-        Optional<ListHorarioDisponibleResponse> slotLibre = findSlotsLibres(medicoActivo.get(), prestacionPublicada.get(), fecha).stream()
+        Optional<ListHorarioDisponibleResponse> slotLibre = findSlotsLibres(medicoActivo.get(), prestacionPublicada.get(), fecha, null).stream()
                 .filter(slot -> slot.horaDesde().truncatedTo(ChronoUnit.MINUTES).equals(hora.truncatedTo(ChronoUnit.MINUTES)))
                 .findFirst();
         return slotLibre;
@@ -569,23 +625,33 @@ public class VerificacionAgenteService {
     }
 
     /**
-     * Lista los horarios libres (dentro del plazo y del horizonte de reserva) de una prestación en
-     * una fecha, opcionalmente de un médico.
+     * Lista los horarios libres (dentro del plazo y del horizonte de reserva) de una prestación,
+     * opcionalmente de un médico, de un día y de una franja del día.
      *
      * @param medico {@code Medico} médico, o {@code null} para cualquiera
      * @param prestacion {@code Prestacion} prestación
-     * @param fecha {@code LocalDate} fecha
+     * @param fecha {@code LocalDate} fecha, o {@code null} para cualquier día
+     * @param franjaHoraria {@code FranjaHorariaAgente} franja del día, o {@code null} para todo el día
      * @return {@code List<ListHorarioDisponibleResponse>} horarios libres (puede estar vacía)
      */
-    private List<ListHorarioDisponibleResponse> findSlotsLibres(Medico medico, Prestacion prestacion, LocalDate fecha) {
+    private List<ListHorarioDisponibleResponse> findSlotsLibres(Medico medico, Prestacion prestacion, LocalDate fecha,
+            FranjaHorariaAgente franjaHoraria) {
 
         AgendaHorariosCriteria agendaHorariosCriteria = new AgendaHorariosCriteria();
         UUIDFilter prestacionFilter = new UUIDFilter();
         prestacionFilter.setEquals(prestacion.getId());
         agendaHorariosCriteria.setPrestacionId(prestacionFilter);
-        LocalDateFilter fechaFilter = new LocalDateFilter();
-        fechaFilter.setEquals(fecha);
-        agendaHorariosCriteria.setFecha(fechaFilter);
+        if (fecha != null) {
+            LocalDateFilter fechaFilter = new LocalDateFilter();
+            fechaFilter.setEquals(fecha);
+            agendaHorariosCriteria.setFecha(fechaFilter);
+        }
+        if (franjaHoraria != null) {
+            LocalTimeFilter horaDesdeFilter = new LocalTimeFilter();
+            horaDesdeFilter.setGreaterThanOrEqual(franjaHoraria.desde());
+            horaDesdeFilter.setLessThan(franjaHoraria.hasta());
+            agendaHorariosCriteria.setHoraDesde(horaDesdeFilter);
+        }
         if (medico != null) {
             UUIDFilter medicoFilter = new UUIDFilter();
             medicoFilter.setEquals(medico.getId());
@@ -595,6 +661,41 @@ public class VerificacionAgenteService {
         List<ListHorarioDisponibleResponse> slotsLibres = agendaHorariosDiaQueryService.findHorariosDisponibles(
                 agendaHorariosCriteria, PageRequest.of(0, TAMANIO_PAGINA_HORARIOS, Sort.by("fecha", "horaDesde"))).content();
         return slotsLibres;
+
+    }
+
+    /**
+     * Arma el motivo del rechazo de una disponibilidad según lo que declaró el agente (fecha, franja
+     * y/o hora), sin mencionar datos que no declaró.
+     *
+     * @param disponibilidadAfirmada {@code DisponibilidadAfirmada} afirmación rechazada
+     * @param hayReal {@code boolean} si en la base hay horarios libres para esa afirmación
+     * @return {@code String} el motivo, en español para el modelo
+     */
+    private String buildMotivoDisponibilidad(DisponibilidadAfirmada disponibilidadAfirmada, boolean hayReal) {
+
+        String fechaTexto = disponibilidadAfirmada.fecha() != null ? FormatoMensaje.fecha(disponibilidadAfirmada.fecha()) : null;
+
+        //Hora puntual
+        if (disponibilidadAfirmada.hora() != null) {
+            String fechaHoraTexto = fechaTexto + " a las " + disponibilidadAfirmada.hora().truncatedTo(ChronoUnit.MINUTES);
+            String motivoHora = hayReal
+                    ? "El " + fechaHoraTexto + " sí hay un horario libre. Consultalo antes de decir que no está."
+                    : "El " + fechaHoraTexto + " no hay un horario libre.";
+            return motivoHora;
+        }
+
+        //Día y/o franja
+        String franjaTexto = disponibilidadAfirmada.franjaHoraria() == null ? "" : switch (disponibilidadAfirmada.franjaHoraria()) {
+            case MANANA -> " a la mañana";
+            case TARDE -> " a la tarde";
+            case NOCHE -> " a la noche";
+        };
+        String contexto = (fechaTexto != null ? " el " + fechaTexto : "") + franjaTexto;
+        String motivoDia = hayReal
+                ? "Sí hay horarios libres" + contexto + ". Consultalos antes de decir que no hay."
+                : "No hay horarios libres" + contexto + ".";
+        return motivoDia;
 
     }
 
