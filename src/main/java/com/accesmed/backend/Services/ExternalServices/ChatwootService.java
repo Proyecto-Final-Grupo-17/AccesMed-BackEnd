@@ -863,8 +863,9 @@ public class ChatwootService {
      * ventana (si corresponde) o, si no hay bienvenida, el aviso "Aguardá un momento" (si el mensaje
      * abrió una tanda nueva; Diseno-Chatbot §3.4.6, D41 y D42). Nunca salen los dos: la bienvenida ya
      * termina con "Ya reviso tu mensaje". Si el paciente habló por audio, cada mensaje va con su audio
-     * fijo ({@link AudioFijo#BIENVENIDA} o {@link AudioFijo#ESPERA}, sin síntesis) y el texto después,
-     * si {@code accesmed.audio.respuesta-con-texto} lo pide; si falta el archivo, sale el texto.
+     * fijo ({@link AudioFijo#BIENVENIDA} o {@link AudioFijo#ESPERA}, sin síntesis). La bienvenida suma el
+     * texto después si {@code accesmed.audio.respuesta-con-texto} lo pide; el aviso de espera en audio
+     * reemplaza al texto. Si falta el archivo, sale el texto.
      *
      * @param conversationId {@code long} identificador de la conversación
      * @param mensajeBienvenida {@code String} bienvenida a mandar, o {@code null} si no corresponde
@@ -881,7 +882,8 @@ public class ChatwootService {
             if (mensajeBienvenida != null) {
                 sendAudioFijoOTexto(conversationId, entradaAudio ? AudioFijo.BIENVENIDA : null, mensajeBienvenida);
             } else {
-                sendAudioFijoOTexto(conversationId, entradaAudio ? AudioFijo.ESPERA : null, MENSAJE_ESPERA);
+                //El aviso de espera en audio ocupa el lugar del texto (solo sale el texto si el audio no se pudo mandar)
+                sendAudioFijoOTexto(conversationId, entradaAudio ? AudioFijo.ESPERA : null, MENSAJE_ESPERA, false);
             }
         });
 
@@ -1129,6 +1131,22 @@ public class ChatwootService {
      */
     private void sendAudioFijoOTexto(long conversationId, AudioFijo audioFijo, String texto) {
 
+        sendAudioFijoOTexto(conversationId, audioFijo, texto, audioRespuestaConTexto);
+
+    }
+
+    /**
+     * Igual que {@link #sendAudioFijoOTexto(long, AudioFijo, String)}, pero decide aparte si el texto
+     * acompaña al audio: el aviso de espera en audio reemplaza al texto, sin importar
+     * {@code accesmed.audio.respuesta-con-texto}.
+     *
+     * @param conversationId {@code long} identificador de la conversación
+     * @param audioFijo {@code AudioFijo} audio pregrabado a mandar, o {@code null} si va solo texto
+     * @param texto {@code String} texto del mensaje
+     * @param textoConAudio {@code boolean} {@code true} si el texto sale también cuando el audio se envió
+     */
+    private void sendAudioFijoOTexto(long conversationId, AudioFijo audioFijo, String texto, boolean textoConAudio) {
+
         boolean audioEnviado = false;
         if (audioFijo != null) {
             Optional<byte[]> contenidoAudio = openAiService.findAudioFijo(audioFijo);
@@ -1142,7 +1160,7 @@ public class ChatwootService {
                 }
             }
         }
-        if (!audioEnviado || audioRespuestaConTexto) {
+        if (!audioEnviado || textoConAudio) {
             sendMensajeSeguro(conversationId, texto);
         }
 
