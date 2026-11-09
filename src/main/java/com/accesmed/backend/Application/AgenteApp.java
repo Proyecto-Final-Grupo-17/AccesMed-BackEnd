@@ -358,6 +358,10 @@ public class AgenteApp {
 
         log.info("Verificación de respuesta del agente iniciada");
 
+        //La segunda verificación de la tanda es un reintento: se le avisa al paciente
+        tandaAgenteService.registerVerificacion(numeroTelefono)
+                .ifPresent(conversationId -> chatwootService.sendMensajeEsperaAsync(conversationId, AccionAgente.REINTENTO_VERIFICACION));
+
         //Contrastar cada afirmación con la base
         VerifyRespuestaAgenteResponse verifyRespuestaAgenteResponse =
                 verificacionAgenteService.verifyRespuesta(numeroTelefono, verifyRespuestaAgenteRequest);
@@ -398,6 +402,7 @@ public class AgenteApp {
     public List<ListEspecialidadAgenteResponse> listEspecialidades(String numeroTelefono) {
 
         log.info("Listado de especialidades por canal");
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
 
         List<ListEspecialidadAgenteResponse> listEspecialidadAgenteResponses =
                 agenteMapper.toListEspecialidadResponses(especialidadDomainService.findEspecialidadesActivas());
@@ -444,6 +449,7 @@ public class AgenteApp {
     public GetOfertaEspecialidadAgenteResponse getOfertaEspecialidad(String numeroTelefono, String nombreEspecialidad) {
 
         log.info("Consulta de oferta de especialidad por canal: especialidad={}", nombreEspecialidad);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
 
         //Resolver la especialidad por parecido y armar la oferta con la relación prestación ↔ médico
         Especialidad especialidadExistente = catalogoAgenteService.findEspecialidadByNombreAproximado(nombreEspecialidad);
@@ -466,6 +472,7 @@ public class AgenteApp {
     public List<SearchPrestacionAgenteResponse> searchPrestaciones(String numeroTelefono, String nombrePrestacion) {
 
         log.info("Búsqueda de prestaciones por canal: nombre={}", nombrePrestacion);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
 
         List<SearchPrestacionAgenteResponse> searchPrestacionAgenteResponses = catalogoAgenteService.searchPrestaciones(nombrePrestacion);
 
@@ -485,6 +492,7 @@ public class AgenteApp {
     public List<SearchMedicoAgenteResponse> searchMedicos(String numeroTelefono, String nombreMedico) {
 
         log.info("Búsqueda de médicos por canal: nombre={}", nombreMedico);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_CATALOGO);
 
         List<SearchMedicoAgenteResponse> searchMedicoAgenteResponses = catalogoAgenteService.searchMedicos(nombreMedico);
 
@@ -518,6 +526,7 @@ public class AgenteApp {
             String matricula, FranjaHorariaAgente franjaHorariaAgente, LocalDate fecha, Pageable pageable) {
 
         log.info("Consulta de horarios disponibles por canal: prestación={}, matrícula={}", nombrePrestacion, matricula);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_HORARIOS);
 
         //Resolver médico por matrícula y, entre sus prestaciones, la que se parece al nombre
         Medico medicoExistente = medicoDomainService.findMedicoActivoByMatricula(matricula);
@@ -577,6 +586,7 @@ public class AgenteApp {
             TipoCobertura tipoCobertura, String codigoTurno) {
 
         log.info("Cotización de turno por canal iniciada: slot={}, cobertura={}, turno={}", slotId, tipoCobertura, codigoTurno);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_COBERTURA);
 
         //Para un turno nuevo la cobertura la elige el paciente; para reprogramar se conserva la del turno
         if (codigoTurno == null && tipoCobertura == null) {
@@ -788,6 +798,7 @@ public class AgenteApp {
     public List<ListTurnoAgenteResponse> listTurnos(String numeroTelefono, AccionTurnoAgente accionTurnoAgente) {
 
         log.info("Listado de turnos por canal iniciado: acción={}", accionTurnoAgente);
+        notifyInicioAccion(numeroTelefono, AccionAgente.CONSULTA_TURNOS);
 
         Paciente pacienteExistente = pacienteDomainService.findPacienteActivoByNumeroTelefono(numeroTelefono);
 
@@ -1071,8 +1082,9 @@ public class AgenteApp {
     }
 
     /**
-     * Registra en la tanda que el agente pidió una acción de escritura y, si es la primera de la
-     * tanda, manda el aviso de espera al paciente ("Reservando tu turno…").
+     * Registra en la tanda que el agente pidió una acción (escritura o consulta que tarda) y, si
+     * corresponde según las reglas de {@code TandaAgenteService} (uno por tipo, hasta dos por tanda),
+     * manda el aviso de espera al paciente ("Reservando tu turno…", "Revisando la cartilla…").
      *
      * @param numeroTelefono {@code String} teléfono del canal, o {@code null} (sin tanda no hay aviso)
      * @param accionAgente {@code AccionAgente} acción pedida

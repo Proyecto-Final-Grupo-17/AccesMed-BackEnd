@@ -138,3 +138,6 @@ accesmed:
     max-bytes: 10485760
     timeout-segundos: 30
     respuesta-con-texto: true
+    # Carpeta de las notas de voz pregrabadas (bienvenida, espera, despedida, derivacion, audio-no-entendido,
+    # audio-largo). Opcional: sin la carpeta o sin un archivo, ese mensaje sale solo en texto.
+    fijos-dir: ${ACCESMED_AUDIO_FIJOS_DIR:./audios}

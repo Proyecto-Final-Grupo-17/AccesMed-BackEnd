@@ -10,6 +10,7 @@ import com.accesmed.backend.Services.DomainServices.ClinicaDomainService;
 import com.accesmed.backend.Services.DomainServices.PacienteDomainService;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Errors.ValidacionException;
+import com.accesmed.backend.Services.ExternalServices.AudioFijo;
 import com.accesmed.backend.Services.ExternalServices.ChatwootService;
 import com.accesmed.backend.Services.ExternalServices.OpenAiService;
 import com.accesmed.backend.Services.Utils.AgrupadorMensajes;
@@ -21,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Supplier;
 
 /**
  * Caso de uso del pasamanos Chatwoot, Flowise y Chatwoot (diseño en
@@ -137,15 +137,10 @@ public class ChatwootApp {
         boolean abreTandaNueva = agrupadorMensajesChatwoot.addElemento(
                 conversationId, receiveMensajeChatwootRequest, this::processTandaChatwoot);
 
-        //Bienvenida y "Un momento" en una sola tarea, en orden: "Un momento" solo con el mensaje que abre la tanda
-        //Si el mensaje que abre la ventana es un audio, la bienvenida también va en voz (se genera en segundo plano)
-        Supplier<byte[]> vozBienvenida = null;
-        if (mensajeBienvenida != null && traeAudio) {
-            String textoBienvenida = mensajeBienvenida;
-            vozBienvenida = () -> openAiService.createVozRespuesta(textoBienvenida, chatwootService.isAudioRespuestaConTexto())
-                    .orElse(null);
-        }
-        chatwootService.sendMensajesInicioTandaAsync(conversationId, mensajeBienvenida, abreTandaNueva, vozBienvenida);
+        //Bienvenida o "Aguardá un momento" en una sola tarea, en orden: la espera solo con el mensaje que abre la
+        //tanda y nunca junto a la bienvenida (que ya termina con "Ya reviso tu mensaje"). Si el paciente habló
+        //por audio, van con su audio fijo (sin síntesis)
+        chatwootService.sendMensajesInicioTandaAsync(conversationId, mensajeBienvenida, abreTandaNueva, traeAudio);
 
     }
 
@@ -223,14 +218,20 @@ public class ChatwootApp {
 
         //Entregar la respuesta (los tokens de handoff, fuera de tema y fin los interpreta el service)
         //Si el paciente habló por audio, la respuesta también va en una nota de voz (si falla, sale solo el texto)
+        //Despedida (—FIN—) y derivación (—HANDOFF—) usan su audio fijo en lugar de la síntesis; sin el archivo sale solo el texto
         byte[] audioRespuesta = null;
         String textoRespuesta = chatwootService.removeTokensRespuesta(respuestaFlowise);
-        if (entradaAudio && !textoRespuesta.isEmpty()) {
-            try {
-                audioRespuesta = openAiService.createVozRespuesta(textoRespuesta, chatwootService.isAudioRespuestaConTexto()).orElse(null);
-            } catch (RuntimeException excepcion) {
-                log.error("No se pudo generar la voz de la respuesta de la conversación {}: se manda solo el texto",
-                        conversationId, excepcion);
+        if (entradaAudio) {
+            Optional<AudioFijo> audioFijoRespuesta = chatwootService.findAudioFijoRespuesta(respuestaFlowise);
+            if (audioFijoRespuesta.isPresent()) {
+                audioRespuesta = openAiService.findAudioFijo(audioFijoRespuesta.get()).orElse(null);
+            } else if (!textoRespuesta.isEmpty()) {
+                try {
+                    audioRespuesta = openAiService.createVozRespuesta(textoRespuesta, chatwootService.isAudioRespuestaConTexto()).orElse(null);
+                } catch (RuntimeException excepcion) {
+                    log.error("No se pudo generar la voz de la respuesta de la conversación {}: se manda solo el texto",
+                            conversationId, excepcion);
+                }
             }
         }
         chatwootService.sendRespuestaFlowise(conversationId, respuestaFlowise, audioRespuesta, chatwootService.isAudioRespuestaConTexto());
