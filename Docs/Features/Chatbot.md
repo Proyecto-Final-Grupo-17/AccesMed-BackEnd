@@ -309,7 +309,7 @@ voz con OpenAI (`POST /v1/audio/speech`, `opus`) a partir de un *texto para voz*
 `* _ ~ #`, viñetas ni emojis; `jueves 12/11/2026 09:30` se lee "jueves 12 de noviembre a las 9:30",
 `12/11/2026` "12 de noviembre de 2026" y `$85.800` "85.800 pesos"; los códigos `TURNO_…` se reemplazan
 por "(te lo dejo por escrito)" si el texto también se manda. Sube primero la nota de voz y, con
-`accesmed.audio.respuesta-con-texto: true` (default), después el mismo texto; con `false`, solo la voz.
+`accesmed.audio.respuesta-con-texto: false` (default), solo la voz (que lee también los códigos); con `true`, después el mismo texto.
 Si la voz falla o el texto para voz supera 4096 caracteres, sale solo el texto. Handoff, fuera de tema
 y fin se interpretan igual.
 

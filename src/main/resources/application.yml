@@ -128,8 +128,9 @@ accesmed:
   openai:
     base-url: ${ACCESMED_OPENAI_BASE_URL:https://api.openai.com}
     api-key: ${ACCESMED_OPENAI_API_KEY:}
-  # Audio del canal: modelos, voz y limites. respuesta-con-texto: true = la nota de voz va seguida del
-  # mismo texto (recomendado: codigos, horarios y montos de oido se pierden); false = solo la nota de voz.
+  # Audio del canal: modelos, voz y limites. respuesta-con-texto: false (default) = si el paciente hablo por
+  # audio, la respuesta va solo en nota de voz (que lee tambien los codigos); true = la nota de voz va
+  # seguida del mismo texto.
   audio:
     modelo-transcripcion: gpt-4o-mini-transcribe
     modelo-voz: gpt-4o-mini-tts
@@ -137,7 +138,7 @@ accesmed:
     instrucciones-voz: Hablá en español rioplatense, con un tono cálido y profesional, a un ritmo pausado y claro.
     max-bytes: 10485760
     timeout-segundos: 30
-    respuesta-con-texto: true
+    respuesta-con-texto: false
     # Carpeta de las notas de voz pregrabadas (bienvenida, espera, despedida, derivacion, audio-no-entendido,
     # audio-largo). Opcional: sin la carpeta o sin un archivo, ese mensaje sale solo en texto.
     fijos-dir: ${ACCESMED_AUDIO_FIJOS_DIR:./audios}
