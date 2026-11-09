@@ -2,9 +2,11 @@ package com.accesmed.backend.Services.Utils;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 import java.util.Locale;
 
 /**
@@ -16,6 +18,9 @@ public final class FormatoMensaje {
 
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter FORMATO_FECHA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final Locale LOCALE_ES_AR = Locale.forLanguageTag("es-AR");
+    private static final DateTimeFormatter FORMATO_FECHA_HORA_TEXTO =
+            DateTimeFormatter.ofPattern("EEEE dd/MM/yyyy HH:mm", LOCALE_ES_AR);
 
     private FormatoMensaje() {
 
@@ -47,6 +52,34 @@ public final class FormatoMensaje {
         return fechaHora != null
                 ? FORMATO_FECHA_HORA.format(fechaHora.withZoneSameInstant(zonaHorariaClinica))
                 : "una fecha desconocida";
+
+    }
+
+    /**
+     * Formatea una fecha y hora local de la clínica para el paciente, con el día de la semana
+     * ({@code jueves 12/11/2026 09:30}). El agente la copia tal cual: si el LLM calcula el día de
+     * la semana a partir de la fecha ISO, se equivoca (Diseno-Chatbot §4.6).
+     *
+     * @param fechaHora {@code LocalDateTime} fecha y hora ya expresadas en la zona de la clínica, o {@code null}
+     * @return {@code String} la fecha y hora legibles, o {@code null} si la fecha es {@code null}
+     */
+    public static String fechaHoraTexto(LocalDateTime fechaHora) {
+
+        String fechaHoraTexto = fechaHora != null ? FORMATO_FECHA_HORA_TEXTO.format(fechaHora) : null;
+        return fechaHoraTexto;
+
+    }
+
+    /**
+     * Devuelve el día de la semana de una fecha en español ({@code jueves}).
+     *
+     * @param fecha {@code LocalDate} fecha de calendario
+     * @return {@code String} el día de la semana en minúscula
+     */
+    public static String diaSemana(LocalDate fecha) {
+
+        String diaSemana = fecha.getDayOfWeek().getDisplayName(TextStyle.FULL, LOCALE_ES_AR).toLowerCase(LOCALE_ES_AR);
+        return diaSemana;
 
     }
 

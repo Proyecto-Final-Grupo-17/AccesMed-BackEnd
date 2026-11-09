@@ -83,6 +83,14 @@ accesmed:
   # Sin clave la app no arranca: dejaría el canal del agente abierto.
   agente:
     api-key: ${ACCESMED_AGENTE_API_KEY}
+    # Búsqueda por parecido del canal: similitud mínima de trigramas del fallback (0 a 1). Con 0.35
+    # "Bilardo" devolvía a "Ricardo Molina" (Docs/Diseno-Chatbot.md §4.5).
+    busqueda:
+      umbral-similitud: 0.5
+    # Verificación de las respuestas del agente contra la base (Docs/Diseno-Chatbot.md §4.3). En false el
+    # endpoint da todo por verdadero sin consultar: interruptor por si en staging da falsos positivos.
+    verificacion:
+      habilitada: true
   # API de Chatwoot: el back responde por ella los mensajes del bot. El secret del webhook firma
   # los eventos del Agent Bot; vacío = no se verifica la firma (solo para probar la integración).
   chatwoot:
@@ -111,3 +119,7 @@ accesmed:
     base-url: ${ACCESMED_FLOWISE_BASE_URL:http://accesmed-flowise:3000}
     chatflow-id: ${ACCESMED_FLOWISE_CHATFLOW_ID}
     api-key: ${ACCESMED_FLOWISE_API_KEY:}
+    # Timeouts del cliente de Flowise. Al vencer la lectura el canal deriva la conversacion a una persona
+    # (Docs/Diseno-Chatbot.md 4.8); en el flow, el timeout del modelo va por debajo de este.
+    timeout-conexion-segundos: 5
+    timeout-lectura-segundos: 60

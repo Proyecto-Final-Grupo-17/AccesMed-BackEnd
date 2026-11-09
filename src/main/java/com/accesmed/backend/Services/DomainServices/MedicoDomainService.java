@@ -5,6 +5,8 @@ import com.accesmed.backend.Domain.Medico_;
 import com.accesmed.backend.Repositories.MedicoRepository;
 import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
+import com.accesmed.backend.Services.Utils.CoincidenciaBusqueda;
+import com.accesmed.backend.Services.Utils.ResultadoBusqueda;
 import com.accesmed.backend.Services.Utils.EspecificacionBusquedaPalabras;
 import com.accesmed.backend.Services.Utils.NormalizadorBusqueda;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import java.util.Optional;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -29,10 +32,8 @@ public class MedicoDomainService {
     //region ========== Constantes ==========
 
     /**
-     * Similitud mínima de trigramas para el fallback de la búsqueda por parecido.
+     * Máximo de resultados del fallback por similitud de trigramas.
      */
-    private static final double UMBRAL_SIMILITUD = 0.35;
-
     private static final int LIMITE_SIMILITUD = 5;
 
     //endregion
@@ -246,6 +247,22 @@ public class MedicoDomainService {
     }
 
     /**
+     * Busca un médico activo por su matrícula sin lanzar excepción si no existe: lo usa la
+     * verificación de respuestas del agente, donde "no existe" es un resultado y no un error.
+     *
+     * @param matricula {@code String} matrícula del médico
+     * @return {@code Optional<Medico>} el médico activo con esa matrícula, o vacío si no hay
+     */
+    public Optional<Medico> findOptionalMedicoActivoByMatricula(String matricula) {
+
+        log.debug("Buscando médico activo por matrícula (opcional): {}", matricula);
+
+        Optional<Medico> medicoActivo = medicoRepository.findByMatriculaAndDeletedAtIsNull(matricula);
+        return medicoActivo;
+
+    }
+
+    /**
      * Lista los médicos activos de una especialidad.
      *
      * @param especialidadId {@code UUID} identificador de la especialidad
@@ -265,15 +282,16 @@ public class MedicoDomainService {
      * tildes) y, si no hay coincidencias, por similitud de trigramas para tolerar errores de tipeo.
      *
      * @param nombre {@code String} texto libre que escribió el paciente ("Raúl", "dra gomez")
-     * @return {@code List<Medico>} las coincidencias (vacía si no hay ninguna)
+     * @param umbralSimilitud {@code double} similitud mínima de trigramas para el fallback (0 a 1)
+     * @return {@code ResultadoBusqueda<Medico>} las coincidencias (vacía si no hay ninguna) y si fueron exactas o aproximadas
      */
-    public List<Medico> searchMedicosActivosByNombre(String nombre) {
+    public ResultadoBusqueda<Medico> searchMedicosActivosByNombre(String nombre, double umbralSimilitud) {
 
         log.debug("Buscando médicos activos por parecido: {}", nombre);
 
         List<String> palabrasBusqueda = NormalizadorBusqueda.findPalabrasBusqueda(nombre);
         if (palabrasBusqueda.isEmpty()) {
-            return List.of();
+            return ResultadoBusqueda.vacio();
         }
 
         //Coincidencia por palabras: cada una contenida en el nombre o en el apellido
@@ -283,13 +301,14 @@ public class MedicoDomainService {
         List<Medico> medicosEncontrados = medicoRepository.findAll(specificationBusqueda,
                 Sort.by(Medico_.APELLIDO, Medico_.NOMBRE));
 
-        //Sin coincidencias exactas por palabra: probar por similitud (errores de tipeo)
+        //Sin coincidencias exactas por palabra: probar por similitud (errores de tipeo), avisando que es aproximada
+        ResultadoBusqueda<Medico> resultadoBusqueda = new ResultadoBusqueda<>(medicosEncontrados, CoincidenciaBusqueda.EXACTA);
         if (medicosEncontrados.isEmpty()) {
-            medicosEncontrados = medicoRepository.findActivosBySimilitudNombre(
-                    String.join(" ", palabrasBusqueda), UMBRAL_SIMILITUD, LIMITE_SIMILITUD);
+            resultadoBusqueda = new ResultadoBusqueda<>(medicoRepository.findActivosBySimilitudNombre(
+                    String.join(" ", palabrasBusqueda), umbralSimilitud, LIMITE_SIMILITUD), CoincidenciaBusqueda.APROXIMADA);
         }
 
-        return medicosEncontrados;
+        return resultadoBusqueda;
 
     }
 

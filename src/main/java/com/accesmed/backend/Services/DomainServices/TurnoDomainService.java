@@ -257,6 +257,22 @@ public class TurnoDomainService {
     }
 
     /**
+     * Busca un turno por su código sin lanzar excepción si no existe: lo usa la verificación de
+     * respuestas del agente, donde "no existe" es un resultado y no un error.
+     *
+     * @param codigo {@code String} código del turno
+     * @return {@code Optional<Turno>} el turno, o vacío si no existe
+     */
+    public Optional<Turno> findOptionalTurnoByCodigo(String codigo) {
+
+        log.debug("Buscando turno por código (opcional): {}", codigo);
+
+        Optional<Turno> turnoExistente = turnoRepository.findByCodigo(codigo);
+        return turnoExistente;
+
+    }
+
+    /**
      * Valida que el turno pertenezca al paciente indicado (scope del canal chatbot: un paciente
      * solo puede operar sobre sus propios turnos).
      *

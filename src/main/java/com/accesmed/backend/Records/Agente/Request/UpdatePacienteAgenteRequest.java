@@ -10,7 +10,8 @@ import java.time.LocalDate;
 /**
  * Record para que el agente modifique los datos del paciente (ECU-PAC-2). El paciente se
  * identifica por el header {@code X-Paciente-Telefono}. Un campo en {@code null} significa "no
- * lo toques". El DNI y el teléfono no son modificables desde el canal.
+ * lo toques". El DNI y el teléfono no son modificables desde el canal. Para pasarse a particular
+ * (quitar la obra social) se manda {@code particular = true}.
  */
 public record UpdatePacienteAgenteRequest(
 
@@ -44,7 +45,13 @@ public record UpdatePacienteAgenteRequest(
          * coberturas activas del paciente; {@code null} las deja sin tocar.
          */
         @Valid
-        ObraSocialAgenteRequest obraSocial
+        ObraSocialAgenteRequest obraSocial,
+
+        /**
+         * Pasarse a particular ({@code Boolean}). {@code true} da de baja las coberturas activas del
+         * paciente; {@code null} o {@code false} las dejan sin tocar. No se combina con {@code obraSocial}.
+         */
+        Boolean particular
 
 ) {
 }

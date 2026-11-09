@@ -22,8 +22,10 @@ import com.accesmed.backend.Services.Errors.RecursoNoEncontradoException;
 import com.accesmed.backend.Services.Errors.ReglaNegocioException;
 import com.accesmed.backend.Services.Mappers.AgenteMapper;
 import com.accesmed.backend.Services.Utils.NormalizadorBusqueda;
+import com.accesmed.backend.Services.Utils.ResultadoBusqueda;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -65,6 +67,12 @@ public class CatalogoAgenteService {
     private final HistoricoEstadoPrestacionDomainService historicoEstadoPrestacionDomainService;
     private final AgenteMapper agenteMapper;
 
+    /**
+     * Similitud mínima de trigramas para el fallback de las búsquedas por parecido (Diseno-Chatbot §4.5).
+     */
+    @Value("${accesmed.agente.busqueda.umbral-similitud:0.5}")
+    private double umbralSimilitud;
+
     //endregion
 
     //region ========== Métodos ==========
@@ -80,7 +88,8 @@ public class CatalogoAgenteService {
      */
     public Especialidad findEspecialidadByNombreAproximado(String nombre) {
 
-        List<Especialidad> especialidadesParecidas = especialidadDomainService.searchEspecialidadesActivasByNombre(nombre);
+        List<Especialidad> especialidadesParecidas = especialidadDomainService
+                .searchEspecialidadesActivasByNombre(nombre, umbralSimilitud).resultados();
 
         //Ninguna parecida
         if (especialidadesParecidas.isEmpty()) {
@@ -139,8 +148,9 @@ public class CatalogoAgenteService {
 
         LocalDate hoy = LocalDate.now();
 
-        List<SearchPrestacionAgenteResponse> searchPrestacionAgenteResponses = filterPublicadas(
-                prestacionDomainService.searchPrestacionesByNombre(nombre))
+        ResultadoBusqueda<Prestacion> resultadoBusqueda = prestacionDomainService.searchPrestacionesByNombre(nombre, umbralSimilitud);
+
+        List<SearchPrestacionAgenteResponse> searchPrestacionAgenteResponses = filterPublicadas(resultadoBusqueda.resultados())
                 .stream()
                 .limit(LIMITE_RESULTADOS)
                 .map(prestacion -> {
@@ -149,7 +159,7 @@ public class CatalogoAgenteService {
                     return agenteMapper.toSearchPrestacionResponse(prestacion,
                             indicacionesVigentes.stream().anyMatch(IndicacionPrestacion::getRequiereValidacion),
                             agenteMapper.toListIndicacionPrestacionResponses(indicacionesVigentes),
-                            findMedicosQueAtienden(prestacion.getId(), hoy));
+                            findMedicosQueAtienden(prestacion.getId(), hoy), resultadoBusqueda.coincidencia());
                 })
                 .toList();
         return searchPrestacionAgenteResponses;
@@ -167,11 +177,14 @@ public class CatalogoAgenteService {
 
         LocalDate hoy = LocalDate.now();
 
-        List<SearchMedicoAgenteResponse> searchMedicoAgenteResponses = medicoDomainService.searchMedicosActivosByNombre(nombre)
+        ResultadoBusqueda<Medico> resultadoBusqueda = medicoDomainService.searchMedicosActivosByNombre(nombre, umbralSimilitud);
+
+        List<SearchMedicoAgenteResponse> searchMedicoAgenteResponses = resultadoBusqueda.resultados()
                 .stream()
                 .limit(LIMITE_RESULTADOS)
                 .map(medico -> agenteMapper.toSearchMedicoResponse(medico,
-                        findPrestacionesQueAtiende(medico.getId(), hoy).stream().map(Prestacion::getNombre).toList()))
+                        findPrestacionesQueAtiende(medico.getId(), hoy).stream().map(Prestacion::getNombre).toList(),
+                        resultadoBusqueda.coincidencia()))
                 .toList();
         return searchMedicoAgenteResponses;
 
@@ -191,7 +204,8 @@ public class CatalogoAgenteService {
     public Prestacion findPrestacionDeMedicoByNombreAproximado(String nombrePrestacion, Medico medico) {
 
         //Prestaciones publicadas parecidas al nombre (en toda la clínica)
-        List<Prestacion> prestacionesParecidas = filterPublicadas(prestacionDomainService.searchPrestacionesByNombre(nombrePrestacion));
+        List<Prestacion> prestacionesParecidas = filterPublicadas(
+                prestacionDomainService.searchPrestacionesByNombre(nombrePrestacion, umbralSimilitud).resultados());
         if (prestacionesParecidas.isEmpty()) {
             log.warn("No se encontró una prestación publicada parecida a: {}", nombrePrestacion);
             throw new RecursoNoEncontradoException(getClass(), "PRESTACION_NO_ENCONTRADA",
