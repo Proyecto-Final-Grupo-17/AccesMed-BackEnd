@@ -178,6 +178,7 @@ class TurnoSchedulerTest {
     @Test
     void recordarConfirmacionTurno_soloRecuerdaLosTurnosConFechaVencida() {
         turnoVencido.setFechaHoraRecordatorioConfirmacion(ahora.minusMinutes(5));
+        turnoVencido.setFechaLimiteConfirmacion(ahora.plusHours(1));
         turnoFuturo.setFechaHoraRecordatorioConfirmacion(ahora.plusMinutes(5));
 
         when(turnoDomainService.findTurnosByEstadoVigente(EstadoTurno.PENDIENTE))
@@ -191,6 +192,33 @@ class TurnoSchedulerTest {
     }
 
     @Test
+    void recordarConfirmacionTurno_noRecuerdaSiYaSeEnvio() {
+        turnoVencido.setFechaHoraRecordatorioConfirmacion(ahora.minusMinutes(5));
+        turnoVencido.setFechaLimiteConfirmacion(ahora.plusHours(1));
+        turnoVencido.setFechaHoraRecordatorioEnviado(ahora.minusMinutes(1));
+
+        when(turnoDomainService.findTurnosByEstadoVigente(EstadoTurno.PENDIENTE))
+                .thenReturn(List.of(turnoVencido));
+
+        turnoScheduler.recordarConfirmacionTurno();
+
+        verify(turnoSchedulerService, never()).recordarConfirmacionTurno(any());
+    }
+
+    @Test
+    void recordarConfirmacionTurno_noRecuerdaSiYaVencioLaFechaLimiteDeConfirmacion() {
+        turnoVencido.setFechaHoraRecordatorioConfirmacion(ahora.minusMinutes(5));
+        turnoVencido.setFechaLimiteConfirmacion(ahora.minusMinutes(1));
+
+        when(turnoDomainService.findTurnosByEstadoVigente(EstadoTurno.PENDIENTE))
+                .thenReturn(List.of(turnoVencido));
+
+        turnoScheduler.recordarConfirmacionTurno();
+
+        verify(turnoSchedulerService, never()).recordarConfirmacionTurno(any());
+    }
+
+    @Test
     void recordarConfirmacionTurno_siUnTurnoFallaContinuaConElResto() {
         Turno turnoVencido2 = new Turno();
         turnoVencido2.setId(java.util.UUID.randomUUID());
@@ -198,6 +226,7 @@ class TurnoSchedulerTest {
         turnoVencido2.setFechaLimiteConfirmacion(ahora.plusHours(1));
         turnoVencido2.setFechaLimiteValidacion(ahora.plusHours(2));
         turnoVencido2.setFechaLimiteAnuncioTardio(ahora.plusMinutes(30));
+        turnoVencido.setFechaLimiteConfirmacion(ahora.plusHours(1));
 
         when(turnoDomainService.findTurnosByEstadoVigente(EstadoTurno.PENDIENTE))
                 .thenReturn(List.of(turnoVencido, turnoVencido2));

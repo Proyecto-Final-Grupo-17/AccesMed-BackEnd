@@ -41,7 +41,7 @@ no dependen de la capa `Application` ni importan `Notifications/` directamente.
 
 | Método en `TurnoScheduler` | Transición | Guarda |
 |---|---|---|
-| `recordarConfirmacionTurno` | No cambia estado | `Pendiente` con `fechaHoraRecordatorioConfirmacion` vencida |
+| `recordarConfirmacionTurno` | No cambia estado | `Pendiente` con `fechaHoraRecordatorioConfirmacion` vencida, `fechaLimiteConfirmacion` aún no vencida y `fechaHoraRecordatorioEnviado` vacía (se setea al enviar: un solo recordatorio por turno) |
 | `confirmarTurnosVencidos` | `Pendiente → Confirmado` | `fechaLimiteConfirmacion` vencida |
 | `vencerValidacionesTurno` | `EsperaValidacion → Cancelado` | `fechaLimiteValidacion` vencida |
 | `marcarAusentesTurno` | `Confirmado → Ausente` | `fechaLimiteAnuncioTardio` vencida |

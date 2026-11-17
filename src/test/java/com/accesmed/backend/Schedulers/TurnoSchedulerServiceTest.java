@@ -1,6 +1,7 @@
 package com.accesmed.backend.Schedulers;
 
 import com.accesmed.backend.Domain.AgendaHorariosDia;
+import com.accesmed.backend.Domain.EstadoTurno;
 import com.accesmed.backend.Domain.Medico;
 import com.accesmed.backend.Domain.MotivoCancelacion;
 import com.accesmed.backend.Domain.Paciente;
@@ -20,9 +21,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -127,9 +133,13 @@ class TurnoSchedulerServiceTest {
     // region ========== recordarConfirmacionTurno ==========
 
     @Test
-    void recordarConfirmacionTurno_soloPublicaEventoSinTransicionar() {
+    void recordarConfirmacionTurno_marcaEnviadoYPublicaEventoSinTransicionar() {
+        turno.setFechaLimiteConfirmacion(ZonedDateTime.now().plusHours(1));
+        when(historicoEstadoTurnoDomainService.getEstadoVigente(turno.getId())).thenReturn(EstadoTurno.PENDIENTE);
+
         turnoSchedulerService.recordarConfirmacionTurno(turno.getId());
 
+        assertNotNull(turno.getFechaHoraRecordatorioEnviado());
         verify(historicoEstadoTurnoDomainService, org.mockito.Mockito.never()).transitionPendienteToConfirmadoTurno(turno);
 
         ArgumentCaptor<TurnoNotificacionEvent> eventCaptor = ArgumentCaptor.forClass(TurnoNotificacionEvent.class);
@@ -138,6 +148,37 @@ class TurnoSchedulerServiceTest {
         TurnoNotificacionEvent eventoPublicado = eventCaptor.getValue();
         assertEquals(TipoNotificacionTurno.RECORDATORIO_CONFIRMACION, eventoPublicado.tipo());
         assertEquals(turno, eventoPublicado.turno());
+    }
+
+    @Test
+    void recordarConfirmacionTurno_siYaSeEnvioNoPublicaNada() {
+        turno.setFechaLimiteConfirmacion(ZonedDateTime.now().plusHours(1));
+        turno.setFechaHoraRecordatorioEnviado(ZonedDateTime.now().minusMinutes(1));
+
+        turnoSchedulerService.recordarConfirmacionTurno(turno.getId());
+
+        verify(applicationEventPublisher, never()).publishEvent(any(TurnoNotificacionEvent.class));
+    }
+
+    @Test
+    void recordarConfirmacionTurno_siVencioLaFechaLimiteNoPublicaNada() {
+        turno.setFechaLimiteConfirmacion(ZonedDateTime.now().minusMinutes(1));
+
+        turnoSchedulerService.recordarConfirmacionTurno(turno.getId());
+
+        assertNull(turno.getFechaHoraRecordatorioEnviado());
+        verify(applicationEventPublisher, never()).publishEvent(any(TurnoNotificacionEvent.class));
+    }
+
+    @Test
+    void recordarConfirmacionTurno_siElTurnoYaNoEstaPendienteNoPublicaNada() {
+        turno.setFechaLimiteConfirmacion(ZonedDateTime.now().plusHours(1));
+        when(historicoEstadoTurnoDomainService.getEstadoVigente(turno.getId())).thenReturn(EstadoTurno.CONFIRMADO);
+
+        turnoSchedulerService.recordarConfirmacionTurno(turno.getId());
+
+        assertNull(turno.getFechaHoraRecordatorioEnviado());
+        verify(applicationEventPublisher, never()).publishEvent(any(TurnoNotificacionEvent.class));
     }
 
 }

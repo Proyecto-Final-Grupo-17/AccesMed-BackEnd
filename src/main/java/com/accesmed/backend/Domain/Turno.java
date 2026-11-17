@@ -98,6 +98,9 @@ public class Turno extends Auditable {
     @Column(name = "fecha_hora_recordatorio_confirmacion", nullable = false)
     private ZonedDateTime fechaHoraRecordatorioConfirmacion;
 
+    @Column(name = "fecha_hora_recordatorio_enviado")
+    private ZonedDateTime fechaHoraRecordatorioEnviado; //Vacío = el recordatorio de confirmación aún no se envió
+
     @Enumerated(EnumType.STRING)
     @Column(name = "motivo_cancelacion", length = 30)
     private MotivoCancelacion motivoCancelacion;

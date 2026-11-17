@@ -1,5 +1,6 @@
 package com.accesmed.backend.Schedulers;
 
+import com.accesmed.backend.Domain.EstadoTurno;
 import com.accesmed.backend.Domain.MotivoCancelacion;
 import com.accesmed.backend.Domain.Turno;
 import com.accesmed.backend.Notifications.TipoNotificacionTurno;
@@ -13,6 +14,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
 /**
@@ -92,13 +94,23 @@ public class TurnoSchedulerService {
 
     /**
      * Envía un recordatorio de confirmación al paciente de un turno que aún espera
-     * confirmación. No transiciona estado: solo publica el evento de notificación.
+     * confirmación. No transiciona estado: marca el recordatorio como enviado (para que el
+     * scheduler no lo repita) y publica el evento de notificación.
      *
      * @param turnoId {@code UUID} identificador del turno para recordar confirmación
      */
     @Transactional
     public void recordarConfirmacionTurno(UUID turnoId) {
         var turno = turnoDomainService.findTurnoById(turnoId);
+        ZonedDateTime ahora = ZonedDateTime.now();
+        // La lista del scheduler es previa a la transacción: se reevalúa todo por si el turno cambió en el medio
+        if (turno.getFechaHoraRecordatorioEnviado() != null
+                || !ahora.isBefore(turno.getFechaLimiteConfirmacion())
+                || historicoEstadoTurnoDomainService.getEstadoVigente(turnoId) != EstadoTurno.PENDIENTE) {
+            log.debug("Recordatorio omitido para el turno {}: ya no corresponde", turnoId);
+            return;
+        }
+        turno.setFechaHoraRecordatorioEnviado(ahora);
         applicationEventPublisher.publishEvent(new TurnoNotificacionEvent(TipoNotificacionTurno.RECORDATORIO_CONFIRMACION, turno));
     }
 
