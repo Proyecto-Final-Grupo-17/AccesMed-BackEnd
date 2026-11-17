@@ -113,8 +113,9 @@ public class TurnoScheduler {
     /**
      * Recuerda automáticamente al paciente que debe confirmar su turno. Busca todos los
      * turnos en estado {@code PENDIENTE} cuya fecha de recordatorio ya llegó y envía una
-     * notificación. Cron configurable vía `accesmed.scheduler.recordar-confirmacion.cron`.
-     * No transiciona estado: solo notifica al paciente. Guarda de concurrencia: un turno
+     * notificación, siempre que no se haya enviado antes y la fecha límite de confirmación
+     * no haya pasado. Cron configurable vía `accesmed.scheduler.recordar-confirmacion.cron`.
+     * No transiciona estado: solo notifica al paciente y marca el recordatorio como enviado. Guarda de concurrencia: un turno
      * que fue confirmado manualmente fallará con {@code ReglaNegocioException}; se sigue
      * procesando el resto.
      */
@@ -123,7 +124,9 @@ public class TurnoScheduler {
         ZonedDateTime ahora = ZonedDateTime.now();
         List<Turno> turnos = turnoDomainService.findTurnosByEstadoVigente(EstadoTurno.PENDIENTE);
         for (Turno turno : turnos) {
-            if (ahora.isAfter(turno.getFechaHoraRecordatorioConfirmacion())) {
+            if (turno.getFechaHoraRecordatorioEnviado() == null
+                    && ahora.isAfter(turno.getFechaHoraRecordatorioConfirmacion())
+                    && ahora.isBefore(turno.getFechaLimiteConfirmacion())) {
                 try {
                     turnoSchedulerService.recordarConfirmacionTurno(turno.getId());
                 } catch (RuntimeException excepcion) {

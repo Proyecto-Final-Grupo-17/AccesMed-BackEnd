@@ -339,7 +339,7 @@ duracionMinima > 0  y  duracionMinima ≤ duracionMaxima
 | Cancelar (interno) | sin límite temporal | Médico y administrador |
 | Anunciar | `fechaLimiteAnuncioTemprano ≤ ahora ≤ fechaLimiteAnuncioTardio` | Administrador |
 | Marcar ausente | `ahora > fechaLimiteAnuncioTardio` | Scheduler |
-| Recordar confirmación | `ahora ≥ fechaHoraRecordatorioConfirmacion` y estado `Pendiente` | Scheduler |
+| Recordar confirmación | `ahora ≥ fechaHoraRecordatorioConfirmacion`, `ahora < fechaLimiteConfirmacion`, `fechaHoraRecordatorioEnviado` vacía y estado `Pendiente` | Scheduler |
 
 ### 4.5 Caso límite documentado
 

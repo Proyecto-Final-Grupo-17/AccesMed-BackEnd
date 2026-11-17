@@ -1066,6 +1066,12 @@
           "obligatorio": true
         },
         {
+          "nombre": "fechaHoraRecordatorioEnviado",
+          "tipo": "ZonedDateTime",
+          "obligatorio": false,
+          "nota": "Vacío hasta que el scheduler envía el recordatorio de confirmación; evita reenviarlo en cada corrida."
+        },
+        {
           "nombre": "motivoCancelacion",
           "tipo": "MotivoCancelacion",
           "obligatorio": false,
