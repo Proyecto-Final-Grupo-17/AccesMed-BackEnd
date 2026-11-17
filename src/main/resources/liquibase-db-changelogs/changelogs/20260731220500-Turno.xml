@@ -105,4 +105,16 @@
         </rollback>
     </changeSet>
 
+    <!-- Marca de recordatorio enviado: evita que el scheduler reenvíe el mail en cada corrida.
+         NULL = aún no enviado. Los turnos cuyo recordatorio ya venció se consideran enviados. -->
+    <changeSet id="20261117120000-updated-table-Turno-recordatorio-enviado" author="claude">
+        <addColumn tableName="turno">
+            <column name="fecha_hora_recordatorio_enviado" type="timestamptz"/>
+        </addColumn>
+        <sql>UPDATE turno SET fecha_hora_recordatorio_enviado = fecha_hora_recordatorio_confirmacion WHERE fecha_hora_recordatorio_confirmacion &lt;= now();</sql>
+        <rollback>
+            <dropColumn tableName="turno" columnName="fecha_hora_recordatorio_enviado"/>
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>
